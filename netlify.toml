@@ -5,6 +5,7 @@
   for = "/*"
   [headers.values]
     X-Content-Type-Options = "nosniff"
+    X-Robots-Tag = "noindex, nofollow, noarchive"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
     Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; manifest-src 'self'"
@@ -16,6 +17,11 @@
 
 [[headers]]
   for = "/app.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/sync-client.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
@@ -39,3 +45,13 @@
   for = "/icon.svg"
   [headers.values]
     Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/robots.txt"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store"
