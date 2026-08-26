@@ -2,17 +2,19 @@
   "name": "Filament Inventory",
   "short_name": "Filament",
   "description": "Local-first 3D printer filament inventory dashboard.",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#050b14",
+  "background_color": "#040911",
   "theme_color": "#07111f",
+  "categories": ["utilities", "productivity"],
   "icons": [
-    {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    {"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ],
+  "shortcuts": [
+    {"name":"Inventory","short_name":"Inventory","url":"/#view=inventory"},
+    {"name":"Weigh spool","short_name":"Weigh","url":"/#view=weigh"},
+    {"name":"History","short_name":"History","url":"/#view=history"}
   ]
 }
