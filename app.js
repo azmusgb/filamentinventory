@@ -2,8 +2,9 @@
   'use strict';
 
   const STORAGE_KEY = 'filament-inventory-v1';
-  const APP_VERSION = 2;
+  const APP_VERSION = 3;
   const DEFAULT_REORDER_GRAMS = 250;
+  const MAX_LOG_ENTRIES = 1000;
   const STATUS_ORDER = ['Nearly full', 'High', 'Good', 'Medium', 'Low', 'Very low', 'Unknown'];
   const STATUS_COLORS = {
     'Nearly full': '#84cc16', High: '#65a30d', Good: '#38bdf8', Medium: '#f59e0b', Low: '#f97316', 'Very low': '#ef4444', Unknown: '#64748b'
@@ -40,12 +41,16 @@
   const clone = value => JSON.parse(JSON.stringify(value));
   const nowIso = () => new Date().toISOString();
   const normalizeTriState = value => ['Yes','No','Unknown'].includes(String(value)) ? String(value) : 'Unknown';
+  const isArchived = spool => Boolean(spool.archivedAt);
 
   let inventory = [];
   let weighLog = [];
+  let meta = {lastBackupAt:null};
   let toastTimer;
+  let deferredInstallPrompt = null;
 
   function normalizeSpool(spool) {
+    const createdAt = spool.createdAt || spool.updatedAt || null;
     return {
       id: String(spool.id || '').trim(),
       brand: String(spool.brand || 'Unknown').trim() || 'Unknown',
@@ -58,15 +63,18 @@
       gross: validNum(spool.gross) ? Math.max(0, Number(spool.gross)) : null,
       tare: validNum(spool.tare) ? Math.max(0, Number(spool.tare)) : null,
       location: String(spool.location || '').trim(),
-      confidence: String(spool.confidence || 'Unknown'),
+      confidence: ['Confirmed','High','Medium','Low','Unknown'].includes(String(spool.confidence)) ? String(spool.confidence) : 'Unknown',
       opened: normalizeTriState(spool.opened),
       bagged: normalizeTriState(spool.bagged),
       purchaseSource: String(spool.purchaseSource || '').trim(),
       purchasePrice: validNum(spool.purchasePrice) && Number(spool.purchasePrice) >= 0 ? Number(spool.purchasePrice) : null,
       purchaseDate: /^\d{4}-\d{2}-\d{2}$/.test(String(spool.purchaseDate || '')) ? String(spool.purchaseDate) : '',
       reorderThreshold: validNum(spool.reorderThreshold) && Number(spool.reorderThreshold) >= 0 ? Number(spool.reorderThreshold) : DEFAULT_REORDER_GRAMS,
+      lastDriedDate: /^\d{4}-\d{2}-\d{2}$/.test(String(spool.lastDriedDate || '')) ? String(spool.lastDriedDate) : '',
       notes: String(spool.notes || '').trim(),
-      updatedAt: spool.updatedAt || null
+      createdAt,
+      updatedAt: spool.updatedAt || null,
+      archivedAt: spool.archivedAt || null
     };
   }
 
@@ -85,35 +93,41 @@
     };
   }
 
+  function starterState() {
+    return {spools:clone(starterInventory).map(s => normalizeSpool({...s, createdAt:null})), weighLog:[], meta:{lastBackupAt:null}};
+  }
+
   function loadState() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return {spools: clone(starterInventory).map(normalizeSpool), weighLog: []};
+      if (!raw) return starterState();
       const parsed = JSON.parse(raw);
-      if (!parsed || !Array.isArray(parsed.spools)) throw new Error('Invalid inventory backup');
+      if (!parsed || !Array.isArray(parsed.spools)) throw new Error('Invalid inventory data');
       return {
         spools: parsed.spools.map(normalizeSpool).filter(s => s.id),
-        weighLog: Array.isArray(parsed.weighLog) ? parsed.weighLog.map(normalizeLogEntry).filter(x => x.id) : []
+        weighLog: Array.isArray(parsed.weighLog) ? parsed.weighLog.map(normalizeLogEntry).filter(x => x.id) : [],
+        meta: {lastBackupAt: parsed.meta?.lastBackupAt || parsed.lastBackupAt || null}
       };
     } catch (error) {
       console.warn('Could not load inventory; using starter data.', error);
-      return {spools: clone(starterInventory).map(normalizeSpool), weighLog: []};
+      return starterState();
     }
   }
 
   function saveState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({version:APP_VERSION, savedAt:nowIso(), spools:inventory, weighLog}));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({version:APP_VERSION, savedAt:nowIso(), meta, spools:inventory, weighLog}));
   }
 
   function measurement(spool) {
     const start = Number(spool.startWeight) || 1000;
     if (validNum(spool.gross) && validNum(spool.tare) && Number(spool.gross) >= Number(spool.tare)) {
-      const grams = Math.max(0, Math.min(start, Number(spool.gross) - Number(spool.tare)));
-      return {grams, percent: Math.round((grams / start) * 1000) / 10, source:'Measured'};
+      const raw = Math.max(0, Number(spool.gross) - Number(spool.tare));
+      const grams = Math.min(start, raw);
+      return {grams, percent:Math.round((grams / start) * 1000) / 10, source:'Measured'};
     }
     if (validNum(spool.visualPercent)) {
       const percent = Math.max(0, Math.min(100, Number(spool.visualPercent)));
-      return {grams: Math.round(start * percent / 100), percent, source:'Visual'};
+      return {grams:Math.round(start * percent / 100), percent, source:'Visual'};
     }
     return {grams:null, percent:null, source:'Unknown'};
   }
@@ -130,22 +144,36 @@
   }
 
   function reorderNeeded(spool) {
+    if (isArchived(spool)) return false;
     const m = measurement(spool);
     return m.grams !== null && m.grams <= Number(spool.reorderThreshold ?? DEFAULT_REORDER_GRAMS);
   }
 
-  function showToast(message) {
+  function activeSpools() { return inventory.filter(s => !isArchived(s)); }
+  function archivedSpools() { return inventory.filter(isArchived); }
+
+  function backupAgeText() {
+    if (!meta.lastBackupAt) return 'Never exported';
+    const days = Math.floor((Date.now() - new Date(meta.lastBackupAt).getTime()) / 86400000);
+    if (days <= 0) return 'Backed up today';
+    if (days === 1) return 'Backed up yesterday';
+    return `Backed up ${days} days ago`;
+  }
+
+  function showToast(message, action = null) {
     const el = $('toast');
     if (!el) return;
-    el.textContent = message;
+    el.innerHTML = `<span>${esc(message)}</span>${action ? `<button type="button" class="toast-action" id="toastAction">${esc(action.label)}</button>` : ''}`;
     el.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+    if (action) $('toastAction')?.addEventListener('click', () => { action.run(); el.classList.remove('show'); });
+    toastTimer = setTimeout(() => el.classList.remove('show'), action ? 6000 : 2600);
   }
 
   function switchView(view) {
     document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el.id === `${view}View`));
     document.querySelectorAll('.tab').forEach(el => el.setAttribute('aria-selected', String(el.dataset.view === view)));
+    history.replaceState(null, '', view === 'dashboard' ? location.pathname : `${location.pathname}#view=${encodeURIComponent(view)}`);
     window.scrollTo({top:0, behavior:'smooth'});
   }
 
@@ -155,44 +183,48 @@
     renderInventory();
     renderWeighOptions();
     renderRecentMeasurements();
+    renderHistory();
+    renderDataHealth();
   }
 
   function renderDashboard() {
-    const known = inventory.map(s => ({s, m:measurement(s)})).filter(x => x.m.grams !== null);
+    const active = activeSpools();
+    const known = active.map(s => ({s,m:measurement(s)})).filter(x => x.m.grams !== null);
     const measured = known.filter(x => x.m.source === 'Measured').length;
-    const knownGrams = known.reduce((sum, x) => sum + x.m.grams, 0);
-    const reorder = inventory.filter(reorderNeeded).length;
-    const unknown = inventory.filter(s => measurement(s).percent === null).length;
+    const knownGrams = known.reduce((sum,x) => sum + x.m.grams, 0);
+    const reorder = active.filter(reorderNeeded).length;
+    const unknown = active.filter(s => measurement(s).percent === null).length;
 
     $('metrics').innerHTML = [
-      ['Active spools', inventory.length, 'Unique inventory records'],
-      ['Known filament', `${(knownGrams/1000).toFixed(1)} kg`, `${known.length} spools have a usable estimate`],
+      ['Active spools', active.length, `${archivedSpools().length} archived`],
+      ['Known filament', `${(knownGrams/1000).toFixed(1)} kg`, `${known.length}/${active.length} have a usable estimate`],
       ['Measured', measured, `${weighLog.length} measurements logged`],
-      ['Reorder', reorder, `${unknown} spools still need a fill check`]
+      ['Reorder', reorder, `${unknown} still need a fill check`]
     ].map(([label,value,sub]) => `<article class="metric"><span class="metric-label">${esc(label)}</span><strong class="metric-value">${esc(value)}</strong><div class="metric-sub">${esc(sub)}</div></article>`).join('');
 
     const counts = Object.fromEntries(STATUS_ORDER.map(x => [x,0]));
-    inventory.forEach(s => counts[statusFor(measurement(s).percent)]++);
+    active.forEach(s => counts[statusFor(measurement(s).percent)]++);
     const max = Math.max(1, ...Object.values(counts));
     $('statusBars').innerHTML = STATUS_ORDER.map(status => `<div class="status-row"><div class="status-label"><i class="dot" style="color:${STATUS_COLORS[status]};background:${STATUS_COLORS[status]}"></i>${status}</div><div class="bar"><i style="width:${counts[status]/max*100}%;background:${STATUS_COLORS[status]}"></i></div><div class="bar-count">${counts[status]}</div></div>`).join('');
 
     const materials = {};
-    inventory.forEach(s => materials[s.material || 'Unknown'] = (materials[s.material || 'Unknown'] || 0) + 1);
-    $('materialGrid').innerHTML = Object.entries(materials).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0])).map(([name,count]) => `<article class="material-card"><div class="row"><strong>${esc(name)}</strong><strong>${count}</strong></div><small>${inventory.length ? Math.round(count/inventory.length*100) : 0}% of active spools</small></article>`).join('');
+    active.forEach(s => materials[s.material || 'Unknown'] = (materials[s.material || 'Unknown'] || 0) + 1);
+    $('materialGrid').innerHTML = Object.entries(materials).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0])).slice(0,10).map(([name,count]) => `<article class="material-card"><div class="row"><strong>${esc(name)}</strong><strong>${count}</strong></div><small>${active.length ? Math.round(count/active.length*100) : 0}% of active spools</small></article>`).join('') || '<div class="empty"><strong>No active spools</strong>Add or restore a spool to begin.</div>';
 
-    const reorderItems = inventory.filter(reorderNeeded).map(s => ({s,m:measurement(s),kind:'REORDER'})).sort((a,b) => a.m.grams-b.m.grams);
-    const lowItems = inventory.map(s => ({s,m:measurement(s),kind:'LOW'})).filter(x => x.m.percent !== null && !reorderNeeded(x.s)).sort((a,b) => a.m.percent-b.m.percent);
-    const unknownItems = inventory.filter(s => measurement(s).percent === null).map(s => ({s,m:measurement(s),kind:'CHECK'}));
+    const reorderItems = active.filter(reorderNeeded).map(s => ({s,m:measurement(s),kind:'REORDER'})).sort((a,b) => a.m.grams-b.m.grams);
+    const lowItems = active.map(s => ({s,m:measurement(s),kind:'LOW'})).filter(x => x.m.percent !== null && !reorderNeeded(x.s) && x.m.percent < 40).sort((a,b) => a.m.percent-b.m.percent);
+    const unknownItems = active.filter(s => measurement(s).percent === null).map(s => ({s,m:measurement(s),kind:'CHECK'}));
     const queue = [...reorderItems, ...lowItems, ...unknownItems].slice(0,5);
     $('priorityList').innerHTML = queue.length ? queue.map(({s,m,kind}) => {
       const status = statusFor(m.percent);
       const right = kind === 'REORDER' ? 'REORDER' : (m.percent === null ? 'CHECK' : `${Math.round(m.percent)}%`);
-      return `<div class="quick-item"><i class="dot" style="color:${kind === 'REORDER' ? '#ef4444' : STATUS_COLORS[status]};background:${kind === 'REORDER' ? '#ef4444' : STATUS_COLORS[status]}"></i><div><strong>${esc(s.id)} · ${esc(s.brand)} ${esc(s.material)}</strong><br><span>${esc(s.colorName)} · ${esc(s.location || 'Unassigned')}</span></div><span>${esc(right)}</span></div>`;
+      return `<button class="quick-item quick-button" type="button" data-open-id="${esc(s.id)}"><i class="dot" style="color:${kind === 'REORDER' ? '#ef4444' : STATUS_COLORS[status]};background:${kind === 'REORDER' ? '#ef4444' : STATUS_COLORS[status]}"></i><div><strong>${esc(s.id)} · ${esc(s.brand)} ${esc(s.material)}</strong><br><span>${esc(s.colorName)} · ${esc(s.location || 'Unassigned')}</span></div><span>${esc(right)}</span></button>`;
     }).join('') : '<div class="empty"><strong>No urgent items</strong>No current reorder or fill-check items.</div>';
   }
 
-  function uniqueValues(key) {
-    return [...new Set(inventory.map(s => String(s[key] || '').trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b));
+  function uniqueValues(key, includeArchived = true) {
+    const source = includeArchived ? inventory : activeSpools();
+    return [...new Set(source.map(s => String(s[key] || '').trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b));
   }
 
   function preserveSelectOptions(select, values, defaultLabel) {
@@ -206,23 +238,37 @@
     preserveSelectOptions($('locationFilter'), uniqueValues('location'), 'All locations');
   }
 
+  function compareSpools(a,b,sort) {
+    const ma = measurement(a), mb = measurement(b);
+    if (sort === 'fill-asc') return (ma.percent ?? 999) - (mb.percent ?? 999) || a.id.localeCompare(b.id,undefined,{numeric:true});
+    if (sort === 'fill-desc') return (mb.percent ?? -1) - (ma.percent ?? -1) || a.id.localeCompare(b.id,undefined,{numeric:true});
+    if (sort === 'brand') return a.brand.localeCompare(b.brand) || a.colorName.localeCompare(b.colorName);
+    if (sort === 'updated') return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0) || a.id.localeCompare(b.id,undefined,{numeric:true});
+    if (sort === 'reorder') return Number(reorderNeeded(b)) - Number(reorderNeeded(a)) || (ma.grams ?? 99999) - (mb.grams ?? 99999);
+    return a.id.localeCompare(b.id,undefined,{numeric:true});
+  }
+
   function filteredInventory() {
     const q = $('searchInput').value.trim().toLowerCase();
     const material = $('materialFilter').value;
     const status = $('statusFilter').value;
     const location = $('locationFilter').value;
+    const lifecycle = $('lifecycleFilter').value;
+    const sort = $('sortSelect').value;
     return inventory.filter(s => {
       const hay = [s.id,s.brand,s.material,s.colorName,s.spoolType,s.location,s.purchaseSource,s.notes].join(' ').toLowerCase();
       const statusMatch = !status || (status === 'Reorder needed' ? reorderNeeded(s) : statusFor(measurement(s).percent) === status);
-      return (!q || hay.includes(q)) && (!material || s.material === material) && statusMatch && (!location || s.location === location);
-    }).sort((a,b) => a.id.localeCompare(b.id, undefined, {numeric:true}));
+      const lifecycleMatch = lifecycle === 'all' || (lifecycle === 'archived' ? isArchived(s) : !isArchived(s));
+      return (!q || hay.includes(q)) && (!material || s.material === material) && statusMatch && (!location || s.location === location) && lifecycleMatch;
+    }).sort((a,b) => compareSpools(a,b,sort));
   }
 
   function renderInventory() {
     const list = filteredInventory();
-    $('inventoryCountText').textContent = `${list.length} of ${inventory.length} spools`;
+    const activeCount = activeSpools().length;
+    $('inventoryCountText').textContent = `${list.length} shown · ${activeCount} active · ${archivedSpools().length} archived`;
     if (!list.length) {
-      $('inventoryGrid').innerHTML = '<div class="empty" style="grid-column:1/-1"><strong>No matching spools</strong>Change a filter or add a new spool.</div>';
+      $('inventoryGrid').innerHTML = '<div class="empty" style="grid-column:1/-1"><strong>No matching spools</strong>Change a filter, restore an archived spool, or add a new spool.</div>';
       return;
     }
 
@@ -230,24 +276,30 @@
       const m = measurement(s);
       const status = statusFor(m.percent);
       const color = STATUS_COLORS[status];
-      const pct = m.percent === null ? 0 : Math.max(0, Math.min(100, m.percent));
-      const reorderBadge = reorderNeeded(s) ? '<span class="confidence" style="color:#fecaca;border-color:rgba(239,68,68,.35)">REORDER</span>' : `<span class="confidence">${esc(s.confidence)}</span>`;
-      const purchase = s.purchaseSource || s.purchaseDate || s.purchasePrice !== null ? [s.purchaseSource, s.purchaseDate, s.purchasePrice !== null ? `$${s.purchasePrice.toFixed(2)}` : ''].filter(Boolean).join(' · ') : 'Not recorded';
-      return `<article class="spool-card" data-id="${esc(s.id)}">
-        <div class="spool-head"><div class="swatch" style="background:${esc(s.colorHex)}"></div><div class="spool-title"><h4>${esc(s.id)} · ${esc(s.colorName)}</h4><p>${esc(s.brand)} · ${esc(s.material)}</p></div>${reorderBadge}</div>
+      const pct = m.percent === null ? 0 : Math.max(0,Math.min(100,m.percent));
+      const archived = isArchived(s);
+      const badge = archived ? '<span class="confidence archived-badge">ARCHIVED</span>' : reorderNeeded(s) ? '<span class="confidence reorder-badge">REORDER</span>' : `<span class="confidence">${esc(s.confidence)}</span>`;
+      const purchase = s.purchaseSource || s.purchaseDate || s.purchasePrice !== null ? [s.purchaseSource,s.purchaseDate,s.purchasePrice !== null ? `$${s.purchasePrice.toFixed(2)}` : ''].filter(Boolean).join(' · ') : 'Not recorded';
+      return `<article class="spool-card${archived ? ' archived-card' : ''}" data-id="${esc(s.id)}">
+        <div class="spool-head"><button class="swatch swatch-button" type="button" data-action="focus" data-id="${esc(s.id)}" style="background:${esc(s.colorHex)}" aria-label="Focus ${esc(s.id)}"></button><div class="spool-title"><h4>${esc(s.id)} · ${esc(s.colorName)}</h4><p>${esc(s.brand)} · ${esc(s.material)}</p></div>${badge}</div>
         <div class="spool-body">
           <div class="fill-top"><strong>${m.percent === null ? '—' : `${Math.round(m.percent)}%`}</strong><small>${m.grams === null ? 'Fill unknown' : `~${Math.round(m.grams)} g`}<br>${esc(m.source)}</small></div>
           <div class="progress"><i style="width:${pct}%;background:${color}"></i></div>
           <div class="meta">
-            <div><span>Status</span><strong style="color:${color}">${status}</strong></div>
+            <div><span>Status</span><strong style="color:${color}">${archived ? 'Archived' : status}</strong></div>
             <div><span>Location</span><strong>${esc(s.location || 'Unassigned')}</strong></div>
             <div><span>Opened / Bagged</span><strong>${esc(s.opened)} / ${esc(s.bagged)}</strong></div>
             <div><span>Reorder at</span><strong>${Math.round(s.reorderThreshold)} g</strong></div>
             <div><span>Purchase</span><strong title="${esc(purchase)}">${esc(purchase)}</strong></div>
-            <div><span>Updated</span><strong>${s.updatedAt ? new Date(s.updatedAt).toLocaleDateString() : 'Photo audit'}</strong></div>
+            <div><span>Last dried</span><strong>${s.lastDriedDate || 'Not recorded'}</strong></div>
           </div>
         </div>
-        <div class="card-actions"><button class="btn" data-action="weigh" data-id="${esc(s.id)}" type="button">Weigh</button><button class="btn" data-action="edit" data-id="${esc(s.id)}" type="button">Edit</button><button class="btn btn-danger" data-action="delete" data-id="${esc(s.id)}" type="button">Delete</button></div>
+        <div class="card-actions card-actions-wrap">
+          ${archived ? `<button class="btn" data-action="restore" data-id="${esc(s.id)}" type="button">Restore</button>` : `<button class="btn" data-action="weigh" data-id="${esc(s.id)}" type="button">Weigh</button><button class="btn" data-action="empty" data-id="${esc(s.id)}" type="button">Empty</button>`}
+          <button class="btn" data-action="edit" data-id="${esc(s.id)}" type="button">Edit</button>
+          <button class="btn" data-action="copylink" data-id="${esc(s.id)}" type="button">Link</button>
+          ${archived ? `<button class="btn btn-danger" data-action="delete" data-id="${esc(s.id)}" type="button">Delete</button>` : `<button class="btn btn-danger" data-action="archive" data-id="${esc(s.id)}" type="button">Archive</button>`}
+        </div>
       </article>`;
     }).join('');
   }
@@ -255,7 +307,8 @@
   function renderWeighOptions() {
     const select = $('weighSpool');
     const current = select.value;
-    select.innerHTML = inventory.slice().sort((a,b) => a.id.localeCompare(b.id,undefined,{numeric:true})).map(s => `<option value="${esc(s.id)}">${esc(s.id)} — ${esc(s.brand)} ${esc(s.material)} — ${esc(s.colorName)}</option>`).join('');
+    const active = activeSpools().slice().sort((a,b) => a.id.localeCompare(b.id,undefined,{numeric:true}));
+    select.innerHTML = active.map(s => `<option value="${esc(s.id)}">${esc(s.id)} — ${esc(s.brand)} ${esc(s.material)} — ${esc(s.colorName)}</option>`).join('');
     if ([...select.options].some(o => o.value === current)) select.value = current;
   }
 
@@ -263,11 +316,38 @@
     const el = $('recentMeasurements');
     if (!el) return;
     const recent = weighLog.slice().sort((a,b) => new Date(b.at)-new Date(a.at)).slice(0,6);
-    if (!recent.length) {
-      el.innerHTML = '<div class="empty" style="padding:20px"><strong>No measurements yet</strong>Weigh a spool to start the history.</div>';
-      return;
-    }
-    el.innerHTML = recent.map(x => `<div class="quick-item"><i class="dot" style="color:#38bdf8;background:#38bdf8"></i><div><strong>${esc(x.id)} · ${x.remaining === null ? '—' : `${Math.round(x.remaining)} g`}</strong><br><span>${new Date(x.at).toLocaleString()}${x.location ? ` · ${esc(x.location)}` : ''}</span></div><span>${x.percent === null ? '—' : `${x.percent.toFixed(1)}%`}</span></div>`).join('');
+    el.innerHTML = recent.length ? recent.map(x => `<button class="quick-item quick-button" type="button" data-open-id="${esc(x.id)}"><i class="dot" style="color:#38bdf8;background:#38bdf8"></i><div><strong>${esc(x.id)} · ${x.remaining === null ? '—' : `${Math.round(x.remaining)} g`}</strong><br><span>${new Date(x.at).toLocaleString()}${x.location ? ` · ${esc(x.location)}` : ''}</span></div><span>${x.percent === null ? '—' : `${x.percent.toFixed(1)}%`}</span></button>`).join('') : '<div class="empty" style="padding:20px"><strong>No measurements yet</strong>Weigh a spool to start the history.</div>';
+  }
+
+  function renderHistory() {
+    const el = $('historyList');
+    if (!el) return;
+    const q = $('historySearch')?.value.trim().toLowerCase() || '';
+    const entries = weighLog.slice().sort((a,b) => new Date(b.at)-new Date(a.at)).filter(x => {
+      const spool = inventory.find(s => s.id === x.id);
+      const hay = [x.id,x.location,x.note,spool?.brand,spool?.material,spool?.colorName].join(' ').toLowerCase();
+      return !q || hay.includes(q);
+    });
+    $('historyCount').textContent = `${entries.length} measurement${entries.length === 1 ? '' : 's'}`;
+    el.innerHTML = entries.length ? entries.map(x => {
+      const spool = inventory.find(s => s.id === x.id);
+      return `<article class="history-row"><div class="history-main"><strong>${esc(x.id)} · ${esc(spool?.brand || 'Unknown')} ${esc(spool?.material || '')}</strong><span>${esc(spool?.colorName || '')}</span></div><div><span>Remaining</span><strong>${x.remaining === null ? '—' : `${Math.round(x.remaining)} g`}</strong></div><div><span>Percent</span><strong>${x.percent === null ? '—' : `${x.percent.toFixed(1)}%`}</strong></div><div><span>Date</span><strong>${new Date(x.at).toLocaleString()}</strong></div><div><span>Location</span><strong>${esc(x.location || '—')}</strong></div>${x.note ? `<div class="history-note"><span>Note</span><strong>${esc(x.note)}</strong></div>` : ''}</article>`;
+    }).join('') : '<div class="empty"><strong>No matching measurements</strong>Weigh a spool or change your history search.</div>';
+  }
+
+  function renderDataHealth() {
+    if (!$('dataHealth')) return;
+    const bytes = new Blob([localStorage.getItem(STORAGE_KEY) || '']).size;
+    const active = activeSpools();
+    const unknownFill = active.filter(s => measurement(s).percent === null).length;
+    const lowConfidence = active.filter(s => ['Low','Unknown'].includes(s.confidence)).length;
+    $('dataHealth').innerHTML = `
+      <div class="health-stat"><span>App version</span><strong>v${APP_VERSION}</strong></div>
+      <div class="health-stat"><span>Local data</span><strong>${(bytes/1024).toFixed(1)} KB</strong></div>
+      <div class="health-stat"><span>Backup</span><strong>${esc(backupAgeText())}</strong></div>
+      <div class="health-stat"><span>Unknown fill</span><strong>${unknownFill}</strong></div>
+      <div class="health-stat"><span>Low confidence</span><strong>${lowConfidence}</strong></div>
+      <div class="health-stat"><span>Archived</span><strong>${archivedSpools().length}</strong></div>`;
   }
 
   function nextId() {
@@ -299,13 +379,12 @@
     $('purchasePrice').value = spool?.purchasePrice ?? '';
     $('purchaseDate').value = spool?.purchaseDate || '';
     $('reorderThreshold').value = spool?.reorderThreshold ?? DEFAULT_REORDER_GRAMS;
+    $('lastDriedDate').value = spool?.lastDriedDate || '';
     $('notes').value = spool?.notes || '';
     $('spoolDialog').showModal();
   }
 
-  function closeSpoolDialog() {
-    if ($('spoolDialog').open) $('spoolDialog').close();
-  }
+  function closeSpoolDialog() { if ($('spoolDialog').open) $('spoolDialog').close(); }
 
   function saveSpoolFromForm(event) {
     event.preventDefault();
@@ -317,8 +396,10 @@
     const gross = num($('grossEdit').value);
     const tare = num($('tareEdit').value);
     if (gross !== null && tare !== null && gross < tare) return showToast('Gross weight cannot be less than tare weight.');
+    const existing = originalId ? inventory.find(s => s.id === originalId) : null;
 
     const spool = normalizeSpool({
+      ...existing,
       id,
       brand:$('brand').value,
       material:$('material').value,
@@ -337,21 +418,18 @@
       purchasePrice:num($('purchasePrice').value),
       purchaseDate:$('purchaseDate').value,
       reorderThreshold:num($('reorderThreshold').value) ?? DEFAULT_REORDER_GRAMS,
+      lastDriedDate:$('lastDriedDate').value,
       notes:$('notes').value,
+      createdAt: existing?.createdAt || nowIso(),
       updatedAt:nowIso()
     });
 
     if (originalId) {
       inventory = inventory.map(s => s.id === originalId ? spool : s);
-      if (originalId !== id) weighLog = weighLog.map(x => x.id === originalId ? {...x, id} : x);
-    } else {
-      inventory.push(spool);
-    }
+      if (originalId !== id) weighLog = weighLog.map(x => x.id === originalId ? {...x,id} : x);
+    } else inventory.push(spool);
 
-    saveState();
-    closeSpoolDialog();
-    renderAll();
-    showToast(originalId ? 'Spool updated.' : 'Spool added.');
+    saveState(); closeSpoolDialog(); renderAll(); showToast(originalId ? 'Spool updated.' : 'Spool added.');
   }
 
   function selectForWeigh(id) {
@@ -373,73 +451,154 @@
     $('calcGross').textContent = gross === null ? '—' : `${gross} g`;
     $('calcTare').textContent = tare === null ? '—' : `${tare} g`;
     if (!spool || gross === null || tare === null || gross < tare) {
-      $('calcRemaining').textContent = '—';
-      $('calcPercent').textContent = '—';
-      $('calcStatus').textContent = gross !== null && tare !== null && gross < tare ? 'Check weights' : '—';
+      $('calcRemaining').textContent = '—'; $('calcPercent').textContent = '—'; $('calcStatus').textContent = gross !== null && tare !== null && gross < tare ? 'Check weights' : '—';
       return;
     }
     const grams = Math.max(0, gross - tare);
     const pct = Math.max(0, Math.min(100, grams / (spool.startWeight || 1000) * 100));
     $('calcRemaining').textContent = `${Math.round(grams)} g`;
     $('calcPercent').textContent = `${pct.toFixed(1)}%`;
-    $('calcStatus').textContent = reorderNeeded({...spool, gross, tare}) ? `${statusFor(pct)} · REORDER` : statusFor(pct);
+    $('calcStatus').textContent = reorderNeeded({...spool,gross,tare}) ? `${statusFor(pct)} · REORDER` : statusFor(pct);
   }
 
   function saveMeasurement(event) {
     event.preventDefault();
     const id = $('weighSpool').value;
-    const spool = inventory.find(s => s.id === id);
+    const spool = inventory.find(s => s.id === id && !isArchived(s));
     const gross = num($('grossWeight').value);
     const tare = num($('tareWeight').value);
-    if (!spool || gross === null || tare === null) return showToast('Choose a spool and enter both weights.');
+    if (!spool || gross === null || tare === null) return showToast('Choose an active spool and enter both weights.');
     if (gross < tare) return showToast('Gross weight cannot be less than tare.');
 
-    spool.gross = gross;
-    spool.tare = tare;
-    spool.updatedAt = nowIso();
-    const location = $('weighLocation').value.trim();
-    if (location) spool.location = location;
+    spool.gross = gross; spool.tare = tare; spool.updatedAt = nowIso();
+    const location = $('weighLocation').value.trim(); if (location) spool.location = location;
     const note = $('weighNotes').value.trim();
-    if (note) spool.notes = [spool.notes, `${new Date().toLocaleDateString()}: ${note}`].filter(Boolean).join(' • ');
-
     const m = measurement(spool);
-    weighLog.push(normalizeLogEntry({id, at:spool.updatedAt, gross, tare, remaining:m.grams, percent:m.percent, location:spool.location, note}));
-    if (weighLog.length > 500) weighLog = weighLog.slice(-500);
+    weighLog.push(normalizeLogEntry({id,at:spool.updatedAt,gross,tare,remaining:m.grams,percent:m.percent,location:spool.location,note}));
+    if (weighLog.length > MAX_LOG_ENTRIES) weighLog = weighLog.slice(-MAX_LOG_ENTRIES);
+    saveState(); renderAll(); updateCalcPreview(); showToast(`${id} measurement saved.`);
+  }
 
-    saveState();
-    renderAll();
-    updateCalcPreview();
-    showToast(`${id} measurement saved.`);
+  function markEmpty(spool) {
+    const before = clone(spool);
+    spool.visualPercent = 0;
+    if (validNum(spool.tare)) spool.gross = Number(spool.tare);
+    else spool.gross = null;
+    spool.updatedAt = nowIso();
+    const m = measurement(spool);
+    weighLog.push(normalizeLogEntry({id:spool.id,at:spool.updatedAt,gross:spool.gross,tare:spool.tare,remaining:m.grams,percent:m.percent,location:spool.location,note:'Marked empty'}));
+    saveState(); renderAll();
+    showToast(`${spool.id} marked empty.`, {label:'Undo', run:() => { inventory = inventory.map(s => s.id === before.id ? before : s); for (let i = weighLog.length - 1; i >= 0; i--) { if (weighLog[i].id === before.id && weighLog[i].note === 'Marked empty') { weighLog.splice(i,1); break; } } saveState(); renderAll(); }});
+  }
+
+  function archiveSpool(spool) {
+    const archivedAt = nowIso();
+    spool.archivedAt = archivedAt; spool.updatedAt = archivedAt;
+    saveState(); renderAll();
+    showToast(`${spool.id} archived.`, {label:'Undo', run:() => { spool.archivedAt = null; spool.updatedAt = nowIso(); saveState(); renderAll(); }});
+  }
+
+  function restoreSpool(spool) { spool.archivedAt = null; spool.updatedAt = nowIso(); saveState(); renderAll(); showToast(`${spool.id} restored.`); }
+
+  function permanentlyDeleteSpool(spool) {
+    if (!confirm(`Permanently delete archived spool ${spool.id} and its measurement history? This cannot be undone.`)) return;
+    inventory = inventory.filter(s => s.id !== spool.id);
+    weighLog = weighLog.filter(x => x.id !== spool.id);
+    saveState(); renderAll(); showToast(`${spool.id} permanently deleted.`);
+  }
+
+  async function copySpoolLink(id) {
+    const url = new URL(location.href);
+    url.hash = `spool=${encodeURIComponent(id)}`;
+    try { await navigator.clipboard.writeText(url.toString()); showToast(`Link copied for ${id}.`); }
+    catch { prompt('Copy this spool link:', url.toString()); }
+  }
+
+  function focusSpool(id) {
+    switchView('inventory');
+    $('searchInput').value = id;
+    $('lifecycleFilter').value = 'all';
+    renderInventory();
+    setTimeout(() => {
+      const card = [...document.querySelectorAll('.spool-card')].find(el => el.dataset.id === id);
+      card?.scrollIntoView({behavior:'smooth',block:'center'});
+    }, 80);
   }
 
   function download(name, content, type) {
     const blob = new Blob([content], {type});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+
+  function markBackup() { meta.lastBackupAt = nowIso(); saveState(); renderDataHealth(); }
 
   function exportJson() {
-    download(`filament-inventory-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify({version:APP_VERSION, exportedAt:nowIso(), spools:inventory, weighLog}, null, 2), 'application/json');
+    const exportedAt = nowIso();
+    download(`filament-inventory-${exportedAt.slice(0,10)}.json`, JSON.stringify({version:APP_VERSION,exportedAt,meta,spools:inventory,weighLog},null,2), 'application/json');
+    markBackup(); showToast('JSON backup exported.');
   }
 
-  function csvCell(value) {
-    const s = String(value ?? '');
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
-  }
+  function csvCell(value) { const s = String(value ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s; }
 
   function exportCsv() {
-    const headers = ['ID','Brand','Material','Color','Spool Type','Starting g','Visual %','Gross g','Tare g','Effective Remaining g','Effective %','Status','Reorder Needed','Reorder Threshold g','Location','Opened','Bagged','Purchase Source','Purchase Price','Purchase Date','Confidence','Notes','Updated'];
-    const rows = inventory.map(s => {
-      const m = measurement(s);
-      return [s.id,s.brand,s.material,s.colorName,s.spoolType,s.startWeight,s.visualPercent ?? '',s.gross ?? '',s.tare ?? '',m.grams ?? '',m.percent ?? '',statusFor(m.percent),reorderNeeded(s) ? 'Yes' : 'No',s.reorderThreshold,s.location,s.opened,s.bagged,s.purchaseSource,s.purchasePrice ?? '',s.purchaseDate,s.confidence,s.notes,s.updatedAt ?? ''];
-    });
+    const headers = ['ID','Brand','Material','Color','Color Hex','Spool Type','Starting g','Visual %','Gross g','Tare g','Effective Remaining g','Effective %','Status','Reorder Needed','Reorder Threshold g','Location','Opened','Bagged','Last Dried Date','Purchase Source','Purchase Price','Purchase Date','Confidence','Archived','Notes','Created','Updated'];
+    const rows = inventory.map(s => { const m = measurement(s); return [s.id,s.brand,s.material,s.colorName,s.colorHex,s.spoolType,s.startWeight,s.visualPercent ?? '',s.gross ?? '',s.tare ?? '',m.grams ?? '',m.percent ?? '',statusFor(m.percent),reorderNeeded(s)?'Yes':'No',s.reorderThreshold,s.location,s.opened,s.bagged,s.lastDriedDate,s.purchaseSource,s.purchasePrice ?? '',s.purchaseDate,s.confidence,isArchived(s)?'Yes':'No',s.notes,s.createdAt ?? '',s.updatedAt ?? '']; });
     download(`filament-inventory-${new Date().toISOString().slice(0,10)}.csv`, [headers,...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv;charset=utf-8');
+    markBackup(); showToast('CSV inventory exported.');
+  }
+
+  function exportHistoryCsv() {
+    const headers = ['ID','Timestamp','Gross g','Tare g','Remaining g','Percent','Location','Note'];
+    const rows = weighLog.slice().sort((a,b) => new Date(b.at)-new Date(a.at)).map(x => [x.id,x.at,x.gross ?? '',x.tare ?? '',x.remaining ?? '',x.percent ?? '',x.location,x.note]);
+    download(`filament-measurements-${new Date().toISOString().slice(0,10)}.csv`, [headers,...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv;charset=utf-8');
+    markBackup(); showToast('Measurement history exported.');
+  }
+
+  function parseCsv(text) {
+    const rows = []; let row = []; let field = ''; let quoted = false;
+    for (let i=0;i<text.length;i++) {
+      const c = text[i];
+      if (quoted) {
+        if (c === '"' && text[i+1] === '"') { field += '"'; i++; }
+        else if (c === '"') quoted = false;
+        else field += c;
+      } else if (c === '"') quoted = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row=[]; field=''; }
+      else if (c !== '\r') field += c;
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(v => String(v).trim() !== ''));
+  }
+
+  function headerIndex(headers, ...names) {
+    const lower = headers.map(h => String(h).trim().toLowerCase());
+    for (const name of names) { const i = lower.indexOf(name.toLowerCase()); if (i >= 0) return i; }
+    return -1;
+  }
+
+  async function importCsv(file) {
+    try {
+      const rows = parseCsv(await file.text());
+      if (rows.length < 2) throw new Error('CSV has no data rows.');
+      const h = rows[0];
+      const idx = {
+        id:headerIndex(h,'ID','Spool ID'), brand:headerIndex(h,'Brand'), material:headerIndex(h,'Material','Material / Type'), colorName:headerIndex(h,'Color','Color / Finish'), colorHex:headerIndex(h,'Color Hex'), spoolType:headerIndex(h,'Spool Type','Spool Format'), startWeight:headerIndex(h,'Starting g','Starting Filament (g)'), visualPercent:headerIndex(h,'Visual %','Visual Estimate (%)'), gross:headerIndex(h,'Gross g','Gross Weight (g)'), tare:headerIndex(h,'Tare g','Tare Weight (g)'), location:headerIndex(h,'Location'), opened:headerIndex(h,'Opened'), bagged:headerIndex(h,'Bagged'), lastDriedDate:headerIndex(h,'Last Dried Date'), purchaseSource:headerIndex(h,'Purchase Source'), purchasePrice:headerIndex(h,'Purchase Price'), purchaseDate:headerIndex(h,'Purchase Date'), confidence:headerIndex(h,'Confidence'), reorderThreshold:headerIndex(h,'Reorder Threshold g'), archived:headerIndex(h,'Archived'), notes:headerIndex(h,'Notes')
+      };
+      if (idx.id < 0) throw new Error('CSV must contain an ID column.');
+      const imported = rows.slice(1).map(r => normalizeSpool({
+        id:r[idx.id], brand:idx.brand>=0?r[idx.brand]:'Unknown', material:idx.material>=0?r[idx.material]:'Unknown', colorName:idx.colorName>=0?r[idx.colorName]:'Unknown', colorHex:idx.colorHex>=0?r[idx.colorHex]:'#64748b', spoolType:idx.spoolType>=0?r[idx.spoolType]:'Unknown', startWeight:idx.startWeight>=0?num(r[idx.startWeight]):1000, visualPercent:idx.visualPercent>=0?num(r[idx.visualPercent]):null, gross:idx.gross>=0?num(r[idx.gross]):null, tare:idx.tare>=0?num(r[idx.tare]):null, location:idx.location>=0?r[idx.location]:'', opened:idx.opened>=0?r[idx.opened]:'Unknown', bagged:idx.bagged>=0?r[idx.bagged]:'Unknown', lastDriedDate:idx.lastDriedDate>=0?r[idx.lastDriedDate]:'', purchaseSource:idx.purchaseSource>=0?r[idx.purchaseSource]:'', purchasePrice:idx.purchasePrice>=0?num(r[idx.purchasePrice]):null, purchaseDate:idx.purchaseDate>=0?r[idx.purchaseDate]:'', confidence:idx.confidence>=0?r[idx.confidence]:'Unknown', reorderThreshold:idx.reorderThreshold>=0?num(r[idx.reorderThreshold]):DEFAULT_REORDER_GRAMS, archivedAt:idx.archived>=0 && String(r[idx.archived]).trim().toLowerCase()==='yes'?nowIso():null, notes:idx.notes>=0?r[idx.notes]:'', createdAt:nowIso(), updatedAt:nowIso()
+      })).filter(s => s.id);
+      if (!imported.length) throw new Error('No usable spool rows found.');
+      const duplicates = new Set(); imported.forEach((s,i) => { if (imported.findIndex(x => x.id.toLowerCase() === s.id.toLowerCase()) !== i) duplicates.add(s.id); });
+      if (duplicates.size) throw new Error(`Duplicate IDs in CSV: ${[...duplicates].join(', ')}`);
+      if (!confirm(`Merge ${imported.length} CSV spool records into this browser? Matching IDs will be updated; new IDs will be added.`)) return;
+      const byId = new Map(inventory.map(s => [s.id.toLowerCase(),s]));
+      imported.forEach(s => { const old = byId.get(s.id.toLowerCase()); if (old) inventory = inventory.map(x => x.id.toLowerCase() === s.id.toLowerCase() ? normalizeSpool({...old,...s,createdAt:old.createdAt || s.createdAt}) : x); else inventory.push(s); });
+      saveState(); renderAll(); showToast(`${imported.length} CSV records merged.`);
+    } catch (error) { alert(`CSV import failed: ${error.message}`); }
   }
 
   async function importJson(file) {
@@ -448,88 +607,105 @@
       if (!parsed || !Array.isArray(parsed.spools)) throw new Error('JSON does not contain a spools array.');
       const incoming = parsed.spools.map(normalizeSpool).filter(s => s.id);
       if (!incoming.length) throw new Error('No usable spool records found.');
-      if (!confirm(`Replace local inventory with ${incoming.length} imported spools?`)) return;
-      inventory = incoming;
-      weighLog = Array.isArray(parsed.weighLog) ? parsed.weighLog.map(normalizeLogEntry).filter(x => x.id) : [];
-      saveState();
-      renderAll();
-      showToast('Backup imported.');
-    } catch (error) {
-      alert(`Import failed: ${error.message}`);
-    }
+      const mode = confirm(`Import ${incoming.length} spools. Press OK to REPLACE local inventory, or Cancel to MERGE by spool ID.`) ? 'replace' : 'merge';
+      if (mode === 'replace') {
+        if (!confirm('Replace all local inventory and measurement history with this backup?')) return;
+        inventory = incoming;
+        weighLog = Array.isArray(parsed.weighLog) ? parsed.weighLog.map(normalizeLogEntry).filter(x => x.id) : [];
+      } else {
+        const byId = new Map(inventory.map(s => [s.id.toLowerCase(),s]));
+        incoming.forEach(s => { const old = byId.get(s.id.toLowerCase()); if (old) inventory = inventory.map(x => x.id.toLowerCase() === s.id.toLowerCase() ? normalizeSpool({...old,...s,createdAt:old.createdAt || s.createdAt}) : x); else inventory.push(s); });
+        if (Array.isArray(parsed.weighLog)) {
+          const existingKeys = new Set(weighLog.map(x => `${x.id}|${x.at}|${x.gross}|${x.tare}`));
+          parsed.weighLog.map(normalizeLogEntry).forEach(x => { const key = `${x.id}|${x.at}|${x.gross}|${x.tare}`; if (!existingKeys.has(key)) { weighLog.push(x); existingKeys.add(key); } });
+        }
+      }
+      meta.lastBackupAt = parsed.meta?.lastBackupAt || parsed.exportedAt || meta.lastBackupAt;
+      saveState(); renderAll(); showToast(`Backup ${mode === 'replace' ? 'restored' : 'merged'}.`);
+    } catch (error) { alert(`Import failed: ${error.message}`); }
+  }
+
+  function resetStarter() {
+    if (!confirm('Reset all local edits and restore the 21-spool starter inventory? This replaces current local data.')) return;
+    const state = starterState(); inventory = state.spools; weighLog = state.weighLog; meta = state.meta; saveState(); renderAll(); showToast('Starter inventory restored.');
+  }
+
+  function handleInitialHash() {
+    const hash = location.hash.slice(1);
+    const params = new URLSearchParams(hash.replace(/^\?/,''));
+    const spoolId = params.get('spool');
+    const view = params.get('view');
+    if (spoolId) focusSpool(spoolId);
+    else if (view && ['dashboard','inventory','weigh','history','data'].includes(view)) switchView(view);
   }
 
   function bindEvents() {
     document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
     document.querySelectorAll('[data-jump]').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.jump)));
     ['addTopBtn','heroAddBtn','inventoryAddBtn','mobileAddBtn'].forEach(id => $(id)?.addEventListener('click', () => openSpoolDialog()));
+    $('dialogCloseBtn').addEventListener('click', closeSpoolDialog); $('cancelSpoolBtn').addEventListener('click', closeSpoolDialog); $('spoolForm').addEventListener('submit', saveSpoolFromForm);
 
-    $('dialogCloseBtn').addEventListener('click', closeSpoolDialog);
-    $('cancelSpoolBtn').addEventListener('click', closeSpoolDialog);
-    $('spoolForm').addEventListener('submit', saveSpoolFromForm);
+    ['searchInput','materialFilter','statusFilter','locationFilter','lifecycleFilter','sortSelect'].forEach(id => $(id).addEventListener(id === 'searchInput' ? 'input' : 'change', renderInventory));
+    $('clearFiltersBtn').addEventListener('click', () => { $('searchInput').value=''; $('materialFilter').value=''; $('statusFilter').value=''; $('locationFilter').value=''; $('lifecycleFilter').value='active'; $('sortSelect').value='id'; renderInventory(); });
 
-    ['searchInput','materialFilter','statusFilter','locationFilter'].forEach(id => $(id).addEventListener(id === 'searchInput' ? 'input' : 'change', renderInventory));
-    $('clearFiltersBtn').addEventListener('click', () => {
-      $('searchInput').value='';
-      $('materialFilter').value='';
-      $('statusFilter').value='';
-      $('locationFilter').value='';
-      renderInventory();
+    document.addEventListener('click', event => {
+      const open = event.target.closest('[data-open-id]'); if (open) focusSpool(open.dataset.openId);
     });
 
     $('inventoryGrid').addEventListener('click', event => {
-      const btn = event.target.closest('button[data-action]');
-      if (!btn) return;
-      const spool = inventory.find(s => s.id === btn.dataset.id);
-      if (!spool) return;
-      if (btn.dataset.action === 'edit') openSpoolDialog(spool);
-      if (btn.dataset.action === 'weigh') selectForWeigh(spool.id);
-      if (btn.dataset.action === 'delete' && confirm(`Delete ${spool.id} — ${spool.colorName}?`)) {
-        inventory = inventory.filter(s => s.id !== spool.id);
-        weighLog = weighLog.filter(x => x.id !== spool.id);
-        saveState();
-        renderAll();
-        showToast('Spool deleted.');
-      }
+      const btn = event.target.closest('button[data-action]'); if (!btn) return;
+      const spool = inventory.find(s => s.id === btn.dataset.id); if (!spool) return;
+      const action = btn.dataset.action;
+      if (action === 'edit') openSpoolDialog(spool);
+      else if (action === 'weigh') selectForWeigh(spool.id);
+      else if (action === 'empty' && confirm(`Mark ${spool.id} as empty?`)) markEmpty(spool);
+      else if (action === 'archive' && confirm(`Archive ${spool.id}? Its history will be preserved.`)) archiveSpool(spool);
+      else if (action === 'restore') restoreSpool(spool);
+      else if (action === 'delete') permanentlyDeleteSpool(spool);
+      else if (action === 'copylink') copySpoolLink(spool.id);
+      else if (action === 'focus') focusSpool(spool.id);
     });
 
     ['grossWeight','tareWeight','weighSpool'].forEach(id => $(id).addEventListener(id === 'weighSpool' ? 'change' : 'input', updateCalcPreview));
-    $('weighSpool').addEventListener('change', () => {
-      const s = inventory.find(x => x.id === $('weighSpool').value);
-      $('weighLocation').value = s?.location || '';
-    });
+    $('weighSpool').addEventListener('change', () => { const s = inventory.find(x => x.id === $('weighSpool').value); $('weighLocation').value = s?.location || ''; });
     $('weighForm').addEventListener('submit', saveMeasurement);
 
-    $('exportTopBtn').addEventListener('click', exportJson);
-    $('exportJsonBtn').addEventListener('click', exportJson);
-    $('exportCsvBtn').addEventListener('click', exportCsv);
+    $('historySearch').addEventListener('input', renderHistory);
+    $('exportHistoryBtn').addEventListener('click', exportHistoryCsv);
+
+    $('exportTopBtn').addEventListener('click', exportJson); $('exportJsonBtn').addEventListener('click', exportJson); $('exportCsvBtn').addEventListener('click', exportCsv);
     $('importJsonBtn').addEventListener('click', () => $('importJsonFile').click());
-    $('importJsonFile').addEventListener('change', event => {
-      const file = event.target.files?.[0];
-      if (file) importJson(file);
-      event.target.value='';
+    $('importJsonFile').addEventListener('change', event => { const file = event.target.files?.[0]; if (file) importJson(file); event.target.value=''; });
+    $('importCsvBtn').addEventListener('click', () => $('importCsvFile').click());
+    $('importCsvFile').addEventListener('change', event => { const file = event.target.files?.[0]; if (file) importCsv(file); event.target.value=''; });
+    $('resetBtn').addEventListener('click', resetStarter);
+
+    $('installBtn').addEventListener('click', async () => {
+      if (!deferredInstallPrompt) return showToast('On iPhone/iPad: Share → Add to Home Screen.');
+      deferredInstallPrompt.prompt(); await deferredInstallPrompt.userChoice; deferredInstallPrompt = null; $('installBtn').disabled = true;
     });
 
-    $('resetBtn').addEventListener('click', () => {
-      if (!confirm('Reset all local edits and restore the 21-spool photo-audited starter inventory?')) return;
-      inventory = clone(starterInventory).map(normalizeSpool);
-      weighLog = [];
-      saveState();
-      renderAll();
-      showToast('Starter inventory restored.');
-    });
+    window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); deferredInstallPrompt = event; $('installBtn').disabled = false; });
+    window.addEventListener('appinstalled', () => { deferredInstallPrompt = null; $('installBtn').disabled = true; showToast('App installed.'); });
+  }
+
+  async function registerServiceWorker() {
+    if (!('serviceWorker' in navigator) || !(location.protocol === 'https:' || location.hostname === 'localhost')) return;
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      reg.update().catch(() => {});
+      reg.addEventListener('updatefound', () => {
+        const worker = reg.installing;
+        worker?.addEventListener('statechange', () => {
+          if (worker.state === 'installed' && navigator.serviceWorker.controller) showToast('A new version is ready.', {label:'Reload', run:() => location.reload()});
+        });
+      });
+    } catch (error) { console.warn('Service worker registration failed', error); }
   }
 
   function init() {
-    const state = loadState();
-    inventory = state.spools;
-    weighLog = state.weighLog;
-    bindEvents();
-    renderAll();
-    updateCalcPreview();
-    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-      navigator.serviceWorker.register('/sw.js').catch(error => console.warn('Service worker registration failed', error));
-    }
+    const state = loadState(); inventory = state.spools; weighLog = state.weighLog; meta = state.meta;
+    bindEvents(); renderAll(); updateCalcPreview(); handleInitialHash(); registerServiceWorker();
   }
 
   document.addEventListener('DOMContentLoaded', init);
