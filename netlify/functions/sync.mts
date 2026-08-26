@@ -1,6 +1,6 @@
 import type { Config } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 declare const Netlify: any;
 
@@ -8,7 +8,22 @@ const STORE_NAME = 'filament-inventory-sync';
 const MAX_SPOOLS = 5000;
 const MAX_LOGS = 5000;
 const MAX_BODY_BYTES = 2_000_000;
+const MAX_SNAPSHOTS = 12;
+const MAX_ACTIVITY = 24;
+const MAX_DEVICES = 16;
 const KEY_HEADER = 'x-filament-sync-key';
+
+type Device = { id:string; name:string };
+type DeviceActivity = { id:string; name:string; lastSeenAt:string; lastAction:string };
+type Activity = { at:string; deviceId:string; deviceName:string; type:string; summary:string };
+type Envelope = {
+  protocol:number;
+  revision:string;
+  updatedAt:string;
+  state:any;
+  devices:DeviceActivity[];
+  activity:Activity[];
+};
 
 function json(data: unknown, status = 200, headers: HeadersInit = {}): Response {
   return Response.json(data, { status, headers:{ 'Cache-Control':'no-store', 'Content-Type':'application/json; charset=utf-8', ...headers } });
@@ -29,8 +44,21 @@ function syncKey(req: Request): string | null {
   return key;
 }
 
-function stateKey(key: string): string {
-  return `inventory-${createHash('sha256').update(key).digest('hex')}`;
+function hashKey(key: string): string {
+  return createHash('sha256').update(key).digest('hex');
+}
+
+function stateKey(hash: string): string {
+  return `inventory-${hash}`;
+}
+
+function snapshotPrefix(hash: string): string {
+  return `snapshot-${hash}-`;
+}
+
+function snapshotKey(hash: string, envelope: Envelope): string {
+  const stamp = envelope.updatedAt.replace(/[-:.TZ]/g,'').slice(0,14);
+  return `${snapshotPrefix(hash)}${stamp}-${envelope.revision}`;
 }
 
 function timestamp(value: unknown): number {
@@ -56,22 +84,86 @@ function normalizeTombstones(value: unknown): Record<string,string> {
 function normalizeState(value: any) {
   const spools = Array.isArray(value?.spools) ? value.spools.filter((s:any) => s && String(s.id || '').trim()).slice(0, MAX_SPOOLS) : [];
   const weighLog = Array.isArray(value?.weighLog) ? value.weighLog.filter((x:any) => x && String(x.id || '').trim()).slice(-MAX_LOGS) : [];
-  return { version:Number(value?.version) || 4, spools, weighLog, tombstones:normalizeTombstones(value?.tombstones) };
+  return { version:Math.max(Number(value?.version) || 0, 5), spools, weighLog, tombstones:normalizeTombstones(value?.tombstones) };
+}
+
+function revision(): string {
+  return randomBytes(6).toString('hex');
+}
+
+function sanitizeDevice(value: any): Device {
+  const id = String(value?.id || '').replace(/[^A-Za-z0-9_-]/g,'').slice(0,64);
+  const name = String(value?.name || 'Device').trim().slice(0,60) || 'Device';
+  return { id:id || 'unknown', name };
+}
+
+function updateDevices(devices: DeviceActivity[], device: Device, action: string, at: string): DeviceActivity[] {
+  const map = new Map<string,DeviceActivity>();
+  for (const row of Array.isArray(devices) ? devices : []) {
+    if (row?.id) map.set(String(row.id), row);
+  }
+  map.set(device.id, { id:device.id, name:device.name, lastSeenAt:at, lastAction:action });
+  return [...map.values()].sort((a,b) => timestamp(b.lastSeenAt) - timestamp(a.lastSeenAt)).slice(0, MAX_DEVICES);
+}
+
+function addActivity(activity: Activity[], device: Device, type: string, summary: string, at: string): Activity[] {
+  const row = { at, deviceId:device.id, deviceName:device.name, type, summary:String(summary || '').slice(0,120) };
+  return [row, ...(Array.isArray(activity) ? activity : [])].slice(0, MAX_ACTIVITY);
+}
+
+function asEnvelope(raw: any): Envelope | null {
+  if (!raw) return null;
+  if (raw.state && Array.isArray(raw.state.spools)) {
+    return {
+      protocol:Math.max(Number(raw.protocol) || 0, 5),
+      revision:String(raw.revision || revision()),
+      updatedAt:String(raw.updatedAt || new Date().toISOString()),
+      state:normalizeState(raw.state),
+      devices:Array.isArray(raw.devices) ? raw.devices.slice(0,MAX_DEVICES) : [],
+      activity:Array.isArray(raw.activity) ? raw.activity.slice(0,MAX_ACTIVITY) : [],
+    };
+  }
+  if (Array.isArray(raw.spools)) {
+    return {
+      protocol:5,
+      revision:revision(),
+      updatedAt:String(raw.updatedAt || new Date().toISOString()),
+      state:normalizeState(raw),
+      devices:[],
+      activity:[],
+    };
+  }
+  return null;
 }
 
 function mergeStates(remoteRaw: any, incomingRaw: any) {
   const remote = normalizeState(remoteRaw || {});
   const incoming = normalizeState(incomingRaw || {});
   const tombstones: Record<string,string> = { ...remote.tombstones };
+  let deletedApplied = 0;
   for (const [id, at] of Object.entries(incoming.tombstones)) {
-    if (timestamp(at) >= timestamp(tombstones[id])) tombstones[id] = at;
+    if (timestamp(at) >= timestamp(tombstones[id])) {
+      if (timestamp(at) > timestamp(tombstones[id])) deletedApplied++;
+      tombstones[id] = at;
+    }
   }
 
   const byId = new Map<string,any>();
-  for (const spool of [...remote.spools, ...incoming.spools]) {
+  let incomingWins = 0;
+  let remoteWins = 0;
+  for (const spool of remote.spools) {
+    const key = String(spool.id).trim().toLowerCase();
+    byId.set(key, spool);
+  }
+  for (const spool of incoming.spools) {
     const key = String(spool.id).trim().toLowerCase();
     const old = byId.get(key);
-    if (!old || recordTime(spool) >= recordTime(old)) byId.set(key, spool);
+    if (!old || recordTime(spool) >= recordTime(old)) {
+      if (old && JSON.stringify(old) !== JSON.stringify(spool)) incomingWins++;
+      byId.set(key, spool);
+    } else if (JSON.stringify(old) !== JSON.stringify(spool)) {
+      remoteWins++;
+    }
   }
 
   const spools = [...byId.entries()]
@@ -90,7 +182,52 @@ function mergeStates(remoteRaw: any, incomingRaw: any) {
   }
   const weighLog = [...logMap.values()].sort((a,b) => timestamp(a.at) - timestamp(b.at)).slice(-MAX_LOGS);
 
-  return { version:4, updatedAt:new Date().toISOString(), spools, weighLog, tombstones };
+  return {
+    state:{ version:5, spools, weighLog, tombstones },
+    stats:{ incomingWins, remoteWins, deletedApplied }
+  };
+}
+
+function publicMeta(envelope: Envelope | null) {
+  if (!envelope) return { revision:'', updatedAt:null, devices:[], activity:[] };
+  return {
+    revision:envelope.revision,
+    updatedAt:envelope.updatedAt,
+    devices:envelope.devices,
+    activity:envelope.activity,
+  };
+}
+
+async function saveSnapshot(store: ReturnType<typeof getStore>, hash: string, envelope: Envelope | null) {
+  if (!envelope) return;
+  await store.setJSON(snapshotKey(hash, envelope), envelope);
+  const listed = await store.list({ prefix:snapshotPrefix(hash) });
+  const keys = listed.blobs.map(x => x.key).sort().reverse();
+  for (const key of keys.slice(MAX_SNAPSHOTS)) await store.delete(key);
+}
+
+async function listSnapshots(store: ReturnType<typeof getStore>, hash: string) {
+  const listed = await store.list({ prefix:snapshotPrefix(hash) });
+  const keys = listed.blobs.map(x => x.key).sort().reverse().slice(0, MAX_SNAPSHOTS);
+  const rows:any[] = [];
+  for (const key of keys) {
+    const item = asEnvelope(await store.get(key, { type:'json' }));
+    if (!item) continue;
+    rows.push({
+      revision:item.revision,
+      createdAt:item.updatedAt,
+      spoolCount:item.state.spools.length,
+      logCount:item.state.weighLog.length,
+    });
+  }
+  return rows;
+}
+
+async function getSnapshotByRevision(store: ReturnType<typeof getStore>, hash: string, wanted: string) {
+  const listed = await store.list({ prefix:snapshotPrefix(hash) });
+  const match = listed.blobs.find(x => x.key.endsWith(`-${wanted}`));
+  if (!match) return null;
+  return asEnvelope(await store.get(match.key, { type:'json' }));
 }
 
 export default async (req: Request) => {
@@ -99,12 +236,22 @@ export default async (req: Request) => {
   const key = syncKey(req);
   if (!key) return json({ ok:false, error:'A valid private sync key is required.' }, 401);
 
+  const hash = hashKey(key);
   const store = getStore(STORE_NAME, { consistency:'strong' });
-  const blobKey = stateKey(key);
+  const blobKey = stateKey(hash);
+  const url = new URL(req.url);
+  const view = url.searchParams.get('view') || 'state';
 
   if (req.method === 'GET') {
-    const state = await store.get(blobKey, { type:'json' });
-    return json({ ok:true, exists:Boolean(state), state:state || null });
+    const current = asEnvelope(await store.get(blobKey, { type:'json' }));
+    if (view === 'snapshots') {
+      const snapshots = await listSnapshots(store, hash);
+      return json({ ok:true, exists:Boolean(current), snapshots, meta:publicMeta(current) });
+    }
+    if (view === 'meta') {
+      return json({ ok:true, exists:Boolean(current), meta:publicMeta(current) });
+    }
+    return json({ ok:true, exists:Boolean(current), state:current?.state || null, meta:publicMeta(current) });
   }
 
   if (req.method === 'POST') {
@@ -112,11 +259,62 @@ export default async (req: Request) => {
     if (length > MAX_BODY_BYTES) return json({ ok:false, error:'Sync payload is too large.' }, 413);
     let body: any;
     try { body = await req.json(); } catch { return json({ ok:false, error:'Invalid JSON body.' }, 400); }
-    if (!body || !body.state || !Array.isArray(body.state.spools)) return json({ ok:false, error:'A valid sync state is required.' }, 400);
-    const remote = await store.get(blobKey, { type:'json' });
-    const merged = mergeStates(remote, body.state);
-    await store.setJSON(blobKey, merged);
-    return json({ ok:true, state:merged });
+
+    const action = String(body?.action || 'sync');
+    const device = sanitizeDevice(body?.device);
+    const current = asEnvelope(await store.get(blobKey, { type:'json' }));
+
+    if (action === 'restore') {
+      const wanted = String(body?.revision || '').trim();
+      if (!wanted) return json({ ok:false, error:'A snapshot revision is required.' }, 400);
+      const snapshot = await getSnapshotByRevision(store, hash, wanted);
+      if (!snapshot) return json({ ok:false, error:'That cloud snapshot no longer exists.' }, 404);
+
+      await saveSnapshot(store, hash, current);
+      const at = new Date().toISOString();
+      const restored:Envelope = {
+        protocol:5,
+        revision:revision(),
+        updatedAt:at,
+        state:normalizeState(snapshot.state),
+        devices:updateDevices(current?.devices || snapshot.devices, device, 'restore', at),
+        activity:addActivity(current?.activity || snapshot.activity, device, 'restore', `Restored revision ${wanted}`, at),
+      };
+      await store.setJSON(blobKey, restored);
+      return json({ ok:true, state:restored.state, meta:publicMeta(restored), restoredFrom:wanted });
+    }
+
+    if (!body?.state || !Array.isArray(body.state.spools)) return json({ ok:false, error:'A valid sync state is required.' }, 400);
+    const merged = mergeStates(current?.state, body.state);
+    const currentFingerprint = current ? JSON.stringify(current.state) : '';
+    const nextFingerprint = JSON.stringify(merged.state);
+    const changed = currentFingerprint !== nextFingerprint;
+    const baseRevision = String(body?.baseRevision || '');
+    const concurrent = Boolean(current && baseRevision && baseRevision !== current.revision);
+
+    if (!changed && current) {
+      const at = new Date().toISOString();
+      const touched:Envelope = {
+        ...current,
+        devices:updateDevices(current.devices, device, 'sync', at),
+        activity:addActivity(current.activity, device, 'sync', 'No inventory changes', at),
+      };
+      await store.setJSON(blobKey, touched);
+      return json({ ok:true, state:touched.state, meta:publicMeta(touched), merge:{...merged.stats, concurrent, changed:false} });
+    }
+
+    await saveSnapshot(store, hash, current);
+    const at = new Date().toISOString();
+    const next:Envelope = {
+      protocol:5,
+      revision:revision(),
+      updatedAt:at,
+      state:merged.state,
+      devices:updateDevices(current?.devices || [], device, 'sync', at),
+      activity:addActivity(current?.activity || [], device, 'sync', `${merged.state.spools.length} spools · ${merged.state.weighLog.length} measurements`, at),
+    };
+    await store.setJSON(blobKey, next);
+    return json({ ok:true, state:next.state, meta:publicMeta(next), merge:{...merged.stats, concurrent, changed:true} });
   }
 
   return json({ ok:false, error:'Method not allowed.' }, 405, { Allow:'GET, POST' });
