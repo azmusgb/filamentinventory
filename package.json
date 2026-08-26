@@ -1,0 +1,13 @@
+{
+  "name": "filamentinventory",
+  "private": true,
+  "version": "4.0.0",
+  "description": "Local-first filament inventory PWA with secure Netlify cloud sync.",
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@netlify/blobs": "11.0.1"
+  },
+  "devDependencies": {
+    "@netlify/functions": "6.0.0"
+  }
+}
