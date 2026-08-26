@@ -1,43 +1,41 @@
 # Filament Inventory
 
-A mobile-first filament inventory PWA for tracking 3D-printing spools from iPhone, iPad, or desktop.
+A mobile-first, local-first filament inventory PWA for iPhone, iPad, and desktop.
 
-## v4 highlights
+## v5 highlights
 
-- Secure cross-device sync using Netlify Functions + Netlify Blobs
-- High-entropy capability key: the raw sync key is stored only on your devices and is never committed to GitHub
-- Per-spool merge logic based on the newest `updatedAt` timestamp
-- Measurement history union/deduplication across devices
-- Tombstones so permanent deletions propagate instead of reappearing
-- Offline-first local storage with debounced automatic cloud sync when online
-- Copyable sync key for onboarding another device
-- Active/archive lifecycle management, mark-empty + undo, restore, and permanent delete
-- Gross-minus-tare authoritative weight tracking
-- Search, filters, sorting, reorder thresholds, drying date, purchase metadata
-- JSON backup/restore, inventory CSV import/export, measurement CSV export
-- PWA/offline support with API requests excluded from service-worker caching
+- Secure cross-device sync with Netlify Functions + Netlify Blobs
+- 256-bit capability key; raw key remains on user devices
+- Cloud revision IDs and concurrent-edit detection
+- Named device registry with last-seen activity
+- Rolling cloud recovery snapshots
+- Reversible restore of prior cloud revisions
+- Per-spool newest-timestamp merge
+- Measurement history union/deduplication
+- Tombstones for permanent deletion propagation
+- Offline-first local storage
+- Archive/restore, mark-empty, weighing, reorder thresholds, drying and purchase metadata
+- JSON backup/restore and CSV round-trip workflows
 
-## Sync security model
+## Security model
 
-The sync key is a random 256-bit capability generated in the browser. The browser sends the key only to the same-origin `/api/sync` function in an HTTPS request header. The function validates the format, hashes the key with SHA-256, and uses the hash as the private Netlify Blob key. The raw key is not stored in GitHub, Netlify Blobs, JSON backups, or CSV exports.
+The sync key is generated in the browser and sent only to the same-origin `/api/sync` endpoint over HTTPS. The Netlify Function hashes the key with SHA-256 and uses the hash to locate the private Blob. The raw key is not written to GitHub, Netlify Blob state, JSON backups, or CSV exports.
 
-Because the key is the credential, save it in a password manager. If you remove it from every device and lose the key, the cloud copy cannot be located again. Local browser data and exported backups remain usable.
+Because the key is the credential, save it in a password manager.
 
-## Data behavior
+## Cloud recovery
 
-Inventory remains usable offline from browser `localStorage`. When sync is enabled, edits are merged with the cloud state after a short debounce and when the device returns online.
+v5 stores a rolling set of cloud snapshots before cloud-changing syncs and restores. Restoring a prior snapshot first snapshots the current cloud state, making recovery reversible.
 
-Measured gross − tare weight is authoritative. Visual estimates remain useful for unweighed spools, and unknown values remain unknown rather than being converted to zero.
+## Inventory rule
 
-## Netlify
+Measured `gross - tare` weight is authoritative. Visual estimates are used only when a complete measurement is unavailable. Unknown remains unknown.
 
-The static site publishes from the repository root. Netlify Functions live in `netlify/functions`, and `@netlify/blobs` provides the site-scoped sync store. No application framework build is required.
-
-## Local development
-
-Use Netlify CLI so Functions and Blobs are emulated correctly:
+## Development
 
 ```bash
 npm install
 npx netlify dev
 ```
+
+The site itself remains framework-free. `netlify/functions/sync.mts` provides the cloud API.
