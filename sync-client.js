@@ -308,23 +308,15 @@
     </div>`;
   }
 
-  function showView(view) {
-    document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el.id === `${view}View`));
-    document.querySelectorAll('.tab').forEach(el => el.setAttribute('aria-selected', String(el.dataset.view === view)));
-    window.scrollTo({top:0, behavior:'smooth'});
-  }
-
   function injectUi() {
     injectStyle();
     const tabs = document.querySelector('.tabs');
     const dataTab = tabs?.querySelector('[data-view="data"]');
-    let syncTab = tabs?.querySelector('[data-view="sync"]');
-    if (tabs && dataTab && !syncTab) {
-      syncTab = document.createElement('button');
-      syncTab.className = 'tab'; syncTab.dataset.view = 'sync'; syncTab.setAttribute('aria-selected','false'); syncTab.textContent = 'Sync';
-      tabs.insertBefore(syncTab, dataTab);
+    if (tabs && dataTab && !tabs.querySelector('[data-view="sync"]')) {
+      const btn = document.createElement('button');
+      btn.className = 'tab'; btn.dataset.view = 'sync'; btn.setAttribute('aria-selected','false'); btn.textContent = 'Sync';
+      tabs.insertBefore(btn, dataTab);
     }
-    syncTab?.addEventListener('click', () => showView('sync'));
     const dataView = document.getElementById('dataView');
     if (dataView && !document.getElementById('syncView')) {
       const section = document.createElement('section');
@@ -334,11 +326,9 @@
     const eyebrow = document.querySelector('#dashboardView .hero-copy .eyebrow');
     if (eyebrow) eyebrow.textContent = 'Inventory control center · v4';
     const heroActions = document.querySelector('#dashboardView .hero-actions');
-    let syncJump = heroActions?.querySelector('[data-jump="sync"]');
-    if (heroActions && !syncJump) {
-      syncJump = document.createElement('button'); syncJump.className='btn'; syncJump.type='button'; syncJump.dataset.jump='sync'; syncJump.textContent='Sync devices'; heroActions.insertBefore(syncJump, heroActions.lastElementChild);
+    if (heroActions && !heroActions.querySelector('[data-jump="sync"]')) {
+      const btn = document.createElement('button'); btn.className='btn'; btn.type='button'; btn.dataset.jump='sync'; btn.textContent='Sync devices'; heroActions.insertBefore(btn, heroActions.lastElementChild);
     }
-    syncJump?.addEventListener('click', () => showView('sync'));
     const dataTitle = document.getElementById('dataTitle');
     if (dataTitle) dataTitle.textContent = 'Data, backup & install · v4';
 

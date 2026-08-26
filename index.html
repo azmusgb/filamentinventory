@@ -33,7 +33,7 @@
 <section aria-labelledby="dashboardTitle" class="view active" id="dashboardView">
 <div class="hero">
 <article class="hero-card hero-copy">
-<span class="eyebrow">Inventory control center · v4</span>
+<span class="eyebrow">Inventory control center · v3</span>
 <h2 id="dashboardTitle">Know what you have. Use what is low. Reorder with confidence.</h2>
 <p class="lead">Track brand, material, color, location, storage, drying, purchase details, reorder thresholds, and measured remaining weight. Archive finished spools without losing history, and keep backups portable to Google Sheets or another system later.</p>
 <div class="hero-actions"><button class="btn btn-primary" id="heroAddBtn" type="button">Add a spool</button><button class="btn" data-jump="weigh" type="button">Weigh a spool</button><button class="btn btn-ghost" data-jump="inventory" type="button">Browse inventory</button></div>
@@ -98,7 +98,7 @@
 
 <section aria-labelledby="dataTitle" class="view" id="dataView">
 <section class="panel">
-<div class="panel-head"><div><h3 id="dataTitle">Data, backup &amp; install · v4</h3><p>A local copy stays on this device. When cloud sync is connected, inventory changes are also merged through the private sync key. JSON remains the full-fidelity portable backup.</p></div><button class="btn" id="installBtn" type="button" disabled>Install app</button></div>
+<div class="panel-head"><div><h3 id="dataTitle">Data, backup &amp; install</h3><p>Everything stays in this browser until you export it. JSON is the full-fidelity backup.</p></div><button class="btn" id="installBtn" type="button" disabled>Install app</button></div>
 <div class="health-grid" id="dataHealth"></div>
 <div class="data-actions" style="margin-top:16px">
 <article class="data-box"><h4>Export JSON</h4><p>Best backup. Includes active + archived spools, purchase metadata, thresholds, drying dates, and measurement history.</p><button class="btn" id="exportJsonBtn" type="button">Download JSON backup</button></article>
@@ -147,7 +147,7 @@
 </dialog>
 
 <div aria-live="polite" class="toast" id="toast" role="status"></div>
-<script defer src="/app.js"></script>
 <script defer src="/sync-client.js"></script>
+<script defer src="/app.js"></script>
 </body>
 </html>

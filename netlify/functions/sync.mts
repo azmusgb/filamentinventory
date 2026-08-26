@@ -124,5 +124,5 @@ export default async (req: Request) => {
 
 export const config: Config = {
   path:'/api/sync',
-  rateLimit:{ windowLimit:20, windowSize:60, aggregateBy:['ip','domain'] }
+  rateLimit:{ windowLimit:60, windowSize:60, aggregateBy:['ip','domain'] }
 };

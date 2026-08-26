@@ -1,27 +1,23 @@
 # Changelog
 
-## v3 — 2026-08-26
+## v4 — Secure cross-device sync
 
-- Added archive/restore lifecycle so history is retained when a spool is finished.
-- Added permanent delete only for already archived spools.
-- Added Mark Empty with undo.
-- Added inventory sorting, lifecycle filtering, and reorder-first mode.
-- Added full measurement-history view and history CSV export.
-- Added CSV merge import for Google Sheets / Excel round-tripping.
-- Added JSON merge vs replace restore behavior.
-- Added last-dried date.
-- Added per-spool deep links and quick focus behavior.
-- Added backup-age and local-data health indicators.
-- Added PWA install prompt support and iOS install guidance.
-- Improved service-worker update/cache behavior.
-- Added CSP and tighter Netlify cache/security headers.
-- Preserved migration compatibility with existing v1/v2 local data.
+- Added Netlify Functions + Netlify Blobs cloud synchronization.
+- Added a 256-bit capability-key model with no credentials committed to GitHub.
+- Added same-origin `/api/sync` endpoint with strong-consistency blob reads/writes.
+- Added per-record merge semantics so newer spool edits win instead of replacing the whole inventory.
+- Added measurement-history union/deduplication across devices.
+- Added tombstones so permanent deletes propagate correctly.
+- Added automatic debounced sync, manual Sync now, online-recovery sync, copy-key onboarding, and forget-key controls.
+- Raw sync keys are excluded from JSON/CSV exports and cloud data.
+- Service worker now bypasses `/api/*` so private responses are never cached.
+- Added package metadata for current Netlify Blobs/Functions dependencies.
 
-## v2
+## v3 — Inventory operations
 
-- Added measurement history, reorder thresholds, purchase metadata, opened/bagged state, and richer exports.
-- Fixed null values being interpreted as numeric zero.
-
-## v1
-
-- Initial mobile-first local filament inventory dashboard with the photo-audited starter inventory.
+- Archive/restore lifecycle instead of destructive normal deletion.
+- Mark Empty with undo.
+- Measurement-history view and CSV export.
+- Sorting, lifecycle filtering, reorder priority, drying date, and deep spool links.
+- JSON merge/replace and CSV round-trip import/export.
+- PWA update handling and stronger Netlify headers.

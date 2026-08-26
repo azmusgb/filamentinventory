@@ -1,47 +1,43 @@
 # Filament Inventory
 
-A mobile-first, local-first filament inventory PWA for 3D-printing spools, designed for iPhone, iPad, and desktop and deployed as a static Netlify site.
+A mobile-first filament inventory PWA for tracking 3D-printing spools from iPhone, iPad, or desktop.
 
-## v3 highlights
+## v4 highlights
 
-- Conservative 21-spool starter inventory from the photo audit
-- Measured gross − tare weight overrides visual estimates
-- Active + archived spool lifecycle; archive preserves history
-- One-tap **Mark empty**, restore, and permanent-delete only from archive
-- Per-spool reorder thresholds and reorder-first sorting
-- Search, lifecycle/material/status/location filters, and multiple sort modes
-- Measurement history view with history CSV export
-- Last-dried date, opened/bagged state, purchase source/price/date
-- Full-fidelity JSON backup with merge or replace restore
-- Inventory CSV export and CSV merge import for Google Sheets / Excel round-trips
-- Per-spool deep links for quick lookup
-- Backup-age / data-health panel
-- PWA install support and safer service-worker update behavior
-- Netlify security headers and explicit cache policy
-- No build step and no third-party runtime dependencies
+- Secure cross-device sync using Netlify Functions + Netlify Blobs
+- High-entropy capability key: the raw sync key is stored only on your devices and is never committed to GitHub
+- Per-spool merge logic based on the newest `updatedAt` timestamp
+- Measurement history union/deduplication across devices
+- Tombstones so permanent deletions propagate instead of reappearing
+- Offline-first local storage with debounced automatic cloud sync when online
+- Copyable sync key for onboarding another device
+- Active/archive lifecycle management, mark-empty + undo, restore, and permanent delete
+- Gross-minus-tare authoritative weight tracking
+- Search, filters, sorting, reorder thresholds, drying date, purchase metadata
+- JSON backup/restore, inventory CSV import/export, measurement CSV export
+- PWA/offline support with API requests excluded from service-worker caching
 
-## Data model and behavior
+## Sync security model
 
-Inventory is stored in browser `localStorage`. This is intentionally simple and private, but it means data does **not** automatically synchronize between different devices or browsers.
+The sync key is a random 256-bit capability generated in the browser. The browser sends the key only to the same-origin `/api/sync` function in an HTTPS request header. The function validates the format, hashes the key with SHA-256, and uses the hash as the private Netlify Blob key. The raw key is not stored in GitHub, Netlify Blobs, JSON backups, or CSV exports.
 
-Use **Data → Export JSON** as the authoritative backup. CSV is intended for spreadsheet analysis/editing and can be merged back by spool ID.
+Because the key is the credential, save it in a password manager. If you remove it from every device and lose the key, the cloud copy cannot be located again. Local browser data and exported backups remain usable.
 
-Existing v1/v2 browser data is normalized into the v3 model at load time. New v3 fields receive safe defaults without changing existing spool IDs or measurements.
+## Data behavior
 
-## Inventory rules
+Inventory remains usable offline from browser `localStorage`. When sync is enabled, edits are merged with the cloud state after a short debounce and when the device returns online.
 
-1. Measured `gross - tare` is authoritative when both values are present.
-2. Visual percentage is used only when no complete measurement exists.
-3. Unknown values remain unknown; they are never converted to zero automatically.
-4. Reorder status applies only to active spools with a known remaining gram value.
-5. Finished spools should normally be archived rather than permanently deleted.
+Measured gross − tare weight is authoritative. Visual estimates remain useful for unweighed spools, and unknown values remain unknown rather than being converted to zero.
 
-## Deployment
+## Netlify
 
-The repository is a zero-build static site. Netlify should publish the repository root from `main`.
+The static site publishes from the repository root. Netlify Functions live in `netlify/functions`, and `@netlify/blobs` provides the site-scoped sync store. No application framework build is required.
 
-`netlify.toml` supplies security headers and cache rules. `sw.js` provides same-origin offline caching for core application assets.
+## Local development
 
-## Future evolution
+Use Netlify CLI so Functions and Blobs are emulated correctly:
 
-A shared backend can be added later for true iPhone/iPad/desktop synchronization, but it should include authentication before any remote write API is exposed. The current local-first design deliberately avoids creating an unauthenticated public inventory endpoint.
+```bash
+npm install
+npx netlify dev
+```
