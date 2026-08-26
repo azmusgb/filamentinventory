@@ -1,5 +1,5 @@
-const CACHE = 'filament-inventory-v3';
-const CORE = ['/', '/index.html', '/styles.css', '/app.js', '/manifest.webmanifest', '/icon.svg'];
+const CACHE = 'filament-inventory-v4';
+const CORE = ['/', '/index.html', '/styles.css', '/app.js', '/sync-client.js', '/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(CORE)).then(() => self.skipWaiting()));
@@ -14,6 +14,7 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/api/')) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(fetch(request).then(response => {
