@@ -1,0 +1,18 @@
+{
+  "name": "Filament Inventory",
+  "short_name": "Filament",
+  "description": "Local-first 3D printer filament inventory dashboard.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050b14",
+  "theme_color": "#07111f",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
