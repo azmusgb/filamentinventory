@@ -36,7 +36,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           node scripts/apply-css-polish-integration.mjs
-          git add index.html scripts/public-assets.mjs sw.js netlify.toml .github/workflows/ci.yml
+          git add index.html scripts/public-assets.mjs sw.js netlify.toml
           if git diff --cached --quiet; then
             echo "CSS polish integration already applied."
           else
@@ -61,6 +61,7 @@ jobs:
       - name: Verify deploy output
         run: |
           test -f dist/index.html
+          test -f dist/ui-polish.css
           test -f dist/app-version.js
           test -f dist/user-isolation.js
           test -f dist/app.js
