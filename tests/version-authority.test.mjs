@@ -9,9 +9,9 @@ const version = require('../app-version.js');
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('authoritative app and schema versions are explicit', () => {
-  assert.equal(version.APP_VERSION, '9.0.0');
-  assert.equal(version.DATA_SCHEMA_VERSION, 9);
-  assert.equal(version.DISPLAY_VERSION, 'v9.0.0');
+  assert.equal(version.APP_VERSION, '9.1.0');
+  assert.equal(version.DATA_SCHEMA_VERSION, 10);
+  assert.equal(version.DISPLAY_VERSION, 'v9.1.0');
 });
 
 test('package metadata matches the authoritative app version', async () => {
@@ -22,9 +22,9 @@ test('package metadata matches the authoritative app version', async () => {
   assert.equal(lock.packages[''].version, version.APP_VERSION);
 });
 
-test('browser entrypoint loads version authority before version consumers', async () => {
+test('browser entrypoint loads version authority and user isolation before state consumers', async () => {
   const html = await read('index.html');
-  const order = ['app-version.js', 'household-client.js', 'ux-client.js', 'app.js'].map(name => html.indexOf(`/${name}`));
+  const order = ['app-version.js', 'user-isolation.js', 'sync-client.js', 'household-client.js', 'ux-client.js', 'app.js'].map(name => html.indexOf(`/${name}`));
   assert.ok(order.every(index => index >= 0));
   assert.deepEqual(order, [...order].sort((a,b) => a-b));
   assert.match(html, /data-app-version/);
@@ -60,8 +60,10 @@ test('stale user-facing release labels and backup names are gone', async () => {
   forbidden.forEach(value => assert.equal(combined.includes(value), false, `stale label remains: ${value}`));
 });
 
-test('PWA publication includes the authoritative version module', async () => {
+test('PWA publication includes version and user isolation modules', async () => {
   const [assets, sw] = await Promise.all([read('scripts/public-assets.mjs'), read('sw.js')]);
   assert.match(assets, /'app-version\.js'/);
+  assert.match(assets, /'user-isolation\.js'/);
   assert.match(sw, /\/app-version\.js/);
+  assert.match(sw, /\/user-isolation\.js/);
 });
