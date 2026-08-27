@@ -1,23 +1,40 @@
 # Filament Inventory
 
-A mobile-first, local-first filament inventory PWA for iPhone, iPad, and desktop, with secure cloud sync, physical QR spool labels, two-person ownership, and printer/AMS placement tracking.
+A mobile-first, local-first filament inventory PWA for iPhone, iPad, and desktop, with secure cloud sync, physical QR spool labels, two-person ownership, printer/AMS placement tracking, and per-user experience customization.
 
-## v8 highlights
+## v9 highlights
 
-- Two-owner household inventory for **Bill** and **Aimee**
-- Existing pre-v8 spools migrate to Bill by default
-- Per-spool ownership stored with the synchronized spool record
-- Stored vs Loaded physical state
-- Printer, AMS/feeder, slot/bay, and loaded timestamp fields
-- Owner filter on the main Inventory view
-- Household dashboard with Bill vs Aimee counts and known filament totals
-- Printer / AMS board showing what is loaded right now
-- Quick move workflow to load, move, or unload a spool
-- Slot collision protection so one assignment cannot silently contain two spools
-- Ownership transfer between Bill and Aimee
-- Print finder ranked by owner, material, color, remaining grams, and already-loaded printer state
-- Household-aware CSV report and complete v8 JSON backup/restore
-- Existing QR labels, secure sync, key rotation, recovery snapshots, and deletion tombstones remain intact
+- New **Customize** workspace with separate local UX profiles for **Bill** and **Aimee**
+- Midnight, Light, OLED Black, High Contrast, and Follow System themes
+- Cyan, Violet, Green, Amber, and Rose accent presets
+- Compact, Comfortable, and Roomy information density
+- Small, Standard, Large, and Extra Large text sizes
+- Reduced-motion mode and optional larger touch targets
+- Inventory Cards or List layout
+- Per-profile default landing view
+- Per-profile owner scope, default sort, lifecycle filter, and remembered inventory filters
+- Per-profile preferred QR label size
+- Dashboard controls for welcome/quick actions, priority queue, and distribution/material charts
+- Per-profile local app title
+- Export/import of UX preferences separately from inventory backups
+- Existing secure sync, household ownership, printer/AMS placement, QR labels, recovery snapshots, key rotation, and tombstones remain unchanged
+
+## Preference model
+
+UX preferences are intentionally **not stored in the shared cloud inventory**. Each browser keeps two local profiles:
+
+- `Bill`
+- `Aimee`
+
+That allows the same person to use different layouts on different devices and lets Bill and Aimee have independent preferences without changing shared spool records.
+
+Examples:
+
+- Bill can use **OLED Black + Compact + Inventory as the default tab** on an iPhone.
+- Aimee can use **Light + Roomy + Dashboard as the default tab** on an iPad.
+- Both still see and edit the same synchronized household inventory.
+
+Preferences can be exported/imported from the Customize workspace when a similar setup is wanted on another browser.
 
 ## Household model
 
@@ -58,9 +75,9 @@ Because these fields live directly on the spool record, they are covered by the 
 
 ## Backup behavior
 
-The Household workspace provides a **complete v8 JSON backup** that includes owner and printer/AMS metadata, plus a household-aware CSV export.
+The Household workspace provides a **complete v8+ JSON backup** that includes owner and printer/AMS metadata, plus a household-aware CSV export.
 
-Use the Household backup for the most complete v8 round-trip because the legacy core serializer predates the new household fields.
+The Customize workspace separately exports local UX preferences. This separation prevents a phone-specific theme/layout from altering another device's working experience.
 
 ## Physical QR workflow
 
