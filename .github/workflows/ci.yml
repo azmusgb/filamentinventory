@@ -56,6 +56,8 @@ jobs:
           test -f dist/printer-dashboard.js
           test -f dist/inventory-command-core.js
           test -f dist/inventory-command-client.js
+          test -f dist/spool-actions-core.js
+          test -f dist/spool-actions-client.js
           test -f dist/app.js
           test -f dist/audit-core.js
           test -f dist/audit-client.js

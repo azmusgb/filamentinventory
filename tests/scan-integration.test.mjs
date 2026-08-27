@@ -53,5 +53,5 @@ test('PWA and CI publish the scanner modules', async () => {
     assert.ok(sw.includes(`/${file}`));
     assert.ok(ci.includes(`dist/${file}`));
   }
-  assert.match(sw, /filament-inventory-v23/);
+  assert.match(sw, /filament-inventory-v24/);
 });

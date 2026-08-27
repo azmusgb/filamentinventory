@@ -54,11 +54,11 @@ test('PWA and CI publish the command modules', async () => {
     assert.ok(sw.includes(`/${file}`));
     assert.ok(ci.includes(`dist/${file}`));
   }
-  assert.match(sw, /filament-inventory-v23/);
+  assert.match(sw, /filament-inventory-v24/);
 });
 
-test('v9.7 remains a UI/interaction release on schema 10', async () => {
+test('v9.8 remains a UI/interaction release on schema 10', async () => {
   const version = await read('app-version.js');
-  assert.match(version, /APP_VERSION = '9\.7\.0'/);
+  assert.match(version, /APP_VERSION = '9\.8\.0'/);
   assert.match(version, /DATA_SCHEMA_VERSION = 10/);
 });
