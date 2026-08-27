@@ -1,0 +1,710 @@
+/* ============================================================
+   Filament Inventory UI System
+   v9.6 visual authority loaded after styles.css
+   Scope: layout, hierarchy, themes, accessibility, runtime UI
+   ============================================================ */
+
+:root {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --r-xs: 8px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 22px;
+  --r-pill: 999px;
+  --surface-0: rgba(3, 10, 18, .58);
+  --surface-1: rgba(8, 19, 33, .86);
+  --surface-2: rgba(13, 28, 48, .94);
+  --surface-soft: rgba(3, 10, 18, .24);
+  --surface-hover: rgba(20, 42, 68, .94);
+  --hairline: rgba(148, 163, 184, .15);
+  --hairline-strong: rgba(148, 163, 184, .28);
+  --accent-border: rgba(56, 189, 248, .42);
+  --accent-soft: rgba(56, 189, 248, .10);
+  --accent-glow: rgba(14, 165, 233, .18);
+  --focus-ring: rgba(125, 211, 252, .82);
+  --shadow-soft: 0 10px 30px rgba(0, 0, 0, .16);
+  --shadow-card: 0 16px 42px rgba(0, 0, 0, .20);
+  --shadow-float: 0 26px 80px rgba(0, 0, 0, .42);
+  --content-max: 1520px;
+  --content-pad: clamp(12px, 2vw, 24px);
+  --content-gap: clamp(12px, 1.6vw, 20px);
+  --top-offset: calc(86px + env(safe-area-inset-top));
+}
+
+@supports (color: color-mix(in srgb, black 50%, white)) {
+  :root {
+    --accent-border: color-mix(in srgb, var(--ux-accent, var(--cyan)) 42%, var(--line));
+    --accent-soft: color-mix(in srgb, var(--ux-accent, var(--cyan)) 10%, transparent);
+    --accent-glow: color-mix(in srgb, var(--ux-accent, var(--cyan)) 18%, transparent);
+    --focus-ring: color-mix(in srgb, var(--ux-accent, var(--cyan)) 78%, white 12%);
+  }
+}
+
+html.fi-ui {
+  scroll-padding-top: var(--top-offset);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, .30) transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html.fi-ui body {
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+html.fi-ui .view,
+html.fi-ui section[id],
+html.fi-ui article[id] {
+  scroll-margin-top: var(--top-offset);
+}
+
+html.fi-ui ::selection {
+  background: rgba(56, 189, 248, .30);
+  color: var(--text);
+}
+
+@supports (background: color-mix(in srgb, black 50%, white)) {
+  html.fi-ui ::selection {
+    background: color-mix(in srgb, var(--ux-accent, var(--cyan)) 32%, transparent);
+  }
+}
+
+html.fi-ui ::-webkit-scrollbar { width: 10px; height: 10px; }
+html.fi-ui ::-webkit-scrollbar-track { background: transparent; }
+html.fi-ui ::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, .28);
+  border: 2px solid transparent;
+  border-radius: var(--r-pill);
+  background-clip: content-box;
+}
+html.fi-ui ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, .45); background-clip: content-box; }
+
+html.fi-ui button,
+html.fi-ui input,
+html.fi-ui select,
+html.fi-ui textarea {
+  min-width: 0;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html.fi-ui button,
+html.fi-ui .btn,
+html.fi-ui .tab { touch-action: manipulation; }
+
+html.fi-ui button:disabled,
+html.fi-ui input:disabled,
+html.fi-ui select:disabled,
+html.fi-ui textarea:disabled {
+  cursor: not-allowed;
+  opacity: .54;
+}
+
+html.fi-ui :where(button, .btn, .tab, input, select, textarea, [tabindex]):focus-visible,
+html.fi-ui .field:focus-visible,
+html.fi-ui .select:focus-visible,
+html.fi-ui textarea.field:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+/* Shell ------------------------------------------------------------------ */
+html.fi-ui .app-shell {
+  width: min(var(--content-max), 100%);
+  padding-left: var(--content-pad);
+  padding-right: var(--content-pad);
+}
+
+html.fi-ui .topbar {
+  margin-left: calc(var(--content-pad) * -1);
+  margin-right: calc(var(--content-pad) * -1);
+  padding-left: var(--content-pad);
+  padding-right: var(--content-pad);
+  background: rgba(4, 9, 17, .86);
+  border-bottom-color: var(--hairline);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, .12);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  backdrop-filter: blur(22px) saturate(1.25);
+}
+
+html.fi-ui .topbar-inner { max-width: var(--content-max); }
+html.fi-ui .mark { width: 44px; height: 44px; border-radius: var(--r-md); }
+html.fi-ui .brand h1 { line-height: 1.08; letter-spacing: -.035em; }
+html.fi-ui .brand p { max-width: min(64vw, 760px); line-height: 1.35; }
+html.fi-ui .top-actions { align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+
+html.fi-ui .btn {
+  min-height: 44px;
+  border-color: var(--hairline);
+  border-radius: var(--r-md);
+  font-weight: 700;
+  box-shadow: inset 0 1px rgba(255, 255, 255, .025);
+}
+
+html.fi-ui .btn:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--surface-hover);
+  box-shadow: inset 0 1px rgba(255,255,255,.04), 0 7px 20px rgba(0,0,0,.10);
+}
+
+html.fi-ui .btn-primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--ux-accent, var(--cyan)), var(--ux-accent2, var(--blue))) !important;
+  box-shadow: 0 10px 24px var(--accent-glow);
+}
+
+html.fi-ui .btn-primary:hover:not(:disabled) { transform: translateY(-1px); }
+html.fi-ui .btn-danger:hover:not(:disabled) { border-color: rgba(239,68,68,.46); background: rgba(127,29,29,.26); }
+html.fi-ui .eyebrow { color: var(--ux-accent, var(--cyan)) !important; }
+
+/* Private identity ------------------------------------------------------- */
+html.fi-ui .user-boundary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding: 11px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: rgba(5, 14, 25, .76);
+  box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+html.fi-ui .user-boundary-copy { min-width: 0; display: grid; gap: 1px; }
+html.fi-ui .user-boundary-kicker { font-size: 8px; letter-spacing: .14em; color: var(--ux-accent, var(--cyan)); }
+html.fi-ui .user-boundary-title { margin-top: 1px; font-size: 15px; line-height: 1.2; }
+html.fi-ui .user-boundary-note { margin-top: 1px; font-size: 9px; line-height: 1.4; color: var(--muted); }
+html.fi-ui .user-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  min-width: 190px;
+  padding: 4px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: rgba(2, 8, 15, .38);
+}
+html.fi-ui .user-switch-btn {
+  min-height: 38px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  font-weight: 800;
+}
+html.fi-ui .user-switch-btn:hover:not([aria-pressed="true"]) { color: var(--text); background: rgba(255,255,255,.045); }
+html.fi-ui .user-switch-btn[aria-pressed="true"] { color: #06111d; box-shadow: 0 7px 18px rgba(0,0,0,.16); }
+html.fi-ui .user-switch-btn[data-user="Bill"][aria-pressed="true"] { background: linear-gradient(135deg,#67e8f9,#60a5fa); }
+html.fi-ui .user-switch-btn[data-user="Aimee"][aria-pressed="true"] { background: linear-gradient(135deg,#c084fc,#818cf8); }
+html.fi-ui body[data-inventory-user="Bill"] .user-boundary { border-color: rgba(34,211,238,.26); }
+html.fi-ui body[data-inventory-user="Aimee"] .user-boundary { border-color: rgba(192,132,252,.28); }
+html.fi-ui .scan-launch { min-height: 38px; padding: 7px 11px; border-color: var(--accent-border); background: var(--accent-soft); font-weight: 800; }
+
+/* Navigation ------------------------------------------------------------- */
+html.fi-ui .tabs {
+  gap: 6px;
+  margin-bottom: var(--space-4);
+  padding-bottom: 6px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+html.fi-ui .tab {
+  min-height: 40px;
+  padding: 8px 14px;
+  scroll-snap-align: start;
+  border-color: var(--hairline);
+  background: rgba(10,22,38,.56);
+  transition: color .16s ease, border-color .16s ease, background .16s ease, transform .16s ease;
+}
+html.fi-ui .tab:hover:not([aria-selected="true"]) { color: var(--text); border-color: var(--hairline-strong); background: rgba(13,28,48,.76); }
+html.fi-ui .tab[aria-selected="true"] { box-shadow: 0 7px 18px var(--accent-glow); }
+html.fi-ui .mobile-more-menu {
+  margin: -6px 0 12px;
+  padding: 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: rgba(9,21,36,.98);
+  box-shadow: var(--shadow-card);
+}
+html.fi-ui .mobile-more-item { border-radius: var(--r-sm); border-color: var(--hairline); background: var(--surface-soft); }
+html.fi-ui .mobile-more-item[aria-current="page"] { border-color: var(--accent-border); background: var(--accent-soft); }
+
+/* Dashboard -------------------------------------------------------------- */
+html.fi-ui .hero,
+html.fi-ui .grid-2,
+html.fi-ui .weigh-layout,
+html.fi-ui .printer-layout,
+html.fi-ui .v8-grid { gap: var(--content-gap); }
+
+html.fi-ui .hero-card,
+html.fi-ui .panel {
+  border-color: var(--hairline);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-card);
+}
+
+html.fi-ui .panel { overflow: clip; }
+html.fi-ui #dashboardView .hero { grid-template-columns: minmax(0,1.35fr) minmax(280px,.65fr); align-items: stretch; }
+html.fi-ui #dashboardView .hero-copy { min-height: 0; padding: clamp(20px,3vw,30px); }
+html.fi-ui #dashboardView .hero-copy::after { width: 190px; height: 190px; right: -60px; top: -70px; opacity: .50; }
+html.fi-ui #dashboardView .hero h2 {
+  max-width: 760px;
+  margin: 7px 0 8px;
+  font-size: clamp(28px,4vw,44px);
+  line-height: 1.02;
+  letter-spacing: -.048em;
+  text-wrap: balance;
+}
+html.fi-ui #dashboardView .hero .lead { max-width: 680px; font-size: 13px; line-height: 1.55; text-wrap: pretty; }
+html.fi-ui #dashboardView .hero-actions { margin-top: 18px; }
+html.fi-ui #dashboardView .hero-actions .btn { min-width: 0; }
+html.fi-ui #dashboardView .quick-panel { min-height: 0; padding: 18px; gap: 14px; }
+html.fi-ui .quick-item { min-height: 50px; border-color: var(--hairline); border-radius: var(--r-md); }
+html.fi-ui .quick-button:hover { transform: translateY(-1px); }
+
+html.fi-ui #dashboardView .metrics,
+html.fi-ui .metrics { gap: 10px; }
+html.fi-ui #dashboardView .metrics { grid-template-columns: repeat(5,minmax(0,1fr)); margin: 12px 0 14px; }
+html.fi-ui .metric {
+  min-height: 90px;
+  padding: 13px 14px;
+  border-color: var(--hairline);
+  border-radius: var(--r-md);
+  box-shadow: none;
+}
+html.fi-ui .metric::after { width: 72px; height: 72px; right: -20px; bottom: -30px; opacity: .36; }
+html.fi-ui .metric-label { font-size: 9px; letter-spacing: .075em; }
+html.fi-ui .metric-value { margin-top: 5px; font-size: clamp(22px,3.2vw,31px); letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+html.fi-ui .metric-sub { margin-top: 2px; font-size: 10px; }
+html.fi-ui #dashboardView[data-empty="true"] .quick-panel,
+html.fi-ui #dashboardView[data-empty="true"] #metrics,
+html.fi-ui #dashboardView[data-empty="true"] #auditDashboardCard,
+html.fi-ui #dashboardView[data-empty="true"] > .grid-2 { display: none !important; }
+html.fi-ui #dashboardView[data-empty="true"] .hero { grid-template-columns: 1fr; }
+html.fi-ui #dashboardView[data-empty="true"] .hero-actions [data-jump="weigh"],
+html.fi-ui #dashboardView[data-empty="true"] .hero-actions [data-jump="inventory"],
+html.fi-ui #dashboardView[data-empty="true"] .hero-actions [data-jump="household"] { display: none !important; }
+html.fi-ui .dashboard-restore-btn { display: none; }
+html.fi-ui #dashboardView[data-empty="true"] .dashboard-restore-btn { display: inline-flex; }
+html.fi-ui .status-bars { gap: 10px; }
+html.fi-ui .material-grid { gap: 9px; }
+html.fi-ui .material-card { border-color: var(--hairline); border-radius: var(--r-md); background: var(--surface-soft); }
+
+/* Forms ------------------------------------------------------------------ */
+html.fi-ui .field,
+html.fi-ui .select {
+  min-height: 46px;
+  border-color: var(--hairline);
+  border-radius: var(--r-md);
+  background: rgba(13,28,48,.88);
+  box-shadow: inset 0 1px rgba(255,255,255,.025);
+  transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+html.fi-ui .field:hover:not(:disabled),
+html.fi-ui .select:hover:not(:disabled) { border-color: var(--hairline-strong); }
+html.fi-ui .field:focus,
+html.fi-ui .select:focus {
+  border-color: var(--accent-border);
+  background: rgba(13,28,48,.96);
+  box-shadow: 0 0 0 4px var(--accent-soft), inset 0 1px rgba(255,255,255,.025);
+  outline: none;
+}
+html.fi-ui .field:focus-visible,
+html.fi-ui .select:focus-visible,
+html.fi-ui textarea.field:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+html.fi-ui .form-grid { align-items: start; gap: 12px; }
+html.fi-ui .form-field { gap: 7px; }
+html.fi-ui .form-field label,
+html.fi-ui label { line-height: 1.35; }
+html.fi-ui textarea.field { min-height: 96px; line-height: 1.5; }
+
+/* Inventory -------------------------------------------------------------- */
+html.fi-ui .toolbar-v3 { grid-template-columns: minmax(240px,1.35fr) repeat(5,minmax(118px,.5fr)) auto; align-items: stretch; }
+html.fi-ui .inventory-grid { grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr)); gap: 14px; }
+html.fi-ui .spool-card {
+  border-color: var(--hairline);
+  border-radius: var(--r-lg);
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, opacity .16s ease;
+}
+html.fi-ui .spool-card:hover { transform: translateY(-2px); border-color: var(--accent-border); box-shadow: 0 14px 34px rgba(0,0,0,.18); }
+html.fi-ui .spool-head { align-items: flex-start; padding: 14px 14px 10px; }
+html.fi-ui .swatch { width: 50px; height: 50px; border-width: 7px; }
+html.fi-ui .spool-title h4 { font-size: 16px; line-height: 1.28; }
+html.fi-ui .spool-title p { line-height: 1.4; }
+html.fi-ui .confidence { margin-top: 2px; }
+html.fi-ui .spool-body { padding: 0 14px 13px; }
+html.fi-ui .fill-top strong { font-variant-numeric: tabular-nums; }
+html.fi-ui .progress { height: 10px; }
+html.fi-ui .meta { gap: 7px; margin-top: 10px; }
+html.fi-ui .meta > div { min-height: 52px; padding: 8px; border-color: var(--hairline); border-radius: var(--r-sm); }
+html.fi-ui .meta strong { line-height: 1.35; }
+html.fi-ui .card-actions { align-items: stretch; padding: 0 14px 14px; }
+html.fi-ui .card-actions .btn { min-height: 40px; }
+html.fi-ui .v8-card-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+html.fi-ui .v8-owner-badge { display: none !important; }
+html.fi-ui .v8-loaded-badge,
+html.fi-ui .v8-stored-badge { min-height: 24px; padding: 3px 7px; border: 1px solid var(--hairline); border-radius: var(--r-pill); font-size: 9px; font-weight: 800; }
+html.fi-ui .v8-loaded-badge { color: #bef264; background: rgba(132,204,22,.10); }
+html.fi-ui .v8-stored-badge { color: var(--muted); background: rgba(100,116,139,.10); }
+html.fi-ui .empty { padding: 28px 20px; border-color: var(--hairline); border-radius: var(--r-lg); background: rgba(3,10,18,.16); }
+
+/* Weigh / history / data ------------------------------------------------- */
+html.fi-ui .weigh-card { padding: 20px; }
+html.fi-ui .calc { border-radius: var(--r-lg); box-shadow: inset 0 1px rgba(255,255,255,.025); }
+html.fi-ui .history-row { border-color: var(--hairline); border-radius: var(--r-md); transition: border-color .16s ease, background .16s ease; }
+html.fi-ui .history-row:hover { border-color: var(--hairline-strong); background: rgba(9,21,36,.50); }
+html.fi-ui .history-row strong,
+html.fi-ui .health-stat strong { font-variant-numeric: tabular-nums; }
+html.fi-ui .health-grid { grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); }
+html.fi-ui .health-stat,
+html.fi-ui .data-box { border-color: var(--hairline); border-radius: var(--r-lg); box-shadow: inset 0 1px rgba(255,255,255,.02); }
+html.fi-ui .data-actions { align-items: stretch; }
+html.fi-ui .data-box { display: flex; flex-direction: column; }
+html.fi-ui .data-box p { flex: 1; }
+
+/* Dialogs --------------------------------------------------------------- */
+html.fi-ui dialog {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-color: var(--accent-border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-float);
+}
+html.fi-ui dialog::backdrop { background: rgba(0,4,10,.72); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+html.fi-ui .dialog-head { flex: 0 0 auto; -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+html.fi-ui .dialog-body { flex: 1 1 auto; min-height: 0; max-height: calc(100dvh - 120px); overflow-y: auto; overscroll-behavior: contain; }
+html.fi-ui .dialog-actions {
+  position: static;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 13px 18px calc(13px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg,rgba(9,21,37,.80),rgba(9,21,37,.98) 28%);
+  border-top: 1px solid var(--hairline);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+html.fi-ui .toast { box-shadow: var(--shadow-float); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+
+/* Smart intake ---------------------------------------------------------- */
+html.fi-ui .intake-banner {
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 11px 12px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-md);
+  background: linear-gradient(135deg,var(--accent-soft),rgba(3,10,18,.12));
+}
+html.fi-ui .intake-banner strong { font-size: 13px; }
+html.fi-ui .intake-banner p { margin: 2px 0 0; font-size: 10px; line-height: 1.45; }
+html.fi-ui .intake-owner { min-height: 30px; border-color: var(--hairline); }
+html.fi-ui .intake-flow { margin-top: 7px; }
+html.fi-ui .intake-chip { min-height: 29px; border-color: var(--hairline); background: var(--surface-soft); font-size: 9px; }
+html.fi-ui .intake-chip:hover,
+html.fi-ui .intake-chip:focus-visible { color: var(--text); border-color: var(--accent-border); }
+html.fi-ui .intake-duplicate { border-radius: var(--r-sm); }
+html.fi-ui .intake-placement-btn { min-height: 38px; border-color: var(--hairline); border-radius: var(--r-sm); }
+html.fi-ui .intake-placement-btn[aria-pressed="true"] { color: #06111d; border-color: transparent; background: linear-gradient(135deg,var(--ux-accent,var(--cyan)),var(--ux-accent2,var(--blue))); }
+
+/* QR scanner ------------------------------------------------------------ */
+html.fi-ui #qrScannerDialog { width: min(94vw,560px); }
+html.fi-ui .qr-scanner-body { gap: 12px; }
+html.fi-ui .qr-private-note,
+html.fi-ui .qr-scan-status { padding: 10px 11px; border-color: var(--hairline); border-radius: var(--r-md); background: var(--surface-soft); }
+html.fi-ui .qr-video-shell { border-color: var(--hairline); border-radius: var(--r-lg); }
+html.fi-ui .qr-reticle { inset: 16%; border-radius: var(--r-lg); }
+html.fi-ui .qr-scan-fallback { border-color: var(--accent-border); border-radius: var(--r-md); background: var(--accent-soft); }
+html.fi-ui .qr-manual,
+html.fi-ui .qr-scanner-actions { gap: 8px; }
+
+/* Printer / AMS --------------------------------------------------------- */
+html.fi-ui .printer-command { gap: 14px; }
+html.fi-ui .printer-hero { padding: 18px; gap: 14px; }
+html.fi-ui .printer-hero h2 { margin: 5px 0 4px; font-size: clamp(24px,3.4vw,34px); letter-spacing: -.04em; }
+html.fi-ui .printer-private-chip { min-height: 34px; padding: 7px 10px; border-color: var(--hairline); background: var(--surface-soft); }
+html.fi-ui .printer-metrics { grid-template-columns: repeat(5,minmax(0,1fr)); gap: 9px; }
+html.fi-ui .printer-metric { min-height: 80px; padding: 12px 13px; border-color: var(--hairline); border-radius: var(--r-md); background: var(--surface-soft); }
+html.fi-ui .printer-metric strong { font-size: 21px; font-variant-numeric: tabular-nums; }
+html.fi-ui .printer-layout { grid-template-columns: minmax(0,1.2fr) minmax(300px,.8fr); gap: 14px; }
+html.fi-ui .printer-panel { padding: 16px; }
+html.fi-ui .printer-machine { border-color: var(--hairline); border-radius: var(--r-lg); background: var(--surface-soft); }
+html.fi-ui .printer-machine-head { padding: 11px 12px; border-bottom-color: var(--hairline); }
+html.fi-ui .printer-slots { gap: 7px; padding: 9px; }
+html.fi-ui .printer-slot { padding: 10px 11px; border-color: var(--hairline); border-radius: var(--r-md); background: rgba(3,10,18,.20); }
+html.fi-ui .printer-candidate,
+html.fi-ui .printer-attention-row { border-color: var(--hairline); border-radius: var(--r-sm); background: rgba(3,10,18,.18); }
+html.fi-ui .printer-empty { border-color: var(--hairline); border-radius: var(--r-md); }
+html.fi-ui .printer-form { gap: 9px; }
+html.fi-ui .printer-form-actions { gap: 8px; }
+html.fi-ui .printer-context { gap: 8px; }
+
+/* Preferences ----------------------------------------------------------- */
+html.fi-ui .ux-pref-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--content-gap); }
+html.fi-ui .ux-pref-card { padding: 18px; }
+html.fi-ui .ux-pref-card h3 { margin: 0 0 4px; font-size: 15px; }
+html.fi-ui .ux-pref-card > p { margin: 0 0 14px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+html.fi-ui .ux-options { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+html.fi-ui .ux-check,
+html.fi-ui .ux-note,
+html.fi-ui .ux-profile-head { border-color: var(--hairline); }
+html.fi-ui .ux-check { padding: 10px 11px; border-radius: var(--r-sm); background: var(--surface-soft); }
+html.fi-ui .ux-profile-head { gap: 14px; padding: 18px; margin-bottom: 14px; }
+html.fi-ui .ux-profile-head h2 { margin: 4px 0; font-size: clamp(24px,3vw,29px); letter-spacing: -.04em; }
+html.fi-ui .ux-profile-head .ux-profile-pill { display: none !important; }
+html.fi-ui .ux-actions { gap: 8px; }
+html.fi-ui .ux-note { padding: 11px 12px; border-radius: var(--r-sm); background: var(--surface-soft); }
+html.fi-ui .ux-color { width: 40px; height: 40px; border-radius: var(--r-sm); }
+
+/* Audit/runtime surfaces ------------------------------------------------ */
+html.fi-ui #auditOwner { display: none !important; }
+html.fi-ui .audit-toolbar:has(#auditOwner) { grid-template-columns: minmax(220px,1fr) 190px auto; }
+html.fi-ui .audit-dashboard { margin: 14px 0; }
+html.fi-ui .audit-dashboard-row { border-color: var(--hairline); border-radius: var(--r-sm); }
+
+/* Preference behaviors -------------------------------------------------- */
+html.fi-ui[data-ux-density="compact"] .panel { padding: 14px; }
+html.fi-ui[data-ux-density="compact"] .spool-head { padding: 11px 12px 8px; }
+html.fi-ui[data-ux-density="compact"] .spool-body { padding: 0 12px 10px; }
+html.fi-ui[data-ux-density="compact"] .card-actions { padding: 0 12px 12px; }
+html.fi-ui[data-ux-density="compact"] .metric { min-height: 78px; padding: 11px; }
+html.fi-ui[data-ux-density="roomy"] .panel { padding: 24px; }
+html.fi-ui[data-ux-density="roomy"] .spool-head { padding: 18px 18px 14px; }
+html.fi-ui[data-ux-density="roomy"] .spool-body { padding: 0 18px 18px; }
+html.fi-ui[data-ux-density="roomy"] .card-actions { padding: 0 18px 18px; }
+html.fi-ui[data-ux-layout="list"] #inventoryGrid { grid-template-columns: 1fr !important; }
+html.fi-ui[data-ux-layout="list"] #inventoryGrid .spool-card { display: grid; grid-template-columns: minmax(240px,.9fr) minmax(300px,1.5fr) auto; align-items: center; }
+html.fi-ui[data-ux-layout="list"] #inventoryGrid .spool-head,
+html.fi-ui[data-ux-layout="list"] #inventoryGrid .spool-body,
+html.fi-ui[data-ux-layout="list"] #inventoryGrid .card-actions { padding-top: 12px; padding-bottom: 12px; }
+html.fi-ui[data-ux-layout="list"] #inventoryGrid .card-actions { min-width: 200px; }
+html.fi-ui[data-ux-targets="large"] .btn,
+html.fi-ui[data-ux-targets="large"] .field,
+html.fi-ui[data-ux-targets="large"] .select,
+html.fi-ui[data-ux-targets="large"] .tab { min-height: 50px; }
+html.fi-ui .ux-hide-hero #dashboardView .hero-copy { display: none; }
+html.fi-ui .ux-hide-hero #dashboardView .hero { grid-template-columns: 1fr; }
+html.fi-ui .ux-hide-priority #dashboardView .quick-panel { display: none; }
+html.fi-ui .ux-hide-priority:not(.ux-hide-hero) #dashboardView .hero { grid-template-columns: 1fr; }
+html.fi-ui .ux-hide-charts #dashboardView > .grid-2 { display: none; }
+html.fi-ui .ux-hide-hero.ux-hide-priority #dashboardView .hero { display: none; }
+
+/* Themes ---------------------------------------------------------------- */
+html.fi-ui[data-ux-theme="light"] {
+  color-scheme: light;
+  --bg:#f4f7fb;
+  --bg2:#fff;
+  --panel:rgba(255,255,255,.96);
+  --panel2:#fff;
+  --line:rgba(51,65,85,.17);
+  --line-strong:rgba(14,165,233,.38);
+  --text:#102033;
+  --muted:#5b6f84;
+  --hairline:rgba(51,65,85,.15);
+  --hairline-strong:rgba(51,65,85,.26);
+  --shadow:0 16px 44px rgba(30,41,59,.10);
+  --shadow-card:0 13px 34px rgba(30,41,59,.10);
+  --shadow-soft:0 8px 24px rgba(30,41,59,.08);
+}
+html.fi-ui[data-ux-theme="light"] body { background: linear-gradient(180deg,#f8fbff,#edf3f9) !important; }
+html.fi-ui[data-ux-theme="light"] .topbar { background: rgba(248,251,255,.90) !important; }
+html.fi-ui[data-ux-theme="light"] .hero-card,
+html.fi-ui[data-ux-theme="light"] .panel,
+html.fi-ui[data-ux-theme="light"] .spool-card,
+html.fi-ui[data-ux-theme="light"] .metric { background: rgba(255,255,255,.95) !important; }
+html.fi-ui[data-ux-theme="light"] .field,
+html.fi-ui[data-ux-theme="light"] .select,
+html.fi-ui[data-ux-theme="light"] .btn,
+html.fi-ui[data-ux-theme="light"] .quick-item,
+html.fi-ui[data-ux-theme="light"] .meta > div,
+html.fi-ui[data-ux-theme="light"] .data-box,
+html.fi-ui[data-ux-theme="light"] .history-row,
+html.fi-ui[data-ux-theme="light"] .user-boundary,
+html.fi-ui[data-ux-theme="light"] .user-switch,
+html.fi-ui[data-ux-theme="light"] .printer-metric,
+html.fi-ui[data-ux-theme="light"] .printer-machine,
+html.fi-ui[data-ux-theme="light"] .printer-slot,
+html.fi-ui[data-ux-theme="light"] .printer-candidate,
+html.fi-ui[data-ux-theme="light"] .printer-attention-row,
+html.fi-ui[data-ux-theme="light"] .ux-check,
+html.fi-ui[data-ux-theme="light"] .ux-note { background: rgba(255,255,255,.92) !important; color: var(--text) !important; }
+html.fi-ui[data-ux-theme="light"] .hero .lead { color: #42566d !important; }
+html.fi-ui[data-ux-theme="light"] .dialog-actions { background: linear-gradient(180deg,rgba(255,255,255,.82),rgba(255,255,255,.99) 28%); }
+html.fi-ui[data-ux-theme="light"] dialog { background: #fff !important; color: var(--text) !important; }
+
+html.fi-ui[data-ux-theme="oled"] { --bg:#000;--bg2:#000;--panel:#050505;--panel2:#080808;--line:rgba(255,255,255,.15);--text:#fff;--muted:#aaa;--hairline:rgba(255,255,255,.14);--hairline-strong:rgba(255,255,255,.26); }
+html.fi-ui[data-ux-theme="oled"] body { background:#000 !important; }
+html.fi-ui[data-ux-theme="oled"] .topbar { background:rgba(0,0,0,.94) !important; }
+html.fi-ui[data-ux-theme="oled"] .hero-card,
+html.fi-ui[data-ux-theme="oled"] .panel,
+html.fi-ui[data-ux-theme="oled"] .spool-card,
+html.fi-ui[data-ux-theme="oled"] .metric,
+html.fi-ui[data-ux-theme="oled"] .user-boundary,
+html.fi-ui[data-ux-theme="oled"] .printer-machine,
+html.fi-ui[data-ux-theme="oled"] .printer-slot { background:#050505 !important; }
+
+html.fi-ui[data-ux-theme="contrast"] { --bg:#000;--bg2:#000;--panel:#000;--panel2:#000;--line:#fff;--line-strong:#fff;--text:#fff;--muted:#fff;--hairline:#fff;--hairline-strong:#fff; }
+html.fi-ui[data-ux-theme="contrast"] body { background:#000 !important; }
+html.fi-ui[data-ux-theme="contrast"] :where(.panel,.hero-card,.spool-card,.metric,.field,.select,.btn,.user-boundary,.user-switch,.printer-metric,.printer-machine,.printer-slot,.printer-candidate,.printer-attention-row,.ux-check,.ux-note) { background:#000 !important; border-color:#fff !important; color:#fff !important; }
+
+/* Responsive ------------------------------------------------------------- */
+@media (max-width: 1220px) {
+  html.fi-ui .toolbar-v3 { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  html.fi-ui .toolbar-v3 .search-wrap { grid-column: 1 / -1; }
+  html.fi-ui .printer-metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+
+@media (max-width: 980px) {
+  html.fi-ui #dashboardView .hero,
+  html.fi-ui .hero,
+  html.fi-ui .weigh-layout,
+  html.fi-ui .grid-2,
+  html.fi-ui .printer-layout,
+  html.fi-ui .v8-grid { grid-template-columns: 1fr; }
+  html.fi-ui .inventory-grid { grid-template-columns: repeat(auto-fit,minmax(min(100%,280px),1fr)); }
+  html.fi-ui #dashboardView .metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  html.fi-ui .ux-pref-grid { grid-template-columns: 1fr; }
+  html.fi-ui[data-ux-layout="list"] #inventoryGrid .spool-card { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  :root { --content-pad: 10px; --top-offset: calc(76px + env(safe-area-inset-top)); }
+  html.fi-ui body { background-attachment: scroll; }
+  html.fi-ui .topbar { padding-top: 10px; padding-bottom: 10px; }
+  html.fi-ui .topbar-inner { gap: 10px; }
+  html.fi-ui .mark { width: 40px; height: 40px; border-radius: 12px; }
+  html.fi-ui .brand h1 { font-size: 18px; }
+  html.fi-ui .brand p { max-width: 57vw; font-size: 10px; }
+  html.fi-ui .user-boundary { grid-template-columns: minmax(0,1fr) auto; gap: 8px; padding: 9px 10px; }
+  html.fi-ui .user-boundary-note { display: none; }
+  html.fi-ui .user-boundary .scan-launch { grid-column: 1 / -1; width: 100%; }
+  html.fi-ui .user-switch { min-width: 144px; }
+  html.fi-ui .user-switch-btn { min-height: 36px; padding: 5px 7px; font-size: 11px; }
+  html.fi-ui .tabs { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:5px; overflow:visible; padding-bottom:5px; }
+  html.fi-ui .tabs > .tab { display:none; min-width:0; min-height:42px; padding:7px 4px; font-size:10px; text-align:center; overflow:hidden; text-overflow:ellipsis; }
+  html.fi-ui .tabs > .tab[data-view="dashboard"],
+  html.fi-ui .tabs > .tab[data-view="inventory"],
+  html.fi-ui .tabs > .tab[data-view="weigh"],
+  html.fi-ui .tabs > .tab[data-view="household"],
+  html.fi-ui .tabs > .mobile-more-tab { display:flex; align-items:center; justify-content:center; }
+  html.fi-ui .mobile-more-tab { min-height:42px; padding:7px 4px; border:1px solid var(--hairline); border-radius:var(--r-pill); background:rgba(10,22,38,.58); color:var(--muted); font-weight:800; font-size:10px; }
+  html.fi-ui .mobile-more-menu:not([hidden]) { grid-template-columns:1fr 1fr; }
+  html.fi-ui #dashboardView .hero-copy { padding:18px 16px; }
+  html.fi-ui #dashboardView .hero h2 { font-size:29px; }
+  html.fi-ui #dashboardView .hero .lead { font-size:12px; }
+  html.fi-ui #dashboardView .hero-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  html.fi-ui #dashboardView .hero-actions .btn { width:100%; }
+  html.fi-ui #dashboardView .hero-actions .btn-primary { grid-column:1/-1; }
+  html.fi-ui #dashboardView .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  html.fi-ui #dashboardView .metric:nth-child(5) { grid-column:1/-1; }
+  html.fi-ui .panel,
+  html.fi-ui .weigh-card { padding:16px; }
+  html.fi-ui .toolbar-v3 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  html.fi-ui .inventory-grid { grid-template-columns:1fr; }
+  html.fi-ui .form-grid,
+  html.fi-ui .data-actions { grid-template-columns:1fr; }
+  html.fi-ui .dialog-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+  html.fi-ui .dialog-actions .btn { width:100%; }
+  html.fi-ui .intake-banner { grid-template-columns:1fr; gap:8px; }
+  html.fi-ui .intake-owner { justify-self:start; }
+  html.fi-ui .printer-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  html.fi-ui .printer-hero { flex-direction:column; }
+  html.fi-ui .printer-slot { grid-template-columns:1fr; }
+  html.fi-ui .printer-slot-actions { display:grid; grid-template-columns:1fr 1fr; }
+  html.fi-ui .printer-form { grid-template-columns:1fr; }
+  html.fi-ui .printer-form .full { grid-column:auto; }
+  html.fi-ui .printer-form-actions,
+  html.fi-ui .printer-context { grid-template-columns:1fr; }
+  html.fi-ui .printer-candidate { grid-template-columns:1fr; }
+  html.fi-ui .audit-toolbar:has(#auditOwner) { grid-template-columns:1fr; }
+  html.fi-ui .toast { bottom:calc(92px + env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 480px) {
+  html.fi-ui .brand p { max-width:62vw; }
+  html.fi-ui .user-boundary-title { font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  html.fi-ui .user-boundary-kicker { font-size:7px; }
+  html.fi-ui .user-switch { min-width:132px; }
+  html.fi-ui .toolbar-v3 { grid-template-columns:1fr; }
+  html.fi-ui .toolbar-v3 > * { grid-column:auto !important; }
+  html.fi-ui #dashboardView .hero h2 { font-size:27px; }
+  html.fi-ui #dashboardView .hero-actions { grid-template-columns:1fr; }
+  html.fi-ui #dashboardView .hero-actions .btn-primary { grid-column:auto; }
+  html.fi-ui .metric { min-height:78px; padding:11px; }
+  html.fi-ui .metric-value { font-size:24px; }
+  html.fi-ui .spool-head { padding:13px 13px 9px; }
+  html.fi-ui .spool-body { padding-left:13px; padding-right:13px; }
+  html.fi-ui .card-actions { padding-left:13px; padding-right:13px; }
+  html.fi-ui dialog { width:100%; max-height:calc(100dvh - env(safe-area-inset-top)); margin:auto 0 0; border-radius:20px 20px 0 0; border-left:0; border-right:0; border-bottom:0; }
+  html.fi-ui .dialog-body { max-height:none; }
+  html.fi-ui .dialog-actions { grid-template-columns:1fr; }
+  html.fi-ui #qrScannerDialog { width:100%; max-width:none; margin:auto 0 0; border-radius:20px 20px 0 0; }
+  html.fi-ui .qr-manual,
+  html.fi-ui .qr-scanner-actions { grid-template-columns:1fr; }
+  html.fi-ui .mobile-more-menu:not([hidden]) { grid-template-columns:1fr; }
+  html.fi-ui .ux-options { grid-template-columns:1fr; }
+}
+
+/* Touch, contrast and transparency -------------------------------------- */
+@media (hover: none), (pointer: coarse) {
+  html.fi-ui .btn:hover,
+  html.fi-ui .tab:hover,
+  html.fi-ui .spool-card:hover,
+  html.fi-ui .quick-button:hover,
+  html.fi-ui .history-row:hover,
+  html.fi-ui .printer-slot:hover,
+  html.fi-ui .printer-candidate:hover,
+  html.fi-ui .printer-attention-row:hover,
+  html.fi-ui .ux-color:hover { transform:none; box-shadow:none; }
+}
+
+@media (prefers-contrast: more) {
+  :root { --hairline:rgba(148,163,184,.38); --hairline-strong:rgba(148,163,184,.52); --muted:#aec2d5; --focus-ring:rgba(125,211,252,.96); }
+  html.fi-ui :where(.btn,.tab,.metric,.spool-card,.material-card,.history-row,.health-stat,.data-box,.user-boundary,.printer-metric,.printer-machine,.printer-slot,.printer-candidate,.printer-attention-row,.qr-scan-status,.qr-scan-fallback,.intake-banner) { border-width:2px; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html.fi-ui .topbar,
+  html.fi-ui .user-boundary,
+  html.fi-ui .dialog-head,
+  html.fi-ui .dialog-actions,
+  html.fi-ui .toast,
+  html.fi-ui dialog::backdrop { -webkit-backdrop-filter:none; backdrop-filter:none; }
+  html.fi-ui .topbar { background:var(--bg); }
+  html.fi-ui .user-boundary { background:var(--panel); }
+}
+
+@media (forced-colors: active) {
+  html.fi-ui :where(button,.btn,.tab,input,select,textarea,[tabindex]):focus-visible,
+  html.fi-ui .field:focus-visible,
+  html.fi-ui .select:focus-visible { outline:3px solid Highlight; outline-offset:3px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.fi-ui { scroll-behavior:auto; }
+  html.fi-ui *,
+  html.fi-ui *::before,
+  html.fi-ui *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; transition-delay:0ms !important; }
+}
+
+html.fi-ui[data-ux-motion="reduced"] *,
+html.fi-ui[data-ux-motion="reduced"] *::before,
+html.fi-ui[data-ux-motion="reduced"] *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
