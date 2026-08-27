@@ -11,7 +11,7 @@
   let refreshQueued = false;
 
   const $ = id => document.getElementById(id);
-  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const parse = (value, fallback = null) => { try { return JSON.parse(value); } catch { return fallback; } };
   const state = () => parse(localStorage.getItem(STORAGE_KEY) || '{}', {spools:[]}) || {spools:[]};
   const nowIso = () => new Date().toISOString();
