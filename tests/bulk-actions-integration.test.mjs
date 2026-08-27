@@ -29,6 +29,14 @@ test('bulk mutations are one logical inventory write so audit and isolation wrap
   assert.doesNotMatch(client, /auditLog\s*=|tombstones\s*=/, 'bulk feature must let the authoritative audit/tombstone layers manage derived state');
 });
 
+test('bulk logical writes remain visible to the existing audit diff interceptor', async () => {
+  const [bulkClient, auditClient] = await Promise.all([read('bulk-actions-client.js'), read('audit-client.js')]);
+  assert.match(bulkClient, /localStorage\.setItem\(STORAGE_KEY, JSON\.stringify\(nextState\)\)/);
+  assert.match(auditClient, /Storage\.prototype\.setItem = function\(key, value\)/);
+  assert.match(auditClient, /api\.buildAuditEvents\(before, after/);
+  assert.match(auditClient, /key !== STORAGE_KEY/);
+});
+
 test('bulk UI stays in the authoritative UI system and supports mobile safe areas', async () => {
   const css = await read('ui-system.css');
   assert.match(css, /\.fi-ui \.bulk-action-dock/);
