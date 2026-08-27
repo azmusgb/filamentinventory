@@ -58,6 +58,11 @@
     Cache-Control = "public, max-age=0, must-revalidate"
 
 [[headers]]
+  for = "/printer-core.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
   for = "/sync-client.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
@@ -99,6 +104,11 @@
 
 [[headers]]
   for = "/scan-client.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/printer-dashboard.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
