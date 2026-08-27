@@ -8,9 +8,9 @@ const version = require('../app-version.js');
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('authoritative app and schema versions are explicit', () => {
-  assert.equal(version.APP_VERSION, '10.0.0');
+  assert.equal(version.APP_VERSION, '10.1.0');
   assert.equal(version.DATA_SCHEMA_VERSION, 10);
-  assert.equal(version.DISPLAY_VERSION, 'v10.0.0');
+  assert.equal(version.DISPLAY_VERSION, 'v10.1.0');
 });
 
 test('package metadata matches the authoritative app version', async () => {
