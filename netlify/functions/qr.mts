@@ -17,11 +17,14 @@ export default async (req: Request) => {
 
   const url = new URL(req.url);
   const spool = String(url.searchParams.get('spool') || '').trim();
+  const profileRaw = String(url.searchParams.get('profile') || '').trim();
   if (!/^[A-Za-z0-9._-]{1,32}$/.test(spool)) return response('Invalid spool ID.', 400, {'Content-Type':'text/plain; charset=utf-8'});
+  if (profileRaw && !['Bill','Aimee'].includes(profileRaw)) return response('Invalid profile.', 400, {'Content-Type':'text/plain; charset=utf-8'});
 
   const target = new URL('/', url.origin);
   target.searchParams.set('spool', spool);
   target.searchParams.set('scan', '1');
+  if (profileRaw) target.hash = new URLSearchParams({'filament-user':profileRaw}).toString();
 
   const svg = await QRCode.toString(target.toString(), {
     type:'svg',
