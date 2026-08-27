@@ -1,0 +1,29 @@
+/* Dashboard composition: exception-first, compact, operational. */
+.dashboard-view { display:grid; gap:var(--space-5); }
+.dashboard-view .hero { display:grid; grid-template-columns:1fr; gap:var(--space-4); }
+.dashboard-view .hero-card { min-width:0; }
+.dashboard-view .hero-copy { padding:var(--space-5); }
+.dashboard-view .hero-copy h2 { max-width:18ch; margin-block:var(--space-2); font-size:clamp(var(--text-2xl),7vw,36px); line-height:1.05; }
+.dashboard-view .hero-copy .lead { max-width:70ch; margin-bottom:0; line-height:1.5; }
+.dashboard-view .hero-actions { display:flex; flex-wrap:wrap; gap:var(--space-2); margin-top:var(--space-4); }
+.dashboard-view .quick-panel { padding:var(--space-5); }
+.dashboard-view .quick-panel > p { margin-top:var(--space-3); }
+.dashboard-view .metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-3); }
+.dashboard-view .metric { min-width:0; padding:var(--space-4); }
+.dashboard-view .metric-value { display:block; margin-block:var(--space-1); font-size:clamp(var(--text-2xl),8vw,34px); line-height:1; }
+.dashboard-view .metric-label,.dashboard-view .metric-sub { display:block; }
+.dashboard-view .metric-sub { color:var(--color-text-muted); }
+.dashboard-view .dashboard-secondary { display:grid; grid-template-columns:1fr; gap:var(--space-4); }
+.dashboard-view[data-empty="true"] .metrics,
+.dashboard-view[data-empty="true"] .dashboard-secondary { display:none; }
+@media (min-width:760px) {
+  .dashboard-view .hero { grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr); }
+  .dashboard-view .metrics { grid-template-columns:repeat(5,minmax(0,1fr)); }
+  .dashboard-view .dashboard-secondary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:759px) {
+  .dashboard-view .hero-copy .eyebrow { display:none; }
+  .dashboard-view .hero-actions .dashboard-restore-btn { display:none; }
+  .dashboard-view .hero-actions { display:grid; grid-template-columns:1fr 1fr; }
+  .dashboard-view .hero-actions .btn-primary { grid-column:1 / -1; }
+}
