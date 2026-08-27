@@ -60,9 +60,9 @@ test('dashboard actively removes obsolete shared-household language from visible
   assert.doesNotMatch(source, /Shared activity/);
 });
 
-test('personal add action opens the existing add-spool flow only once', async () => {
+test('dashboard does not create a competing add-spool implementation', async () => {
   const source = await read('personal-dashboard.js');
-  assert.match(source, /function addSpool\(\) \{ const button = document\.getElementById\('addTopBtn'\) \|\| document\.getElementById\('heroAddBtn'\); button\?\.click\(\); \}/);
+  assert.doesNotMatch(source, /showModal\(.*spoolDialog|new FormData|spools\.push/);
   assert.doesNotMatch(source, /\.click\(\) \|\| document\.getElementById\('heroAddBtn'\)/);
 });
 
