@@ -29,6 +29,8 @@ test('v10 interaction architecture covers the critique priorities without new CR
   ]) assert.ok(client.includes(contract), `missing v10 contract: ${contract}`);
   assert.match(client, /ESSENTIAL_FIELD_IDS/);
   assert.match(client, /localStorage\.setItem\(CURRENT_USER_KEY/);
+  assert.match(client, /window\.location\.reload\(\)/);
+  assert.match(client, /nextOwner === currentUser\(\)/);
   assert.doesNotMatch(client, /localStorage\.setItem\(['"]filament-inventory-v1/);
   assert.doesNotMatch(client, /Storage\.prototype\.setItem\s*=/);
   assert.match(client, /if \(button\.innerHTML !== markup\) button\.innerHTML = markup/);
