@@ -183,6 +183,19 @@
     if (result.changed) writeAndReload(result.state, `${result.changed} spools restored.`);
   }
 
+  function selectLabelsSequentially(ids, index = 0) {
+    if (index >= ids.length) {
+      $('labelPreviewGrid')?.scrollIntoView({behavior:'smooth', block:'start'});
+      return;
+    }
+    const input = [...document.querySelectorAll('[data-label-id]')].find(node => String(node.dataset.labelId) === String(ids[index]));
+    if (input && !input.checked) {
+      input.checked = true;
+      input.dispatchEvent(new Event('change', {bubbles:true}));
+    }
+    setTimeout(() => selectLabelsSequentially(ids, index + 1), 20);
+  }
+
   function openLabels() {
     const ids = selectedIds();
     if (!ids.length) return;
@@ -191,16 +204,8 @@
     setTimeout(() => {
       const search = $('labelSearch');
       if (search) { search.value = ''; search.dispatchEvent(new Event('input', {bubbles:true})); }
-      setTimeout(() => {
-        document.querySelectorAll('[data-label-id]').forEach(input => {
-          const should = ids.includes(String(input.dataset.labelId));
-          if (input.checked !== should) {
-            input.checked = should;
-            input.dispatchEvent(new Event('change', {bubbles:true}));
-          }
-        });
-        $('labelPreviewGrid')?.scrollIntoView({behavior:'smooth', block:'start'});
-      }, 90);
+      $('clearLabelsBtn')?.click();
+      setTimeout(() => selectLabelsSequentially(ids), 60);
     }, 90);
   }
 
