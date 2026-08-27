@@ -46,19 +46,19 @@ test('authoritative UI system owns v10 layout, typography and responsive composi
   assert.match(css, /font-size:\s*11px/);
 });
 
-test('v10 remains schema 10 while PWA and deploy contracts publish the UI controller', async () => {
+test('v10.1 remains schema 10 while PWA and deploy contracts publish the v10 UI controller', async () => {
   const [version, assets, sw, ci, netlify, pkg, lock] = await Promise.all([
     read('app-version.js'), read('scripts/public-assets.mjs'), read('sw.js'), read('.github/workflows/ci.yml'), read('netlify.toml'), read('package.json'), read('package-lock.json'),
   ]);
-  assert.match(version, /APP_VERSION = '10\.0\.0'/);
+  assert.match(version, /APP_VERSION = '10\.1\.0'/);
   assert.match(version, /DATA_SCHEMA_VERSION = 10/);
   assert.match(assets, /'ui-v10-client\.js'/);
   assert.match(sw, /\/ui-v10-client\.js/);
-  assert.match(sw, /filament-inventory-v26/);
+  assert.match(sw, /filament-inventory-v27/);
   assert.match(ci, /dist\/ui-v10-client\.js/);
   assert.match(netlify, /for = "\/ui-v10-client\.js"/);
-  assert.equal(JSON.parse(pkg).version, '10.0.0');
+  assert.equal(JSON.parse(pkg).version, '10.1.0');
   const lockJson = JSON.parse(lock);
-  assert.equal(lockJson.version, '10.0.0');
-  assert.equal(lockJson.packages[''].version, '10.0.0');
+  assert.equal(lockJson.version, '10.1.0');
+  assert.equal(lockJson.packages[''].version, '10.1.0');
 });
