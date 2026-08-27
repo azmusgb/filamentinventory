@@ -2,7 +2,9 @@
   'use strict';
 
   const STORAGE_KEY = 'filament-inventory-v1';
-  const APP_VERSION = 3;
+  const VERSION_INFO = globalThis.FilamentInventoryVersion || Object.freeze({APP_VERSION:'9.0.0', DATA_SCHEMA_VERSION:9, DISPLAY_VERSION:'v9.0.0'});
+  const APP_VERSION = VERSION_INFO.APP_VERSION;
+  const DATA_SCHEMA_VERSION = VERSION_INFO.DATA_SCHEMA_VERSION;
   const DEFAULT_REORDER_GRAMS = 250;
   const MAX_LOG_ENTRIES = 1000;
   const STATUS_ORDER = ['Nearly full', 'High', 'Good', 'Medium', 'Low', 'Very low', 'Unknown'];
@@ -115,7 +117,7 @@
   }
 
   function saveState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({version:APP_VERSION, savedAt:nowIso(), meta, spools:inventory, weighLog}));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({version:DATA_SCHEMA_VERSION, appVersion:APP_VERSION, savedAt:nowIso(), meta, spools:inventory, weighLog}));
   }
 
   function measurement(spool) {
@@ -342,7 +344,7 @@
     const unknownFill = active.filter(s => measurement(s).percent === null).length;
     const lowConfidence = active.filter(s => ['Low','Unknown'].includes(s.confidence)).length;
     $('dataHealth').innerHTML = `
-      <div class="health-stat"><span>App version</span><strong>v${APP_VERSION}</strong></div>
+      <div class="health-stat"><span>App version</span><strong>${VERSION_INFO.DISPLAY_VERSION}</strong></div>
       <div class="health-stat"><span>Local data</span><strong>${(bytes/1024).toFixed(1)} KB</strong></div>
       <div class="health-stat"><span>Backup</span><strong>${esc(backupAgeText())}</strong></div>
       <div class="health-stat"><span>Unknown fill</span><strong>${unknownFill}</strong></div>
@@ -536,7 +538,7 @@
 
   function exportJson() {
     const exportedAt = nowIso();
-    download(`filament-inventory-${exportedAt.slice(0,10)}.json`, JSON.stringify({version:APP_VERSION,exportedAt,meta,spools:inventory,weighLog},null,2), 'application/json');
+    download(`filament-inventory-${VERSION_INFO.DISPLAY_VERSION}-${exportedAt.slice(0,10)}.json`, JSON.stringify({version:DATA_SCHEMA_VERSION,appVersion:APP_VERSION,exportedAt,meta,spools:inventory,weighLog},null,2), 'application/json');
     markBackup(); showToast('JSON backup exported.');
   }
 
@@ -545,14 +547,14 @@
   function exportCsv() {
     const headers = ['ID','Brand','Material','Color','Color Hex','Spool Type','Starting g','Visual %','Gross g','Tare g','Effective Remaining g','Effective %','Status','Reorder Needed','Reorder Threshold g','Location','Opened','Bagged','Last Dried Date','Purchase Source','Purchase Price','Purchase Date','Confidence','Archived','Notes','Created','Updated'];
     const rows = inventory.map(s => { const m = measurement(s); return [s.id,s.brand,s.material,s.colorName,s.colorHex,s.spoolType,s.startWeight,s.visualPercent ?? '',s.gross ?? '',s.tare ?? '',m.grams ?? '',m.percent ?? '',statusFor(m.percent),reorderNeeded(s)?'Yes':'No',s.reorderThreshold,s.location,s.opened,s.bagged,s.lastDriedDate,s.purchaseSource,s.purchasePrice ?? '',s.purchaseDate,s.confidence,isArchived(s)?'Yes':'No',s.notes,s.createdAt ?? '',s.updatedAt ?? '']; });
-    download(`filament-inventory-${new Date().toISOString().slice(0,10)}.csv`, [headers,...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv;charset=utf-8');
+    download(`filament-inventory-${VERSION_INFO.DISPLAY_VERSION}-${new Date().toISOString().slice(0,10)}.csv`, [headers,...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv;charset=utf-8');
     markBackup(); showToast('CSV inventory exported.');
   }
 
   function exportHistoryCsv() {
     const headers = ['ID','Timestamp','Gross g','Tare g','Remaining g','Percent','Location','Note'];
     const rows = weighLog.slice().sort((a,b) => new Date(b.at)-new Date(a.at)).map(x => [x.id,x.at,x.gross ?? '',x.tare ?? '',x.remaining ?? '',x.percent ?? '',x.location,x.note]);
-    download(`filament-measurements-${new Date().toISOString().slice(0,10)}.csv`, [headers,...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv;charset=utf-8');
+    download(`filament-measurements-${VERSION_INFO.DISPLAY_VERSION}-${new Date().toISOString().slice(0,10)}.csv`, [headers,...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv;charset=utf-8');
     markBackup(); showToast('Measurement history exported.');
   }
 

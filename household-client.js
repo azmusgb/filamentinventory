@@ -3,7 +3,10 @@
 
   const STORAGE_KEY = 'filament-inventory-v1';
   const CURRENT_USER_KEY = 'filament-current-user-v1';
-  const VERSION = 8;
+  const VERSION_INFO = globalThis.FilamentInventoryVersion || Object.freeze({APP_VERSION:'9.0.0', DATA_SCHEMA_VERSION:9, DISPLAY_VERSION:'v9.0.0'});
+  const VERSION = VERSION_INFO.DATA_SCHEMA_VERSION;
+  const APP_VERSION = VERSION_INFO.APP_VERSION;
+  const VERSION_LABEL = VERSION_INFO.DISPLAY_VERSION;
   const OWNERS = ['Bill', 'Aimee'];
   const priorGetItem = Storage.prototype.getItem;
   const priorSetItem = Storage.prototype.setItem;
@@ -291,15 +294,15 @@
       heroActions.insertBefore(btn, heroActions.lastElementChild);
     }
     const eyebrow = document.querySelector('#dashboardView .hero-copy .eyebrow');
-    if (eyebrow) eyebrow.textContent = 'Household inventory control · v8';
+    if (eyebrow) eyebrow.textContent = `Household inventory control · ${VERSION_LABEL}`;
     const dataTitle = document.getElementById('dataTitle');
-    if (dataTitle) dataTitle.textContent = 'Data, backup & install · v8';
+    if (dataTitle) dataTitle.textContent = `Data, backup & install · ${VERSION_LABEL}`;
   }
 
   function householdMarkup() {
     return `
       <div class="v8-hero panel">
-        <div><span class="eyebrow">Two-user household inventory · v8</span><h2 id="householdTitle">Bill + Aimee, one inventory system.</h2><p class="muted">Every spool has an owner and a physical state. Stored spools keep their storage location; loaded spools can be assigned to a printer, AMS/feeder, and slot.</p></div>
+        <div><span class="eyebrow">Two-user household inventory · ${VERSION_LABEL}</span><h2 id="householdTitle">Bill + Aimee, one inventory system.</h2><p class="muted">Every spool has an owner and a physical state. Stored spools keep their storage location; loaded spools can be assigned to a printer, AMS/feeder, and slot.</p></div>
         <label class="v8-current-user">New spools default to <select class="select" id="currentUserV8"><option>Bill</option><option>Aimee</option></select></label>
       </div>
       <div class="v8-metrics" id="householdMetrics"></div>
@@ -403,14 +406,14 @@
     const state=readState();
     const headers=['ID','Owner','Brand','Material','Color','Color Hex','Spool Type','Starting g','Visual %','Gross g','Tare g','Effective Remaining g','Effective %','Status','Reorder Needed','Reorder Threshold g','Physical State','Printer','AMS / Feeder','Slot / Bay','Loaded At','Location','Opened','Bagged','Last Dried Date','Purchase Source','Purchase Price','Purchase Date','Confidence','Archived','Notes','Created','Updated'];
     const rows=state.spools.map(s=>{const hh=normalizeHousehold(s),m=measurement(s);return [s.id,hh.owner,s.brand,s.material,s.colorName,s.colorHex,s.spoolType,s.startWeight,s.visualPercent??'',s.gross??'',s.tare??'',m.grams??'',m.percent??'',statusFor(m.percent),reorderNeeded(s)?'Yes':'No',s.reorderThreshold??250,hh.placementState,hh.printerName,hh.feederName,hh.feederSlot,hh.loadedAt||'',s.location,s.opened,s.bagged,s.lastDriedDate,s.purchaseSource,s.purchasePrice??'',s.purchaseDate,s.confidence,s.archivedAt?'Yes':'No',s.notes,s.createdAt||'',s.updatedAt||''];});
-    download(`filament-inventory-v8-${nowIso().slice(0,10)}.csv`,[headers,...rows].map(r=>r.map(csvCell).join(',')).join('\n'),'text/csv;charset=utf-8');
-    toast('Full v8 inventory CSV exported.');
+    download(`filament-inventory-${VERSION_LABEL}-${nowIso().slice(0,10)}.csv`,[headers,...rows].map(r=>r.map(csvCell).join(',')).join('\n'),'text/csv;charset=utf-8');
+    toast(`Full ${VERSION_LABEL} inventory CSV exported.`);
   }
 
-  function backupComplete() { const state=readState(),exportedAt=nowIso();state.meta={...(state.meta||{}),lastBackupAt:exportedAt};writeState(state);download(`filament-inventory-v8-${exportedAt.slice(0,10)}.json`,JSON.stringify({...state,version:VERSION,exportedAt},null,2),'application/json');toast('Complete v8 backup exported.'); }
+  function backupComplete() { const state=readState(),exportedAt=nowIso();state.meta={...(state.meta||{}),lastBackupAt:exportedAt};writeState(state);download(`filament-inventory-${VERSION_LABEL}-${exportedAt.slice(0,10)}.json`,JSON.stringify({...state,version:VERSION,appVersion:APP_VERSION,exportedAt},null,2),'application/json');toast(`Complete ${VERSION_LABEL} backup exported.`); }
 
   async function restoreComplete(file) {
-    try { const parsed=JSON.parse(await file.text());if(!parsed||!Array.isArray(parsed.spools))throw new Error('Backup does not contain a spools array.');const incoming=augmentState(parsed,parsed),replace=confirm(`Restore ${incoming.spools.length} spools. OK = replace local inventory; Cancel = merge by spool ID.`);if(replace){if(!confirm('Replace the current local inventory and measurement history?'))return;resetting=true;writeState(incoming);resetting=false;}else{const current=readState(),mergeBackupStates=globalThis.FilamentInventoryStateMerge?.mergeBackupStates;if(!mergeBackupStates)throw new Error('Backup merge engine is unavailable. Refresh and try again.');const merged=mergeBackupStates(current,incoming);writeState(merged);}alert('v8 backup restored. The app will reload.');location.reload(); } catch(error){resetting=false;alert(`Restore failed: ${error.message}`);}
+    try { const parsed=JSON.parse(await file.text());if(!parsed||!Array.isArray(parsed.spools))throw new Error('Backup does not contain a spools array.');const incoming=augmentState(parsed,parsed),replace=confirm(`Restore ${incoming.spools.length} spools. OK = replace local inventory; Cancel = merge by spool ID.`);if(replace){if(!confirm('Replace the current local inventory and measurement history?'))return;resetting=true;writeState(incoming);resetting=false;}else{const current=readState(),mergeBackupStates=globalThis.FilamentInventoryStateMerge?.mergeBackupStates;if(!mergeBackupStates)throw new Error('Backup merge engine is unavailable. Refresh and try again.');const merged=mergeBackupStates(current,incoming);writeState(merged);}alert(`${VERSION_LABEL} backup restored. The app will reload.`);location.reload(); } catch(error){resetting=false;alert(`Restore failed: ${error.message}`);}
   }
 
   function decorateLabels() {
