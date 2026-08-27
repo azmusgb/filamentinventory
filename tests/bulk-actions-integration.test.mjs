@@ -21,6 +21,12 @@ test('bulk mode provides explicit selection and safe batch actions', async () =>
   assert.match(client, /sessionStorage\.setItem\('filament-bulk-message'/);
 });
 
+test('bulk Select control uses an attribute-aware singleton guard', async () => {
+  const client = await read('bulk-actions-client.js');
+  assert.match(client, /document\.querySelector\('\[data-bulk-start\]'\)/);
+  assert.doesNotMatch(client, /\$\('\[data-bulk-start\]'\)/);
+});
+
 test('bulk mutations are one logical inventory write so audit and isolation wrappers remain authoritative', async () => {
   const client = await read('bulk-actions-client.js');
   const writes = client.match(/localStorage\.setItem\(STORAGE_KEY/g) || [];
