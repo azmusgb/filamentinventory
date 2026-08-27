@@ -6,6 +6,7 @@
   'use strict';
   const clone = value => JSON.parse(JSON.stringify(value));
   const safeId = value => String(value ?? '').trim();
+  const keyId = value => safeId(value).toLocaleLowerCase('en-US');
 
   function snapshot(state, reason = 'change') {
     return Object.freeze({reason:String(reason), at:new Date().toISOString(), state:clone(state)});
@@ -17,15 +18,16 @@
   }
 
   function previewMerge(currentSpools = [], incomingSpools = []) {
-    const current = new Map(currentSpools.map(spool => [safeId(spool.id), spool]).filter(([id]) => id));
+    const current = new Map(currentSpools.map(spool => [keyId(spool.id), spool]).filter(([id]) => id));
     const seen = new Set();
     const conflicts = [], additions = [], duplicates = [];
     for (const incoming of incomingSpools) {
       const id = safeId(incoming?.id);
-      if (!id) continue;
-      if (seen.has(id)) { duplicates.push({id, incoming:clone(incoming)}); continue; }
-      seen.add(id);
-      const existing = current.get(id);
+      const key = keyId(id);
+      if (!key) continue;
+      if (seen.has(key)) { duplicates.push({id, incoming:clone(incoming)}); continue; }
+      seen.add(key);
+      const existing = current.get(key);
       if (!existing) additions.push({id, incoming:clone(incoming)});
       else if (JSON.stringify(existing) !== JSON.stringify(incoming)) conflicts.push({id, existing:clone(existing), incoming:clone(incoming)});
     }
