@@ -50,12 +50,14 @@ test('successful measurement follow-up supports next measurement and Physical Sp
   assert.match(client, /dataset\.nextSpoolId/);
 });
 
-test('Smart Weigh has no runtime stylesheet and stays under the authoritative UI system', async () => {
-  const client = await read('weigh-client.js');
-  const css = await read('ui-system.css');
+test('Smart Weigh composes existing UI-system primitives instead of adding runtime or parallel CSS', async () => {
+  const [client, css] = await Promise.all([read('weigh-client.js'), read('ui-system.css')]);
   assert.doesNotMatch(client, /createElement\(['"]style['"]\)|injectStyles|style\.textContent/);
-  for (const contract of ['.weigh-smart-intro','.weigh-spool-chip','.weigh-tare-guide','.weigh-impact','.weigh-next-dialog']) {
-    assert.ok(css.includes(contract), `missing Smart Weigh UI-system contract: ${contract}`);
+  for (const primitive of ['quick-list','quick-item','quick-button','qr-private-note','calc','calc-row','spool-action-dialog','spool-action-grid']) {
+    assert.ok(client.includes(primitive), `Smart Weigh should compose existing primitive: ${primitive}`);
+  }
+  for (const selector of ['.quick-item','.calc','.spool-action-dialog','.spool-action-grid']) {
+    assert.ok(css.includes(selector), `authoritative UI system must own primitive: ${selector}`);
   }
 });
 
