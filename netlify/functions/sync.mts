@@ -81,7 +81,7 @@ function normalizeTombstones(value: unknown): Record<string,string> {
   return out;
 }
 
-function normalizeState(value: any) {
+export function normalizeState(value: any) {
   const spools = Array.isArray(value?.spools) ? value.spools.filter((s:any) => s && String(s.id || '').trim()).slice(0, MAX_SPOOLS) : [];
   const weighLog = Array.isArray(value?.weighLog) ? value.weighLog.filter((x:any) => x && String(x.id || '').trim()).slice(-MAX_LOGS) : [];
   return { version:Math.max(Number(value?.version) || 0, 5), spools, weighLog, tombstones:normalizeTombstones(value?.tombstones) };
@@ -136,7 +136,7 @@ function asEnvelope(raw: any): Envelope | null {
   return null;
 }
 
-function mergeStates(remoteRaw: any, incomingRaw: any) {
+export function mergeStates(remoteRaw: any, incomingRaw: any) {
   const remote = normalizeState(remoteRaw || {});
   const incoming = normalizeState(incomingRaw || {});
   const tombstones: Record<string,string> = { ...remote.tombstones };
