@@ -1,4 +1,4 @@
-const CACHE = 'filament-inventory-v27';
+const CACHE = 'filament-inventory-v28';
 const CORE = ['/', '/index.html', '/styles.css', '/ui-system.css', '/app-version.js', '/user-isolation.js', '/state-merge.js', '/audit-core.js', '/personal-core.js', '/intake-core.js', '/scan-core.js', '/printer-core.js', '/inventory-command-core.js', '/spool-actions-core.js', '/bulk-actions-core.js', '/sync-client.js', '/security-client.js', '/labels-client.js', '/household-client.js', '/ux-client.js', '/audit-client.js', '/personal-dashboard.js', '/intake-client.js', '/scan-client.js', '/printer-dashboard.js', '/inventory-command-client.js', '/spool-actions-client.js', '/bulk-actions-client.js', '/ui-v10-client.js', '/app.js', '/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', event => {
