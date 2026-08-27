@@ -241,11 +241,6 @@
     enhanceCommandRecent();
     enhancePrinterSlots();
     enhanceScanDialog();
-    const dialog = $('spoolActionDialog');
-    if (dialog?.open && dialog.dataset.spoolId) {
-      const spool = findSpool(dialog.dataset.spoolId);
-      if (spool) renderDialog(spool); else dialog.close();
-    }
   }
 
   function queueRefresh() {
