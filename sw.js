@@ -1,5 +1,5 @@
-const CACHE = 'filament-inventory-v11';
-const CORE = ['/', '/index.html', '/styles.css', '/state-merge.js', '/audit-core.js', '/sync-client.js', '/security-client.js', '/labels-client.js', '/household-client.js', '/ux-client.js', '/audit-client.js', '/app.js', '/manifest.webmanifest', '/icon.svg'];
+const CACHE = 'filament-inventory-v12';
+const CORE = ['/', '/index.html', '/styles.css', '/state-merge.js', '/audit-core.js', '/personal-core.js', '/sync-client.js', '/security-client.js', '/labels-client.js', '/household-client.js', '/ux-client.js', '/audit-client.js', '/personal-dashboard.js', '/app.js', '/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(CORE)).then(() => self.skipWaiting()));
