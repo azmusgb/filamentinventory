@@ -6,6 +6,7 @@ declare const Netlify: any;
 
 const STORE_NAME = 'filament-inventory-sync';
 const KEY_HEADER = 'x-filament-sync-key';
+const PROFILE_HEADER = 'x-filament-profile';
 const MAX_BODY_BYTES = 32_000;
 const MAX_ACTIVITY = 24;
 const MAX_DEVICES = 16;
@@ -32,8 +33,13 @@ function syncKey(req: Request): string | null {
   return /^[A-Za-z0-9_-]{32,128}$/.test(key) ? key : null;
 }
 
-function hashKey(key: string): string {
-  return createHash('sha256').update(key).digest('hex');
+function profile(req: Request): 'Bill' | 'Aimee' | null {
+  const value = String(req.headers.get(PROFILE_HEADER) || '').trim();
+  return value === 'Bill' || value === 'Aimee' ? value : null;
+}
+
+function hashKey(key: string, owner: 'Bill' | 'Aimee'): string {
+  return createHash('sha256').update(`${owner.toLowerCase()}:${key}`).digest('hex');
 }
 
 function stateKey(hash: string): string {
@@ -110,6 +116,8 @@ export default async (req: Request) => {
 
   const key = syncKey(req);
   if (!key) return json({ok:false, error:'A valid private sync key is required.'}, 401);
+  const owner = profile(req);
+  if (!owner) return json({ok:false, error:'A valid inventory profile is required.'}, 400);
 
   const length = Number(req.headers.get('content-length') || 0);
   if (length > MAX_BODY_BYTES) return json({ok:false, error:'Security request is too large.'}, 413);
@@ -120,7 +128,7 @@ export default async (req: Request) => {
 
   const action = String(body?.action || '');
   const device = sanitizeDevice(body?.device);
-  const oldHash = hashKey(key);
+  const oldHash = hashKey(key, owner);
   const store = getStore(STORE_NAME, {consistency:'strong'});
   const current = await store.get(stateKey(oldHash), {type:'json'});
 

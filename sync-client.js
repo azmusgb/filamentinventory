@@ -7,6 +7,7 @@
   const DEVICE_ID_STORAGE = 'filament-device-id-v1';
   const API = '/api/sync';
   const VERSION = 5;
+  const currentProfile = () => globalThis.FilamentInventoryUsers?.currentUser?.() || 'Bill';
 
   const nativeSetItem = Storage.prototype.setItem;
   const nativeGetItem = Storage.prototype.getItem;
@@ -266,7 +267,7 @@
   async function apiRequest(method, key, body, query = '') {
     const response = await fetch(`${API}${query}`, {
       method,
-      headers:{Accept:'application/json','X-Filament-Sync-Key':key,...(body ? {'Content-Type':'application/json'} : {})},
+      headers:{Accept:'application/json','X-Filament-Sync-Key':key,'X-Filament-Profile':currentProfile(),...(body ? {'Content-Type':'application/json'} : {})},
       body:body ? JSON.stringify(body) : undefined,
       cache:'no-store',
     });

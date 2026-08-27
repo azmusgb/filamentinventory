@@ -34,7 +34,7 @@
     return strictOwner(row?.owner) || strictOwner(row?.actor) || spoolOwners.get(lowerId(row?.spoolId)) || null;
   }
 
-  function splitLegacyState(input, {schemaVersion = 10, cloudOwner = 'Bill', at = nowIso()} = {}) {
+  function splitLegacyState(input, {schemaVersion = 10, at = nowIso()} = {}) {
     const legacy = input && Array.isArray(input.spools) ? input : {spools:[], weighLog:[], auditLog:[], tombstones:{}, meta:{}};
     const states = {};
     const spoolOwners = new Map();
@@ -82,13 +82,6 @@
       };
     }
 
-    const activeCloudOwner = normalizeOwner(cloudOwner);
-    const otherOwner = activeCloudOwner === 'Bill' ? 'Aimee' : 'Bill';
-    for (const spool of states[otherOwner].spools) {
-      const id = lowerId(spool.id);
-      if (id) states[activeCloudOwner].tombstones[id] = at;
-    }
-    states[activeCloudOwner].meta = {...states[activeCloudOwner].meta, legacyCloudScopeOwner:activeCloudOwner};
     return states;
   }
 
@@ -150,7 +143,7 @@
       const hasPartition = Boolean(nativeGet.call(storage, billKey) || nativeGet.call(storage, aimeeKey));
 
       if (!hasPartition && legacyState?.spools) {
-        const split = splitLegacyState(legacyState, {schemaVersion, cloudOwner:owner});
+        const split = splitLegacyState(legacyState, {schemaVersion});
         nativeSet.call(storage, billKey, JSON.stringify(split.Bill));
         nativeSet.call(storage, aimeeKey, JSON.stringify(split.Aimee));
       } else if (!hasPartition) {
@@ -158,14 +151,16 @@
       }
 
       const legacySyncKey = nativeGet.call(storage, SYNC_KEY);
-      const legacySyncSettings = nativeGet.call(storage, SYNC_SETTINGS_KEY);
-      if (legacySyncKey && !nativeGet.call(storage, physicalKey(owner, SYNC_KEY))) nativeSet.call(storage, physicalKey(owner, SYNC_KEY), legacySyncKey);
-      if (legacySyncSettings && !nativeGet.call(storage, physicalKey(owner, SYNC_SETTINGS_KEY))) nativeSet.call(storage, physicalKey(owner, SYNC_SETTINGS_KEY), legacySyncSettings);
+      const legacySettings = parse(nativeGet.call(storage, SYNC_SETTINGS_KEY), {});
+      for (const profileOwner of OWNERS) {
+        if (legacySyncKey && !nativeGet.call(storage, physicalKey(profileOwner, SYNC_KEY))) nativeSet.call(storage, physicalKey(profileOwner, SYNC_KEY), legacySyncKey);
+        if (!nativeGet.call(storage, physicalKey(profileOwner, SYNC_SETTINGS_KEY))) nativeSet.call(storage, physicalKey(profileOwner, SYNC_SETTINGS_KEY), JSON.stringify({...legacySettings, enabled:Boolean(legacySyncKey && legacySettings?.enabled), lastRevision:'', lastSyncedAt:null}));
+      }
 
       nativeRemove.call(storage, INVENTORY_KEY);
       nativeRemove.call(storage, SYNC_KEY);
       nativeRemove.call(storage, SYNC_SETTINGS_KEY);
-      nativeSet.call(storage, MIGRATION_KEY, JSON.stringify({at:nowIso(), schemaVersion, legacyCloudScopeOwner:owner}));
+      nativeSet.call(storage, MIGRATION_KEY, JSON.stringify({at:nowIso(), schemaVersion, cloudIsolation:'profile-scoped'}));
     };
 
     migrate();
