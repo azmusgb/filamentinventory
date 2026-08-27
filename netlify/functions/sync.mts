@@ -1,6 +1,7 @@
 import type { Config } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { createHash, randomBytes } from 'node:crypto';
+import { reconcileConcurrentState } from './sync-reconcile.mts';
 
 declare const Netlify: any;
 
@@ -285,12 +286,23 @@ export default async (req: Request) => {
     }
 
     if (!body?.state || !Array.isArray(body.state.spools)) return json({ ok:false, error:'A valid sync state is required.' }, 400);
-    const merged = mergeStates(current?.state, body.state);
+    const baseRevision = String(body?.baseRevision || '');
+    const concurrent = Boolean(current && baseRevision && baseRevision !== current.revision);
+    const baseEnvelope = concurrent ? await getSnapshotByRevision(store, hash, baseRevision) : null;
+    const twoWayMerged = mergeStates(current?.state, body.state);
+    const reconciliation = baseEnvelope && current
+      ? reconcileConcurrentState(baseEnvelope.state, current.state, body.state, twoWayMerged.state)
+      : {
+          state:twoWayMerged.state,
+          stats:{ threeWaySpools:0, mergedSpools:0, conflictedSpools:0, conflictingFields:0, conflictIds:[] as string[] },
+        };
+    const merged = {
+      state:reconciliation.state,
+      stats:{ ...twoWayMerged.stats, ...reconciliation.stats, baseRecovered:Boolean(baseEnvelope) },
+    };
     const currentFingerprint = current ? JSON.stringify(current.state) : '';
     const nextFingerprint = JSON.stringify(merged.state);
     const changed = currentFingerprint !== nextFingerprint;
-    const baseRevision = String(body?.baseRevision || '');
-    const concurrent = Boolean(current && baseRevision && baseRevision !== current.revision);
 
     if (!changed && current) {
       const at = new Date().toISOString();
