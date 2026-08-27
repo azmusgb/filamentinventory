@@ -44,9 +44,11 @@ jobs:
 
       - name: Verify deploy output
         run: |
+          set -euo pipefail
           test -f dist/index.html
           test -f dist/ui-system.css
           test -f dist/app-version.js
+          test -f dist/build-meta.json
           test -f dist/user-isolation.js
           test -f dist/intake-core.js
           test -f dist/intake-client.js
@@ -69,6 +71,26 @@ jobs:
           test ! -e dist/package.json
           test ! -e dist/netlify.toml
           test ! -e dist/netlify
+
+          node --input-type=module - <<'NODE'
+          import { readFileSync } from 'node:fs';
+
+          const meta = JSON.parse(readFileSync('dist/build-meta.json', 'utf8'));
+          const expected = String(process.env.GITHUB_SHA || '').toLowerCase();
+          if (!/^[0-9a-f]{40}$/.test(expected)) {
+            throw new Error(`CI did not expose a valid GITHUB_SHA: ${expected || '(empty)'}`);
+          }
+          if (meta.schema !== 1) {
+            throw new Error(`Unexpected build metadata schema: ${meta.schema}`);
+          }
+          if (meta.commitRef !== expected) {
+            throw new Error(`Build metadata commit mismatch: expected ${expected}, received ${meta.commitRef}`);
+          }
+          if (meta.provider !== 'github-actions') {
+            throw new Error(`Expected GitHub Actions build provider, received ${meta.provider}`);
+          }
+          console.log(`Verified exact build identity ${meta.commitRef}.`);
+          NODE
 
       - name: Upload deploy artifact
         if: always()
