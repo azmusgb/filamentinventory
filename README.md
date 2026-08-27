@@ -1,33 +1,41 @@
 # Filament Inventory
 
-A mobile-first, local-first filament inventory PWA for iPhone, iPad, and desktop.
+A mobile-first, local-first filament inventory PWA for iPhone, iPad, and desktop, with secure cloud sync and physical QR spool labels.
 
-## v6 highlights
+## v7 highlights
 
-- Private device-pairing links using a URL fragment so the sync key is not sent in the page request
-- Fresh-device onboarding now pulls cloud inventory directly instead of requiring a pre-existing local state
-- Sync-key rotation that immediately revokes the previous key and forces other devices to re-pair
-- Rotation sends only the new key's SHA-256 hash to the admin Function; the newly generated raw key stays in the browser
-- Explicit cloud deletion with a typed confirmation phrase
-- Automatic cloud JSON backup immediately before cloud deletion
-- Separate `/api/sync-admin` Netlify Function with a stricter 10 requests/minute rate limit
-- v5 cloud revision IDs, device activity, rolling snapshots, reversible restore, merge semantics, and deletion tombstones remain intact
+- Printable QR labels tied to spool IDs
+- Dedicated Labels workspace with batch selection and print preview
+- Three practical label sizes: 2 × 1 in, 2.25 × 1.25 in, and 1.5 × 1.5 in
+- QR scan opens an on-device spool summary with **Weigh now** and **Find in inventory** actions
+- QR payload contains only the public app URL and spool ID — never the private sync key
+- Browser Print can print directly or save the label sheet as PDF
+- Existing v6 key rotation/pairing, v5 recovery snapshots, and v4 merge/tombstone sync remain intact
+
+## Physical workflow
+
+1. Open **Labels**.
+2. Select active spools or choose individual spools.
+3. Pick a label size and print at 100% scale.
+4. Attach the label to the spool or spool storage location.
+5. Scan it with the phone Camera app.
+6. Choose **Weigh now** or **Find in inventory**.
+
+The device must still have the inventory locally or be connected through the normal Sync workflow to display private spool details.
 
 ## Security model
 
-The main sync key is a high-entropy browser-generated capability. Normal sync sends it only to the same-origin `/api/sync` endpoint over HTTPS; the Function hashes it with SHA-256 to locate the private Netlify Blob.
+The QR code is deliberately non-secret. It contains a URL like:
 
-A v6 pairing link places the key in the URL **fragment** (`#filament-sync=...`). Fragments are not included in HTTP requests. The app removes the fragment from the address bar before connecting. Treat a pairing link like a password because anyone who obtains it can join that cloud inventory until the key is rotated.
+`https://filamentinventory.netlify.app/?spool=S001&scan=1`
 
-Key rotation authenticates with the current key, generates the replacement key in the browser, and sends only the replacement key's SHA-256 hash to `/api/sync-admin`. The server moves the current inventory and recovery snapshots to the new hashed location and deletes the old cloud scope.
+The sync capability key is never placed in QR labels, JSON/CSV exports, or public URLs.
 
-## Cloud recovery
+## Cloud architecture
 
-Rolling snapshots are preserved before cloud-changing syncs and restores. A restore first snapshots the current cloud state, making recovery reversible. Key rotation moves the retained snapshots to the new key scope.
-
-## Local safety
-
-Cloud deletion removes the cloud inventory and snapshots but does **not** remove the local browser inventory. The app downloads a final cloud JSON backup before requesting deletion.
+- `/api/sync` — normal merge/snapshot synchronization
+- `/api/sync-admin` — key rotation and cloud deletion
+- `/qr` — read-only QR SVG generation from a validated spool ID
 
 ## Inventory rule
 
@@ -39,5 +47,3 @@ Measured `gross - tare` weight is authoritative. Visual estimates are used only 
 npm install
 npx netlify dev
 ```
-
-The site remains framework-free. `netlify/functions/sync.mts` provides normal sync and recovery. `netlify/functions/sync-admin.mts` provides key rotation and cloud deletion.
