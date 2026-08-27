@@ -39,11 +39,11 @@
     if (!$('weighSmartIntro')) {
       const intro = document.createElement('section');
       intro.id = 'weighSmartIntro';
-      intro.className = 'weigh-smart-intro';
+      intro.className = 'weigh-smart-intro quick-list';
       intro.innerHTML = `
-        <div class="weigh-smart-profile"><span>Smart Weigh</span><strong id="weighSmartOwner"></strong></div>
-        <div class="weigh-smart-section"><div class="weigh-smart-heading"><strong>Fast choices</strong><span>Loaded and recently touched spools first.</span></div><div class="weigh-chip-row" id="weighQuickChoices"></div></div>
-        <div class="weigh-smart-section"><div class="weigh-smart-heading"><strong>Measure next</strong><span>Prioritized by unknown amount, loaded state, and measurement age.</span></div><div class="weigh-next-row" id="weighNextQueue"></div></div>`;
+        <div class="weigh-smart-profile qr-private-note"><span>Smart Weigh</span><strong id="weighSmartOwner"></strong></div>
+        <div class="weigh-smart-section"><span class="eyebrow">Fast choices</span><p class="muted">Loaded and recently touched spools first.</p><div class="quick-list weigh-chip-row" id="weighQuickChoices"></div></div>
+        <div class="weigh-smart-section"><span class="eyebrow">Measure next</span><p class="muted">Prioritized by unknown amount, loaded state, and measurement age.</p><div class="quick-list weigh-next-row" id="weighNextQueue"></div></div>`;
       form.insertAdjacentElement('beforebegin', intro);
     }
 
@@ -96,17 +96,17 @@
     if (!guide) return;
     const spool = selectedSpool();
     if (!spool) {
-      guide.innerHTML = '<div class="weigh-guide-empty">Choose a spool to see tare guidance.</div>';
+      guide.innerHTML = '<div class="quick-item"><i class="dot"></i><div><strong>Tare guidance</strong><span>Choose a spool to see saved or inferred tare guidance.</span></div><span>—</span></div>';
       return;
     }
     const suggestion = inferTare(spool, state());
     if (!suggestion) {
-      guide.innerHTML = '<div class="weigh-guide-empty"><strong>No tare suggestion yet.</strong><span>Enter the empty-spool tare from the label, manufacturer, or a verified empty spool.</span></div>';
+      guide.innerHTML = '<div class="quick-item"><i class="dot"></i><div><strong>No tare suggestion yet</strong><span>Enter the empty-spool tare from the label, manufacturer, or a verified empty spool.</span></div><span>—</span></div>';
       return;
     }
     const current = String($('tareWeight')?.value || '').trim();
     const using = current !== '' && Number(current) === Number(suggestion.grams);
-    guide.innerHTML = `<div class="weigh-guide-copy"><span>${esc(suggestion.title)}</span><strong>${Math.round(suggestion.grams)} g</strong><small>${esc(suggestion.detail)}</small></div>${using ? '<span class="weigh-guide-used">Using this tare</span>' : `<button class="btn" type="button" data-weigh-use-tare="${esc(suggestion.grams)}">Use ${Math.round(suggestion.grams)} g</button>`}`;
+    guide.innerHTML = `<div class="quick-item"><i class="dot"></i><div><strong>${esc(suggestion.title)} · ${Math.round(suggestion.grams)} g</strong><span>${esc(suggestion.detail)}</span></div>${using ? '<span>Using</span>' : `<button class="btn" type="button" data-weigh-use-tare="${esc(suggestion.grams)}">Use ${Math.round(suggestion.grams)} g</button>`}</div>`;
   }
 
   function renderImpact() {
@@ -115,22 +115,22 @@
     const spool = selectedSpool();
     const result = core.preview(spool || {}, $('grossWeight')?.value, $('tareWeight')?.value);
     if (!spool) {
-      node.innerHTML = '<div class="weigh-impact-empty">Choose a spool to preview the measurement impact.</div>';
+      node.innerHTML = '<div class="calc"><div class="calc-row"><span>After save</span><strong>Choose a spool</strong></div></div>';
       return;
     }
     if (!result.ok) {
-      const message = result.reason === 'invalid' ? 'Gross weight must be at least the tare weight.' : 'Enter gross weight and tare to preview remaining filament.';
-      node.innerHTML = `<div class="weigh-impact-empty"><strong>${esc(spool.id)}</strong><span>${esc(message)}</span></div>`;
+      const message = result.reason === 'invalid' ? 'Check weights' : 'Enter gross + tare';
+      node.innerHTML = `<div class="calc"><div class="calc-row"><span>After save</span><strong>${esc(message)}</strong></div><div class="calc-row"><span>Spool</span><strong>${esc(spool.id)}</strong></div></div>`;
       return;
     }
-    node.innerHTML = `<div class="weigh-impact-main"><span>After save</span><strong>${Math.round(result.grams)} g · ${result.percent.toFixed(1)}%</strong><small>${esc(result.stock)} · ${esc(result.impact)}</small></div><span class="weigh-impact-state ${result.reorder ? 'is-reorder' : 'is-ok'}">${result.reorder ? 'Reorder attention' : 'Above threshold'}</span>`;
+    node.innerHTML = `<div class="calc"><div class="calc-row"><span>After save</span><strong>${Math.round(result.grams)} g · ${result.percent.toFixed(1)}%</strong></div><div class="calc-row"><span>Stock</span><strong>${esc(result.stock)}</strong></div><div class="calc-row"><span>Reorder impact</span><strong>${esc(result.impact)}</strong></div><div class="calc-row"><span>Action</span><strong>${result.reorder ? 'Reorder attention' : 'Above threshold'}</strong></div></div>`;
   }
 
   function spoolChip(spool, reason = '') {
     const m = core.measurement(spool);
     const amount = m.grams === null ? '—' : `${Math.round(m.grams)} g`;
-    const loaded = core.loaded(spool) ? ' · Loaded' : '';
-    return `<button class="weigh-spool-chip" type="button" data-weigh-select="${esc(spool.id)}"><strong>${esc(spool.id)}</strong><span>${esc(spool.material || 'Unknown')} · ${esc(spool.colorName || 'Unknown')}</span><small>${esc(reason || amount + loaded)}</small></button>`;
+    const status = reason || `${amount}${core.loaded(spool) ? ' · Loaded' : ''}`;
+    return `<button class="quick-item quick-button weigh-spool-chip" type="button" data-weigh-select="${esc(spool.id)}"><i class="dot"></i><div><strong>${esc(spool.id)} · ${esc(spool.material || 'Unknown')}</strong><span>${esc(spool.colorName || 'Unknown')}</span></div><span>${esc(status)}</span></button>`;
   }
 
   function renderChoices() {
@@ -141,13 +141,13 @@
     const quick = $('weighQuickChoices');
     if (quick) {
       const rows = core.quickSpools(currentState.spools, currentState.weighLog, 7);
-      quick.innerHTML = rows.length ? rows.map(spool => spoolChip(spool)).join('') : '<span class="weigh-empty-inline">No active spools yet.</span>';
+      quick.innerHTML = rows.length ? rows.map(spool => spoolChip(spool)).join('') : '<div class="empty"><strong>No active spools</strong>Add a spool to start measuring.</div>';
     }
 
     const next = $('weighNextQueue');
     if (next) {
       const rows = core.nextToMeasure(currentState.spools, currentState.weighLog, 5);
-      next.innerHTML = rows.length ? rows.map(spool => spoolChip(spool, core.reasonFor(spool, currentState.weighLog))).join('') : '<span class="weigh-empty-inline">Nothing needs measurement.</span>';
+      next.innerHTML = rows.length ? rows.map(spool => spoolChip(spool, core.reasonFor(spool, currentState.weighLog))).join('') : '<div class="empty"><strong>Nothing urgent</strong>Your active measurement queue is clear.</div>';
     }
   }
 
@@ -165,16 +165,16 @@
   }
 
   function select(id, {focus = true, clearWeights = true} = {}) {
-    const select = $('weighSpool');
-    if (!select) return false;
-    const option = [...select.options].find(row => String(row.value).toLowerCase() === String(id || '').toLowerCase());
+    const selectNode = $('weighSpool');
+    if (!selectNode) return false;
+    const option = [...selectNode.options].find(row => String(row.value).toLowerCase() === String(id || '').toLowerCase());
     if (!option) return false;
-    select.value = option.value;
+    selectNode.value = option.value;
     if (clearWeights) {
       if ($('grossWeight')) $('grossWeight').value = '';
       if ($('tareWeight')) $('tareWeight').value = '';
     }
-    dispatch(select, 'change');
+    dispatch(selectNode, 'change');
     renderTareGuide();
     renderImpact();
     if (focus) $('grossWeight')?.focus({preventScroll:true});
@@ -198,7 +198,7 @@
     if (title) title.textContent = `${id} measured`;
     const remaining = entry?.remaining === null || entry?.remaining === undefined ? 'Unknown' : `${Math.round(entry.remaining)} g`;
     const percent = entry?.percent === null || entry?.percent === undefined ? '—' : `${Number(entry.percent).toFixed(1)}%`;
-    if (body) body.innerHTML = `<section class="weigh-next-summary"><span>Saved measurement</span><strong>${esc(remaining)} · ${esc(percent)}</strong><small>${entry?.location ? esc(entry.location) : 'Location unchanged'}</small></section><section class="spool-action-grid" aria-label="Measurement follow-up"><button class="btn btn-primary" type="button" data-weigh-next="next" ${next ? '' : 'disabled'}>${next ? `Measure next · ${esc(next.id)}` : 'No next measurement'}</button><button class="btn" type="button" data-weigh-next="spool">Open spool</button><button class="btn" type="button" data-weigh-next="done">Done</button></section>${next ? `<p class="spool-action-note">Next recommendation: ${esc(core.reasonFor(next, currentState.weighLog))}.</p>` : '<p class="spool-action-note">No other active spool currently ranks above the measurement queue.</p>'}`;
+    if (body) body.innerHTML = `<section class="calc weigh-next-summary"><div class="calc-row"><span>Saved measurement</span><strong>${esc(remaining)} · ${esc(percent)}</strong></div><div class="calc-row"><span>Location</span><strong>${entry?.location ? esc(entry.location) : 'Unchanged'}</strong></div></section><section class="spool-action-grid" aria-label="Measurement follow-up"><button class="btn btn-primary" type="button" data-weigh-next="next" ${next ? '' : 'disabled'}>${next ? `Measure next · ${esc(next.id)}` : 'No next measurement'}</button><button class="btn" type="button" data-weigh-next="spool">Open spool</button><button class="btn" type="button" data-weigh-next="done">Done</button></section>${next ? `<p class="spool-action-note">Next recommendation: ${esc(core.reasonFor(next, currentState.weighLog))}.</p>` : '<p class="spool-action-note">No other active spool currently ranks above the measurement queue.</p>'}`;
     if (!dialog.open) dialog.showModal();
   }
 
