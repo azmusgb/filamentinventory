@@ -8,6 +8,7 @@ declare const Netlify: any;
 const STORE_NAME = 'filament-inventory-sync';
 const MAX_SPOOLS = 5000;
 const MAX_LOGS = 5000;
+const MAX_AUDIT = 1500;
 const MAX_BODY_BYTES = 2_000_000;
 const MAX_SNAPSHOTS = 12;
 const MAX_ACTIVITY = 24;
@@ -82,10 +83,36 @@ function normalizeTombstones(value: unknown): Record<string,string> {
   return out;
 }
 
+function normalizeAuditLog(value: unknown): any[] {
+  const map = new Map<string,any>();
+  for (const row of Array.isArray(value) ? value : []) {
+    const id = String(row?.id || '').trim().slice(0,120);
+    const at = String(row?.at || '');
+    const type = String(row?.type || '').trim().slice(0,50);
+    const summary = String(row?.summary || '').trim().slice(0,240);
+    if (!id || !timestamp(at) || !type || !summary) continue;
+    const normalized = {
+      id, at, type, summary,
+      actor:String(row?.actor || 'Unknown').trim().slice(0,40) || 'Unknown',
+      device:String(row?.device || '').trim().slice(0,60),
+      spoolId:String(row?.spoolId || '').trim().slice(0,64),
+      owner:String(row?.owner || '').trim().slice(0,40),
+      changes:Array.isArray(row?.changes) ? row.changes.slice(0,12).map((change:any) => ({
+        field:String(change?.field || '').trim().slice(0,60),
+        from:String(change?.from ?? '').slice(0,120),
+        to:String(change?.to ?? '').slice(0,120),
+      })).filter((change:any) => change.field) : [],
+    };
+    const old = map.get(id);
+    if (!old || timestamp(at) >= timestamp(old.at)) map.set(id, normalized);
+  }
+  return [...map.values()].sort((a,b) => timestamp(a.at) - timestamp(b.at)).slice(-MAX_AUDIT);
+}
+
 export function normalizeState(value: any) {
   const spools = Array.isArray(value?.spools) ? value.spools.filter((s:any) => s && String(s.id || '').trim()).slice(0, MAX_SPOOLS) : [];
   const weighLog = Array.isArray(value?.weighLog) ? value.weighLog.filter((x:any) => x && String(x.id || '').trim()).slice(-MAX_LOGS) : [];
-  return { version:Math.max(Number(value?.version) || 0, 5), spools, weighLog, tombstones:normalizeTombstones(value?.tombstones) };
+  return { version:Math.max(Number(value?.version) || 0, 5), spools, weighLog, auditLog:normalizeAuditLog(value?.auditLog), tombstones:normalizeTombstones(value?.tombstones) };
 }
 
 function revision(): string {
@@ -182,9 +209,10 @@ export function mergeStates(remoteRaw: any, incomingRaw: any) {
     logMap.set(key, row);
   }
   const weighLog = [...logMap.values()].sort((a,b) => timestamp(a.at) - timestamp(b.at)).slice(-MAX_LOGS);
+  const auditLog = normalizeAuditLog([...remote.auditLog, ...incoming.auditLog]);
 
   return {
-    state:{ version:5, spools, weighLog, tombstones },
+    state:{ version:5, spools, weighLog, auditLog, tombstones },
     stats:{ incomingWins, remoteWins, deletedApplied }
   };
 }

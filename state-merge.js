@@ -6,6 +6,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  const MAX_AUDIT_ENTRIES = 1500;
+
   function timestamp(value) {
     const parsed = Date.parse(String(value || ''));
     return Number.isFinite(parsed) ? parsed : 0;
@@ -32,6 +34,21 @@
       if (timestamp(at) >= timestamp(out[id])) out[id] = at;
     }
     return out;
+  }
+
+  function mergeAuditLogs(currentValue, incomingValue, limit = MAX_AUDIT_ENTRIES) {
+    const map = new Map();
+    for (const row of [
+      ...(Array.isArray(currentValue) ? currentValue : []),
+      ...(Array.isArray(incomingValue) ? incomingValue : []),
+    ]) {
+      const id = String(row?.id || '').trim();
+      const at = String(row?.at || '');
+      if (!id || !timestamp(at) || !String(row?.type || '').trim() || !String(row?.summary || '').trim()) continue;
+      const old = map.get(id);
+      if (!old || timestamp(at) >= timestamp(old.at)) map.set(id, row);
+    }
+    return [...map.values()].sort((a,b) => timestamp(a?.at) - timestamp(b?.at)).slice(-Math.max(1, Number(limit) || MAX_AUDIT_ENTRIES));
   }
 
   function mergeBackupStates(currentRaw, incomingRaw) {
@@ -74,6 +91,7 @@
     }
 
     const weighLog = [...logs.values()].sort((a, b) => timestamp(a?.at) - timestamp(b?.at));
+    const auditLog = mergeAuditLogs(current.auditLog, incoming.auditLog);
     const version = Math.max(Number(current.version) || 0, Number(incoming.version) || 0);
 
     return {
@@ -82,12 +100,14 @@
       version,
       spools,
       weighLog,
+      auditLog,
       tombstones,
       meta: { ...(current.meta || {}), ...(incoming.meta || {}) },
     };
   }
 
   return Object.freeze({
+    mergeAuditLogs,
     mergeBackupStates,
     mergeTombstones,
     normalizeTombstones,
