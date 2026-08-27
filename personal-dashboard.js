@@ -163,7 +163,7 @@
   }
 
   function openHousehold() { document.querySelector('.tab[data-view="household"]')?.click(); }
-  function addSpool() { document.getElementById('addTopBtn')?.click() || document.getElementById('heroAddBtn')?.click(); }
+  function addSpool() { const button = document.getElementById('addTopBtn') || document.getElementById('heroAddBtn'); button?.click(); }
 
   function handleAction(view, spoolId) {
     if (view === 'weigh') return openWeigh(spoolId);
