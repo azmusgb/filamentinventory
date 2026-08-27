@@ -9,6 +9,17 @@
         node.textContent = api.DISPLAY_VERSION;
       });
     };
+    const ensureComponentStyles = () => {
+      if (!root.document) return;
+      const href = '/css/components/printer.css';
+      if (root.document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) return;
+      const link = root.document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = href;
+      link.dataset.fiComponent = 'printer';
+      root.document.head.append(link);
+    };
+    ensureComponentStyles();
     if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', applyLabels, {once:true});
     else applyLabels();
   }
