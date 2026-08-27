@@ -28,36 +28,47 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Check out main
+      - name: Check out expected production revision
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
 
-      - name: Verify deployed version and public contract
+      - name: Verify exact deployment and public contract
         shell: bash
         env:
           SITE_URL: https://filamentinventory.netlify.app
         run: |
           set -euo pipefail
 
+          expected_commit="$(git rev-parse HEAD | tr '[:upper:]' '[:lower:]')"
           expected_version="$(sed -n "s/.*const APP_VERSION = '\([^']*\)'.*/\1/p" app-version.js | head -n 1)"
+          if [[ ! "${expected_commit}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Unable to resolve the expected Git commit identity"
+            exit 1
+          fi
           if [[ -z "${expected_version}" ]]; then
             echo "::error::Unable to read APP_VERSION from app-version.js"
             exit 1
           fi
 
           cache_buster="smoke=$(date +%s)"
-          deployed_version_ok=false
+          deployment_identity_ok=false
 
-          # Netlify usually finishes before CI, but allow a short propagation window
-          # without converting an old deployment into success.
+          # Netlify usually finishes before CI, but allow a short propagation window.
+          # Success requires both the exact Git SHA and the expected app version.
           for attempt in {1..12}; do
+            deployed_meta="$(curl --silent --show-error --fail \
+              --connect-timeout 10 --max-time 20 \
+              "${SITE_URL}/build-meta.json?${cache_buster}" || true)"
             deployed_version="$(curl --silent --show-error --fail \
               --connect-timeout 10 --max-time 20 \
               "${SITE_URL}/app-version.js?${cache_buster}" || true)"
 
-            if grep -Fq "const APP_VERSION = '${expected_version}'" <<<"${deployed_version}"; then
-              deployed_version_ok=true
+            deployed_commit="$(node -e "try { const m=JSON.parse(process.argv[1]); process.stdout.write(String(m.commitRef||'').toLowerCase()); } catch {}" "${deployed_meta}")"
+
+            if [[ "${deployed_commit}" == "${expected_commit}" ]] && \
+               grep -Fq "const APP_VERSION = '${expected_version}'" <<<"${deployed_version}"; then
+              deployment_identity_ok=true
               break
             fi
 
@@ -66,8 +77,8 @@ jobs:
             fi
           done
 
-          if [[ "${deployed_version_ok}" != true ]]; then
-            echo "::error::Production did not expose expected app version ${expected_version} within the bounded propagation window."
+          if [[ "${deployment_identity_ok}" != true ]]; then
+            echo "::error::Production did not expose exact commit ${expected_commit} and app version ${expected_version} within the bounded propagation window."
             exit 1
           fi
 
@@ -95,6 +106,30 @@ jobs:
             fi
           }
 
+          expect_status() {
+            local expected="$1"
+            local method="$2"
+            local path="$3"
+            shift 3
+            local slug
+            slug="$(tr '/?' '__' <<<"${path}" | tr -cd '[:alnum:]_-')"
+            local headers="${tmp_dir}/${slug}.headers"
+            local body="${tmp_dir}/${slug}.body"
+            local actual
+            actual="$(curl --silent --show-error --location \
+              --connect-timeout 10 --max-time 20 \
+              -X "${method}" "$@" \
+              -D "${headers}" -o "${body}" -w '%{http_code}' \
+              "${SITE_URL}${path}")"
+            if [[ "${actual}" != "${expected}" ]]; then
+              echo "::error::${method} ${path} returned ${actual}; expected ${expected}"
+              cat "${headers}"
+              cat "${body}"
+              exit 1
+            fi
+            require_header "${headers}" '^cache-control:[[:space:]]*no-store' "${path} Cache-Control"
+          }
+
           fetch_with_headers "/" "${tmp_dir}/index.html" "${tmp_dir}/index.headers"
           require_header "${tmp_dir}/index.headers" '^x-content-type-options:[[:space:]]*nosniff' 'X-Content-Type-Options'
           require_header "${tmp_dir}/index.headers" '^x-robots-tag:[[:space:]]*noindex, nofollow, noarchive' 'X-Robots-Tag'
@@ -104,6 +139,7 @@ jobs:
           for asset in \
             app.js \
             app-version.js \
+            build-meta.json \
             ui-system.css \
             manifest.webmanifest \
             sw.js \
@@ -114,6 +150,9 @@ jobs:
               -o /dev/null "${SITE_URL}/${asset}?${cache_buster}"
           done
 
+          fetch_with_headers "/build-meta.json" "${tmp_dir}/build-meta.json" "${tmp_dir}/build-meta.headers"
+          require_header "${tmp_dir}/build-meta.headers" '^cache-control:.*no-cache.*no-store.*must-revalidate' 'build metadata cache-control'
+
           fetch_with_headers "/app-version.js" "${tmp_dir}/version.js" "${tmp_dir}/version.headers"
           require_header "${tmp_dir}/version.headers" '^cache-control:.*max-age=0.*must-revalidate' 'app-version cache-control'
 
@@ -123,4 +162,13 @@ jobs:
           fetch_with_headers "/manifest.webmanifest" "${tmp_dir}/manifest.json" "${tmp_dir}/manifest.headers"
           require_header "${tmp_dir}/manifest.headers" '^content-type:[[:space:]]*application/manifest\+json' 'manifest Content-Type'
 
-          echo "Production smoke passed for ${SITE_URL} at app version ${expected_version}."
+          # Security boundary probes use no real sync key and must fail closed.
+          expect_status 401 GET "/api/sync"
+          expect_status 401 POST "/api/sync-admin" \
+            -H 'Content-Type: application/json' \
+            --data '{}'
+          expect_status 400 GET "/api/sync" \
+            -H 'X-Filament-Sync-Key: 00000000000000000000000000000000' \
+            -H 'X-Filament-Profile: Invalid'
+
+          echo "Production smoke passed for exact commit ${expected_commit} at app version ${expected_version}."
