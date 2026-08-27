@@ -58,6 +58,11 @@
     Cache-Control = "public, max-age=0, must-revalidate"
 
 [[headers]]
+  for = "/weigh-core.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
   for = "/scan-core.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
@@ -104,6 +109,11 @@
 
 [[headers]]
   for = "/intake-client.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/weigh-client.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
