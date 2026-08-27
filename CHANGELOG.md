@@ -1,5 +1,22 @@
 # Changelog
 
+## v9 — Per-user customization and experience
+
+- Added a dedicated **Customize** workspace.
+- Added separate local UX profiles for Bill and Aimee.
+- Added Midnight, Light, OLED Black, High Contrast, and Follow System themes.
+- Added five accent presets.
+- Added Compact, Comfortable, and Roomy density modes.
+- Added four text-size choices, reduced motion, and larger touch targets.
+- Added Cards vs List inventory layout.
+- Added default landing view, owner scope, lifecycle, sort, and remembered inventory filters.
+- Added per-profile default QR label size.
+- Added dashboard visibility controls for welcome/quick actions, priority queue, and charts.
+- Added per-profile app titles.
+- Added preference export/import and copy-other-profile actions.
+- Kept UX preferences local so device-specific layout choices do not alter shared cloud inventory.
+- Bumped the offline cache to v9.
+
 ## v8 — Household ownership + printer / AMS placement
 
 - Added two-owner inventory support for Bill and Aimee.
@@ -15,7 +32,6 @@
 - Added a print-finder ranking workflow using owner, material, color, remaining grams, and already-loaded printer state.
 - Added household-aware CSV export and complete v8 JSON backup/restore.
 - Preserved v7 QR labels, v6 pairing/key lifecycle, v5 recovery snapshots, and v4 merge/tombstone synchronization.
-- Bumped the offline cache to v8.
 
 ## v7 — Physical spool workflow
 
@@ -29,7 +45,6 @@
 - Added missing-spool guidance for newly connected devices.
 - Added direct copyable spool links.
 - Added print-to-PDF support through the browser print dialog.
-- Bumped the offline cache to v7 while keeping dynamic QR generation out of the private sync APIs.
 
 ## v6 — Pairing and key lifecycle
 
