@@ -1,45 +1,41 @@
 /* Cross-cutting CSS architecture safeguards. Component migration remains incremental. */
+dialog:not([open]) { display: none; }
+dialog[open] { max-height: calc(100vh - 30px); }
+@supports (height: 100dvh) { dialog[open] { max-height: calc(100dvh - 30px); } }
 
-/* Native dialogs should never participate in layout while closed. */
-dialog:not([open]) {
-  display: none;
+/* Glass surfaces remain readable when backdrop filtering is unavailable or undesirable. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .topbar,
+  .tabs,
+  dialog[open] { background: var(--color-surface-raised); }
 }
-
-/* Dynamic viewport enhancement with a broadly-supported fallback. */
-dialog[open] {
-  max-height: calc(100vh - 30px);
-}
-
-@supports (height: 100dvh) {
+@media (prefers-reduced-transparency: reduce) {
+  .topbar,
+  .tabs,
   dialog[open] {
-    max-height: calc(100dvh - 30px);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--color-surface-raised);
   }
 }
 
-/* Avoid sticky hover effects and unnecessary paint work on touch devices. */
 @media (hover: hover) and (pointer: fine) {
   .btn:hover,
   .tab:hover,
   .quick-button:hover,
   .spool-card:hover,
   .material-card:hover,
-  .data-box:hover {
-    will-change: transform;
-  }
+  .data-box:hover { will-change: transform; }
 }
-
 @media (hover: none), (pointer: coarse) {
   .btn,
   .tab,
   .quick-button,
   .spool-card,
   .material-card,
-  .data-box {
-    transition-duration: 0s;
-  }
+  .data-box { transition-duration: 0s; }
 }
 
-/* Long, repeated collections can skip off-screen rendering work. */
 .inventory-grid,
 .history-list,
 .audit-list {
@@ -47,20 +43,13 @@ dialog[open] {
   contain-intrinsic-size: auto 720px;
 }
 
-/* Reduced motion should remove nonessential movement without disabling state feedback. */
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-
-  *,
-  *::before,
-  *::after {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
     animation-duration: .01ms;
     animation-iteration-count: 1;
     scroll-behavior: auto;
   }
-
   .btn,
   .tab,
   .spool-card,
@@ -71,54 +60,22 @@ dialog[open] {
 }
 
 @media print {
-  :root {
-    color-scheme: light;
+  :root { color-scheme: light; }
+  body { background: #fff; color: #000; }
+  body .topbar,
+  body .tabs,
+  body .top-actions,
+  body .hero-actions,
+  body .toolbar,
+  body .card-actions,
+  body .mobile-add,
+  body button,
+  body dialog,
+  body .toast { display: none; }
+  .app-shell, main, .view, .panel, .spool-card, .history-row {
+    width: 100%; max-width: none; box-shadow: none; background: #fff; color: #000;
   }
-
-  body {
-    background: #fff;
-    color: #000;
-  }
-
-  .topbar,
-  .tabs,
-  .top-actions,
-  .hero-actions,
-  .toolbar,
-  .card-actions,
-  .mobile-add,
-  button,
-  dialog,
-  .toast {
-    display: none !important;
-  }
-
-  .app-shell,
-  main,
-  .view,
-  .panel,
-  .spool-card,
-  .history-row {
-    width: 100%;
-    max-width: none;
-    box-shadow: none;
-    background: #fff;
-    color: #000;
-  }
-
-  .view.active {
-    display: block;
-  }
-
-  .inventory-grid {
-    display: block;
-    content-visibility: visible;
-  }
-
-  .spool-card,
-  .history-row {
-    break-inside: avoid;
-    margin-bottom: 12px;
-    border-color: #bbb;
-  }
+  .view.active { display: block; }
+  .inventory-grid { display: block; content-visibility: visible; }
+  .spool-card, .history-row { break-inside: avoid; margin-bottom: 12px; border-color: #bbb; }
 }

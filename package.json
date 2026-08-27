@@ -7,7 +7,8 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "lint": "node scripts/validate.mjs",
+    "lint": "node scripts/validate.mjs && node scripts/css-audit.mjs",
+    "lint:css": "node scripts/css-audit.mjs",
     "test": "node --experimental-strip-types --test",
     "build": "node scripts/build.mjs",
     "ci": "npm run lint && npm test && npm run build",

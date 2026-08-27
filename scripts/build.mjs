@@ -19,6 +19,7 @@ for (const asset of PUBLIC_ASSETS) {
     throw new Error(`Required public asset is missing or is not a file: ${asset}`);
   }
 
+  await mkdir(path.dirname(destination), { recursive: true });
   await copyFile(source, destination);
 }
 

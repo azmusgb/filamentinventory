@@ -9,17 +9,20 @@ const testDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(testDir, '..');
 const readText = (relativePath) => readFile(path.join(rootDir, relativePath), 'utf8');
 
-test('public asset manifest is unique and contains only root files', () => {
+test('public asset manifest is unique and contains only safe relative paths', () => {
   assert.equal(new Set(PUBLIC_ASSETS).size, PUBLIC_ASSETS.length, 'public assets must not contain duplicates');
 
   for (const asset of PUBLIC_ASSETS) {
-    assert.equal(asset, path.basename(asset), `public asset must remain a root file: ${asset}`);
-    assert.equal(asset.includes('..'), false, `public asset must not traverse directories: ${asset}`);
+    assert.equal(path.isAbsolute(asset), false, `public asset must be relative: ${asset}`);
+    assert.equal(asset.includes('\\'), false, `public asset must use URL-style separators: ${asset}`);
+    const segments = asset.split('/');
+    assert.ok(segments.every(segment => segment && segment !== '.' && segment !== '..'), `public asset must not contain empty, current-directory, or traversal segments: ${asset}`);
+    assert.equal(path.posix.normalize(asset), asset, `public asset must already be normalized: ${asset}`);
   }
 });
 
 test('server-side and repository-only files are excluded from the public build', () => {
-  const forbidden = [
+  const forbiddenRoots = new Set([
     'package.json',
     'netlify.toml',
     'README.md',
@@ -29,10 +32,11 @@ test('server-side and repository-only files are excluded from the public build',
     'netlify',
     'scripts',
     'tests',
-  ];
+  ]);
 
-  for (const entry of forbidden) {
-    assert.equal(PUBLIC_ASSETS.includes(entry), false, `${entry} must not be a public asset`);
+  for (const asset of PUBLIC_ASSETS) {
+    const root = asset.split('/')[0];
+    assert.equal(forbiddenRoots.has(root), false, `${asset} must not publish repository-only or server-side content`);
   }
 });
 
