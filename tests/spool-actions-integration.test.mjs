@@ -49,6 +49,16 @@ test('QR arrivals for known spools open physical spool mode and consume one-shot
   assert.match(client, /openIncomingScan\(\);/);
 });
 
+test('labels preserve QR scan intent until physical spool mode consumes it', async () => {
+  const labels = await read('labels-client.js');
+  assert.match(labels, /function scheduleIncomingScanFallback\(\)/);
+  assert.match(labels, /current\.searchParams\.get\('scan'\) !== '1'/);
+  assert.match(labels, /FilamentInventorySpoolActions\?\.openIncomingScan\?\.\(\)/);
+  assert.match(labels, /setTimeout\([\s\S]*650\)/);
+  assert.doesNotMatch(labels, /clean\.searchParams\.delete\('scan'\)[\s\S]*setTimeout\(\(\) => showScanDialog\(pendingSpoolId\), 420\)/,
+    'labels must not consume QR intent before physical spool mode initializes');
+});
+
 test('physical spool mode offers scan-another without duplicating scanner logic', async () => {
   const client = await read('spool-actions-client.js');
   assert.match(client, /data-spool-sheet-action="scan"/);
