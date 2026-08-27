@@ -35,10 +35,8 @@ jobs:
       - name: Align v10.1 lock metadata once
         if: github.event_name == 'pull_request'
         run: |
-          if grep -q '"version": "10.1.0"' package-lock.json; then
-            echo "v10.1 lock metadata already aligned."
-          else
-            node scripts/apply-v10-1-lock.mjs
+          node scripts/apply-v10-1-lock.mjs
+          if ! git diff --quiet -- package-lock.json; then
             git add package-lock.json
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
