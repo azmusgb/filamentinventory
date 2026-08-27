@@ -9,7 +9,7 @@
     X-Content-Type-Options = "nosniff"
     X-Robots-Tag = "noindex, nofollow, noarchive"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Permissions-Policy = "camera=(self), microphone=(), geolocation=()"
     Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; manifest-src 'self'"
 
 [[headers]]
@@ -48,6 +48,16 @@
     Cache-Control = "public, max-age=0, must-revalidate"
 
 [[headers]]
+  for = "/intake-core.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/scan-core.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
   for = "/sync-client.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
@@ -79,6 +89,16 @@
 
 [[headers]]
   for = "/personal-dashboard.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/intake-client.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/scan-client.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
