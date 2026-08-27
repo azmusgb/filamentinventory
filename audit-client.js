@@ -8,6 +8,7 @@
   const priorSetItem = Storage.prototype.setItem;
   let writingAudit = false;
   let renderQueued = false;
+  let pendingBeforeState = null;
 
   const parse = (value, fallback = null) => { try { return JSON.parse(value); } catch { return fallback; } };
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -42,7 +43,8 @@
   Storage.prototype.setItem = function(key, value) {
     if (this !== localStorage || key !== STORAGE_KEY || writingAudit) return priorSetItem.call(this, key, value);
 
-    const before = readState();
+    const before = pendingBeforeState || readState();
+    pendingBeforeState = null;
     const result = priorSetItem.call(this, key, value);
     const after = readState();
     const api = auditApi();
@@ -220,6 +222,11 @@
   }
 
   function bind() {
+    document.getElementById('spoolForm')?.addEventListener('submit', () => {
+      const snapshot = readState();
+      pendingBeforeState = snapshot;
+      setTimeout(() => { if (pendingBeforeState === snapshot) pendingBeforeState = null; }, 0);
+    }, true);
     ['auditSearch'].forEach(id => document.getElementById(id)?.addEventListener('input', renderTimeline));
     ['auditOwner','auditCategory'].forEach(id => document.getElementById(id)?.addEventListener('change', renderTimeline));
     document.getElementById('auditClear')?.addEventListener('click', () => {
