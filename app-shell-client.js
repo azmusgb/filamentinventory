@@ -6,6 +6,25 @@
   const TITLES = {dashboard:['Home','What needs attention and what is loaded now.'],inventory:['Inventory','Find, filter and manage spools.'],household:['Printer','Physical printer and AMS state.'],weigh:['Weigh spool','Record an authoritative remaining amount.'],history:['Activity','Recent inventory and measurement changes.'],labels:['QR labels','Identify physical spools.'],data:['Backup & data','Protect and transfer this private inventory.'],preferences:['Preferences','Personalize this private workspace.']};
   const $ = id => document.getElementById(id);
   const switchView = view => document.querySelector(`.tab[data-view="${CSS.escape(view)}"]`)?.click();
+  const loadScript = src => new Promise((resolve, reject) => {
+    if (document.querySelector(`script[data-fi-dynamic="${src}"]`)) { resolve(); return; }
+    const script = document.createElement('script');
+    script.src = src;
+    script.defer = true;
+    script.dataset.fiDynamic = src;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Failed to load ${src}`));
+    document.head.appendChild(script);
+  });
+
+  async function ensurePrintReadiness() {
+    try {
+      if (!globalThis.FilamentInventoryPrintReadiness) await loadScript('/print-readiness-core.js');
+      if (!globalThis.FilamentInventoryPrintReadinessUI) await loadScript('/print-readiness-client.js');
+    } catch (error) {
+      console.error('Print readiness failed to initialize.', error);
+    }
+  }
 
   function activeView() { return document.querySelector('.tab[aria-selected="true"]')?.dataset.view || 'dashboard'; }
   function ensureWidths() { document.querySelectorAll('.view[id$="View"]').forEach(view => { const key=view.id.replace(/View$/,''); view.dataset.pageWidth=WIDTHS[key] || 'standard'; }); }
@@ -13,9 +32,9 @@
     const shell=document.querySelector('.app-shell'); if(!shell || $('.fiDesktopSidebar')) return;
     const aside=document.createElement('aside'); aside.id='fiDesktopSidebar'; aside.className='fi-desktop-sidebar'; aside.setAttribute('aria-label','Application navigation');
     const buttons = items => items.map(([view,label])=>`<button type="button" data-shell-view="${view}">${label}</button>`).join('');
-    aside.innerHTML=`<nav class="fi-secondary-nav">${buttons(PRIMARY)}</nav><div class="fi-sidebar-group-label">Tools</div><nav class="fi-secondary-nav">${buttons(SECONDARY)}</nav><div class="fi-sidebar-spacer"></div><div class="fi-sidebar-group-label">Workflow</div><nav class="fi-secondary-nav"><button type="button" data-shell-action="scan">Scan spool</button><button type="button" data-shell-action="add">Add spool</button></nav>`;
+    aside.innerHTML=`<nav class="fi-secondary-nav">${buttons(PRIMARY)}</nav><div class="fi-sidebar-group-label">Tools</div><nav class="fi-secondary-nav">${buttons(SECONDARY)}</nav><div class="fi-sidebar-spacer"></div><div class="fi-sidebar-group-label">Workflow</div><nav class="fi-secondary-nav"><button type="button" data-shell-action="print-readiness">Can I print this?</button><button type="button" data-shell-action="scan">Scan spool</button><button type="button" data-shell-action="add">Add spool</button></nav>`;
     shell.insertBefore(aside,shell.querySelector('main'));
-    aside.addEventListener('click',event=>{ const view=event.target.closest('[data-shell-view]'); if(view) return switchView(view.dataset.shellView); const action=event.target.closest('[data-shell-action]')?.dataset.shellAction; if(action==='add') ($('addTopBtn')||$('inventoryAddBtn')||$('heroAddBtn'))?.click(); if(action==='scan') document.querySelector('.scan-launch')?.click(); });
+    aside.addEventListener('click',event=>{ const view=event.target.closest('[data-shell-view]'); if(view) return switchView(view.dataset.shellView); const action=event.target.closest('[data-shell-action]')?.dataset.shellAction; if(action==='add') ($('addTopBtn')||$('inventoryAddBtn')||$('heroAddBtn'))?.click(); if(action==='scan') document.querySelector('.scan-launch')?.click(); if(action==='print-readiness') globalThis.FilamentInventoryPrintReadinessUI?.open(); });
   }
   function ensurePageHeaders() {
     document.querySelectorAll('.view[id$="View"]').forEach(view=>{
@@ -34,6 +53,6 @@
     const nav=$('mobileBottomNav'); if(!nav) return;
     const add=nav.querySelector('[data-bottom-add]'); if(add && add.dataset.shellScan!=='1') { add.dataset.shellScan='1'; add.innerHTML='<span aria-hidden="true">⌁</span><small>Scan</small>'; add.removeAttribute('data-bottom-add'); add.setAttribute('data-bottom-scan',''); add.addEventListener('click',()=>document.querySelector('.scan-launch')?.click()); }
   }
-  function init(){ document.documentElement.classList.add('fi-app-frame'); ensureWidths(); ensureSidebar(); ensurePageHeaders(); simplifyLegacyNav(); enhanceBottomNav(); sync(); document.addEventListener('click',e=>{ if(e.target.closest('.tab[data-view]')) setTimeout(sync,0); }); }
+  function init(){ document.documentElement.classList.add('fi-app-frame'); ensureWidths(); ensureSidebar(); ensurePageHeaders(); simplifyLegacyNav(); enhanceBottomNav(); sync(); ensurePrintReadiness(); document.addEventListener('click',e=>{ if(e.target.closest('.tab[data-view]')) setTimeout(sync,0); }); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(init,0),{once:true}); else setTimeout(init,0);
 })();
