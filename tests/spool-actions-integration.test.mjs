@@ -53,11 +53,11 @@ test('PWA and CI publish the contextual action modules', async () => {
     assert.ok(sw.includes(`/${file}`));
     assert.ok(ci.includes(`dist/${file}`));
   }
-  assert.match(sw, /filament-inventory-v25/);
+  assert.match(sw, /filament-inventory-v26/);
 });
 
-test('v9.9 remains an interaction release on schema 10', async () => {
+test('v10 remains an interaction release on schema 10', async () => {
   const version = await read('app-version.js');
-  assert.match(version, /APP_VERSION = '9\.9\.0'/);
+  assert.match(version, /APP_VERSION = '10\.0\.0'/);
   assert.match(version, /DATA_SCHEMA_VERSION = 10/);
 });

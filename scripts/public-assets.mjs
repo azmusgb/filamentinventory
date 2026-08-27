@@ -27,6 +27,7 @@ export const PUBLIC_ASSETS = Object.freeze([
   'inventory-command-client.js',
   'spool-actions-client.js',
   'bulk-actions-client.js',
+  'ui-v10-client.js',
   'sw.js',
   'manifest.webmanifest',
   'icon.svg',

@@ -62,6 +62,7 @@ jobs:
           test -f dist/spool-actions-client.js
           test -f dist/bulk-actions-core.js
           test -f dist/bulk-actions-client.js
+          test -f dist/ui-v10-client.js
           test -f dist/app.js
           test -f dist/audit-core.js
           test -f dist/audit-client.js

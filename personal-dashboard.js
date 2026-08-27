@@ -4,13 +4,11 @@
   const STORAGE_KEY = 'filament-inventory-v1';
   const CURRENT_USER_KEY = 'filament-current-user-v1';
   const OWNERS = ['Bill', 'Aimee'];
-  const PRIMARY_MOBILE_VIEWS = new Set(['dashboard', 'inventory', 'weigh', 'household']);
   const priorGetItem = Storage.prototype.getItem;
   const priorSetItem = Storage.prototype.setItem;
   let renderQueued = false;
   let rendering = false;
   let dashboardObserver = null;
-  let tabsObserver = null;
 
   const parse = (value, fallback = null) => { try { return JSON.parse(value); } catch { return fallback; } };
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -43,106 +41,6 @@
 
   function setText(node, text) {
     if (node && node.textContent !== text) node.textContent = text;
-  }
-
-  function setHidden(node, hidden) {
-    if (node && node.hidden !== hidden) node.hidden = hidden;
-  }
-
-  function injectStyles() {
-    if (document.getElementById('dashboardConsolidationStyles')) return;
-    const style = document.createElement('style');
-    style.id = 'dashboardConsolidationStyles';
-    style.textContent = `
-      /* Unified private dashboard: one identity, one metric set, one action hierarchy. */
-      #personalCommandCenter{display:none!important}
-      #dashboardView .hero{grid-template-columns:minmax(0,1.35fr) minmax(290px,.65fr);align-items:stretch}
-      #dashboardView .hero-copy{min-height:0;padding:clamp(20px,3.2vw,32px)}
-      #dashboardView .hero-copy::after{width:210px;height:210px;right:-70px;top:-80px;opacity:.58}
-      #dashboardView .hero h2{max-width:760px;margin:7px 0 8px;font-size:clamp(28px,4.2vw,46px);line-height:1.02;letter-spacing:-.05em}
-      #dashboardView .hero .lead{max-width:680px;font-size:13px;line-height:1.55}
-      #dashboardView .hero-actions{margin-top:18px}
-      #dashboardView .hero-actions .btn{min-width:0}
-      #dashboardView .quick-panel{padding:20px;min-height:0}
-      #dashboardView .quick-panel .quick-list{margin-top:12px}
-      #dashboardView .quick-panel>p{margin-top:12px!important}
-      #dashboardView .metrics{grid-template-columns:repeat(5,minmax(0,1fr));margin-top:14px;margin-bottom:14px}
-      #dashboardView .metric{min-height:92px;padding:14px 15px;border-radius:15px;box-shadow:none}
-      #dashboardView .metric::after{width:76px;height:76px;right:-22px;bottom:-32px;opacity:.42}
-      #dashboardView .metric-label{font-size:9px;letter-spacing:.08em}
-      #dashboardView .metric-value{margin-top:6px;font-size:clamp(22px,3.5vw,32px)}
-      #dashboardView .metric-sub{font-size:10px;margin-top:2px}
-      #dashboardView .audit-dashboard{margin:14px 0}
-      #dashboardView>.grid-2{margin-top:0}
-      #dashboardView[data-empty="true"] .quick-panel,
-      #dashboardView[data-empty="true"] #metrics,
-      #dashboardView[data-empty="true"] #auditDashboardCard,
-      #dashboardView[data-empty="true"]>.grid-2{display:none!important}
-      #dashboardView[data-empty="true"] .hero{grid-template-columns:1fr}
-      #dashboardView[data-empty="true"] .hero-copy{max-width:none}
-      #dashboardView[data-empty="true"] .hero-actions [data-jump="weigh"],
-      #dashboardView[data-empty="true"] .hero-actions [data-jump="inventory"],
-      #dashboardView[data-empty="true"] .hero-actions [data-jump="household"]{display:none!important}
-      .dashboard-restore-btn{display:none}
-      #dashboardView[data-empty="true"] .dashboard-restore-btn{display:inline-flex}
-      body .user-boundary{margin:0 0 12px;padding:11px 13px;border-radius:15px;box-shadow:none}
-      body .user-boundary-copy{display:grid;gap:1px}
-      body .user-boundary-kicker{font-size:8px;letter-spacing:.14em}
-      body .user-boundary-title{margin-top:1px;font-size:14px}
-      body .user-boundary-note{margin-top:1px;font-size:9px}
-      body .user-switch{min-width:210px;gap:6px}
-      body .user-switch-btn{min-height:40px;border-radius:11px;padding:6px 10px}
-      .mobile-more-tab,.mobile-more-menu{display:none}
-      .mobile-more-menu{position:relative;margin:-6px 0 12px;padding:8px;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--panel2) 94%,var(--bg) 6%);box-shadow:var(--shadow-card);z-index:15}
-      .mobile-more-menu[hidden]{display:none!important}
-      .mobile-more-menu:not([hidden]){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
-      .mobile-more-item{min-height:42px;border:1px solid var(--line);border-radius:11px;background:rgba(3,10,18,.2);color:var(--text);font-weight:800;font-size:12px;text-align:left;padding:9px 11px}
-      .mobile-more-item[aria-current="page"]{border-color:color-mix(in srgb,var(--ux-accent,var(--cyan)) 48%,var(--line));background:color-mix(in srgb,var(--ux-accent,var(--cyan)) 10%,transparent)}
-      #auditOwner{display:none!important}
-      .audit-toolbar:has(#auditOwner){grid-template-columns:minmax(220px,1fr) 190px auto}
-      .ux-profile-head .ux-profile-pill{display:none!important}
-      .v8-owner-badge{display:none!important}
-      @media(max-width:980px){#dashboardView .hero{grid-template-columns:1fr}.dashboard-restore-btn{width:auto}}
-      @media(max-width:720px){
-        body .user-boundary{align-items:center;flex-direction:row;gap:9px;padding:10px 11px}
-        body .user-boundary-note{display:none}
-        body .user-switch{width:auto;min-width:148px;grid-template-columns:1fr 1fr}
-        body .user-switch-btn{min-height:38px;padding:5px 8px;font-size:12px}
-        .tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;overflow:visible;padding-bottom:5px}
-        .tabs>.tab{display:none;min-width:0;min-height:42px;padding:7px 4px;font-size:10px;text-align:center;overflow:hidden;text-overflow:ellipsis}
-        .tabs>.tab[data-view="dashboard"],.tabs>.tab[data-view="inventory"],.tabs>.tab[data-view="weigh"],.tabs>.tab[data-view="household"],.tabs>.mobile-more-tab{display:flex;align-items:center;justify-content:center}
-        .mobile-more-tab{border:1px solid var(--line);border-radius:999px;background:rgba(10,22,38,.62);color:var(--muted);font-weight:800;font-size:10px;min-height:42px;padding:7px 4px}
-        .mobile-more-tab[aria-selected="true"]{color:#06111d;border-color:transparent;background:linear-gradient(135deg,var(--ux-accent,var(--cyan)),var(--ux-accent2,var(--blue)))}
-        .mobile-more-menu:not([hidden]){grid-template-columns:1fr 1fr}
-        #dashboardView .hero-copy{padding:19px 17px}
-        #dashboardView .hero h2{font-size:30px;line-height:1.02}
-        #dashboardView .hero .lead{font-size:12px}
-        #dashboardView .hero-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-        #dashboardView .hero-actions .btn{width:100%;min-height:44px}
-        #dashboardView .hero-actions .btn-primary{grid-column:1/-1}
-        #dashboardView .metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-        #dashboardView .metric{min-height:82px;padding:12px;border-radius:13px}
-        #dashboardView .metric:nth-child(5){grid-column:1/-1}
-        #dashboardView .metric-value{font-size:24px}
-        #dashboardView .audit-dashboard{padding:16px}
-        #dashboardView .audit-dashboard-row{padding:9px}
-        #dashboardView>.grid-2{gap:12px}
-        #dashboardView>.grid-2>.panel{padding:16px}
-        .audit-toolbar:has(#auditOwner){grid-template-columns:1fr}
-      }
-      @media(max-width:430px){
-        body .user-boundary-copy{min-width:0;flex:1}
-        body .user-boundary-kicker{font-size:7px}
-        body .user-boundary-title{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        body .user-switch{min-width:132px}
-        .tabs>.tab,.mobile-more-tab{font-size:9px}
-        .mobile-more-menu:not([hidden]){grid-template-columns:1fr}
-        #dashboardView .hero h2{font-size:27px}
-        #dashboardView .hero-actions{grid-template-columns:1fr}
-        #dashboardView .hero-actions .btn-primary{grid-column:auto}
-      }
-    `;
-    document.head.appendChild(style);
   }
 
   function addRestoreAction() {
@@ -262,48 +160,6 @@
     document.getElementById('personalCommandCenter')?.remove();
   }
 
-  function moreLabel(view, fallback) {
-    return ({history:'Activity',labels:'Labels',sync:'Sync',data:'Data & backup',preferences:'Preferences'}[view] || fallback || view);
-  }
-
-  function ensureMobileMore() {
-    const tabs = document.querySelector('.tabs');
-    if (!tabs) return;
-    let more = tabs.querySelector('.mobile-more-tab');
-    if (!more) {
-      more = document.createElement('button');
-      more.type = 'button';
-      more.className = 'mobile-more-tab';
-      more.textContent = 'More';
-      more.setAttribute('aria-selected', 'false');
-      more.setAttribute('aria-expanded', 'false');
-      tabs.appendChild(more);
-    }
-    let menu = document.getElementById('mobileMoreMenu');
-    if (!menu) {
-      menu = document.createElement('div');
-      menu.id = 'mobileMoreMenu';
-      menu.className = 'mobile-more-menu';
-      menu.hidden = true;
-      tabs.insertAdjacentElement('afterend', menu);
-    }
-
-    const secondary = [...tabs.querySelectorAll('.tab[data-view]')].filter(tab => !PRIMARY_MOBILE_VIEWS.has(tab.dataset.view));
-    const html = secondary.map(tab => `<button class="mobile-more-item" type="button" data-mobile-more-view="${esc(tab.dataset.view)}">${esc(moreLabel(tab.dataset.view, tab.textContent.trim()))}</button>`).join('');
-    setHtml(menu, html);
-  }
-
-  function syncMoreState() {
-    const tabs = document.querySelector('.tabs');
-    const more = tabs?.querySelector('.mobile-more-tab');
-    const menu = document.getElementById('mobileMoreMenu');
-    if (!more || !menu) return;
-    const active = tabs.querySelector('.tab[aria-selected="true"]')?.dataset.view || 'dashboard';
-    const secondaryActive = !PRIMARY_MOBILE_VIEWS.has(active);
-    more.setAttribute('aria-selected', String(secondaryActive));
-    menu.querySelectorAll('[data-mobile-more-view]').forEach(button => button.setAttribute('aria-current', button.dataset.mobileMoreView === active ? 'page' : 'false'));
-  }
-
   function openInventory(spoolId = '') {
     document.querySelector('.tab[data-view="inventory"]')?.click();
     setTimeout(() => {
@@ -348,8 +204,6 @@
       composeHero(summary);
       composeMetrics(summary);
       cleanPrivateLanguage(summary);
-      ensureMobileMore();
-      syncMoreState();
     } finally {
       rendering = false;
     }
@@ -362,44 +216,12 @@
         handleDashboardAction(dashboardAction.dataset.dashboardAction, dashboardAction.dataset.spool || '');
         return;
       }
-
-      const more = event.target.closest('.mobile-more-tab');
-      if (more) {
-        const menu = document.getElementById('mobileMoreMenu');
-        if (menu) {
-          menu.hidden = !menu.hidden;
-          more.setAttribute('aria-expanded', String(!menu.hidden));
-        }
-        return;
-      }
-
-      const item = event.target.closest('[data-mobile-more-view]');
-      if (item) {
-        document.querySelector(`.tab[data-view="${CSS.escape(item.dataset.mobileMoreView)}"]`)?.click();
-        const menu = document.getElementById('mobileMoreMenu');
-        if (menu) menu.hidden = true;
-        document.querySelector('.mobile-more-tab')?.setAttribute('aria-expanded', 'false');
-        setTimeout(syncMoreState, 0);
-        return;
-      }
-
-      if (event.target.closest('.tab[data-view]')) {
-        const menu = document.getElementById('mobileMoreMenu');
-        if (menu) menu.hidden = true;
-        setTimeout(() => { syncMoreState(); scheduleRender(); }, 0);
-      }
+      if (event.target.closest('.tab[data-view]')) setTimeout(scheduleRender, 0);
     });
 
     window.addEventListener('storage', event => {
       if (event.key === STORAGE_KEY || event.key === CURRENT_USER_KEY) scheduleRender();
     });
-
-    window.addEventListener('resize', () => {
-      if (window.innerWidth > 720) {
-        const menu = document.getElementById('mobileMoreMenu');
-        if (menu) menu.hidden = true;
-      }
-    }, {passive:true});
   }
 
   function observe() {
@@ -408,15 +230,9 @@
       dashboardObserver = new MutationObserver(() => { if (!rendering) scheduleRender(); });
       dashboardObserver.observe(dashboard, {subtree:true, childList:true, characterData:true});
     }
-    const tabs = document.querySelector('.tabs');
-    if (tabs && !tabsObserver) {
-      tabsObserver = new MutationObserver(() => { if (!rendering) scheduleRender(); });
-      tabsObserver.observe(tabs, {subtree:true, childList:true, attributes:true, attributeFilter:['aria-selected']});
-    }
   }
 
   function init() {
-    injectStyles();
     bind();
     render();
     observe();

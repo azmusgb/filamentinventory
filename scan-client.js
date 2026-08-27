@@ -38,23 +38,6 @@
     return Boolean(globalThis.BarcodeDetector && navigator.mediaDevices?.getUserMedia && window.isSecureContext);
   }
 
-  function injectStyles() {
-    if (document.getElementById('qrFastScanStyles')) return;
-    const style = document.createElement('style');
-    style.id = 'qrFastScanStyles';
-    style.textContent = `
-      .scan-launch{min-height:44px;padding:9px 14px;white-space:nowrap;border-color:rgba(34,211,238,.38);background:linear-gradient(135deg,rgba(34,211,238,.14),rgba(99,102,241,.12));font-weight:850}
-      body[data-inventory-user="Aimee"] .scan-launch{border-color:rgba(192,132,252,.42);background:linear-gradient(135deg,rgba(192,132,252,.16),rgba(99,102,241,.13))}
-      #qrScannerDialog{width:min(94vw,560px);padding:0;overflow:hidden}
-      .qr-scanner-body{display:grid;gap:14px}.qr-private-note{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border:1px solid var(--line);border-radius:14px;background:rgba(3,10,18,.28);font-size:11px;color:var(--muted)}.qr-private-note strong{color:var(--text);font-size:12px}
-      .qr-video-shell{position:relative;overflow:hidden;aspect-ratio:4/3;border-radius:18px;border:1px solid var(--line);background:#02060b}.qr-video-shell[hidden]{display:none}.qr-video{display:block;width:100%;height:100%;object-fit:cover}.qr-reticle{position:absolute;inset:17%;border:2px solid rgba(255,255,255,.92);border-radius:20px;box-shadow:0 0 0 999px rgba(0,0,0,.28)}.qr-reticle:after{content:'Align the QR inside the frame';position:absolute;left:50%;bottom:-34px;transform:translateX(-50%);white-space:nowrap;padding:6px 9px;border-radius:999px;background:rgba(0,0,0,.7);font-size:10px;color:white}
-      .qr-scan-status{padding:12px 13px;border:1px solid var(--line);border-radius:14px;background:rgba(3,10,18,.22);font-size:12px;line-height:1.5;color:var(--muted)}.qr-scan-status strong{color:var(--text)}
-      .qr-scan-fallback{padding:14px;border:1px solid rgba(56,189,248,.22);border-radius:16px;background:rgba(14,116,144,.08)}.qr-scan-fallback h4{margin:0 0 6px}.qr-scan-fallback p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}.qr-scan-fallback ol{margin:9px 0 0;padding-left:20px;color:var(--muted);font-size:12px;line-height:1.55}
-      .qr-manual{display:grid;grid-template-columns:1fr auto;gap:9px}.qr-scanner-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}.scan-extended-actions{margin-top:10px}
-      @media(max-width:650px){.user-boundary>.scan-launch{width:100%}.qr-manual,.qr-scanner-actions{grid-template-columns:1fr}#qrScannerDialog{width:100%;max-width:none;margin:auto 0 0;border-radius:22px 22px 0 0}.qr-video-shell{border-radius:15px}}
-    `;
-    document.head.appendChild(style);
-  }
 
   function scannerMarkup() {
     return `<div class="dialog-head"><div><span class="eyebrow">Fast spool lookup</span><h3 style="margin-top:5px">Scan a filament QR</h3></div><button class="btn icon-btn" id="qrScannerClose" type="button" aria-label="Close scanner">×</button></div><div class="dialog-body qr-scanner-body"><div class="qr-private-note"><span>Scanning inside</span><strong id="qrScannerProfile"></strong></div><div class="qr-video-shell" id="qrVideoShell" hidden><video class="qr-video" id="qrScannerVideo" muted playsinline></video><div class="qr-reticle" aria-hidden="true"></div></div><div class="qr-scan-status" id="qrScanStatus"><strong>Ready.</strong> Start the camera or enter a spool ID below.</div><div class="qr-scan-fallback" id="qrScanFallback" hidden><h4>On iPhone / iPad</h4><p>Safari does not reliably expose web QR detection. Apple’s scanner is the dependable path and still lands directly in this app.</p><ol><li>Open Camera or Control Center → Code Scanner.</li><li>Point it at a Filament Inventory QR label.</li><li>Tap the detected link to open the spool here.</li></ol></div><form class="qr-manual" id="qrManualForm"><input class="field" id="qrManualId" autocomplete="off" maxlength="32" placeholder="Or enter spool ID, e.g. S022"/><button class="btn" type="submit">Find spool</button></form><div class="qr-scanner-actions"><button class="btn btn-primary" id="qrStartCamera" type="button">Start camera</button><button class="btn" id="qrStopCamera" type="button" disabled>Stop camera</button></div></div>`;
@@ -296,7 +279,6 @@
   }
 
   function init() {
-    injectStyles();
     injectScannerDialog();
     if (reconcileIncomingLegacyScan()) return;
     ensureLaunchButton();
