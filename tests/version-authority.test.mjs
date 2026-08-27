@@ -9,9 +9,9 @@ const version = require('../app-version.js');
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('authoritative app and schema versions are explicit', () => {
-  assert.equal(version.APP_VERSION, '9.2.0');
+  assert.equal(version.APP_VERSION, '9.3.0');
   assert.equal(version.DATA_SCHEMA_VERSION, 10);
-  assert.equal(version.DISPLAY_VERSION, 'v9.2.0');
+  assert.equal(version.DISPLAY_VERSION, 'v9.3.0');
 });
 
 test('package metadata matches the authoritative app version', async () => {
@@ -60,10 +60,14 @@ test('stale user-facing release labels and backup names are gone', async () => {
   forbidden.forEach(value => assert.equal(combined.includes(value), false, `stale label remains: ${value}`));
 });
 
-test('PWA publication includes version and user isolation modules', async () => {
+test('PWA publication includes version, isolation and smart intake modules', async () => {
   const [assets, sw] = await Promise.all([read('scripts/public-assets.mjs'), read('sw.js')]);
   assert.match(assets, /'app-version\.js'/);
   assert.match(assets, /'user-isolation\.js'/);
+  assert.match(assets, /'intake-core\.js'/);
+  assert.match(assets, /'intake-client\.js'/);
   assert.match(sw, /\/app-version\.js/);
   assert.match(sw, /\/user-isolation\.js/);
+  assert.match(sw, /\/intake-core\.js/);
+  assert.match(sw, /\/intake-client\.js/);
 });
