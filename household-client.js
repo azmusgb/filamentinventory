@@ -272,7 +272,7 @@
       btn.className = 'tab';
       btn.dataset.view = 'household';
       btn.setAttribute('aria-selected','false');
-      btn.textContent = 'Household';
+      btn.textContent = 'Printer / AMS';
       tabs.insertBefore(btn, dataTab);
     }
     const dataView = document.getElementById('dataView');
@@ -290,7 +290,7 @@
       btn.className = 'btn';
       btn.type = 'button';
       btn.dataset.jump = 'household';
-      btn.textContent = 'Household / AMS';
+      btn.textContent = 'Printer / AMS';
       heroActions.insertBefore(btn, heroActions.lastElementChild);
     }
     const eyebrow = document.querySelector('#dashboardView .hero-copy .eyebrow');

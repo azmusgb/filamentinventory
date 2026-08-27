@@ -52,6 +52,8 @@ jobs:
           test -f dist/intake-client.js
           test -f dist/scan-core.js
           test -f dist/scan-client.js
+          test -f dist/printer-core.js
+          test -f dist/printer-dashboard.js
           test -f dist/app.js
           test -f dist/audit-core.js
           test -f dist/audit-client.js
