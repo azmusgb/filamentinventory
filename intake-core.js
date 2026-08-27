@@ -9,6 +9,7 @@
   const key = value => text(value).toLowerCase();
   const validNumber = value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value));
   const active = spools => (Array.isArray(spools) ? spools : []).filter(spool => spool && !spool.archivedAt);
+  const timestamp = spool => Date.parse(String(spool?.updatedAt || spool?.createdAt || '')) || 0;
 
   function rankValues(spools, field, limit = 8) {
     const stats = new Map();
@@ -16,7 +17,7 @@
       const value = text(spool?.[field]);
       if (!value || value.toLowerCase() === 'unknown') continue;
       const id = key(value);
-      const at = Date.parse(String(spool.updatedAt || spool.createdAt || '')) || 0;
+      const at = timestamp(spool);
       const prior = stats.get(id) || {value, count:0, at:0};
       prior.count += 1;
       prior.at = Math.max(prior.at, at);
@@ -42,6 +43,40 @@
     };
   }
 
+  function recentPresets(state, limit = 4) {
+    const seen = new Set();
+    const rows = [];
+    for (const spool of [...active(state?.spools || [])].sort((a,b) => timestamp(b) - timestamp(a))) {
+      const brand = text(spool.brand);
+      const material = text(spool.material);
+      const spoolType = text(spool.spoolType);
+      if (!brand || !material || key(brand) === 'unknown' || key(material) === 'unknown') continue;
+      const identity = [key(brand), key(material), key(spoolType), key(spool.location)].join('|');
+      if (seen.has(identity)) continue;
+      seen.add(identity);
+      rows.push({
+        id:text(spool.id),
+        brand,
+        material,
+        spoolType:spoolType || 'Cardboard',
+        startWeight:validNumber(spool.startWeight) ? Number(spool.startWeight) : 1000,
+        location:text(spool.location),
+        purchaseSource:text(spool.purchaseSource),
+        reorderThreshold:validNumber(spool.reorderThreshold) ? Number(spool.reorderThreshold) : 250,
+      });
+      if (rows.length >= Math.max(0, Number(limit) || 0)) break;
+    }
+    return rows;
+  }
+
+  function preferredDefaults(state) {
+    const spools = state?.spools || [];
+    return {
+      location:rankValues(spools, 'location', 1)[0] || '',
+      purchaseSource:rankValues(spools, 'purchaseSource', 1)[0] || '',
+    };
+  }
+
   function duplicateCandidates(state, draft, excludeId = '') {
     const brand = key(draft?.brand);
     const material = key(draft?.material);
@@ -50,7 +85,7 @@
     const excluded = key(excludeId);
     return active(state?.spools || [])
       .filter(spool => key(spool.id) !== excluded && key(spool.brand) === brand && key(spool.material) === material && key(spool.colorName) === color)
-      .sort((a,b) => (Date.parse(String(b.updatedAt || b.createdAt || '')) || 0) - (Date.parse(String(a.updatedAt || a.createdAt || '')) || 0));
+      .sort((a,b) => timestamp(b) - timestamp(a));
   }
 
   function median(values) {
@@ -60,13 +95,12 @@
     return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
   }
 
-  function inferredTare(state, draft) {
-    const spools = active(state?.spools || []);
+  function scoredSimilar(state, draft, valueField) {
     const brand = key(draft?.brand);
     const spoolType = key(draft?.spoolType);
     const material = key(draft?.material);
-    const scored = spools
-      .filter(spool => validNumber(spool.tare))
+    return active(state?.spools || [])
+      .filter(spool => validNumber(spool?.[valueField]))
       .map(spool => {
         let score = 0;
         if (brand && key(spool.brand) === brand) score += 4;
@@ -75,12 +109,25 @@
         return {spool, score};
       })
       .filter(item => item.score >= 3)
-      .sort((a,b) => b.score - a.score || (Date.parse(String(b.spool.updatedAt || '')) || 0) - (Date.parse(String(a.spool.updatedAt || '')) || 0));
+      .sort((a,b) => b.score - a.score || timestamp(b.spool) - timestamp(a.spool));
+  }
+
+  function inferNumber(state, draft, field, label) {
+    const scored = scoredSimilar(state, draft, field);
     if (!scored.length) return null;
     const bestScore = scored[0].score;
     const matches = scored.filter(item => item.score === bestScore).map(item => item.spool);
-    const tare = median(matches.map(spool => spool.tare));
-    return tare === null ? null : {grams:Math.round(tare), samples:matches.length, confidence:bestScore >= 7 ? 'high' : bestScore >= 5 ? 'medium' : 'low'};
+    const value = median(matches.map(spool => spool[field]));
+    if (value === null) return null;
+    return {[label]:Math.round(value), samples:matches.length, confidence:bestScore >= 7 ? 'high' : bestScore >= 5 ? 'medium' : 'low'};
+  }
+
+  function inferredTare(state, draft) {
+    return inferNumber(state, draft, 'tare', 'grams');
+  }
+
+  function inferredStartWeight(state, draft) {
+    return inferNumber(state, draft, 'startWeight', 'grams');
   }
 
   function templateFromDraft(draft) {
@@ -103,5 +150,5 @@
     };
   }
 
-  return Object.freeze({active, duplicateCandidates, inferredTare, rankValues, suggestions, templateFromDraft});
+  return Object.freeze({active, duplicateCandidates, inferredStartWeight, inferredTare, preferredDefaults, rankValues, recentPresets, suggestions, templateFromDraft});
 });
