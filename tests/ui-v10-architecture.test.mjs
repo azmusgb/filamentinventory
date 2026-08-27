@@ -57,9 +57,7 @@ test('v10 UI system enforces readable mobile typography and bottom navigation sa
   assert.match(v10, /font-size:\s*11px/);
 });
 
-test('v10 is a UI release only and keeps data schema 10', async () => {
-  const [version, pkg] = await Promise.all([read('app-version.js'), read('package.json')]);
-  assert.match(version, /APP_VERSION = '10\.0\.0'/);
+test('v10 architecture remains presentation-only on data schema 10', async () => {
+  const version = await read('app-version.js');
   assert.match(version, /DATA_SCHEMA_VERSION = 10/);
-  assert.match(pkg, /"version": "10\.0\.0"/);
 });

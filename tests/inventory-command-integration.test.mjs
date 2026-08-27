@@ -47,18 +47,18 @@ test('UI system owns command surface presentation including mobile composition',
   assert.match(css, /@media \(max-width: 480px\)/);
 });
 
-test('PWA and CI publish the command modules', async () => {
+test('PWA and CI publish the command modules without pinning a feature test to one cache generation', async () => {
   const [assets, sw, ci] = await Promise.all([read('scripts/public-assets.mjs'), read('sw.js'), read('.github/workflows/ci.yml')]);
   for (const file of ['inventory-command-core.js','inventory-command-client.js']) {
     assert.ok(assets.includes(`'${file}'`));
     assert.ok(sw.includes(`/${file}`));
     assert.ok(ci.includes(`dist/${file}`));
   }
-  assert.match(sw, /filament-inventory-v26/);
+  assert.match(sw, /const CACHE = 'filament-inventory-v\d+'/);
 });
 
-test('v9.8 remains a UI/interaction release on schema 10', async () => {
+test('inventory command remains an interaction layer on schema 10', async () => {
   const version = await read('app-version.js');
-  assert.match(version, /APP_VERSION = '10\.0\.0'/);
+  assert.match(version, /APP_VERSION = '10\.\d+\.\d+'/);
   assert.match(version, /DATA_SCHEMA_VERSION = 10/);
 });

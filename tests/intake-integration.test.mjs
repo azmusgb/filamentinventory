@@ -17,23 +17,42 @@ test('browser publishes and loads smart intake around the existing household for
   assert.match(sw, /\/intake-client\.js/);
 });
 
-test('smart intake keeps the existing spool form authoritative and adds explicit fast-path actions', async () => {
+test('v10.1 smart intake keeps the existing spool form authoritative and simplifies add to one save path', async () => {
   const source = await read('intake-client.js');
   assert.match(source, /spoolForm/);
-  assert.match(source, /Save & weigh/);
-  assert.match(source, /Save \+ another/);
+  assert.match(source, /Save spool/);
+  assert.doesNotMatch(source, /Save & weigh/);
+  assert.doesNotMatch(source, /Save \+ another/);
   assert.match(source, /Possible duplicate/);
   assert.match(source, /Suggested empty-spool tare/);
+  assert.match(source, /Typical starting amount/);
   assert.match(source, /data-intake-placement/);
   assert.doesNotMatch(source, /localStorage\.setItem\(STORAGE_KEY, JSON\.stringify\(\{.*spools:/s, 'intake client must not bypass the app mutation path');
 });
 
-test('add another intentionally returns the next spool to Stored to avoid silently displacing a loaded spool', async () => {
+test('successful add opens a post-save next-action sheet over existing workflows', async () => {
   const source = await read('intake-client.js');
+  assert.match(source, /intakeNextDialog/);
+  assert.match(source, /Weigh now/);
+  assert.match(source, /Print QR label/);
+  assert.match(source, /Load into Printer \/ AMS/);
+  assert.match(source, /Add another like this/);
+  assert.match(source, /navigateToWeigh/);
+  assert.match(source, /navigateToLabels/);
+  assert.match(source, /navigateToPrinter/);
+  assert.match(source, /clearLabelsBtn/);
+  assert.match(source, /moveSpoolV8/);
+});
+
+test('repeat entry and remembered defaults stay profile-local and safe for physical placement', async () => {
+  const source = await read('intake-client.js');
+  assert.match(source, /recentPresets/);
+  assert.match(source, /preferredDefaults/);
   assert.match(source, /template\.placementState = 'Stored'/);
   assert.match(source, /template\.printerName = ''/);
   assert.match(source, /template\.feederName = ''/);
   assert.match(source, /template\.feederSlot = ''/);
+  assert.match(source, /preservePurchaseDate:false/);
 });
 
 test('intake UI is private-profile aware and never introduces a second user selector', async () => {

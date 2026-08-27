@@ -73,14 +73,13 @@ test('legacy shared-household audit copy is removed at the source', async () => 
   }
 });
 
-test('PWA and CI publish v10 bulk action assets on schema 10', async () => {
+test('PWA and CI publish bulk action assets while schema remains 10', async () => {
   const [assets, sw, ci, version] = await Promise.all([read('scripts/public-assets.mjs'), read('sw.js'), read('.github/workflows/ci.yml'), read('app-version.js')]);
   for (const file of ['bulk-actions-core.js','bulk-actions-client.js']) {
     assert.ok(assets.includes(`'${file}'`));
     assert.ok(sw.includes(`/${file}`));
     assert.ok(ci.includes(`dist/${file}`));
   }
-  assert.match(sw, /filament-inventory-v26/);
-  assert.match(version, /APP_VERSION = '10\.0\.0'/);
+  assert.match(sw, /const CACHE = 'filament-inventory-v\d+'/);
   assert.match(version, /DATA_SCHEMA_VERSION = 10/);
 });

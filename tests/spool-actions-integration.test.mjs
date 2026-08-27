@@ -8,7 +8,7 @@ test('browser loads contextual spool actions before app mutations', async () => 
   const html = await read('index.html');
   const names = ['spool-actions-core.js','user-isolation.js','inventory-command-client.js','spool-actions-client.js','app.js'];
   const positions = names.map(name => html.indexOf(`/${name}`));
-  assert.ok(positions.every(value => value >= 0), 'all spool-action assets must be browser-loaded');
+  assert.ok(positions.every(index => index >= 0), 'all spool-action assets must be browser-loaded');
   assert.deepEqual(positions, [...positions].sort((a,b) => a-b));
 });
 
@@ -46,18 +46,17 @@ test('observer refresh only enhances surrounding surfaces and cannot self-render
   assert.doesNotMatch(match[1], /renderDialog|spoolActionDialog/, 'DOM observer refresh must not rewrite its own dialog');
 });
 
-test('PWA and CI publish the contextual action modules', async () => {
+test('PWA and CI publish the contextual action modules without pinning one cache generation', async () => {
   const [assets, sw, ci] = await Promise.all([read('scripts/public-assets.mjs'), read('sw.js'), read('.github/workflows/ci.yml')]);
   for (const file of ['spool-actions-core.js','spool-actions-client.js']) {
     assert.ok(assets.includes(`'${file}'`));
     assert.ok(sw.includes(`/${file}`));
     assert.ok(ci.includes(`dist/${file}`));
   }
-  assert.match(sw, /filament-inventory-v26/);
+  assert.match(sw, /const CACHE = 'filament-inventory-v\d+'/);
 });
 
-test('v10 remains an interaction release on schema 10', async () => {
+test('contextual actions remain an interaction layer on schema 10', async () => {
   const version = await read('app-version.js');
-  assert.match(version, /APP_VERSION = '10\.0\.0'/);
   assert.match(version, /DATA_SCHEMA_VERSION = 10/);
 });

@@ -1,7 +1,7 @@
 {
   "name": "filamentinventory",
   "private": true,
-  "version": "10.0.0",
+  "version": "10.1.0",
   "description": "Local-first private filament inventory PWA with streamlined mobile UX, smart intake, QR workflows, contextual and bulk spool operations, Printer/AMS command center, secure sync, labels, and per-user customization.",
   "engines": {
     "node": ">=22.12.0"
