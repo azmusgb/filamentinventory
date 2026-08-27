@@ -1,0 +1,31 @@
+/* Canonical base layer. Keep component-specific rules out of this file. */
+*, *::before, *::after { box-sizing: border-box; }
+html { min-height: 100%; background: var(--color-bg); }
+body {
+  min-height: 100vh;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button, input, select, textarea { font: inherit; }
+button, select { touch-action: manipulation; }
+img, svg, video { max-width: 100%; }
+a { color: var(--color-accent-secondary); }
+::selection { background: color-mix(in srgb, var(--color-accent) 28%, transparent); color: var(--color-text); }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.muted { color: var(--color-text-muted); }
