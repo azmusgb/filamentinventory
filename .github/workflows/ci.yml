@@ -46,6 +46,7 @@ jobs:
         run: |
           test -f dist/index.html
           test -f dist/ui-polish.css
+          test -f dist/ui-hardening.css
           test -f dist/app-version.js
           test -f dist/user-isolation.js
           test -f dist/intake-core.js
