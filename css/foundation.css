@@ -7,9 +7,7 @@ dialog[open] { max-height: calc(100vh - 30px); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .topbar,
   .tabs,
-  dialog[open] {
-    background: var(--color-surface-raised);
-  }
+  dialog[open] { background: var(--color-surface-raised); }
 }
 @media (prefers-reduced-transparency: reduce) {
   .topbar,
@@ -64,7 +62,16 @@ dialog[open] { max-height: calc(100vh - 30px); }
 @media print {
   :root { color-scheme: light; }
   body { background: #fff; color: #000; }
-  .topbar, .tabs, .top-actions, .hero-actions, .toolbar, .card-actions, .mobile-add, button, dialog, .toast { display: none !important; }
+  body .topbar,
+  body .tabs,
+  body .top-actions,
+  body .hero-actions,
+  body .toolbar,
+  body .card-actions,
+  body .mobile-add,
+  body button,
+  body dialog,
+  body .toast { display: none; }
   .app-shell, main, .view, .panel, .spool-card, .history-row {
     width: 100%; max-width: none; box-shadow: none; background: #fff; color: #000;
   }
