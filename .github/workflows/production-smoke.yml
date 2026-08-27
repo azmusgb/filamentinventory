@@ -171,4 +171,29 @@ jobs:
             -H 'X-Filament-Sync-Key: 00000000000000000000000000000000' \
             -H 'X-Filament-Profile: Invalid'
 
+          # The QR function is intentionally public/read-only. Verify both its
+          # successful SVG security contract and its profile validation boundary.
+          curl --silent --show-error --fail --location \
+            --connect-timeout 10 --max-time 20 \
+            -D "${tmp_dir}/qr.headers" -o "${tmp_dir}/qr.svg" \
+            "${SITE_URL}/qr?spool=smoke-check&profile=Bill&${cache_buster}"
+          require_header "${tmp_dir}/qr.headers" '^content-type:[[:space:]]*image/svg\+xml' 'QR Content-Type'
+          require_header "${tmp_dir}/qr.headers" "^content-security-policy:[[:space:]]*default-src 'none'" 'QR Content-Security-Policy'
+          require_header "${tmp_dir}/qr.headers" '^x-content-type-options:[[:space:]]*nosniff' 'QR X-Content-Type-Options'
+          require_header "${tmp_dir}/qr.headers" '^cache-control:.*max-age=86400.*stale-while-revalidate=604800' 'QR Cache-Control'
+          if ! grep -Fq '<svg' "${tmp_dir}/qr.svg"; then
+            echo "::error::QR endpoint did not return SVG content"
+            exit 1
+          fi
+
+          invalid_qr_status="$(curl --silent --show-error --location \
+            --connect-timeout 10 --max-time 20 \
+            -o "${tmp_dir}/qr-invalid.body" -w '%{http_code}' \
+            "${SITE_URL}/qr?spool=smoke-check&profile=Invalid")"
+          if [[ "${invalid_qr_status}" != '400' ]]; then
+            echo "::error::QR invalid-profile boundary returned ${invalid_qr_status}; expected 400"
+            cat "${tmp_dir}/qr-invalid.body"
+            exit 1
+          fi
+
           echo "Production smoke passed for exact commit ${expected_commit} at app version ${expected_version}."
