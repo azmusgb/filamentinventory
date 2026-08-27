@@ -43,13 +43,6 @@ await replaceExact(
   'Netlify UI CSS headers',
 );
 
-await replaceExact(
-  '.github/workflows/ci.yml',
-  '          test -f dist/ui-polish.css\n          test -f dist/ui-hardening.css',
-  '          test -f dist/ui-system.css',
-  'CI UI artifact assertions',
-);
-
 await replaceExact('app-version.js', "const APP_VERSION = '9.5.0';", "const APP_VERSION = '9.6.0';", 'app release version');
 await replaceExact('package.json', '"version": "9.5.0"', '"version": "9.6.0"', 'package version');
 await replaceExact(
