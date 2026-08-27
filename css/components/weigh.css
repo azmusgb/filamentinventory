@@ -1,0 +1,19 @@
+/* Smart Weigh: focused physical task, progressive disclosure for optional metadata. */
+#weighView .fi-page-header { margin-bottom:var(--space-4); }
+#weighView .weigh-layout { display:grid; grid-template-columns:1fr; gap:var(--space-4); }
+#weighView .weigh-card { padding:var(--space-5); }
+#weighView .weigh-card:first-child > .eyebrow,
+#weighView .weigh-card:first-child > h2,
+#weighView .weigh-card:first-child > p { display:none; }
+#weighView #weighForm { margin-top:0; }
+#weighView #grossWeight { min-height:72px; font-size:clamp(var(--text-2xl),10vw,42px); font-weight:750; text-align:center; }
+#weighView #tareWeight { min-height:52px; }
+#weighView #tareSuggestion { margin-top:var(--space-2); }
+#weighView .calc { display:grid; gap:var(--space-2); }
+#weighView .calc-row { padding-block:var(--space-2); }
+#weighView .calc-row:nth-child(3) strong,
+#weighView .calc-row:nth-child(4) strong { font-size:var(--text-xl); }
+#weighView button[type="submit"] { width:100%; min-height:52px; }
+@media (min-width:760px) {
+  #weighView .weigh-layout { grid-template-columns:minmax(0,1fr); }
+}
