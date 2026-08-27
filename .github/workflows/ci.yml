@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Static validation
+        run: npm run lint
+
+      - name: Tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Verify deploy output
+        run: |
+          test -f dist/index.html
+          test -f dist/app.js
+          test -f dist/sw.js
+          test ! -e dist/package.json
+          test ! -e dist/netlify.toml
+          test ! -e dist/netlify
+
+      - name: Upload deploy artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: filamentinventory-dist-${{ github.run_id }}
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
