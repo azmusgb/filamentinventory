@@ -60,8 +60,10 @@
     }
 
     const owner = currentUser();
-    button.innerHTML = `<span class="profile-avatar" aria-hidden="true">${initials(owner)}</span><span class="profile-chip-copy"><strong>${owner}</strong><small>Private inventory</small></span><span aria-hidden="true">⌄</span>`;
-    button.setAttribute('aria-label', `Switch private inventory. Current: ${owner}`);
+    const markup = `<span class="profile-avatar" aria-hidden="true">${initials(owner)}</span><span class="profile-chip-copy"><strong>${owner}</strong><small>Private inventory</small></span><span aria-hidden="true">⌄</span>`;
+    if (button.innerHTML !== markup) button.innerHTML = markup;
+    const label = `Switch private inventory. Current: ${owner}`;
+    if (button.getAttribute('aria-label') !== label) button.setAttribute('aria-label', label);
 
     const dialog = createDialog('profileSwitchDialog', 'profile-switch-dialog', `<div class="dialog-head"><div><span class="eyebrow">Private inventories</span><h3>Switch workspace</h3></div><button class="btn icon-btn" type="button" data-profile-close aria-label="Close">×</button></div><div class="dialog-body"><p class="profile-privacy-note">Bill and Aimee have separate spools, history, backups and cloud sync.</p><div class="profile-options"><button class="profile-option" type="button" data-profile-owner="Bill"><span class="profile-avatar">BR</span><span><strong>Bill</strong><small>Open Bill's private inventory</small></span><span aria-hidden="true">›</span></button><button class="profile-option" type="button" data-profile-owner="Aimee"><span class="profile-avatar">AR</span><span><strong>Aimee</strong><small>Open Aimee's private inventory</small></span><span aria-hidden="true">›</span></button></div></div>`);
     dialog.querySelectorAll('[data-profile-owner]').forEach(option => option.setAttribute('aria-current', option.dataset.profileOwner === owner ? 'true' : 'false'));

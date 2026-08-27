@@ -1567,3 +1567,74 @@ html.fi-ui.fi-v10 :where(.btn,.tab,.field,.select,textarea) { font-size:max(12px
   html.fi-ui.fi-v10 .inventory-filter-open { min-width:86px;padding-inline:9px; }
   html.fi-ui.fi-v10 .mobile-more-grid-v10 { grid-template-columns:1fr; }
 }
+
+
+/* ============================================================
+   V10 COMPONENT FOUNDATIONS
+   Layout primitives migrated from retired runtime style tags.
+   ============================================================ */
+html.fi-ui.fi-v10 .intake-banner { display:grid; }
+html.fi-ui.fi-v10 .intake-flow,
+html.fi-ui.fi-v10 .intake-suggestions { display:flex;gap:5px;flex-wrap:wrap; }
+html.fi-ui.fi-v10 .intake-duplicate,
+html.fi-ui.fi-v10 .intake-tare-hint { display:none; }
+html.fi-ui.fi-v10 .intake-duplicate.show,
+html.fi-ui.fi-v10 .intake-tare-hint.show { display:block; }
+html.fi-ui.fi-v10 .intake-placement { display:grid;grid-template-columns:1fr 1fr;gap:6px; }
+
+html.fi-ui.fi-v10 .qr-scanner-body { display:grid; }
+html.fi-ui.fi-v10 .qr-private-note { display:flex;align-items:center;justify-content:space-between;gap:12px; }
+html.fi-ui.fi-v10 .qr-video-shell { position:relative;overflow:hidden;aspect-ratio:4/3;background:#02060b; }
+html.fi-ui.fi-v10 .qr-video-shell[hidden] { display:none; }
+html.fi-ui.fi-v10 .qr-video { display:block;width:100%;height:100%;object-fit:cover; }
+html.fi-ui.fi-v10 .qr-reticle { position:absolute; }
+html.fi-ui.fi-v10 .qr-manual,
+html.fi-ui.fi-v10 .qr-scanner-actions { display:grid;grid-template-columns:1fr auto; }
+html.fi-ui.fi-v10 .qr-scanner-actions { grid-template-columns:1fr 1fr; }
+
+html.fi-ui.fi-v10 .printer-command { display:grid; }
+html.fi-ui.fi-v10 .printer-hero { display:flex;align-items:flex-start;justify-content:space-between; }
+html.fi-ui.fi-v10 .printer-metrics { display:grid; }
+html.fi-ui.fi-v10 .printer-layout { display:grid; }
+html.fi-ui.fi-v10 .printer-machine { overflow:hidden; }
+html.fi-ui.fi-v10 .printer-machine-head { display:flex;align-items:center;justify-content:space-between;gap:12px; }
+html.fi-ui.fi-v10 .printer-slots,
+html.fi-ui.fi-v10 .printer-board,
+html.fi-ui.fi-v10 .printer-candidates,
+html.fi-ui.fi-v10 .printer-attention { display:grid; }
+html.fi-ui.fi-v10 .printer-slot { display:grid;grid-template-columns:minmax(76px,.55fr) minmax(0,1.7fr) auto;gap:10px;align-items:center; }
+html.fi-ui.fi-v10 .printer-slot-actions { display:flex;gap:6px; }
+html.fi-ui.fi-v10 .printer-form { display:grid;grid-template-columns:1fr 1fr; }
+html.fi-ui.fi-v10 .printer-form .full { grid-column:1/-1; }
+html.fi-ui.fi-v10 .printer-form-actions { display:grid;grid-template-columns:1.2fr .8fr; }
+html.fi-ui.fi-v10 .printer-context { display:grid;grid-template-columns:1fr 1fr; }
+html.fi-ui.fi-v10 .printer-candidate { display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center; }
+html.fi-ui.fi-v10 .printer-attention-row { display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center; }
+
+html.fi-ui.fi-v10 .audit-panel { margin-bottom:16px; }
+html.fi-ui.fi-v10 .audit-head-actions { display:flex;gap:8px;flex-wrap:wrap; }
+html.fi-ui.fi-v10 .audit-dashboard-list { display:grid;gap:7px; }
+html.fi-ui.fi-v10 .audit-dashboard-row { display:flex;align-items:center;justify-content:space-between;gap:12px; }
+html.fi-ui.fi-v10 .audit-main strong { display:block; }
+html.fi-ui.fi-v10 .audit-meta { display:flex;gap:7px;flex-wrap:wrap; }
+html.fi-ui.fi-v10 .audit-chip { display:inline-flex;align-items:center; }
+
+html.fi-ui.fi-v10 .ux-check { display:flex;align-items:center;gap:10px; }
+html.fi-ui.fi-v10 .ux-profile-head { display:flex;align-items:center;justify-content:space-between; }
+html.fi-ui.fi-v10 .ux-profile-pill,
+html.fi-ui.fi-v10 .ux-actions,
+html.fi-ui.fi-v10 .ux-color-row { display:flex;align-items:center;gap:9px;flex-wrap:wrap; }
+
+@media (max-width:720px) {
+  html.fi-ui.fi-v10 .qr-manual,
+  html.fi-ui.fi-v10 .qr-scanner-actions,
+  html.fi-ui.fi-v10 .printer-form,
+  html.fi-ui.fi-v10 .printer-form-actions,
+  html.fi-ui.fi-v10 .printer-context,
+  html.fi-ui.fi-v10 .printer-candidate { grid-template-columns:1fr; }
+  html.fi-ui.fi-v10 .printer-hero { flex-direction:column; }
+  html.fi-ui.fi-v10 .printer-slot { grid-template-columns:1fr; }
+  html.fi-ui.fi-v10 .printer-slot-actions { display:grid;grid-template-columns:1fr 1fr; }
+  html.fi-ui.fi-v10 .printer-form .full { grid-column:auto; }
+  html.fi-ui.fi-v10 .audit-dashboard-row { align-items:flex-start;flex-direction:column; }
+}

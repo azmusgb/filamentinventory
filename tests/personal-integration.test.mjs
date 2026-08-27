@@ -33,7 +33,7 @@ test('dashboard consolidates metrics and empty-state analytics without a second 
   assert.match(source, /data\.empty|dataset\.empty/);
   assert.match(source, /\+ Add first spool/);
   assert.match(source, /Restore backup/);
-  assert.match(css, /#personalCommandCenter/);
+  assert.match(source, /removeLegacyPersonalPanel/);
   assert.match(css, /#dashboardView\[data-empty="true"\]/);
 });
 

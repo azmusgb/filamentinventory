@@ -46,6 +46,10 @@ test('v10 UI system enforces readable mobile typography and bottom navigation sa
   assert.match(css, /\.spool-form-advanced/);
   assert.match(css, /\.activity-switcher-v10/);
   assert.match(css, /\.data-group-v10/);
+  assert.match(css, /V10 COMPONENT FOUNDATIONS/);
+  assert.match(css, /\.printer-command \{ display:grid; \}/);
+  assert.match(css, /\.qr-scanner-body \{ display:grid; \}/);
+  assert.match(css, /\.intake-banner \{ display:grid; \}/);
   const marker = css.indexOf('V10 PRODUCT UI');
   assert.ok(marker >= 0, 'v10 UI authority marker must exist');
   const v10 = css.slice(marker);

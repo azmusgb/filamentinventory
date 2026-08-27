@@ -31,6 +31,7 @@ test('v10 interaction architecture covers the critique priorities without new CR
   assert.match(client, /localStorage\.setItem\(CURRENT_USER_KEY/);
   assert.doesNotMatch(client, /localStorage\.setItem\(['"]filament-inventory-v1/);
   assert.doesNotMatch(client, /Storage\.prototype\.setItem\s*=/);
+  assert.match(client, /if \(button\.innerHTML !== markup\) button\.innerHTML = markup/);
 });
 
 test('authoritative UI system owns v10 layout, typography and responsive composition', async () => {
