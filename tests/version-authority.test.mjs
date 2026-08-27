@@ -8,9 +8,9 @@ const version = require('../app-version.js');
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('authoritative app and schema versions are explicit', () => {
-  assert.equal(version.APP_VERSION, '10.1.0');
+  assert.equal(version.APP_VERSION, '10.2.0');
   assert.equal(version.DATA_SCHEMA_VERSION, 10);
-  assert.equal(version.DISPLAY_VERSION, 'v10.1.0');
+  assert.equal(version.DISPLAY_VERSION, 'v10.2.0');
 });
 
 test('package metadata matches the authoritative app version', async () => {
@@ -60,10 +60,10 @@ test('stale user-facing release labels and backup names are gone', async () => {
   forbidden.forEach(value => assert.equal(combined.includes(value), false, `stale label remains: ${value}`));
 });
 
-test('PWA publication includes scan and printer command-center modules', async () => {
+test('PWA publication includes scan and physical-spool modules', async () => {
   const assets = await read('scripts/public-assets.mjs');
   const sw = await read('sw.js');
-  for (const name of ['scan-core.js','scan-client.js','printer-core.js','printer-dashboard.js']) {
+  for (const name of ['scan-core.js','scan-client.js','spool-actions-core.js','spool-actions-client.js','printer-core.js','printer-dashboard.js']) {
     assert.match(assets, new RegExp(`'${name.replace('.', '\\.').replace('-', '\\-')}'`));
     assert.match(sw, new RegExp(`/${name.replace('.', '\\.').replace('-', '\\-')}`));
   }

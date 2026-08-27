@@ -80,7 +80,7 @@
     if (preview) {
       return `<article class="label-preview"><img alt="QR for ${esc(spool.id)}" loading="lazy" src="${qr}"/><div><strong>${esc(spool.id)}</strong><div class="label-line">${esc(details)}</div><div class="label-line label-remaining">${esc(remain)}</div><div class="label-line">${esc(spool.location || 'Location not set')}</div><div class="label-url">${esc(linkFor(spool.id))}</div></div></article>`;
     }
-    return `<article class="physical-print-label"><img alt="" src="${qr}"/><div><strong>${esc(spool.id)}</strong><span>${esc(spool.brand || 'Unknown')} · ${esc(spool.material || 'Unknown')}</span><span>${esc(spool.colorName || 'Unknown')}</span><span>${esc(remain)}${spool.location ? ` · ${esc(spool.location)}` : ''}</span><small>Scan to open / weigh</small></div></article>`;
+    return `<article class="physical-print-label"><img alt="" src="${qr}"/><div><strong>${esc(spool.id)}</strong><span>${esc(spool.brand || 'Unknown')} · ${esc(spool.material || 'Unknown')}</span><span>${esc(spool.colorName || 'Unknown')}</span><span>${esc(remain)}${spool.location ? ` · ${esc(spool.location)}` : ''}</span><small>Scan to open spool controls</small></div></article>`;
   }
 
   function renderPicker() {
@@ -198,7 +198,7 @@
   }
 
   function markup() {
-    return `<div class="labels-layout"><section class="panel labels-card"><span class="eyebrow">Physical spool labels · ${esc(globalThis.FilamentInventoryVersion?.DISPLAY_VERSION || '')}</span><h2 id="labelsTitle" style="margin:8px 0 6px;font-size:30px;letter-spacing:-.04em">Scan the spool, not the spreadsheet.</h2><p class="muted" style="line-height:1.6">Generate printable QR labels for the physical spools. The QR contains only the public app URL, spool ID, and private profile name; it never contains your private sync key.</p><div class="label-controls"><input class="field" id="labelSearch" type="search" placeholder="Search ID, brand, material, color, location…"/><select class="select" id="labelSize"><option value="2x1">2 × 1 in</option><option value="2.25x1.25">2.25 × 1.25 in</option><option value="1.5-square">1.5 × 1.5 in</option></select></div><div class="label-actions"><button class="btn" id="selectActiveLabelsBtn" type="button">Select active</button><button class="btn" id="clearLabelsBtn" type="button">Clear</button><button class="btn btn-primary" id="printLabelsBtn" type="button">Print selected</button></div><p class="muted" id="labelSelectionCount" style="font-size:12px;margin:12px 0 0">0 selected</p><div class="spool-pick-list" id="spoolPickList"></div></section><aside class="panel labels-card"><span class="eyebrow">Print preview</span><h3 style="margin-top:8px">Label sheet</h3><p class="muted">Use your browser Print dialog to print directly or save the sheet as PDF. For best QR reliability, print at 100% scale.</p><div class="label-preview-grid" id="labelPreviewGrid"></div><div class="physical-tip"><strong>iPhone workflow:</strong> point Camera or Code Scanner at a label → open the link → choose <strong>Weigh now</strong>, <strong>Edit spool</strong>, or <strong>Printer / AMS</strong>. The device still needs its normal local/synced inventory to display private spool details.</div></aside></div>`;
+    return `<div class="labels-layout"><section class="panel labels-card"><span class="eyebrow">Physical spool labels · ${esc(globalThis.FilamentInventoryVersion?.DISPLAY_VERSION || '')}</span><h2 id="labelsTitle" style="margin:8px 0 6px;font-size:30px;letter-spacing:-.04em">Scan the spool, not the spreadsheet.</h2><p class="muted" style="line-height:1.6">Generate printable QR labels for the physical spools. The QR contains only the public app URL, spool ID, and private profile name; it never contains your private sync key.</p><div class="label-controls"><input class="field" id="labelSearch" type="search" placeholder="Search ID, brand, material, color, location…"/><select class="select" id="labelSize"><option value="2x1">2 × 1 in</option><option value="2.25x1.25">2.25 × 1.25 in</option><option value="1.5-square">1.5 × 1.5 in</option></select></div><div class="label-actions"><button class="btn" id="selectActiveLabelsBtn" type="button">Select active</button><button class="btn" id="clearLabelsBtn" type="button">Clear</button><button class="btn btn-primary" id="printLabelsBtn" type="button">Print selected</button></div><p class="muted" id="labelSelectionCount" style="font-size:12px;margin:12px 0 0">0 selected</p><div class="spool-pick-list" id="spoolPickList"></div></section><aside class="panel labels-card"><span class="eyebrow">Print preview</span><h3 style="margin-top:8px">Label sheet</h3><p class="muted">Use your browser Print dialog to print directly or save the sheet as PDF. For best QR reliability, print at 100% scale.</p><div class="label-preview-grid" id="labelPreviewGrid"></div><div class="physical-tip"><strong>iPhone workflow:</strong> point Camera or Code Scanner at a label → open the link → use the <strong>Physical spool</strong> sheet for Weigh, Printer / AMS, Edit, QR, and lifecycle actions. The device still needs its normal local/synced inventory to display private spool details.</div></aside></div>`;
   }
 
   function injectUi() {
@@ -249,16 +249,24 @@
     document.getElementById('scanCopyLinkBtn')?.addEventListener('click', () => { const id=document.getElementById('scanSpoolDialog')?.dataset.spoolId; if (id) copySpoolLink(id); });
   }
 
+  function scheduleIncomingScanFallback() {
+    if (!pendingSpoolId || !pendingScan) return;
+    setTimeout(() => {
+      const current = new URL(location.href);
+      if (current.searchParams.get('scan') !== '1') return;
+      if (globalThis.FilamentInventorySpoolActions?.openIncomingScan?.()) return;
+      current.searchParams.delete('scan');
+      history.replaceState(null, '', current.pathname + current.search + current.hash);
+      showScanDialog(pendingSpoolId);
+    }, 650);
+  }
+
   function init() {
     injectUi();
     bind();
     selectActive();
     setTimeout(renderPicker, 650);
-    if (pendingSpoolId && pendingScan) {
-      const clean = new URL(location.href); clean.searchParams.delete('scan');
-      history.replaceState(null, '', clean.pathname + clean.search + clean.hash);
-      setTimeout(() => showScanDialog(pendingSpoolId), 420);
-    }
+    scheduleIncomingScanFallback();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();

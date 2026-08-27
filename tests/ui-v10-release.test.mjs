@@ -15,9 +15,9 @@ test('v10 client is published through browser, PWA, Netlify and CI contracts', a
   assert.match(ci, /dist\/ui-v10-client\.js/);
 });
 
-test('v10.1 release advances the service-worker cache without changing schema', async () => {
+test('v10.2 release advances the service-worker cache without changing schema', async () => {
   const [sw, version] = await Promise.all([read('sw.js'), read('app-version.js')]);
-  assert.match(sw, /filament-inventory-v27/);
-  assert.match(version, /APP_VERSION = '10\.1\.0'/);
+  assert.match(sw, /filament-inventory-v28/);
+  assert.match(version, /APP_VERSION = '10\.2\.0'/);
   assert.match(version, /DATA_SCHEMA_VERSION = 10/);
 });

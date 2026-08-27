@@ -32,10 +32,13 @@ test('placement writes continue through the existing local state boundary for au
   assert.doesNotMatch(client, /fetch\(/);
 });
 
-test('scan to Printer AMS remains compatible with the new command center', async () => {
-  const scan = await read('scan-client.js');
-  assert.match(scan, /switchView\('household'\)/);
-  assert.match(scan, /getElementById\('moveSpoolV8'\)/);
+test('scan to Printer AMS routes through physical spool mode and the authoritative placement workflow', async () => {
+  const [scan, actions] = await Promise.all([read('scan-client.js'), read('spool-actions-client.js')]);
+  assert.match(scan, /function openPhysicalSpool\(id\)/);
+  assert.match(scan, /FilamentInventorySpoolActions/);
+  assert.match(actions, /if \(action === 'placement'\) \{ openPlacement\(id\); return; \}/);
+  assert.match(actions, /switchView\('household'\)/);
+  assert.match(actions, /\$\('moveSpoolV8'\)/);
 });
 
 test('PWA and CI publish printer command-center assets', async () => {

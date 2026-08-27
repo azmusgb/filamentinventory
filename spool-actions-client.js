@@ -8,6 +8,7 @@
   const priorSetItem = Storage.prototype.setItem;
   let refreshQueued = false;
   let bodyObserver = null;
+  let openContext = Object.freeze({source:'inventory'});
 
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -46,15 +47,15 @@
     dialog.id = 'spoolActionDialog';
     dialog.className = 'spool-action-dialog';
     dialog.setAttribute('aria-labelledby', 'spoolActionTitle');
-    dialog.innerHTML = '<div class="spool-action-shell"><div class="spool-action-head"><div><span class="eyebrow">Contextual spool actions</span><h2 id="spoolActionTitle">Spool actions</h2></div><button class="btn icon-btn" id="spoolActionClose" type="button" aria-label="Close spool actions">×</button></div><div class="spool-action-body" id="spoolActionBody"></div></div>';
+    dialog.innerHTML = '<div class="spool-action-shell"><div class="spool-action-head"><div><span class="eyebrow">Physical spool</span><h2 id="spoolActionTitle">Spool</h2></div><button class="btn icon-btn" id="spoolActionClose" type="button" aria-label="Close physical spool">×</button></div><div class="spool-action-body" id="spoolActionBody"></div></div>';
     document.body.appendChild(dialog);
     $('spoolActionClose')?.addEventListener('click', () => dialog.close());
     dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
     return dialog;
   }
 
-  function actionButton(action) {
-    const className = action.kind === 'primary' ? 'btn btn-primary' : action.kind === 'danger' ? 'btn btn-danger' : 'btn';
+  function actionButton(action, prominent = false) {
+    const className = prominent || action.kind === 'primary' ? 'btn btn-primary' : action.kind === 'danger' ? 'btn btn-danger' : 'btn';
     return `<button class="${className}" type="button" data-spool-sheet-action="${esc(action.key)}">${esc(action.label)}</button>`;
   }
 
@@ -64,27 +65,37 @@
     if (!body || !title) return;
     const summary = core.summary(spool);
     title.textContent = `${summary.id} · ${summary.colorName}`;
-    const remaining = summary.grams === null ? 'Unknown' : `${Math.round(summary.grams)} g`;
-    const percent = summary.percent === null ? '—' : `${Math.round(summary.percent)}%`;
     const updated = summary.updatedAt ? new Date(summary.updatedAt).toLocaleString() : 'Not recorded';
+    const primary = summary.primaryAction;
+    const secondary = summary.actions.filter(action => !primary || action.key !== primary.key);
+    const attention = summary.attention;
+    const scanAgain = openContext.source === 'scan' ? '<button class="btn" type="button" data-spool-sheet-action="scan">Scan another</button>' : '';
     body.innerHTML = `
-      <section class="spool-action-summary">
+      <section class="spool-action-summary" data-physical-spool="${esc(summary.id)}">
         <div class="spool-action-ident"><i class="spool-action-swatch" style="background:${esc(summary.colorHex)}"></i><div><strong>${esc(summary.id)}</strong><span>${esc(summary.brand)} · ${esc(summary.material)} · ${esc(summary.colorName)}</span></div></div>
-        <div class="spool-action-metrics"><div><span>Remaining</span><strong>${esc(remaining)}</strong><small>${esc(summary.measurementSource)} · ${esc(percent)}</small></div><div><span>Status</span><strong>${esc(summary.stock)}</strong><small>${summary.archived ? 'Lifecycle' : 'Active inventory'}</small></div><div><span>Placement</span><strong>${esc(summary.placement)}</strong><small>${summary.loaded ? 'Loaded now' : 'Storage state'}</small></div></div>
+        <div class="spool-action-metrics"><div><span>Remaining</span><strong>${esc(summary.remainingLabel)}</strong><small>${esc(summary.measurementSource)} · ${esc(summary.percentLabel)}</small></div><div><span>Inventory</span><strong>${esc(summary.stock)}</strong><small>${summary.archived ? 'Archived lifecycle' : 'Private active inventory'}</small></div><div><span>Physical location</span><strong>${esc(summary.placement)}</strong><small>${summary.loaded ? 'Loaded now' : 'Stored / placement state'}</small></div></div>
+        ${attention ? `<div class="spool-action-updated" data-attention="${esc(attention.tone)}"><span>${esc(attention.label)}</span><strong>${esc(attention.detail)}</strong></div>` : ''}
         <div class="spool-action-updated"><span>Last updated</span><strong>${esc(updated)}</strong></div>
       </section>
-      <section class="spool-action-grid" aria-label="Actions for ${esc(summary.id)}">${summary.actions.map(actionButton).join('')}</section>
-      <p class="spool-action-note">Actions reuse the existing inventory, Printer / AMS, and Labels workflows so audit, sync, placement conflict handling, and deletion safeguards remain authoritative.</p>`;
+      <section class="spool-action-grid" aria-label="Physical actions for ${esc(summary.id)}">${primary ? actionButton(primary, true) : ''}${secondary.map(action => actionButton(action)).join('')}${scanAgain}</section>
+      <p class="spool-action-note">This physical-spool view reuses the authoritative inventory, Weigh, Printer / AMS, Labels, audit, sync, and lifecycle controls.</p>`;
   }
 
-  function open(id) {
+  function open(id, options = {}) {
     const spool = findSpool(id);
     if (!spool) { toast(`Spool ${id || ''} is not in ${currentUser()}'s inventory.`); return false; }
+    openContext = Object.freeze({source:String(options.source || 'inventory')});
     const dialog = ensureDialog();
+    if (openContext.source === 'scan') $('scanSpoolDialog')?.close();
     dialog.dataset.spoolId = spool.id;
+    dialog.dataset.source = openContext.source;
     renderDialog(spool);
     if (!dialog.open) dialog.showModal();
     return true;
+  }
+
+  function openPhysical(id, options = {}) {
+    return open(id, {...options, source:options.source || 'scan'});
   }
 
   function close() {
@@ -108,15 +119,30 @@
   }
 
   function triggerNative(id, action) {
-    const nativeAction = action === 'link' ? 'copylink' : action;
     close();
-    const current = document.querySelector(`#inventoryGrid .spool-card[data-id="${cssEscape(id)}"] button[data-action="${nativeAction}"]`);
+    const current = document.querySelector(`#inventoryGrid .spool-card[data-id="${cssEscape(id)}"] button[data-action="${action}"]`);
     if (current) { current.click(); return; }
     prepareInventoryCard(id, card => {
-      const button = card?.querySelector(`button[data-action="${nativeAction}"]`);
+      const button = card?.querySelector(`button[data-action="${action}"]`);
       if (button) button.click();
       else toast(`${id} action is unavailable in the current state.`);
     });
+  }
+
+  async function copyPhysicalLink(id) {
+    const url = new URL(location.href);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('spool', String(id));
+    url.searchParams.set('scan', '1');
+    url.hash = new URLSearchParams({'filament-user':currentUser()}).toString();
+    const value = url.toString();
+    try {
+      await navigator.clipboard.writeText(value);
+      toast(`Private spool link copied for ${id}.`);
+    } catch {
+      prompt('Copy this private spool link:', value);
+    }
   }
 
   function openPlacement(id) {
@@ -164,10 +190,21 @@
     }, 80);
   }
 
+  function openScanner() {
+    close();
+    if (globalThis.FilamentInventoryScanner?.open) {
+      globalThis.FilamentInventoryScanner.open();
+      return;
+    }
+    $('qrScanLaunch')?.click();
+  }
+
   function runAction(id, action) {
     if (action === 'placement') { openPlacement(id); return; }
     if (action === 'label') { openLabel(id); return; }
-    if (['weigh','edit','archive','restore','delete','link'].includes(action)) triggerNative(id, action);
+    if (action === 'link') { close(); copyPhysicalLink(id); return; }
+    if (action === 'scan') { openScanner(); return; }
+    if (['weigh','empty','edit','archive','restore','delete'].includes(action)) triggerNative(id, action);
   }
 
   function enhanceInventoryCards() {
@@ -182,9 +219,9 @@
       if (!native) return;
       const bar = document.createElement('div');
       bar.className = 'spool-action-bar';
-      const primaryKey = summary.archived ? 'restore' : 'weigh';
-      const primaryLabel = summary.archived ? 'Restore' : 'Weigh';
-      bar.innerHTML = `<button class="btn" type="button" data-spool-primary="${primaryKey}" data-spool-id="${esc(id)}">${primaryLabel}</button><button class="btn btn-primary" type="button" data-spool-actions-open="${esc(id)}">Actions</button>`;
+      const primaryKey = summary.primaryAction?.key || (summary.archived ? 'restore' : 'weigh');
+      const primaryLabel = summary.primaryAction?.label || (summary.archived ? 'Restore' : 'Weigh');
+      bar.innerHTML = `<button class="btn" type="button" data-spool-primary="${esc(primaryKey)}" data-spool-id="${esc(id)}">${esc(primaryLabel)}</button><button class="btn btn-primary" type="button" data-spool-actions-open="${esc(id)}">Open spool</button>`;
       native.insertAdjacentElement('afterend', bar);
     });
   }
@@ -198,7 +235,7 @@
       button.className = 'inventory-command-more';
       button.type = 'button';
       button.dataset.spoolActionsOpen = id;
-      button.setAttribute('aria-label', `More actions for ${id}`);
+      button.setAttribute('aria-label', `Open physical spool ${id}`);
       button.textContent = '•••';
       row.appendChild(button);
     });
@@ -214,33 +251,33 @@
       button.className = 'btn printer-slot-more';
       button.type = 'button';
       button.dataset.spoolActionsOpen = id;
-      button.textContent = 'Actions';
+      button.textContent = 'Open spool';
       actions.appendChild(button);
     });
   }
 
-  function enhanceScanDialog() {
-    const actions = document.querySelector('#scanSpoolDialog .scan-extended-actions');
-    if (!actions || actions.querySelector('.scan-more-actions')) return;
-    const button = document.createElement('button');
-    button.className = 'btn scan-more-actions';
-    button.type = 'button';
-    button.textContent = 'More actions';
-    button.addEventListener('click', () => {
-      const dialog = $('scanSpoolDialog');
-      const id = dialog?.dataset.spoolId;
-      if (!id || !findSpool(id)) return;
-      dialog.close();
-      open(id);
-    });
-    actions.appendChild(button);
+  function cleanIncomingScanUrl(url) {
+    url.searchParams.delete('scan');
+    url.searchParams.delete('spool');
+    const query = url.searchParams.toString();
+    history.replaceState(null, '', `${url.pathname}${query ? `?${query}` : ''}${url.hash}`);
+  }
+
+  function openIncomingScan() {
+    const url = new URL(location.href);
+    if (url.searchParams.get('scan') !== '1') return false;
+    const id = String(url.searchParams.get('spool') || '').trim();
+    if (!id || !findSpool(id)) return false;
+    setTimeout(() => {
+      if (openPhysical(id, {source:'scan'})) cleanIncomingScanUrl(url);
+    }, 140);
+    return true;
   }
 
   function refresh() {
     enhanceInventoryCards();
     enhanceCommandRecent();
     enhancePrinterSlots();
-    enhanceScanDialog();
   }
 
   function queueRefresh() {
@@ -260,7 +297,7 @@
       const openButton = event.target.closest('[data-spool-actions-open]');
       if (openButton) { event.preventDefault(); event.stopPropagation(); open(openButton.dataset.spoolActionsOpen); return; }
       const primary = event.target.closest('[data-spool-primary]');
-      if (primary) { event.preventDefault(); triggerNative(primary.dataset.spoolId, primary.dataset.spoolPrimary); return; }
+      if (primary) { event.preventDefault(); runAction(primary.dataset.spoolId, primary.dataset.spoolPrimary); return; }
       const action = event.target.closest('[data-spool-sheet-action]');
       if (action) {
         const id = $('spoolActionDialog')?.dataset.spoolId;
@@ -281,7 +318,8 @@
     bind();
     watch();
     queueRefresh();
-    globalThis.FilamentInventorySpoolActions = Object.freeze({open, close, refresh:queueRefresh});
+    globalThis.FilamentInventorySpoolActions = Object.freeze({open, openPhysical, close, refresh:queueRefresh, openIncomingScan});
+    openIncomingScan();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true});

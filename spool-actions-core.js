@@ -60,12 +60,67 @@
     ]);
     return Object.freeze([
       {key:'weigh', label:'Weigh now', kind:'primary'},
-      {key:'edit', label:'Edit details', kind:'default'},
       {key:'placement', label:isLoaded(spool) ? 'Move / unload' : 'Load / move', kind:'default'},
+      {key:'empty', label:'Mark empty', kind:'default'},
+      {key:'edit', label:'Edit details', kind:'default'},
       {key:'label', label:'QR label', kind:'default'},
       {key:'link', label:'Copy link', kind:'default'},
       {key:'archive', label:'Archive', kind:'danger'},
     ]);
+  }
+
+  function attentionFor(spool = {}) {
+    if (isArchived(spool)) return Object.freeze({
+      key:'archived',
+      label:'Archived spool',
+      detail:'Restore this spool before weighing or loading it.',
+      tone:'muted',
+      action:'restore',
+    });
+
+    const m = measurement(spool);
+    if (m.grams === null) return Object.freeze({
+      key:'measure',
+      label:'Measurement needed',
+      detail:'Remaining filament is unknown. Weigh this spool for a reliable amount.',
+      tone:'warning',
+      action:'weigh',
+    });
+
+    const threshold = Number(spool.reorderThreshold ?? 250);
+    if (m.grams <= threshold) return Object.freeze({
+      key:'reorder',
+      label:'Low filament',
+      detail:`${Math.round(m.grams)} g remaining · reorder threshold ${Math.round(threshold)} g`,
+      tone:'danger',
+      action:'weigh',
+    });
+
+    if (isLoaded(spool)) return Object.freeze({
+      key:'loaded',
+      label:'Loaded now',
+      detail:placementLabel(spool),
+      tone:'info',
+      action:'placement',
+    });
+
+    return null;
+  }
+
+  function primaryActionFor(spool = {}) {
+    const actions = actionsFor(spool);
+    const preferred = attentionFor(spool)?.action || (isArchived(spool) ? 'restore' : 'weigh');
+    return actions.find(action => action.key === preferred) || actions[0] || null;
+  }
+
+  function remainingLabel(spool = {}) {
+    const m = measurement(spool);
+    return m.grams === null ? 'Unknown' : `${Math.round(m.grams)} g`;
+  }
+
+  function percentLabel(spool = {}) {
+    const m = measurement(spool);
+    return m.percent === null ? '—' : `${Math.round(m.percent)}%`;
   }
 
   function summary(spool = {}) {
@@ -78,15 +133,19 @@
       colorHex:/^#[0-9a-f]{6}$/i.test(text(spool.colorHex)) ? text(spool.colorHex) : '#64748b',
       grams:m.grams,
       percent:m.percent,
+      remainingLabel:remainingLabel(spool),
+      percentLabel:percentLabel(spool),
       measurementSource:m.source,
       stock:stockLabel(spool),
       placement:placementLabel(spool),
       loaded:isLoaded(spool),
       archived:isArchived(spool),
+      attention:attentionFor(spool),
+      primaryAction:primaryActionFor(spool),
       updatedAt:spool.updatedAt || null,
       actions:actionsFor(spool),
     });
   }
 
-  return Object.freeze({measurement, isArchived, isLoaded, placementLabel, stockLabel, actionsFor, summary});
+  return Object.freeze({measurement, isArchived, isLoaded, placementLabel, stockLabel, actionsFor, attentionFor, primaryActionFor, remainingLabel, percentLabel, summary});
 });
