@@ -297,7 +297,7 @@
       const openButton = event.target.closest('[data-spool-actions-open]');
       if (openButton) { event.preventDefault(); event.stopPropagation(); open(openButton.dataset.spoolActionsOpen); return; }
       const primary = event.target.closest('[data-spool-primary]');
-      if (primary) { event.preventDefault(); triggerNative(primary.dataset.spoolId, primary.dataset.spoolPrimary); return; }
+      if (primary) { event.preventDefault(); runAction(primary.dataset.spoolId, primary.dataset.spoolPrimary); return; }
       const action = event.target.closest('[data-spool-sheet-action]');
       if (action) {
         const id = $('spoolActionDialog')?.dataset.spoolId;
