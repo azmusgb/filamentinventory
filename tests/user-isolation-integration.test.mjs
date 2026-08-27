@@ -28,8 +28,10 @@ test('sync and security requests are profile-scoped', async () => {
   assert.match(security, /filament-user=/);
   assert.match(server, /x-filament-profile/);
   assert.match(admin, /x-filament-profile/);
-  assert.match(server, /hashKey\(key, profile\)/);
-  assert.match(admin, /hashKey\(key, profile\)/);
+  assert.match(server, /hashKey\(key, owner\)/);
+  assert.match(admin, /hashKey\(key, owner\)/);
+  assert.match(server, /owner\.toLowerCase\(\).*:\$\{key\}/);
+  assert.match(admin, /owner\.toLowerCase\(\).*:\$\{key\}/);
 });
 
 test('active UI has a persistent profile boundary and removes cross-user transfer controls', async () => {
@@ -53,4 +55,6 @@ test('PWA and deploy output include the isolation boundary', async () => {
   assert.match(sw, /\/user-isolation\.js/);
   assert.match(netlify, /\/user-isolation\.js/);
   assert.match(ci, /dist\/user-isolation\.js/);
+  assert.match(ci, /contents: read/);
+  assert.doesNotMatch(ci, /apply-user-isolation-integration/);
 });
