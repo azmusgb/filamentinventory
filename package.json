@@ -1,13 +1,15 @@
 {
   "name": "filamentinventory",
   "private": true,
-  "version": "6.0.0",
-  "description": "Local-first filament inventory PWA with secure Netlify cloud sync, recovery, pairing, and key lifecycle controls.",
+  "version": "7.0.0",
+  "description": "Local-first filament inventory PWA with secure Netlify sync and physical QR spool labels.",
   "engines": { "node": ">=20" },
   "dependencies": {
-    "@netlify/blobs": "11.0.1"
+    "@netlify/blobs": "11.0.1",
+    "qrcode": "1.5.4"
   },
   "devDependencies": {
-    "@netlify/functions": "6.0.0"
+    "@netlify/functions": "6.0.0",
+    "@types/qrcode": "1.5.5"
   }
 }
