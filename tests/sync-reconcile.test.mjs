@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { reconcileConcurrentState, reconcileSpoolRecord } from '../netlify/functions/sync-reconcile.mts';
+import { reconcileConcurrentState, reconcileSpoolRecord } from '../netlify/lib/sync-reconcile.mts';
 
 const at = minute => `2026-08-27T02:${String(minute).padStart(2, '0')}:00.000Z`;
 const spool = (updatedAt, extra = {}) => ({
