@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -32,6 +34,22 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Apply household sync integrity patch
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          node scripts/apply-household-sync-integrity.mjs
+          if git diff --quiet -- household-client.js netlify/functions/sync.mts; then
+            echo "Integrity patch already applied."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add household-client.js netlify/functions/sync.mts
+            git commit -m "fix: preserve household placement changes across sync"
+            git push origin HEAD:"${HEAD_BRANCH}"
+          fi
 
       - name: Static validation
         run: npm run lint
