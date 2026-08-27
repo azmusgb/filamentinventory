@@ -10,7 +10,8 @@
     "lint": "node scripts/validate.mjs",
     "test": "node --experimental-strip-types --test",
     "build": "node scripts/build.mjs",
-    "ci": "npm run lint && npm test && npm run build"
+    "ci": "npm run lint && npm test && npm run build",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "11.0.1",
