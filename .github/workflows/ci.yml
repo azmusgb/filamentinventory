@@ -50,11 +50,13 @@ jobs:
           test ! -e dist/netlify.toml
           test ! -e dist/netlify
 
-      - name: Upload deploy artifact
+      - name: Upload validation artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: filamentinventory-dist-${{ github.run_id }}
-          path: dist
+          name: filamentinventory-validation-${{ github.run_id }}
+          path: |
+            dist
+            package-lock.json
           if-no-files-found: error
           retention-days: 7
