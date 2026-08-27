@@ -15,8 +15,10 @@ test('mobile primary navigation contains durable destinations only', async () =>
 
 test('dashboard component collapses nonessential empty-state reporting', async () => {
   const css = await read('css/components/dashboard.css');
-  assert.match(css,/#dashboardView\[data-empty="true"\] \.metrics/);
+  assert.match(css,/\.dashboard-view\[data-empty="true"\] \.metrics/);
   assert.match(css,/grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
+  assert.doesNotMatch(css,/!important/);
+  assert.doesNotMatch(css,/(^|[\s,{])#[A-Za-z]/m);
 });
 
 test('dashboard component is published', async () => {
