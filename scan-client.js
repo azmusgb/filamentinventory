@@ -38,7 +38,6 @@
     return Boolean(globalThis.BarcodeDetector && navigator.mediaDevices?.getUserMedia && window.isSecureContext);
   }
 
-
   function scannerMarkup() {
     return `<div class="dialog-head"><div><span class="eyebrow">Fast spool lookup</span><h3 style="margin-top:5px">Scan a filament QR</h3></div><button class="btn icon-btn" id="qrScannerClose" type="button" aria-label="Close scanner">×</button></div><div class="dialog-body qr-scanner-body"><div class="qr-private-note"><span>Scanning inside</span><strong id="qrScannerProfile"></strong></div><div class="qr-video-shell" id="qrVideoShell" hidden><video class="qr-video" id="qrScannerVideo" muted playsinline></video><div class="qr-reticle" aria-hidden="true"></div></div><div class="qr-scan-status" id="qrScanStatus"><strong>Ready.</strong> Start the camera or enter a spool ID below.</div><div class="qr-scan-fallback" id="qrScanFallback" hidden><h4>On iPhone / iPad</h4><p>Safari does not reliably expose web QR detection. Apple’s scanner is the dependable path and still lands directly in this app.</p><ol><li>Open Camera or Control Center → Code Scanner.</li><li>Point it at a Filament Inventory QR label.</li><li>Tap the detected link to open the spool here.</li></ol></div><form class="qr-manual" id="qrManualForm"><input class="field" id="qrManualId" autocomplete="off" maxlength="32" placeholder="Or enter spool ID, e.g. S022"/><button class="btn" type="submit">Find spool</button></form><div class="qr-scanner-actions"><button class="btn btn-primary" id="qrStartCamera" type="button">Start camera</button><button class="btn" id="qrStopCamera" type="button" disabled>Stop camera</button></div></div>`;
   }
@@ -109,8 +108,14 @@
     if (fallback) fallback.hidden = liveScanningSupported();
     if (start) start.hidden = !liveScanningSupported();
     setStatus(liveScanningSupported() ? '<strong>Ready.</strong> Start the camera and point it at a Filament Inventory QR label.' : '<strong>Use Apple Camera / Code Scanner.</strong> You can also enter a spool ID below.');
-    dialog?.showModal();
+    if (dialog && !dialog.open) dialog.showModal();
     if (!liveScanningSupported()) document.getElementById('qrManualId')?.focus();
+  }
+
+  function closeScanner() {
+    stopCamera();
+    const dialog = document.getElementById('qrScannerDialog');
+    if (dialog?.open) dialog.close();
   }
 
   async function startCamera() {
@@ -176,6 +181,14 @@
     setCameraUi(false);
   }
 
+  function openPhysicalSpool(id) {
+    const actions = globalThis.FilamentInventorySpoolActions;
+    if (!actions?.open || !findSpool(id)) return false;
+    closeScanner();
+    document.getElementById('scanSpoolDialog')?.close();
+    return actions.open(id) !== false;
+  }
+
   async function processScanValue(raw) {
     const parsed = core.parseScanValue(raw, location.origin);
     if (!parsed.ok) {
@@ -189,8 +202,17 @@
     const states = allProfileStates();
     const resolved = parsed.profile || core.resolveProfile(parsed.spoolId, current, states) || current;
     const exists = core.stateHasSpool(states[resolved], parsed.spoolId);
-    setStatus(exists ? `<strong>Found ${esc(parsed.spoolId)}.</strong> Opening ${esc(resolved)}'s private inventory…` : `<strong>${esc(parsed.spoolId)} not found locally.</strong> Opening the scan result so Sync/recovery options remain available.`);
     const target = core.buildSpoolTarget({spoolId:parsed.spoolId, profile:resolved}, location.origin);
+
+    if (exists && resolved === current) {
+      setStatus(`<strong>Found ${esc(parsed.spoolId)}.</strong> Opening physical spool controls…`);
+      setTimeout(() => {
+        if (!openPhysicalSpool(parsed.spoolId)) location.assign(target);
+      }, 80);
+      return;
+    }
+
+    setStatus(exists ? `<strong>Found ${esc(parsed.spoolId)}.</strong> Switching to ${esc(resolved)}'s private inventory…` : `<strong>${esc(parsed.spoolId)} not found locally.</strong> Opening the scan result so Sync/recovery options remain available.`);
     setTimeout(() => location.assign(target), 120);
   }
 
@@ -265,7 +287,8 @@
     document.getElementById('scanAgainBtn')?.addEventListener('click', () => { dialog.close(); openScanner(); });
     const observer = new MutationObserver(updateEnhancedScanActions);
     observer.observe(dialog, {attributes:true, attributeFilter:['open','data-spool-id'], subtree:false});
-    observer.observe(document.getElementById('scanSpoolBody'), {childList:true, subtree:true});
+    const scanBody = document.getElementById('scanSpoolBody');
+    if (scanBody) observer.observe(scanBody, {childList:true, subtree:true});
     updateEnhancedScanActions();
     return true;
   }
@@ -283,6 +306,7 @@
     if (reconcileIncomingLegacyScan()) return;
     ensureLaunchButton();
     ensureScanEnhancement();
+    globalThis.FilamentInventoryScanner = Object.freeze({open:openScanner, close:closeScanner, stop:stopCamera, process:processScanValue});
     window.addEventListener('pagehide', stopCamera);
     document.addEventListener('visibilitychange', () => { if (document.hidden && scanning) stopCamera(); });
   }
