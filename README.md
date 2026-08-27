@@ -1,55 +1,74 @@
 # Filament Inventory
 
-A mobile-first, local-first filament inventory PWA for iPhone, iPad, and desktop, with secure cloud sync, physical QR spool labels, two-person ownership, printer/AMS placement tracking, and per-user experience customization.
+A mobile-first, local-first filament inventory PWA for iPhone, iPad, and desktop. The app provides **separate private inventory workspaces for Bill and Aimee**, profile-scoped cloud sync, physical QR spool labels, printer/AMS placement tracking, bulk spool operations, recovery snapshots, audit history, and per-user experience customization.
 
-## v9 highlights
+## Current highlights
 
-- New **Customize** workspace with separate local UX profiles for **Bill** and **Aimee**
-- Midnight, Light, OLED Black, High Contrast, and Follow System themes
-- Cyan, Violet, Green, Amber, and Rose accent presets
-- Compact, Comfortable, and Roomy information density
-- Small, Standard, Large, and Extra Large text sizes
-- Reduced-motion mode and optional larger touch targets
-- Inventory Cards or List layout
-- Per-profile default landing view
-- Per-profile owner scope, default sort, lifecycle filter, and remembered inventory filters
-- Per-profile preferred QR label size
-- Dashboard controls for welcome/quick actions, priority queue, and distribution/material charts
-- Per-profile local app title
-- Export/import of UX preferences separately from inventory backups
-- Existing secure sync, household ownership, printer/AMS placement, QR labels, recovery snapshots, key rotation, and tombstones remain unchanged
+- Private Bill and Aimee inventory workspaces
+- Separate spool records, measurement history, audit history, backups, sync settings, and cloud namespaces per user
+- One-tap user workspace switching with routed local storage
+- Migration of legacy owner-tagged inventory into isolated user states
+- Mobile-first inventory command surface
+- Multi-select bulk actions for moving, storing, QR labeling, archiving, and restoring spools
+- Printer / AMS placement tracking
+- Physical QR spool lookup and labels
+- Secure cloud merge/snapshot synchronization
+- Per-user themes, density, text sizing, filters, sorting, dashboard options, and default views
+- CI, weekly grouped dependency maintenance, and production smoke verification
 
-## Preference model
+## Private user model
 
-UX preferences are intentionally **not stored in the shared cloud inventory**. Each browser keeps two local profiles:
+The app has two supported inventory profiles:
 
 - `Bill`
 - `Aimee`
 
-That allows the same person to use different layouts on different devices and lets Bill and Aimee have independent preferences without changing shared spool records.
+They are **not two filters over one live shared inventory**. The active profile is an isolation boundary.
 
-Examples:
+`user-isolation.js` routes the logical inventory and sync storage keys to profile-specific physical keys. It also filters inventory, measurement history, audit history, and ownership-sensitive state so the active workspace contains only that user's records.
 
-- Bill can use **OLED Black + Compact + Inventory as the default tab** on an iPhone.
-- Aimee can use **Light + Roomy + Dashboard as the default tab** on an iPad.
-- Both still see and edit the same synchronized household inventory.
+The UI reflects that boundary directly:
 
-Preferences can be exported/imported from the Customize workspace when a similar setup is wanted on another browser.
+- separate spools;
+- separate measurement and audit history;
+- separate backups;
+- separate sync key/settings storage;
+- separate printer / AMS assignments;
+- no cross-user ownership-transfer controls in the active private workspace.
 
-## Household model
+Switching between Bill and Aimee changes the active routed workspace and reloads the application so data from the previous user is not retained as the working state.
 
-Every spool has an `owner` of either:
+## Legacy migration
 
-- `Bill`
-- `Aimee`
+Older releases could contain one owner-tagged inventory. On first migration to user isolation, the app splits that state into Bill and Aimee partitions using the recorded spool/audit ownership evidence.
 
-The app keeps one synchronized inventory rather than two disconnected databases. Reports, filters, and the household workspace separate the stock by owner while still allowing the two collections to be searched and managed together.
+Legacy data is not treated as proof that the two current workspaces should remain combined. After migration, each user operates through their own routed state.
 
-A local **New spools default to** selector controls which owner is preselected when adding a spool on that device.
+## Cloud isolation
+
+Cloud sync is profile-scoped as well as key-protected.
+
+The browser sends both:
+
+- `X-Filament-Sync-Key`
+- `X-Filament-Profile` (`Bill` or `Aimee`)
+
+The production sync function validates the profile and derives the cloud storage identity from **profile + private sync key**. Therefore Bill and Aimee remain in different cloud namespaces even when a migrated setup begins with the same legacy private sync key.
+
+Cloud state includes the active user's:
+
+- spools;
+- measurement history;
+- audit history;
+- tombstones;
+- device activity;
+- recovery snapshots.
+
+The sync service uses strong-consistency Netlify Blobs storage, bounded state/log sizes, profile-bound snapshots, and merge reconciliation for concurrent device updates.
 
 ## Printer / AMS model
 
-Each spool also carries a physical placement state:
+Each spool can be physically:
 
 - `Stored`
 - `Loaded`
@@ -61,41 +80,88 @@ Loaded spools can include:
 - `feederSlot` — slot/bay identifier
 - `loadedAt`
 
-Because these fields live directly on the spool record, they are covered by the existing newest-record synchronization behavior and cloud recovery snapshots.
+These assignments remain inside the active user's private inventory state and are synchronized with that user's cloud namespace.
 
-## Household workflow
+## Bulk spool workflow
 
-1. Open **Household**.
-2. Choose whether new spools on this device default to Bill or Aimee.
-3. Use **Quick move** to assign a spool to a printer / feeder / slot.
-4. Use the **Printer / AMS board** to see what is loaded now.
-5. Use **Bill vs Aimee report** for owner-level totals.
-6. Use **Find filament for a print** to rank candidate spools.
-7. Transfer ownership from the household spool list when needed.
+The inventory supports explicit multi-select operations for common physical-management tasks. Selected spools can be handled together for actions such as:
 
-## Backup behavior
+- moving to a printer/feed location;
+- marking stored;
+- producing QR labels;
+- archiving;
+- restoring archived records.
 
-The Household workspace provides a **complete v8+ JSON backup** that includes owner and printer/AMS metadata, plus a household-aware CSV export.
+Bulk actions continue through the same user-isolation and audit paths as single-spool changes.
 
-The Customize workspace separately exports local UX preferences. This separation prevents a phone-specific theme/layout from altering another device's working experience.
+## Customization model
+
+UX preferences are local to the browser and independently maintained for Bill and Aimee. They are intentionally separate from cloud inventory state.
+
+Available preferences include:
+
+- Midnight, Light, OLED Black, High Contrast, and Follow System themes;
+- Cyan, Violet, Green, Amber, and Rose accents;
+- Compact, Comfortable, and Roomy information density;
+- Small, Standard, Large, and Extra Large text sizes;
+- reduced-motion mode;
+- optional larger touch targets;
+- Inventory Cards or List layout;
+- default landing view;
+- default sort and lifecycle filters;
+- remembered inventory filters;
+- preferred QR label size;
+- dashboard visibility controls;
+- local app title.
+
+Preferences can be exported/imported separately from inventory backups.
 
 ## Physical QR workflow
 
-The Labels workspace still produces QR labels that contain only the public app URL and spool ID. QR labels never contain the private sync key.
+QR labels contain only the public application URL and spool ID. They do **not** contain the private cloud sync key.
 
-## Cloud architecture
+The `/qr` function validates spool IDs and produces read-only QR SVG output.
 
-- `/api/sync` — normal merge/snapshot synchronization
-- `/api/sync-admin` — key rotation and cloud deletion
-- `/qr` — read-only QR SVG generation from a validated spool ID
+## Backup and recovery
+
+Backups operate on the active user's routed inventory state. Cloud sync also maintains bounded recovery snapshots before cloud-changing sync/restore operations.
+
+UX preference export remains separate from inventory backup so device-specific presentation choices are not mixed with inventory evidence.
 
 ## Inventory rule
 
 Measured `gross - tare` weight is authoritative. Visual estimates are used only when a complete measurement is unavailable. Unknown remains unknown.
+
+## Cloud architecture
+
+- `/api/sync` — profile-scoped merge, device activity, and recovery snapshots
+- `/api/sync-admin` — profile-scoped key rotation and cloud deletion
+- `/qr` — read-only QR SVG generation from a validated spool ID
+
+## Quality gates
+
+Pull requests and pushes to `main` run the repository CI gate:
+
+1. dependency installation;
+2. static validation;
+3. tests;
+4. production build;
+5. deploy-output verification;
+6. deploy-artifact upload.
+
+After successful `main` CI, **Production Smoke** verifies the live Netlify deployment. It checks that production has caught up to the committed app version, critical public assets are reachable, and the deployed security/cache headers match the repository contract. The same smoke check also runs once daily.
+
+Dependabot checks npm and GitHub Actions dependencies weekly with minor/patch updates grouped to reduce maintenance noise.
 
 ## Development
 
 ```bash
 npm install
 npx netlify dev
+```
+
+Run the full local repository gate with:
+
+```bash
+npm run ci
 ```
