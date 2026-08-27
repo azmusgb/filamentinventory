@@ -1,0 +1,30 @@
+/* Shell/layout primitives. Legacy component files remain authoritative until migrated. */
+.app-shell {
+  width: min(100%, 1500px);
+  margin-inline: auto;
+}
+main {
+  width: 100%;
+  padding-inline: max(var(--space-4), env(safe-area-inset-left));
+  padding-bottom: max(var(--space-8), env(safe-area-inset-bottom));
+}
+.view { width: 100%; }
+.grid-2,
+.weigh-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+.metrics,
+.inventory-grid,
+.material-grid {
+  gap: var(--space-3);
+}
+@media (min-width: 760px) {
+  main { padding-inline: max(var(--space-6), env(safe-area-inset-left)); }
+  .grid-2,
+  .weigh-layout { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); }
+}
+@media (min-width: 1100px) {
+  main { padding-inline: max(var(--space-8), env(safe-area-inset-left)); }
+}
