@@ -25,6 +25,14 @@ test('merge preview exposes additions, conflicts and duplicate incoming IDs', as
   assert.equal(result.safe,false);
 });
 
+test('spool identity is case insensitive during import preview', async () => {
+  const api = await core();
+  const result = api.previewMerge([{id:'S014',brand:'Inland'}],[{id:'s014',brand:'Overture'},{id:'S2'},{id:'s2'}]);
+  assert.deepEqual([...result.conflicts].map(x=>x.id),['s014']);
+  assert.deepEqual([...result.additions].map(x=>x.id),['S2']);
+  assert.deepEqual([...result.duplicates].map(x=>x.id),['s2']);
+});
+
 test('destructive confirmations are explicit', async () => {
   const api = await core();
   assert.equal(api.destructiveConfirmation('reset'),'RESET INVENTORY');
