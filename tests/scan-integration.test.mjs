@@ -26,6 +26,7 @@ test('current-workspace scans open physical spool mode without a page reload', a
   const client = await read('scan-client.js');
   assert.match(client, /function openPhysicalSpool\(id\)/);
   assert.match(client, /FilamentInventorySpoolActions/);
+  assert.match(client, /actions\.openPhysical/);
   assert.match(client, /exists && resolved === current/);
   assert.match(client, /Opening physical spool controls/);
   assert.match(client, /if \(!openPhysicalSpool\(parsed\.spoolId\)\) location\.assign\(target\)/);
@@ -48,11 +49,15 @@ test('scanner exposes a small public adapter for scan-another from physical spoo
   assert.match(client, /process:processScanValue/);
 });
 
-test('legacy scan result sheet retains edit placement and scan-again fallbacks', async () => {
+test('legacy scan result collapses duplicate routing into Open spool and Scan another', async () => {
   const client = await read('scan-client.js');
-  assert.match(client, />Edit spool</);
-  assert.match(client, />Printer \/ AMS</);
+  assert.match(client, /id="scanOpenSpoolBtn"/);
+  assert.match(client, />Open spool</);
   assert.match(client, />Scan another</);
+  assert.doesNotMatch(client, /function openEditFromScan/);
+  assert.doesNotMatch(client, /function openPlacementFromScan/);
+  assert.doesNotMatch(client, /id="scanEditBtn"/);
+  assert.doesNotMatch(client, /id="scanPlacementBtn"/);
   assert.match(client, /resolveProfile/);
 });
 
