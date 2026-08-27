@@ -22,6 +22,15 @@ test('command surface reuses authoritative inventory controls instead of forking
   assert.doesNotMatch(client, /injectStyles|createElement\(['"]style['"]\)/);
 });
 
+test('command surface refreshes for same-document and cross-tab routed inventory writes', async () => {
+  const client = await read('inventory-command-client.js');
+  assert.match(client, /const priorSetItem = Storage\.prototype\.setItem/);
+  assert.match(client, /Storage\.prototype\.setItem = function/);
+  assert.match(client, /physicalKey\?\.\(STORAGE_KEY, currentUser\(\)\)/);
+  assert.match(client, /isInventoryStorageKey\(key\)/);
+  assert.match(client, /window\.addEventListener\('storage'.*isInventoryStorageKey\(event\.key\)/s);
+});
+
 test('command surface supports fast keyboard find without hijacking typed form input', async () => {
   const client = await read('inventory-command-client.js');
   assert.match(client, /event\.metaKey \|\| event\.ctrlKey/);
