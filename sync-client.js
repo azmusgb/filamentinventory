@@ -127,13 +127,14 @@
       version:VERSION,
       spools:Array.isArray(local.spools) ? local.spools : [],
       weighLog:Array.isArray(local.weighLog) ? local.weighLog : [],
+      auditLog:Array.isArray(local.auditLog) ? local.auditLog : [],
       tombstones:normalizeTombstones(local.tombstones),
     };
   }
 
   function fingerprint(state) {
     if (!state) return '';
-    return JSON.stringify({spools:state.spools || [], weighLog:state.weighLog || [], tombstones:state.tombstones || {}});
+    return JSON.stringify({spools:state.spools || [], weighLog:state.weighLog || [], auditLog:state.auditLog || [], tombstones:state.tombstones || {}});
   }
 
   function applyRemoteState(remote) {
@@ -146,6 +147,7 @@
       savedAt:nowIso(),
       spools:remote.spools,
       weighLog:Array.isArray(remote.weighLog) ? remote.weighLog : [],
+      auditLog:Array.isArray(remote.auditLog) ? remote.auditLog : [],
       tombstones:normalizeTombstones(remote.tombstones),
     };
     applyingRemote = true;
