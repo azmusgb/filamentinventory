@@ -1,0 +1,126 @@
+name: Production Smoke
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+  schedule:
+    - cron: '17 11 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Verify production
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Verify deployed version and public contract
+        shell: bash
+        env:
+          SITE_URL: https://filamentinventory.netlify.app
+        run: |
+          set -euo pipefail
+
+          expected_version="$(sed -n "s/.*const APP_VERSION = '\([^']*\)'.*/\1/p" app-version.js | head -n 1)"
+          if [[ -z "${expected_version}" ]]; then
+            echo "::error::Unable to read APP_VERSION from app-version.js"
+            exit 1
+          fi
+
+          cache_buster="smoke=$(date +%s)"
+          deployed_version_ok=false
+
+          # Netlify usually finishes before CI, but allow a short propagation window
+          # without converting an old deployment into success.
+          for attempt in {1..12}; do
+            deployed_version="$(curl --silent --show-error --fail \
+              --connect-timeout 10 --max-time 20 \
+              "${SITE_URL}/app-version.js?${cache_buster}" || true)"
+
+            if grep -Fq "const APP_VERSION = '${expected_version}'" <<<"${deployed_version}"; then
+              deployed_version_ok=true
+              break
+            fi
+
+            if [[ "${attempt}" -lt 12 ]]; then
+              sleep 10
+            fi
+          done
+
+          if [[ "${deployed_version_ok}" != true ]]; then
+            echo "::error::Production did not expose expected app version ${expected_version} within the bounded propagation window."
+            exit 1
+          fi
+
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf "${tmp_dir}"' EXIT
+
+          fetch_with_headers() {
+            local path="$1"
+            local body_file="$2"
+            local header_file="$3"
+            curl --silent --show-error --fail --location \
+              --connect-timeout 10 --max-time 20 \
+              -D "${header_file}" -o "${body_file}" \
+              "${SITE_URL}${path}?${cache_buster}"
+          }
+
+          require_header() {
+            local header_file="$1"
+            local pattern="$2"
+            local description="$3"
+            if ! grep -Eiq "${pattern}" "${header_file}"; then
+              echo "::error::Missing or incorrect ${description} header"
+              cat "${header_file}"
+              exit 1
+            fi
+          }
+
+          fetch_with_headers "/" "${tmp_dir}/index.html" "${tmp_dir}/index.headers"
+          require_header "${tmp_dir}/index.headers" '^x-content-type-options:[[:space:]]*nosniff' 'X-Content-Type-Options'
+          require_header "${tmp_dir}/index.headers" '^x-robots-tag:[[:space:]]*noindex, nofollow, noarchive' 'X-Robots-Tag'
+          require_header "${tmp_dir}/index.headers" '^referrer-policy:[[:space:]]*strict-origin-when-cross-origin' 'Referrer-Policy'
+          require_header "${tmp_dir}/index.headers" "^content-security-policy:.*frame-ancestors 'none'" 'Content-Security-Policy frame-ancestors'
+
+          for asset in \
+            app.js \
+            app-version.js \
+            ui-system.css \
+            manifest.webmanifest \
+            sw.js \
+            bulk-actions-core.js \
+            bulk-actions-client.js; do
+            curl --silent --show-error --fail --location \
+              --connect-timeout 10 --max-time 20 \
+              -o /dev/null "${SITE_URL}/${asset}?${cache_buster}"
+          done
+
+          fetch_with_headers "/app-version.js" "${tmp_dir}/version.js" "${tmp_dir}/version.headers"
+          require_header "${tmp_dir}/version.headers" '^cache-control:.*max-age=0.*must-revalidate' 'app-version cache-control'
+
+          fetch_with_headers "/sw.js" "${tmp_dir}/sw.js" "${tmp_dir}/sw.headers"
+          require_header "${tmp_dir}/sw.headers" '^cache-control:.*no-cache.*no-store.*must-revalidate' 'service-worker cache-control'
+
+          fetch_with_headers "/manifest.webmanifest" "${tmp_dir}/manifest.json" "${tmp_dir}/manifest.headers"
+          require_header "${tmp_dir}/manifest.headers" '^content-type:[[:space:]]*application/manifest\+json' 'manifest Content-Type'
+
+          echo "Production smoke passed for ${SITE_URL} at app version ${expected_version}."
