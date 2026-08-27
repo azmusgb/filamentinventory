@@ -1322,3 +1322,32 @@ html.fi-ui.spool-actions-enhanced #inventoryGrid .spool-card > .card-actions {
     text-align: left;
   }
 }
+
+/* === Bulk spool operations v9.9 === */
+.fi-ui .inventory-command-select{margin-left:auto;min-width:86px}
+.fi-ui .bulk-select-control{display:none;align-items:center;gap:7px;width:max-content;margin:10px 12px -2px auto;padding:6px 9px;border:1px solid var(--ui-hairline);border-radius:999px;background:var(--ui-surface-2);color:var(--muted);font:700 10px/1 system-ui;cursor:pointer}
+.fi-ui .bulk-select-control span{display:grid;place-items:center;width:18px;height:18px;border:1px solid var(--ui-hairline-strong);border-radius:6px;color:transparent;background:var(--ui-surface-1)}
+.fi-ui.bulk-selection-mode .bulk-select-control{display:inline-flex}
+.fi-ui .bulk-select-control[aria-pressed="true"]{color:var(--text);border-color:var(--ui-accent-border);background:var(--ui-accent-soft)}
+.fi-ui .bulk-select-control[aria-pressed="true"] span{color:#06111d;border-color:transparent;background:var(--ux-accent,var(--cyan))}
+.fi-ui.bulk-selection-mode .spool-card{cursor:pointer;transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+.fi-ui.bulk-selection-mode .spool-card.bulk-selected{border-color:var(--ui-accent-border);box-shadow:0 0 0 2px var(--ui-accent-soft),var(--ui-shadow-1)}
+.fi-ui.bulk-selection-mode .spool-card .spool-action-bar{opacity:.38;pointer-events:none}
+.fi-ui.bulk-selection-mode .mobile-add{display:none!important}
+.fi-ui .bulk-action-dock{position:fixed;z-index:85;left:50%;bottom:calc(12px + env(safe-area-inset-bottom));transform:translateX(-50%);display:grid;grid-template-columns:minmax(180px,.7fr) minmax(0,1.3fr);gap:12px;align-items:center;width:min(1120px,calc(100% - 24px));padding:12px;border:1px solid var(--ui-hairline-strong);border-radius:18px;background:rgba(7,17,31,.94);box-shadow:0 20px 60px rgba(0,0,0,.42);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.fi-ui .bulk-action-dock[hidden]{display:none!important}
+.fi-ui .bulk-action-summary strong,.fi-ui .bulk-action-summary span{display:block}.fi-ui .bulk-action-summary strong{font-size:14px}.fi-ui .bulk-action-summary span{margin-top:3px;color:var(--muted);font-size:10px;line-height:1.35}
+.fi-ui .bulk-action-buttons{display:flex;justify-content:flex-end;gap:7px;overflow-x:auto;scrollbar-width:none}.fi-ui .bulk-action-buttons::-webkit-scrollbar{display:none}.fi-ui .bulk-action-buttons .btn{flex:0 0 auto;min-height:38px;padding:7px 10px;font-size:10px}
+.fi-ui .bulk-move-dialog{width:min(520px,calc(100vw - 28px))}.fi-ui .bulk-move-dialog .dialog-body{display:grid;gap:14px}.fi-ui .bulk-move-dialog .dialog-body p{margin:0;line-height:1.5}
+html[data-theme="light"] .bulk-action-dock{background:rgba(255,255,255,.96);box-shadow:0 18px 55px rgba(15,23,42,.18)}
+@media(max-width:760px){
+  .fi-ui .inventory-command-head{flex-wrap:wrap}.fi-ui .inventory-command-select{margin-left:0}
+  .fi-ui .bulk-action-dock{grid-template-columns:1fr;gap:9px;bottom:calc(8px + env(safe-area-inset-bottom));width:calc(100% - 16px);padding:10px;border-radius:16px}
+  .fi-ui .bulk-action-summary{display:flex;align-items:center;justify-content:space-between;gap:10px}.fi-ui .bulk-action-summary span{margin:0;text-align:right}
+  .fi-ui .bulk-action-buttons{justify-content:flex-start;padding-bottom:1px}
+}
+@media(max-width:480px){
+  .fi-ui .bulk-move-dialog{width:100%;max-width:none;margin:auto 0 0;border-radius:22px 22px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+  .fi-ui .bulk-action-summary span{max-width:54%;font-size:9px}.fi-ui .bulk-action-buttons .btn{min-height:42px}
+}
+@media(prefers-reduced-motion:reduce){.fi-ui.bulk-selection-mode .spool-card{transition:none}}

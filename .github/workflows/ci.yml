@@ -58,6 +58,8 @@ jobs:
           test -f dist/inventory-command-client.js
           test -f dist/spool-actions-core.js
           test -f dist/spool-actions-client.js
+          test -f dist/bulk-actions-core.js
+          test -f dist/bulk-actions-client.js
           test -f dist/app.js
           test -f dist/audit-core.js
           test -f dist/audit-client.js
