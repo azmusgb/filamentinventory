@@ -183,10 +183,11 @@
 
   function openPhysicalSpool(id) {
     const actions = globalThis.FilamentInventorySpoolActions;
-    if (!actions?.open || !findSpool(id)) return false;
+    if ((!actions?.openPhysical && !actions?.open) || !findSpool(id)) return false;
     closeScanner();
     document.getElementById('scanSpoolDialog')?.close();
-    return actions.open(id) !== false;
+    if (actions.openPhysical) return actions.openPhysical(id, {source:'scan'}) !== false;
+    return actions.open(id, {source:'scan'}) !== false;
   }
 
   async function processScanValue(raw) {
@@ -229,48 +230,12 @@
     return true;
   }
 
-  function switchView(view) {
-    document.querySelector(`.tab[data-view="${view}"]`)?.click();
-  }
-
-  function openEditFromScan(id) {
-    const scanDialog = document.getElementById('scanSpoolDialog');
-    scanDialog?.close();
-    switchView('inventory');
-    setTimeout(() => {
-      const lifecycle = document.getElementById('lifecycleFilter');
-      if (lifecycle) { lifecycle.value = 'all'; lifecycle.dispatchEvent(new Event('change', {bubbles:true})); }
-      const search = document.getElementById('searchInput');
-      if (search) { search.value = id; search.dispatchEvent(new Event('input', {bubbles:true})); }
-      setTimeout(() => {
-        const card = [...document.querySelectorAll('#inventoryGrid .spool-card')].find(node => String(node.dataset.id).toLowerCase() === String(id).toLowerCase());
-        card?.querySelector('button[data-action="edit"]')?.click();
-      }, 90);
-    }, 80);
-  }
-
-  function openPlacementFromScan(id) {
-    document.getElementById('scanSpoolDialog')?.close();
-    switchView('household');
-    setTimeout(() => {
-      const select = document.getElementById('moveSpoolV8');
-      if (select) {
-        const option = [...select.options].find(row => String(row.value).toLowerCase() === String(id).toLowerCase());
-        if (option) { select.value = option.value; select.dispatchEvent(new Event('change', {bubbles:true})); }
-        select.scrollIntoView({behavior:'smooth', block:'center'});
-      }
-    }, 100);
-  }
-
   function updateEnhancedScanActions() {
     const dialog = document.getElementById('scanSpoolDialog');
     if (!dialog) return;
     const id = dialog.dataset.spoolId || '';
-    const exists = Boolean(findSpool(id));
-    const edit = document.getElementById('scanEditBtn');
-    const placement = document.getElementById('scanPlacementBtn');
-    if (edit) edit.hidden = !exists;
-    if (placement) placement.hidden = !exists;
+    const open = document.getElementById('scanOpenSpoolBtn');
+    if (open) open.hidden = !findSpool(id);
   }
 
   function enhanceExistingScanDialog() {
@@ -280,10 +245,9 @@
     if (!body) return false;
     const actions = document.createElement('div');
     actions.className = 'scan-actions scan-extended-actions';
-    actions.innerHTML = '<button class="btn" id="scanEditBtn" type="button">Edit spool</button><button class="btn" id="scanPlacementBtn" type="button">Printer / AMS</button><button class="btn" id="scanAgainBtn" type="button">Scan another</button>';
+    actions.innerHTML = '<button class="btn btn-primary" id="scanOpenSpoolBtn" type="button">Open spool</button><button class="btn" id="scanAgainBtn" type="button">Scan another</button>';
     body.appendChild(actions);
-    document.getElementById('scanEditBtn')?.addEventListener('click', () => { const id=dialog.dataset.spoolId; if (id) openEditFromScan(id); });
-    document.getElementById('scanPlacementBtn')?.addEventListener('click', () => { const id=dialog.dataset.spoolId; if (id) openPlacementFromScan(id); });
+    document.getElementById('scanOpenSpoolBtn')?.addEventListener('click', () => { const id=dialog.dataset.spoolId; if (id) openPhysicalSpool(id); });
     document.getElementById('scanAgainBtn')?.addEventListener('click', () => { dialog.close(); openScanner(); });
     const observer = new MutationObserver(updateEnhancedScanActions);
     observer.observe(dialog, {attributes:true, attributeFilter:['open','data-spool-id'], subtree:false});
