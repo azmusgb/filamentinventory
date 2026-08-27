@@ -3,20 +3,32 @@
 
   const STORAGE_KEY = 'filament-inventory-v1';
   const CURRENT_USER_KEY = 'filament-current-user-v1';
+  const OWNERS = ['Bill', 'Aimee'];
+  const PRIMARY_MOBILE_VIEWS = new Set(['dashboard', 'inventory', 'weigh', 'household']);
   const priorGetItem = Storage.prototype.getItem;
   const priorSetItem = Storage.prototype.setItem;
   let renderQueued = false;
+  let rendering = false;
+  let dashboardObserver = null;
+  let tabsObserver = null;
 
   const parse = (value, fallback = null) => { try { return JSON.parse(value); } catch { return fallback; } };
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const currentUser = () => ['Bill','Aimee'].includes(String(priorGetItem.call(localStorage, CURRENT_USER_KEY))) ? String(priorGetItem.call(localStorage, CURRENT_USER_KEY)) : 'Bill';
+  const currentUser = () => {
+    const value = String(priorGetItem.call(localStorage, CURRENT_USER_KEY) || '');
+    return OWNERS.includes(value) ? value : 'Bill';
+  };
   const state = () => parse(priorGetItem.call(localStorage, STORAGE_KEY), {spools:[],weighLog:[],auditLog:[]}) || {spools:[],weighLog:[],auditLog:[]};
   const api = () => globalThis.FilamentInventoryPersonal;
+  const formatKg = grams => grams > 0 ? `${(grams / 1000).toFixed(2)} kg` : '0 kg';
 
   function scheduleRender() {
     if (renderQueued) return;
     renderQueued = true;
-    queueMicrotask(() => { renderQueued = false; render(); });
+    queueMicrotask(() => {
+      renderQueued = false;
+      render();
+    });
   }
 
   Storage.prototype.setItem = function(key, value) {
@@ -25,117 +37,278 @@
     return result;
   };
 
+  function setHtml(node, html) {
+    if (node && node.innerHTML !== html) node.innerHTML = html;
+  }
+
+  function setText(node, text) {
+    if (node && node.textContent !== text) node.textContent = text;
+  }
+
+  function setHidden(node, hidden) {
+    if (node && node.hidden !== hidden) node.hidden = hidden;
+  }
+
   function injectStyles() {
-    if (document.getElementById('personalCommandStyles')) return;
+    if (document.getElementById('dashboardConsolidationStyles')) return;
     const style = document.createElement('style');
-    style.id = 'personalCommandStyles';
+    style.id = 'dashboardConsolidationStyles';
     style.textContent = `
-      .personal-command{position:relative;overflow:hidden;margin:16px 0;padding:0}.personal-command::before{content:"";position:absolute;inset:-80px auto auto -80px;width:280px;height:280px;border-radius:50%;background:color-mix(in srgb,var(--ux-accent,var(--cyan)) 12%,transparent);filter:blur(22px);pointer-events:none}.personal-head{position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:20px 20px 16px;border-bottom:1px solid var(--line)}.personal-title h3{margin:5px 0 4px;font-size:24px;letter-spacing:-.035em}.personal-profile{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:11px;white-space:nowrap}.personal-profile .select{min-width:118px}.personal-metrics{position:relative;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:16px 20px}.personal-metric{padding:13px;border:1px solid var(--line);border-radius:14px;background:rgba(3,10,18,.24)}.personal-metric span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.07em}.personal-metric strong{display:block;margin-top:5px;font-size:20px}.personal-layout{position:relative;display:grid;grid-template-columns:1.15fr .85fr;gap:14px;padding:0 20px 20px}.personal-block{padding:14px;border:1px solid var(--line);border-radius:15px;background:rgba(3,10,18,.2)}.personal-block-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.personal-block-head h4{margin:0;font-size:12px}.personal-block-head span{color:var(--muted);font-size:9px}.personal-actions,.personal-loaded,.personal-activity{display:grid;gap:7px}.personal-action{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:9px;align-items:center;padding:9px 10px;border:1px solid var(--line);border-radius:12px;background:rgba(3,10,18,.25)}.personal-action-dot{width:8px;height:8px;border-radius:50%;background:var(--ux-accent,var(--cyan))}.personal-action[data-kind="reorder"] .personal-action-dot{background:#fb7185}.personal-action[data-kind="measure"] .personal-action-dot{background:#f59e0b}.personal-action[data-kind="loaded"] .personal-action-dot{background:#84cc16}.personal-action strong,.personal-loaded strong,.personal-activity strong{display:block;font-size:10px;line-height:1.4}.personal-action small,.personal-loaded small,.personal-activity small{display:block;margin-top:2px;color:var(--muted);font-size:9px;line-height:1.4}.personal-action .btn{min-height:30px;padding:5px 8px;font-size:9px}.personal-mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.personal-loaded>div,.personal-activity>div{padding:9px 10px;border:1px solid var(--line);border-radius:12px;background:rgba(3,10,18,.2)}.personal-empty{padding:15px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);font-size:10px;text-align:center}.personal-footer{display:flex;gap:8px;flex-wrap:wrap;padding:0 20px 20px}.personal-footer .btn{flex:1;min-width:130px}.personal-reorder{color:#fb7185}.personal-unknown{color:#f59e0b}.personal-loaded-value{color:#bef264}
-      @media(max-width:980px){.personal-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.personal-layout{grid-template-columns:1fr}.personal-mini-grid{grid-template-columns:1fr 1fr}}
-      @media(max-width:650px){.personal-head{flex-direction:column}.personal-profile{width:100%;justify-content:space-between}.personal-profile .select{flex:1}.personal-metrics{grid-template-columns:1fr 1fr}.personal-layout{padding-left:14px;padding-right:14px}.personal-head,.personal-metrics{padding-left:14px;padding-right:14px}.personal-footer{padding-left:14px;padding-right:14px}.personal-mini-grid{grid-template-columns:1fr}.personal-action{grid-template-columns:9px 1fr}.personal-action .btn{grid-column:2}.personal-footer .btn{min-width:100%}}
+      /* Unified private dashboard: one identity, one metric set, one action hierarchy. */
+      #personalCommandCenter{display:none!important}
+      #dashboardView .hero{grid-template-columns:minmax(0,1.35fr) minmax(290px,.65fr);align-items:stretch}
+      #dashboardView .hero-copy{min-height:0;padding:clamp(20px,3.2vw,32px)}
+      #dashboardView .hero-copy::after{width:210px;height:210px;right:-70px;top:-80px;opacity:.58}
+      #dashboardView .hero h2{max-width:760px;margin:7px 0 8px;font-size:clamp(28px,4.2vw,46px);line-height:1.02;letter-spacing:-.05em}
+      #dashboardView .hero .lead{max-width:680px;font-size:13px;line-height:1.55}
+      #dashboardView .hero-actions{margin-top:18px}
+      #dashboardView .hero-actions .btn{min-width:0}
+      #dashboardView .quick-panel{padding:20px;min-height:0}
+      #dashboardView .quick-panel .quick-list{margin-top:12px}
+      #dashboardView .quick-panel>p{margin-top:12px!important}
+      #dashboardView .metrics{grid-template-columns:repeat(5,minmax(0,1fr));margin-top:14px;margin-bottom:14px}
+      #dashboardView .metric{min-height:92px;padding:14px 15px;border-radius:15px;box-shadow:none}
+      #dashboardView .metric::after{width:76px;height:76px;right:-22px;bottom:-32px;opacity:.42}
+      #dashboardView .metric-label{font-size:9px;letter-spacing:.08em}
+      #dashboardView .metric-value{margin-top:6px;font-size:clamp(22px,3.5vw,32px)}
+      #dashboardView .metric-sub{font-size:10px;margin-top:2px}
+      #dashboardView .audit-dashboard{margin:14px 0}
+      #dashboardView>.grid-2{margin-top:0}
+      #dashboardView[data-empty="true"] .quick-panel,
+      #dashboardView[data-empty="true"] #metrics,
+      #dashboardView[data-empty="true"] #auditDashboardCard,
+      #dashboardView[data-empty="true"]>.grid-2{display:none!important}
+      #dashboardView[data-empty="true"] .hero{grid-template-columns:1fr}
+      #dashboardView[data-empty="true"] .hero-copy{max-width:none}
+      #dashboardView[data-empty="true"] .hero-actions [data-jump="weigh"],
+      #dashboardView[data-empty="true"] .hero-actions [data-jump="inventory"],
+      #dashboardView[data-empty="true"] .hero-actions [data-jump="household"]{display:none!important}
+      .dashboard-restore-btn{display:none}
+      #dashboardView[data-empty="true"] .dashboard-restore-btn{display:inline-flex}
+      body .user-boundary{margin:0 0 12px;padding:11px 13px;border-radius:15px;box-shadow:none}
+      body .user-boundary-copy{display:grid;gap:1px}
+      body .user-boundary-kicker{font-size:8px;letter-spacing:.14em}
+      body .user-boundary-title{margin-top:1px;font-size:14px}
+      body .user-boundary-note{margin-top:1px;font-size:9px}
+      body .user-switch{min-width:210px;gap:6px}
+      body .user-switch-btn{min-height:40px;border-radius:11px;padding:6px 10px}
+      .mobile-more-tab,.mobile-more-menu{display:none}
+      .mobile-more-menu{position:relative;margin:-6px 0 12px;padding:8px;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--panel2) 94%,var(--bg) 6%);box-shadow:var(--shadow-card);z-index:15}
+      .mobile-more-menu[hidden]{display:none!important}
+      .mobile-more-menu:not([hidden]){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+      .mobile-more-item{min-height:42px;border:1px solid var(--line);border-radius:11px;background:rgba(3,10,18,.2);color:var(--text);font-weight:800;font-size:12px;text-align:left;padding:9px 11px}
+      .mobile-more-item[aria-current="page"]{border-color:color-mix(in srgb,var(--ux-accent,var(--cyan)) 48%,var(--line));background:color-mix(in srgb,var(--ux-accent,var(--cyan)) 10%,transparent)}
+      #auditOwner{display:none!important}
+      .audit-toolbar:has(#auditOwner){grid-template-columns:minmax(220px,1fr) 190px auto}
+      .ux-profile-head .ux-profile-pill{display:none!important}
+      .v8-owner-badge{display:none!important}
+      @media(max-width:980px){#dashboardView .hero{grid-template-columns:1fr}.dashboard-restore-btn{width:auto}}
+      @media(max-width:720px){
+        body .user-boundary{align-items:center;flex-direction:row;gap:9px;padding:10px 11px}
+        body .user-boundary-note{display:none}
+        body .user-switch{width:auto;min-width:148px;grid-template-columns:1fr 1fr}
+        body .user-switch-btn{min-height:38px;padding:5px 8px;font-size:12px}
+        .tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;overflow:visible;padding-bottom:5px}
+        .tabs>.tab{display:none;min-width:0;min-height:42px;padding:7px 4px;font-size:10px;text-align:center;overflow:hidden;text-overflow:ellipsis}
+        .tabs>.tab[data-view="dashboard"],.tabs>.tab[data-view="inventory"],.tabs>.tab[data-view="weigh"],.tabs>.tab[data-view="household"],.tabs>.mobile-more-tab{display:flex;align-items:center;justify-content:center}
+        .mobile-more-tab{border:1px solid var(--line);border-radius:999px;background:rgba(10,22,38,.62);color:var(--muted);font-weight:800;font-size:10px;min-height:42px;padding:7px 4px}
+        .mobile-more-tab[aria-selected="true"]{color:#06111d;border-color:transparent;background:linear-gradient(135deg,var(--ux-accent,var(--cyan)),var(--ux-accent2,var(--blue)))}
+        .mobile-more-menu:not([hidden]){grid-template-columns:1fr 1fr}
+        #dashboardView .hero-copy{padding:19px 17px}
+        #dashboardView .hero h2{font-size:30px;line-height:1.02}
+        #dashboardView .hero .lead{font-size:12px}
+        #dashboardView .hero-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        #dashboardView .hero-actions .btn{width:100%;min-height:44px}
+        #dashboardView .hero-actions .btn-primary{grid-column:1/-1}
+        #dashboardView .metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+        #dashboardView .metric{min-height:82px;padding:12px;border-radius:13px}
+        #dashboardView .metric:nth-child(5){grid-column:1/-1}
+        #dashboardView .metric-value{font-size:24px}
+        #dashboardView .audit-dashboard{padding:16px}
+        #dashboardView .audit-dashboard-row{padding:9px}
+        #dashboardView>.grid-2{gap:12px}
+        #dashboardView>.grid-2>.panel{padding:16px}
+        .audit-toolbar:has(#auditOwner){grid-template-columns:1fr}
+      }
+      @media(max-width:430px){
+        body .user-boundary-copy{min-width:0;flex:1}
+        body .user-boundary-kicker{font-size:7px}
+        body .user-boundary-title{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        body .user-switch{min-width:132px}
+        .tabs>.tab,.mobile-more-tab{font-size:9px}
+        .mobile-more-menu:not([hidden]){grid-template-columns:1fr}
+        #dashboardView .hero h2{font-size:27px}
+        #dashboardView .hero-actions{grid-template-columns:1fr}
+        #dashboardView .hero-actions .btn-primary{grid-column:auto}
+      }
     `;
     document.head.appendChild(style);
   }
 
-  function injectPanel() {
-    if (document.getElementById('personalCommandCenter')) return;
-    const hero = document.querySelector('#dashboardView .hero');
-    if (!hero) return;
-    const panel = document.createElement('section');
-    panel.className = 'panel personal-command';
-    panel.id = 'personalCommandCenter';
-    panel.setAttribute('aria-labelledby','personalCommandTitle');
-    panel.innerHTML = `
-      <div class="personal-head"><div class="personal-title"><span class="eyebrow">Personal command center</span><h3 id="personalCommandTitle">Your filament focus.</h3><p class="muted" id="personalCommandSubtitle">Private inventory only, prioritized for the current profile.</p></div><label class="personal-profile">Working as <select class="select" id="personalUser"><option>Bill</option><option>Aimee</option></select></label></div>
-      <div class="personal-metrics" id="personalMetrics"></div>
-      <div class="personal-layout"><section class="personal-block"><div class="personal-block-head"><h4>Next moves</h4><span id="personalAttentionLabel"></span></div><div class="personal-actions" id="personalActions"></div></section><div class="personal-mini-grid"><section class="personal-block"><div class="personal-block-head"><h4>Loaded now</h4><span>Printer / AMS</span></div><div class="personal-loaded" id="personalLoaded"></div></section><section class="personal-block"><div class="personal-block-head"><h4>Recent for you</h4><span>Private activity</span></div><div class="personal-activity" id="personalActivity"></div></section></div></div>
-      <div class="personal-footer"><button class="btn btn-primary" id="personalInventoryBtn" type="button">My inventory</button><button class="btn" id="personalWeighBtn" type="button">Weigh next</button><button class="btn" id="personalAddBtn" type="button">Add my spool</button><button class="btn btn-ghost" id="personalHouseholdBtn" type="button">Printer / AMS</button></div>`;
-    hero.insertAdjacentElement('afterend', panel);
+  function addRestoreAction() {
+    const actions = document.querySelector('#dashboardView .hero-actions');
+    if (!actions || actions.querySelector('.dashboard-restore-btn')) return;
+    const button = document.createElement('button');
+    button.className = 'btn btn-ghost dashboard-restore-btn';
+    button.type = 'button';
+    button.textContent = 'Restore backup';
+    button.addEventListener('click', () => {
+      document.querySelector('.tab[data-view="data"]')?.click();
+      setTimeout(() => document.getElementById('importJsonBtn')?.focus(), 80);
+    });
+    actions.appendChild(button);
   }
 
-  const formatKg = grams => grams > 0 ? `${(grams / 1000).toFixed(2)} kg` : '0 kg';
-  const relative = value => {
-    const at = Date.parse(String(value || ''));
-    if (!Number.isFinite(at)) return '';
-    const mins = Math.floor((Date.now() - at) / 60000);
-    if (mins < 1) return 'now';
-    if (mins < 60) return `${mins}m`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h`;
-    return `${Math.floor(hours / 24)}d`;
-  };
-
-  function renderMetrics(summary) {
+  function canonicalMetrics(summary) {
     const values = [
-      ['My active spools',summary.activeCount,''],
-      ['Known filament',formatKg(summary.knownGrams),''],
-      ['Loaded',summary.loadedCount,'personal-loaded-value'],
-      ['Reorder',summary.reorderCount,'personal-reorder'],
-      ['Needs measurement',summary.unknownCount,'personal-unknown'],
+      ['Active', summary.activeCount, 'usable spools'],
+      ['Filament', formatKg(summary.knownGrams), 'known remaining'],
+      ['Loaded', summary.loadedCount, 'Printer / AMS'],
+      ['Reorder', summary.reorderCount, 'at threshold'],
+      ['Measure', summary.unknownCount, 'amount unknown'],
     ];
-    const el = document.getElementById('personalMetrics');
-    if (el) el.innerHTML = values.map(([label,value,className]) => `<div class="personal-metric"><span>${esc(label)}</span><strong class="${className}">${esc(value)}</strong></div>`).join('');
+    return values.map(([label,value,note]) => `<article class="metric"><span class="metric-label">${esc(label)}</span><strong class="metric-value">${esc(value)}</strong><div class="metric-sub">${esc(note)}</div></article>`).join('');
   }
 
-  function renderActions(summary) {
+  function actionHtml(summary) {
     const actions = api()?.recommendedActions(state(), summary.owner) || [];
-    const el = document.getElementById('personalActions');
-    const label = document.getElementById('personalAttentionLabel');
-    const attention = summary.reorderCount + summary.unknownCount;
-    if (label) label.textContent = attention ? `${attention} item${attention === 1 ? '' : 's'} need attention` : 'No urgent items';
-    if (!el) return;
-    el.innerHTML = actions.map(action => `<div class="personal-action" data-kind="${esc(action.kind)}"><span class="personal-action-dot"></span><div><strong>${esc(action.title)}</strong><small>${esc(action.detail)}</small></div><button class="btn" type="button" data-personal-action="${esc(action.view)}" data-spool="${esc(action.spoolId)}">Open</button></div>`).join('');
+    if (!summary.activeCount) return '<div class="empty"><strong>Start with your first spool</strong>Add a spool to unlock measurements, material mix, loaded status, activity, and reorder guidance.</div>';
+    if (!actions.length || (!summary.reorderCount && !summary.unknownCount)) return '<div class="empty"><strong>No urgent items</strong>Your inventory has no reorder or measurement items right now.</div>';
+    return actions.slice(0,3).map(action => `<button class="quick-item quick-button" type="button" data-dashboard-action="${esc(action.view)}" data-spool="${esc(action.spoolId)}"><span class="dot" style="color:${action.kind === 'reorder' ? '#fb7185' : action.kind === 'measure' ? '#f59e0b' : '#84cc16'}"></span><span><strong>${esc(action.title)}</strong><small>${esc(action.detail)}</small></span><span>›</span></button>`).join('');
   }
 
-  function renderLoaded(summary) {
-    const el = document.getElementById('personalLoaded');
-    if (!el) return;
-    if (!summary.loadedSpools.length) { el.innerHTML = '<div class="personal-empty">Nothing loaded for this profile.</div>'; return; }
-    el.innerHTML = summary.loadedSpools.slice(0,4).map(spool => {
-      const rem = api().remaining(spool);
-      return `<div><strong>${esc(spool.id)} · ${esc(spool.material || 'Unknown')} · ${esc(spool.colorName || 'Unknown')}</strong><small>${esc(api().loadedLabel(spool))}${rem.grams === null ? ' · amount unknown' : ` · ${Math.round(rem.grams)} g`}</small></div>`;
-    }).join('');
+  function composeHero(summary) {
+    const owner = summary.owner;
+    const empty = summary.activeCount === 0;
+    const view = document.getElementById('dashboardView');
+    if (view) view.dataset.empty = String(empty);
+
+    setText(document.querySelector('#dashboardView .hero-copy .eyebrow'), 'Private inventory');
+    setText(document.getElementById('dashboardTitle'), `${owner}'s Inventory`);
+    const lead = empty
+      ? `No spools yet. Add ${owner}'s first spool to start tracking filament, measurements, storage and Printer / AMS placement.`
+      : `${summary.activeCount} active spool${summary.activeCount === 1 ? '' : 's'} · ${formatKg(summary.knownGrams)} known · ${summary.loadedCount} loaded · ${summary.reorderCount} reorder.`;
+    setText(document.querySelector('#dashboardView .hero .lead'), lead);
+
+    const add = document.getElementById('heroAddBtn');
+    setText(add, empty ? '+ Add first spool' : '+ Add spool');
+    add?.classList.add('btn-primary');
+    setText(document.querySelector('#dashboardView [data-jump="weigh"]'), 'Weigh');
+    setText(document.querySelector('#dashboardView [data-jump="inventory"]'), 'Inventory');
+    setText(document.querySelector('#dashboardView [data-jump="household"]'), 'Printer / AMS');
+    addRestoreAction();
+
+    const quick = document.querySelector('#dashboardView .quick-panel');
+    if (quick) {
+      setText(quick.querySelector('.eyebrow'), 'Needs attention');
+      setText(quick.querySelector('h3'), summary.reorderCount + summary.unknownCount ? `${summary.reorderCount + summary.unknownCount} item${summary.reorderCount + summary.unknownCount === 1 ? '' : 's'} need attention` : `You're all caught up`);
+      setHtml(document.getElementById('priorityList'), actionHtml(summary));
+      setText(quick.querySelector(':scope > p'), 'Measured gross − tare is authoritative. Unknown stays unknown until verified.');
+    }
   }
 
-  function renderActivity(owner) {
-    const el = document.getElementById('personalActivity');
-    if (!el) return;
-    const rows = api()?.recentActivity(state(), owner, 4) || [];
-    if (!rows.length) { el.innerHTML = '<div class="personal-empty">No profile-specific activity yet.</div>'; return; }
-    el.innerHTML = rows.map(row => `<div><strong>${esc(row.summary)}</strong><small>${esc(row.actor || owner)}${row.device ? ` · ${esc(row.device)}` : ''}${row.at ? ` · ${esc(relative(row.at))}` : ''}</small></div>`).join('');
+  function composeMetrics(summary) {
+    setHtml(document.getElementById('metrics'), canonicalMetrics(summary));
   }
 
-  function render() {
-    const core = api();
-    if (!core || !document.getElementById('personalCommandCenter')) return;
-    const owner = currentUser();
-    const summary = core.summarizeOwner(state(), owner);
-    const select = document.getElementById('personalUser');
-    if (select && select.value !== owner) select.value = owner;
-    const title = document.getElementById('personalCommandTitle');
-    if (title) title.textContent = `${owner}'s filament command center.`;
-    const subtitle = document.getElementById('personalCommandSubtitle');
-    if (subtitle) subtitle.textContent = `${summary.activeCount} active spool${summary.activeCount === 1 ? '' : 's'} · ${formatKg(summary.knownGrams)} known · private inventory only.`;
-    renderMetrics(summary);
-    renderActions(summary);
-    renderLoaded(summary);
-    renderActivity(owner);
-    const weigh = document.getElementById('personalWeighBtn');
-    if (weigh) weigh.disabled = !summary.activeCount;
+  function cleanPrivateLanguage(summary) {
+    const owner = summary.owner;
+    const boundary = document.getElementById('userBoundary');
+    if (boundary) {
+      setText(boundary.querySelector('.user-boundary-kicker'), 'Private inventory');
+      setText(boundary.querySelector('.user-boundary-title'), `${owner}'s Inventory`);
+      setText(boundary.querySelector('.user-boundary-note'), 'Separate spools · separate history · separate sync & backups');
+    }
+
+    const householdTab = document.querySelector('.tab[data-view="household"]');
+    setText(householdTab, 'Printer');
+    setText(document.querySelector('#householdView .v8-hero .eyebrow'), `${owner}'s private inventory`);
+    setText(document.getElementById('householdTitle'), `${owner}'s Printer / AMS`);
+
+    const auditCard = document.getElementById('auditDashboardCard');
+    if (auditCard) {
+      setText(auditCard.querySelector('h3'), 'Recent activity');
+      setText(auditCard.querySelector('.panel-head p'), 'Latest inventory, measurements and Printer / AMS changes.');
+      auditCard.querySelectorAll('.audit-empty').forEach(node => {
+        if (/household/i.test(node.textContent)) setText(node, 'No activity recorded yet.');
+      });
+    }
+
+    const auditPanel = document.getElementById('auditPanel');
+    if (auditPanel) {
+      setText(auditPanel.querySelector('.eyebrow'), 'Private activity ledger');
+      setText(auditPanel.querySelector('.panel-head h3'), 'Activity history');
+      const search = document.getElementById('auditSearch');
+      if (search) search.placeholder = 'Search spool, action, device…';
+      const ownerFilter = document.getElementById('auditOwner');
+      if (ownerFilter && ownerFilter.value !== owner) {
+        ownerFilter.value = owner;
+        ownerFilter.dispatchEvent(new Event('change', {bubbles:true}));
+      }
+      auditPanel.querySelectorAll('.audit-empty').forEach(node => {
+        if (/household/i.test(node.textContent)) setText(node, 'Activity will appear here as inventory changes are made.');
+      });
+    }
+
+    const prefsCopy = document.querySelector('.ux-profile-head p');
+    if (prefsCopy && /shared inventory/i.test(prefsCopy.textContent)) {
+      setText(prefsCopy, 'Preferences are stored locally per user. Each private inventory can use its own layout, theme, landing page and defaults.');
+    }
+
+    document.querySelectorAll('[data-jump="household"]').forEach(node => setText(node, 'Printer / AMS'));
   }
 
-  function switchProfile(owner) {
-    if (!['Bill','Aimee'].includes(owner) || owner === currentUser()) return;
-    localStorage.setItem(CURRENT_USER_KEY, owner);
+  function removeLegacyPersonalPanel() {
+    document.getElementById('personalCommandCenter')?.remove();
   }
 
-  function openInventory(owner = currentUser(), spoolId = '') {
+  function moreLabel(view, fallback) {
+    return ({history:'Activity',labels:'Labels',sync:'Sync',data:'Data & backup',preferences:'Preferences'}[view] || fallback || view);
+  }
+
+  function ensureMobileMore() {
+    const tabs = document.querySelector('.tabs');
+    if (!tabs) return;
+    let more = tabs.querySelector('.mobile-more-tab');
+    if (!more) {
+      more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'mobile-more-tab';
+      more.textContent = 'More';
+      more.setAttribute('aria-selected', 'false');
+      more.setAttribute('aria-expanded', 'false');
+      tabs.appendChild(more);
+    }
+    let menu = document.getElementById('mobileMoreMenu');
+    if (!menu) {
+      menu = document.createElement('div');
+      menu.id = 'mobileMoreMenu';
+      menu.className = 'mobile-more-menu';
+      menu.hidden = true;
+      tabs.insertAdjacentElement('afterend', menu);
+    }
+
+    const secondary = [...tabs.querySelectorAll('.tab[data-view]')].filter(tab => !PRIMARY_MOBILE_VIEWS.has(tab.dataset.view));
+    const html = secondary.map(tab => `<button class="mobile-more-item" type="button" data-mobile-more-view="${esc(tab.dataset.view)}">${esc(moreLabel(tab.dataset.view, tab.textContent.trim()))}</button>`).join('');
+    setHtml(menu, html);
+  }
+
+  function syncMoreState() {
+    const tabs = document.querySelector('.tabs');
+    const more = tabs?.querySelector('.mobile-more-tab');
+    const menu = document.getElementById('mobileMoreMenu');
+    if (!more || !menu) return;
+    const active = tabs.querySelector('.tab[aria-selected="true"]')?.dataset.view || 'dashboard';
+    const secondaryActive = !PRIMARY_MOBILE_VIEWS.has(active);
+    more.setAttribute('aria-selected', String(secondaryActive));
+    menu.querySelectorAll('[data-mobile-more-view]').forEach(button => button.setAttribute('aria-current', button.dataset.mobileMoreView === active ? 'page' : 'false'));
+  }
+
+  function openInventory(spoolId = '') {
     document.querySelector('.tab[data-view="inventory"]')?.click();
     setTimeout(() => {
-      const ownerFilter = document.getElementById('ownerFilterV8');
       const lifecycle = document.getElementById('lifecycleFilter');
       const search = document.getElementById('searchInput');
-      if (ownerFilter) { ownerFilter.value = owner; ownerFilter.dispatchEvent(new Event('change',{bubbles:true})); }
       if (lifecycle) { lifecycle.value = 'active'; lifecycle.dispatchEvent(new Event('change',{bubbles:true})); }
       if (search) { search.value = spoolId; search.dispatchEvent(new Event('input',{bubbles:true})); }
     }, 60);
@@ -155,35 +328,100 @@
     }, 70);
   }
 
-  function openHousehold() { document.querySelector('.tab[data-view="household"]')?.click(); }
+  function openPrinter() { document.querySelector('.tab[data-view="household"]')?.click(); }
   function addSpool() { const button = document.getElementById('addTopBtn') || document.getElementById('heroAddBtn'); button?.click(); }
 
-  function handleAction(view, spoolId) {
+  function handleDashboardAction(view, spoolId) {
     if (view === 'weigh') return openWeigh(spoolId);
-    if (view === 'household') return openHousehold();
-    return openInventory(currentUser(), spoolId);
+    if (view === 'household') return openPrinter();
+    return openInventory(spoolId);
+  }
+
+  function render() {
+    if (rendering) return;
+    const core = api();
+    if (!core || !document.getElementById('dashboardView')) return;
+    rendering = true;
+    try {
+      removeLegacyPersonalPanel();
+      const summary = core.summarizeOwner(state(), currentUser());
+      composeHero(summary);
+      composeMetrics(summary);
+      cleanPrivateLanguage(summary);
+      ensureMobileMore();
+      syncMoreState();
+    } finally {
+      rendering = false;
+    }
   }
 
   function bind() {
-    document.getElementById('personalUser')?.addEventListener('change', event => switchProfile(event.target.value));
-    document.getElementById('personalInventoryBtn')?.addEventListener('click', () => openInventory());
-    document.getElementById('personalWeighBtn')?.addEventListener('click', () => openWeigh());
-    document.getElementById('personalAddBtn')?.addEventListener('click', addSpool);
-    document.getElementById('personalHouseholdBtn')?.addEventListener('click', openHousehold);
-    document.getElementById('personalActions')?.addEventListener('click', event => {
-      const button = event.target.closest('[data-personal-action]');
-      if (button) handleAction(button.dataset.personalAction, button.dataset.spool || '');
+    document.addEventListener('click', event => {
+      const dashboardAction = event.target.closest('[data-dashboard-action]');
+      if (dashboardAction) {
+        handleDashboardAction(dashboardAction.dataset.dashboardAction, dashboardAction.dataset.spool || '');
+        return;
+      }
+
+      const more = event.target.closest('.mobile-more-tab');
+      if (more) {
+        const menu = document.getElementById('mobileMoreMenu');
+        if (menu) {
+          menu.hidden = !menu.hidden;
+          more.setAttribute('aria-expanded', String(!menu.hidden));
+        }
+        return;
+      }
+
+      const item = event.target.closest('[data-mobile-more-view]');
+      if (item) {
+        document.querySelector(`.tab[data-view="${CSS.escape(item.dataset.mobileMoreView)}"]`)?.click();
+        const menu = document.getElementById('mobileMoreMenu');
+        if (menu) menu.hidden = true;
+        document.querySelector('.mobile-more-tab')?.setAttribute('aria-expanded', 'false');
+        setTimeout(syncMoreState, 0);
+        return;
+      }
+
+      if (event.target.closest('.tab[data-view]')) {
+        const menu = document.getElementById('mobileMoreMenu');
+        if (menu) menu.hidden = true;
+        setTimeout(() => { syncMoreState(); scheduleRender(); }, 0);
+      }
     });
-    document.getElementById('currentUserV8')?.addEventListener('change', () => setTimeout(render, 0));
-    document.addEventListener('click', event => { if (event.target.closest('.tab[data-view="dashboard"]')) setTimeout(render,0); });
-    window.addEventListener('storage', event => { if (event.key === STORAGE_KEY || event.key === CURRENT_USER_KEY) render(); });
+
+    window.addEventListener('storage', event => {
+      if (event.key === STORAGE_KEY || event.key === CURRENT_USER_KEY) scheduleRender();
+    });
+
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 720) {
+        const menu = document.getElementById('mobileMoreMenu');
+        if (menu) menu.hidden = true;
+      }
+    }, {passive:true});
+  }
+
+  function observe() {
+    const dashboard = document.getElementById('dashboardView');
+    if (dashboard && !dashboardObserver) {
+      dashboardObserver = new MutationObserver(() => { if (!rendering) scheduleRender(); });
+      dashboardObserver.observe(dashboard, {subtree:true, childList:true, characterData:true});
+    }
+    const tabs = document.querySelector('.tabs');
+    if (tabs && !tabsObserver) {
+      tabsObserver = new MutationObserver(() => { if (!rendering) scheduleRender(); });
+      tabsObserver.observe(tabs, {subtree:true, childList:true, attributes:true, attributeFilter:['aria-selected']});
+    }
   }
 
   function init() {
     injectStyles();
-    injectPanel();
     bind();
     render();
+    observe();
+    setTimeout(render, 0);
+    setTimeout(render, 120);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true});
