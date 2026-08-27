@@ -38,7 +38,7 @@ test('dashboard consolidates metrics and empty-state analytics without a second 
 });
 
 test('v10 mobile navigation is a native-style bottom bar with Home, Spools, Add, Printer and More', async () => {
-  const [client, css] = await Promise.all([read('ui-v10-client.js'), read('ui-system.css')]);
+  const [client, personal, css] = await Promise.all([read('ui-v10-client.js'), read('personal-dashboard.js'), read('ui-system.css')]);
   assert.match(client, /mobileBottomNav/);
   assert.match(client, /data-bottom-view="dashboard"/);
   assert.match(client, /data-bottom-view="inventory"/);
@@ -46,6 +46,7 @@ test('v10 mobile navigation is a native-style bottom bar with Home, Spools, Add,
   assert.match(client, /data-bottom-view="household"/);
   assert.match(client, /data-bottom-more/);
   assert.match(client, /mobileMoreSheetV10/);
+  assert.doesNotMatch(personal, /PRIMARY_MOBILE_VIEWS|ensureMobileMore|syncMoreState|mobile-more-tab|mobileMoreMenu/);
   assert.match(css, /\.mobile-bottom-nav/);
   assert.match(css, /safe-area-inset-bottom/);
 });
