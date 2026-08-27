@@ -46,6 +46,7 @@ jobs:
         run: |
           test -f dist/index.html
           test -f dist/app-version.js
+          test -f dist/user-isolation.js
           test -f dist/app.js
           test -f dist/audit-core.js
           test -f dist/audit-client.js

@@ -1,8 +1,8 @@
 {
   "name": "filamentinventory",
   "private": true,
-  "version": "9.0.0",
-  "description": "Local-first household filament inventory PWA with secure sync, QR labels, owner/AMS tracking, and per-user UX customization.",
+  "version": "9.1.0",
+  "description": "Local-first per-user filament inventory PWA with isolated Bill/Aimee data, secure sync, QR labels, printer/AMS tracking, and per-user UX customization.",
   "engines": {
     "node": ">=22.12.0"
   },

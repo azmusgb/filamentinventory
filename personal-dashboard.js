@@ -46,9 +46,9 @@
     panel.id = 'personalCommandCenter';
     panel.setAttribute('aria-labelledby','personalCommandTitle');
     panel.innerHTML = `
-      <div class="personal-head"><div class="personal-title"><span class="eyebrow">Personal command center</span><h3 id="personalCommandTitle">Your filament focus.</h3><p class="muted" id="personalCommandSubtitle">Shared household inventory, prioritized for the current profile.</p></div><label class="personal-profile">Working as <select class="select" id="personalUser"><option>Bill</option><option>Aimee</option></select></label></div>
+      <div class="personal-head"><div class="personal-title"><span class="eyebrow">Personal command center</span><h3 id="personalCommandTitle">Your filament focus.</h3><p class="muted" id="personalCommandSubtitle">Private inventory only, prioritized for the current profile.</p></div><label class="personal-profile">Working as <select class="select" id="personalUser"><option>Bill</option><option>Aimee</option></select></label></div>
       <div class="personal-metrics" id="personalMetrics"></div>
-      <div class="personal-layout"><section class="personal-block"><div class="personal-block-head"><h4>Next moves</h4><span id="personalAttentionLabel"></span></div><div class="personal-actions" id="personalActions"></div></section><div class="personal-mini-grid"><section class="personal-block"><div class="personal-block-head"><h4>Loaded now</h4><span>Printer / AMS</span></div><div class="personal-loaded" id="personalLoaded"></div></section><section class="personal-block"><div class="personal-block-head"><h4>Recent for you</h4><span>Shared activity</span></div><div class="personal-activity" id="personalActivity"></div></section></div></div>
+      <div class="personal-layout"><section class="personal-block"><div class="personal-block-head"><h4>Next moves</h4><span id="personalAttentionLabel"></span></div><div class="personal-actions" id="personalActions"></div></section><div class="personal-mini-grid"><section class="personal-block"><div class="personal-block-head"><h4>Loaded now</h4><span>Printer / AMS</span></div><div class="personal-loaded" id="personalLoaded"></div></section><section class="personal-block"><div class="personal-block-head"><h4>Recent for you</h4><span>Private activity</span></div><div class="personal-activity" id="personalActivity"></div></section></div></div>
       <div class="personal-footer"><button class="btn btn-primary" id="personalInventoryBtn" type="button">My inventory</button><button class="btn" id="personalWeighBtn" type="button">Weigh next</button><button class="btn" id="personalAddBtn" type="button">Add my spool</button><button class="btn btn-ghost" id="personalHouseholdBtn" type="button">Printer / AMS</button></div>`;
     hero.insertAdjacentElement('afterend', panel);
   }
@@ -115,7 +115,7 @@
     const title = document.getElementById('personalCommandTitle');
     if (title) title.textContent = `${owner}'s filament command center.`;
     const subtitle = document.getElementById('personalCommandSubtitle');
-    if (subtitle) subtitle.textContent = `${summary.activeCount} active spool${summary.activeCount === 1 ? '' : 's'} · ${formatKg(summary.knownGrams)} known · shared household data, personal priorities.`;
+    if (subtitle) subtitle.textContent = `${summary.activeCount} active spool${summary.activeCount === 1 ? '' : 's'} · ${formatKg(summary.knownGrams)} known · private inventory only.`;
     renderMetrics(summary);
     renderActions(summary);
     renderLoaded(summary);
@@ -126,14 +126,7 @@
 
   function switchProfile(owner) {
     if (!['Bill','Aimee'].includes(owner) || owner === currentUser()) return;
-    const householdSelect = document.getElementById('currentUserV8');
-    if (householdSelect) {
-      householdSelect.value = owner;
-      householdSelect.dispatchEvent(new Event('change',{bubbles:true}));
-    } else {
-      localStorage.setItem(CURRENT_USER_KEY, owner);
-    }
-    scheduleRender();
+    localStorage.setItem(CURRENT_USER_KEY, owner);
   }
 
   function openInventory(owner = currentUser(), spoolId = '') {

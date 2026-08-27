@@ -15,8 +15,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function() {
   'use strict';
 
-  const APP_VERSION = '9.0.0';
-  const DATA_SCHEMA_VERSION = 9;
+  const APP_VERSION = '9.1.0';
+  const DATA_SCHEMA_VERSION = 10;
   const DISPLAY_VERSION = `v${APP_VERSION}`;
 
   return Object.freeze({

@@ -534,11 +534,14 @@
     a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  const currentProfile = () => globalThis.FilamentInventoryUsers?.currentUser?.() || 'Bill';
+  const profileSlug = () => currentProfile().toLowerCase();
+
   function markBackup() { meta.lastBackupAt = nowIso(); saveState(); renderDataHealth(); }
 
   function exportJson() {
     const exportedAt = nowIso();
-    download(`filament-inventory-${VERSION_INFO.DISPLAY_VERSION}-${exportedAt.slice(0,10)}.json`, JSON.stringify({version:DATA_SCHEMA_VERSION,appVersion:APP_VERSION,exportedAt,meta,spools:inventory,weighLog},null,2), 'application/json');
+    download(`filament-inventory-${profileSlug()}-${VERSION_INFO.DISPLAY_VERSION}-${exportedAt.slice(0,10)}.json`, JSON.stringify({version:DATA_SCHEMA_VERSION,appVersion:APP_VERSION,profile:currentProfile(),exportedAt,meta,spools:inventory,weighLog},null,2), 'application/json');
     markBackup(); showToast('JSON backup exported.');
   }
 
@@ -547,14 +550,14 @@
   function exportCsv() {
     const headers = ['ID','Brand','Material','Color','Color Hex','Spool Type','Starting g','Visual %','Gross g','Tare g','Effective Remaining g','Effective %','Status','Reorder Needed','Reorder Threshold g','Location','Opened','Bagged','Last Dried Date','Purchase Source','Purchase Price','Purchase Date','Confidence','Archived','Notes','Created','Updated'];
     const rows = inventory.map(s => { const m = measurement(s); return [s.id,s.brand,s.material,s.colorName,s.colorHex,s.spoolType,s.startWeight,s.visualPercent ?? '',s.gross ?? '',s.tare ?? '',m.grams ?? '',m.percent ?? '',statusFor(m.percent),reorderNeeded(s)?'Yes':'No',s.reorderThreshold,s.location,s.opened,s.bagged,s.lastDriedDate,s.purchaseSource,s.purchasePrice ?? '',s.purchaseDate,s.confidence,isArchived(s)?'Yes':'No',s.notes,s.createdAt ?? '',s.updatedAt ?? '']; });
-    download(`filament-inventory-${VERSION_INFO.DISPLAY_VERSION}-${new Date().toISOString().slice(0,10)}.csv`, [headers,...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv;charset=utf-8');
+    download(`filament-inventory-${profileSlug()}-${VERSION_INFO.DISPLAY_VERSION}-${new Date().toISOString().slice(0,10)}.csv`, [headers,...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv;charset=utf-8');
     markBackup(); showToast('CSV inventory exported.');
   }
 
   function exportHistoryCsv() {
     const headers = ['ID','Timestamp','Gross g','Tare g','Remaining g','Percent','Location','Note'];
     const rows = weighLog.slice().sort((a,b) => new Date(b.at)-new Date(a.at)).map(x => [x.id,x.at,x.gross ?? '',x.tare ?? '',x.remaining ?? '',x.percent ?? '',x.location,x.note]);
-    download(`filament-measurements-${VERSION_INFO.DISPLAY_VERSION}-${new Date().toISOString().slice(0,10)}.csv`, [headers,...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv;charset=utf-8');
+    download(`filament-measurements-${profileSlug()}-${VERSION_INFO.DISPLAY_VERSION}-${new Date().toISOString().slice(0,10)}.csv`, [headers,...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv;charset=utf-8');
     markBackup(); showToast('Measurement history exported.');
   }
 
@@ -607,6 +610,7 @@
     try {
       const parsed = JSON.parse(await file.text());
       if (!parsed || !Array.isArray(parsed.spools)) throw new Error('JSON does not contain a spools array.');
+      if (parsed.profile && parsed.profile !== currentProfile()) throw new Error(`This backup belongs to ${parsed.profile}. Switch to ${parsed.profile} before importing it.`);
       const incoming = parsed.spools.map(normalizeSpool).filter(s => s.id);
       if (!incoming.length) throw new Error('No usable spool records found.');
       const mode = confirm(`Import ${incoming.length} spools. Press OK to REPLACE local inventory, or Cancel to MERGE by spool ID.`) ? 'replace' : 'merge';
@@ -628,8 +632,10 @@
   }
 
   function resetStarter() {
-    if (!confirm('Reset all local edits and restore the 21-spool starter inventory? This replaces current local data.')) return;
-    const state = starterState(); inventory = state.spools; weighLog = state.weighLog; meta = state.meta; saveState(); renderAll(); showToast('Starter inventory restored.');
+    const owner = currentProfile();
+    const message = owner === 'Bill' ? 'Reset Bill\'s inventory to the original 21-spool starter set? This replaces Bill\'s current local data.' : 'Reset Aimee\'s inventory to empty? This replaces Aimee\'s current local data.';
+    if (!confirm(message)) return;
+    const state = owner === 'Bill' ? starterState() : {spools:[],weighLog:[],meta:{lastBackupAt:null}}; inventory = state.spools; weighLog = state.weighLog; meta = state.meta; saveState(); renderAll(); showToast(`${owner}'s inventory reset.`);
   }
 
   function handleInitialHash() {

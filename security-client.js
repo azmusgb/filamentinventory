@@ -7,6 +7,7 @@
   const DEVICE_ID_STORAGE = 'filament-device-id-v1';
   const API = '/api/sync';
   const ADMIN_API = '/api/sync-admin';
+  const currentProfile = () => globalThis.FilamentInventoryUsers?.currentUser?.() || 'Bill';
 
   const parse = (text, fallback = null) => {
     try { return JSON.parse(text); } catch { return fallback; }
@@ -54,7 +55,7 @@
 
   async function apiRequest(key, query = '') {
     const response = await fetch(`${API}${query}`, {
-      headers:{Accept:'application/json','X-Filament-Sync-Key':key},
+      headers:{Accept:'application/json','X-Filament-Sync-Key':key,'X-Filament-Profile':currentProfile()},
       cache:'no-store',
     });
     const result = await response.json().catch(() => ({}));
@@ -65,7 +66,7 @@
   async function adminRequest(key, body) {
     const response = await fetch(ADMIN_API, {
       method:'POST',
-      headers:{Accept:'application/json','Content-Type':'application/json','X-Filament-Sync-Key':key},
+      headers:{Accept:'application/json','Content-Type':'application/json','X-Filament-Sync-Key':key,'X-Filament-Profile':currentProfile()},
       body:JSON.stringify(body),
       cache:'no-store',
     });
@@ -98,7 +99,7 @@
 
   function pairingLink(key = readKey()) {
     if (!validKey(key)) return '';
-    return `${location.origin}${location.pathname}#filament-sync=${encodeURIComponent(key)}`;
+    return `${location.origin}${location.pathname}#filament-sync=${encodeURIComponent(key)}&filament-user=${encodeURIComponent(currentProfile())}`;
   }
 
   async function sharePairingLink() {
@@ -175,7 +176,7 @@
     if (!key) return;
     if (!validKey(key)) return toast('That private pairing link is invalid.');
     if (readKey() === key) return toast('This device is already connected to that cloud inventory.');
-    if (!confirm('Connect this device to the Filament Inventory shared by this private pairing link?')) return;
+    if (!confirm(`Connect this device to ${currentProfile()}'s private Filament Inventory?`)) return;
     try {
       await pairWithKey(key, {fromLink:true});
     } catch (error) {
@@ -216,9 +217,11 @@
       const result = await apiRequest(key);
       if (!result.exists || !result.state) throw new Error('No cloud inventory is available to download.');
       const stamp = new Date().toISOString().replace(/[:.]/g,'-');
-      download(`filament-cloud-backup-${stamp}.json`, {
+      const profile = currentProfile();
+      download(`filament-cloud-backup-${profile.toLowerCase()}-${stamp}.json`, {
         exportedAt:nowIso(),
-        source:'Filament Inventory v6 cloud backup',
+        source:`Filament Inventory ${globalThis.FilamentInventoryVersion?.DISPLAY_VERSION || ''} ${profile} cloud backup`.trim(),
+        profile,
         meta:result.meta || null,
         state:result.state,
       });
@@ -239,7 +242,7 @@
     setBusy(true);
     try {
       const newKey = makeKey();
-      const newKeyHash = await sha256Hex(newKey);
+      const newKeyHash = await sha256Hex(`${currentProfile().toLowerCase()}:${newKey}`);
       const result = await adminRequest(oldKey, {action:'rotate', newKeyHash, device:deviceInfo()});
       writeKey(newKey);
       writeSettings({enabled:true, lastRevision:String(result?.meta?.revision || ''), lastSyncedAt:nowIso()});

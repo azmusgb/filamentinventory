@@ -2,6 +2,7 @@ export const PUBLIC_ASSETS = Object.freeze([
   'index.html',
   'styles.css',
   'app-version.js',
+  'user-isolation.js',
   'app.js',
   'state-merge.js',
   'audit-core.js',
