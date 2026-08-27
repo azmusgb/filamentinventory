@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { reconcileConcurrentState, reconcileSpoolRecord } from '../netlify/functions/sync-reconcile.mts';
 
@@ -137,4 +138,14 @@ test('same-field conflicts are counted and bounded by spool id', () => {
   assert.equal(result.stats.conflictedSpools, 1);
   assert.equal(result.stats.conflictingFields, 1);
   assert.deepEqual(result.stats.conflictIds, ['S001']);
+});
+
+test('sync handler and client expose snapshot-backed reconciliation', async () => {
+  const handler = await readFile(new URL('../netlify/functions/sync.mts', import.meta.url), 'utf8');
+  const client = await readFile(new URL('../sync-client.js', import.meta.url), 'utf8');
+
+  assert.match(handler, /reconcileConcurrentState/);
+  assert.match(handler, /baseRecovered:Boolean\(baseEnvelope\)/);
+  assert.match(client, /Concurrent edits reconciled from a recovery snapshot\./);
+  assert.doesNotMatch(client, /Concurrent cloud edits were merged safely\./);
 });
