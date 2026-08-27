@@ -1,7 +1,7 @@
 import type { Config } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { createHash, randomBytes } from 'node:crypto';
-import { reconcileConcurrentState } from './sync-reconcile.mts';
+import { reconcileConcurrentState } from '../lib/sync-reconcile.mts';
 
 declare const Netlify: any;
 
