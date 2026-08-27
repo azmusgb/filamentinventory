@@ -58,15 +58,15 @@ test('PWA/deploy contracts publish only the consolidated UI layer', async () => 
   assert.match(sw, /\/ui-system\.css/);
   assert.doesNotMatch(sw, /\/ui-polish\.css/);
   assert.doesNotMatch(sw, /\/ui-hardening\.css/);
-  assert.match(sw, /filament-inventory-v23/);
+  assert.match(sw, /filament-inventory-v24/);
   assert.match(netlify, /for = "\/ui-system\.css"/);
   assert.match(ci, /dist\/ui-system\.css/);
   assert.doesNotMatch(ci, /dist\/ui-polish\.css/);
   assert.doesNotMatch(ci, /dist\/ui-hardening\.css/);
 });
 
-test('v9.7 remains an interaction release without a schema bump', async () => {
+test('v9.8 remains an interaction release without a schema bump', async () => {
   const version = await read('app-version.js');
-  assert.match(version, /APP_VERSION = '9\.7\.0'/);
+  assert.match(version, /APP_VERSION = '9\.8\.0'/);
   assert.match(version, /DATA_SCHEMA_VERSION = 10/);
 });
