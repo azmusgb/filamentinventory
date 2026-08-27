@@ -8,7 +8,7 @@ test('browser loads scan core and client around existing private UI layers', asy
   const html = await read('index.html');
   const names = ['intake-core.js','scan-core.js','user-isolation.js','labels-client.js','intake-client.js','scan-client.js','app.js'];
   const positions = names.map(name => html.indexOf(`/${name}`));
-  assert.ok(positions.every(value => value >= 0));
+  assert.ok(positions.every(index => index >= 0));
   assert.deepEqual(positions, [...positions].sort((a,b) => a-b));
 });
 
@@ -46,12 +46,12 @@ test('deployment permits only same-origin camera access and still blocks microph
   assert.match(netlify, /Permissions-Policy = "camera=\(self\), microphone=\(\), geolocation=\(\)"/);
 });
 
-test('PWA and CI publish the scanner modules', async () => {
+test('PWA and CI publish the scanner modules without pinning one cache generation', async () => {
   const [assets, sw, ci] = await Promise.all([read('scripts/public-assets.mjs'), read('sw.js'), read('.github/workflows/ci.yml')]);
   for (const file of ['scan-core.js','scan-client.js']) {
     assert.ok(assets.includes(`'${file}'`));
     assert.ok(sw.includes(`/${file}`));
     assert.ok(ci.includes(`dist/${file}`));
   }
-  assert.match(sw, /filament-inventory-v26/);
+  assert.match(sw, /const CACHE = 'filament-inventory-v\d+'/);
 });
