@@ -8,7 +8,7 @@
   },
   "scripts": {
     "lint": "node scripts/validate.mjs",
-    "test": "node --test",
+    "test": "node --experimental-strip-types --test",
     "build": "node scripts/build.mjs",
     "ci": "npm run lint && npm test && npm run build"
   },
