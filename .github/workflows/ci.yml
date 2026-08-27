@@ -37,7 +37,18 @@ jobs:
         run: npm run lint
 
       - name: Tests
-        run: npm test
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test-output.txt
+
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: filamentinventory-test-output-${{ github.run_id }}
+          path: test-output.txt
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Production build
         run: npm run build
@@ -94,7 +105,7 @@ jobs:
           NODE
 
       - name: Upload deploy artifact
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: filamentinventory-dist-${{ github.run_id }}
