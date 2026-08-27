@@ -33,6 +33,11 @@
     Cache-Control = "public, max-age=0, must-revalidate"
 
 [[headers]]
+  for = "/personal-core.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
   for = "/sync-client.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
@@ -59,6 +64,11 @@
 
 [[headers]]
   for = "/audit-client.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/personal-dashboard.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
