@@ -1,4 +1,4 @@
-import { readFile, writeFile, unlink } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 
 async function replaceExact(path, from, to, label) {
   const text = await readFile(path, 'utf8');
@@ -420,30 +420,4 @@ html[data-ux-theme="contrast"].fi-ui .inventory-command-weigh {
 `;
 await appendOnce('ui-system.css', '/* Inventory command surface ------------------------------------------------ */', css);
 
-await replaceExact(
-  '.github/workflows/ci.yml',
-  'permissions:\n  contents: write',
-  'permissions:\n  contents: read',
-  'restore read-only CI permissions',
-);
-await replaceExact(
-  '.github/workflows/ci.yml',
-  '      - name: Check out repository\n        uses: actions/checkout@v4\n        with:\n          ref: ${{ github.head_ref || github.ref_name }}',
-  '      - name: Check out repository\n        uses: actions/checkout@v4',
-  'restore normal checkout',
-);
-await replaceExact(
-  '.github/workflows/ci.yml',
-  '      - name: Apply inventory command integration once\n        if: github.event_name == \'pull_request\'\n        run: |\n          node scripts/apply-inventory-command-integration.mjs\n          git add -A\n          if git diff --cached --quiet; then\n            echo "Inventory command integration already applied."\n          else\n            git config user.name "github-actions[bot]"\n            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"\n            git commit -m "feat: wire inventory command surface"\n            git push origin HEAD:${{ github.head_ref }}\n          fi\n\n',
-  '',
-  'remove one-time integration step',
-);
-await replaceExact(
-  '.github/workflows/ci.yml',
-  '          test -f dist/printer-dashboard.js\n          test -f dist/app.js',
-  '          test -f dist/printer-dashboard.js\n          test -f dist/inventory-command-core.js\n          test -f dist/inventory-command-client.js\n          test -f dist/app.js',
-  'command deploy assertions',
-);
-
-await unlink('scripts/apply-inventory-command-integration.mjs');
-console.log('Inventory command surface wired; helper removed and CI restored to read-only.');
+console.log('Inventory command surface wired into app/PWA contracts.');

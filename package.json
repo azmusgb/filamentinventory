@@ -1,7 +1,7 @@
 {
   "name": "filamentinventory",
   "private": true,
-  "version": "9.6.0",
+  "version": "9.7.0",
   "description": "Local-first per-user filament inventory PWA with isolated Bill/Aimee data, smart mobile intake, fast QR spool lookup, private Printer/AMS command center, secure sync, QR labels, and per-user UX customization.",
   "engines": {
     "node": ">=22.12.0"
