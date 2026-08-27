@@ -51,6 +51,15 @@ test('bulk QR labels reuse the existing label picker instead of a second QR engi
   assert.doesNotMatch(client, /\/qr\?spool=/, 'bulk feature should not generate QR URLs itself');
 });
 
+test('bulk QR preparation re-queries the live picker after each rerender', async () => {
+  const client = await read('bulk-actions-client.js');
+  assert.match(client, /function selectLabelsSequentially\(ids, index = 0\)/);
+  assert.match(client, /clearLabelsBtn/);
+  assert.match(client, /setTimeout\(\(\) => selectLabelsSequentially\(ids, index \+ 1\), 20\)/);
+  assert.match(client, /\[\.\.\.document\.querySelectorAll\('\[data-label-id\]'\)\]\.find/);
+  assert.doesNotMatch(client, /document\.querySelectorAll\('\[data-label-id\]'\)\.forEach/);
+});
+
 test('legacy shared-household audit copy is removed at the source', async () => {
   const audit = await read('audit-client.js');
   for (const stale of ['Shared household ledger','Household activity','Recent household activity','No household activity recorded yet.','Bill + Aimee']) {
