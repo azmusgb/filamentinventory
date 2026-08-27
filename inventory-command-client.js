@@ -5,6 +5,7 @@
   const core = globalThis.FilamentInventoryCommand;
   if (!core) return;
 
+  const priorSetItem = Storage.prototype.setItem;
   let mode = 'all';
   let gridObserver = null;
   let renderQueued = false;
@@ -16,6 +17,14 @@
   const state = () => parse(localStorage.getItem(STORAGE_KEY) || '{}', {spools:[]}) || {spools:[]};
   const currentUser = () => globalThis.FilamentInventoryUsers?.currentUser?.() || 'Bill';
   const formatKg = grams => `${(Number(grams || 0) / 1000).toFixed(2)} kg`;
+  const routedInventoryKey = () => globalThis.FilamentInventoryUsers?.physicalKey?.(STORAGE_KEY, currentUser()) || '';
+  const isInventoryStorageKey = key => String(key || '') === STORAGE_KEY || String(key || '') === routedInventoryKey();
+
+  Storage.prototype.setItem = function(key, value) {
+    const result = priorSetItem.call(this, key, value);
+    if (this === localStorage && isInventoryStorageKey(key)) queueRender();
+    return result;
+  };
 
   function filters() {
     return {
@@ -242,7 +251,7 @@
       }
     });
 
-    window.addEventListener('storage', event => { if (event.key === STORAGE_KEY) queueRender(); });
+    window.addEventListener('storage', event => { if (isInventoryStorageKey(event.key)) queueRender(); });
   }
 
   function watchGrid() {
