@@ -1,0 +1,19 @@
+/* Smart Weigh: focused physical task, progressive disclosure for optional metadata. */
+.fi-width-focus .fi-page-header { margin-bottom:var(--space-4); }
+.fi-width-focus .weigh-layout { display:grid; grid-template-columns:1fr; gap:var(--space-4); }
+.fi-width-focus .weigh-card { padding:var(--space-5); }
+.fi-width-focus .weigh-card:first-child > .eyebrow,
+.fi-width-focus .weigh-card:first-child > h2,
+.fi-width-focus .weigh-card:first-child > p { display:none; }
+.fi-width-focus .weigh-card:first-child .form-grid { margin-top:0; }
+.fi-width-focus .weigh-card:first-child .form-field:nth-child(2) .field { min-height:72px; font-size:clamp(var(--text-2xl),10vw,42px); font-weight:750; text-align:center; }
+.fi-width-focus .weigh-card:first-child .form-field:nth-child(3) .field { min-height:52px; }
+.fi-width-focus .weigh-card:first-child .form-field:nth-child(3) .muted { margin-top:var(--space-2); }
+.fi-width-focus .calc { display:grid; gap:var(--space-2); }
+.fi-width-focus .calc-row { padding-block:var(--space-2); }
+.fi-width-focus .calc-row:nth-child(3) strong,
+.fi-width-focus .calc-row:nth-child(4) strong { font-size:var(--text-xl); }
+.fi-width-focus .weigh-card:first-child button[type="submit"] { width:100%; min-height:52px; }
+@media (min-width:760px) {
+  .fi-width-focus .weigh-layout { grid-template-columns:minmax(0,1fr); }
+}
