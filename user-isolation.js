@@ -206,19 +206,6 @@
       if (!holder.hidden) holder.hidden = true;
     };
 
-    const injectStyles = () => {
-      if (host.document.getElementById('userIsolationStyles')) return;
-      const style = host.document.createElement('style');
-      style.id = 'userIsolationStyles';
-      style.textContent = `
-        .user-boundary{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:-4px 0 14px;padding:14px 16px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(135deg,rgba(3,10,18,.78),rgba(9,21,36,.72));box-shadow:0 14px 34px rgba(0,0,0,.16)}
-        .user-boundary-copy{min-width:0}.user-boundary-kicker{display:block;font-size:9px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}.user-boundary-title{display:block;margin-top:3px;font-size:16px;letter-spacing:-.02em}.user-boundary-note{display:block;margin-top:3px;color:var(--muted);font-size:10px;line-height:1.4}
-        .user-switch{display:grid;grid-template-columns:1fr 1fr;gap:7px;min-width:245px}.user-switch-btn{border:1px solid var(--line);border-radius:13px;background:rgba(10,22,38,.72);color:var(--muted);min-height:44px;padding:8px 12px;font-weight:850}.user-switch-btn[aria-pressed="true"]{color:#06111d;border-color:transparent}.user-switch-btn[data-user="Bill"][aria-pressed="true"]{background:linear-gradient(135deg,#67e8f9,#60a5fa)}.user-switch-btn[data-user="Aimee"][aria-pressed="true"]{background:linear-gradient(135deg,#c084fc,#818cf8)}
-        body[data-inventory-user="Bill"] .topbar{box-shadow:inset 0 -2px rgba(34,211,238,.32)}body[data-inventory-user="Aimee"] .topbar{box-shadow:inset 0 -2px rgba(192,132,252,.38)}
-        @media(max-width:650px){.user-boundary{align-items:flex-start;flex-direction:column}.user-switch{width:100%;min-width:0}.user-boundary-note{font-size:9px}}
-      `;
-      host.document.head.appendChild(style);
-    };
 
     const injectSwitcher = () => {
       if (host.document.getElementById('userBoundary')) return;
@@ -239,7 +226,6 @@
     const applyBoundaryUI = () => {
       const owner = rawOwner();
       host.document.body?.setAttribute('data-inventory-user', owner);
-      injectStyles();
       injectSwitcher();
       setText(host.document.getElementById('userBoundaryTitle'), `${owner}'s Inventory`);
       host.document.querySelectorAll('.user-switch-btn').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.user === owner)));
