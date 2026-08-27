@@ -73,7 +73,10 @@
         if (event.target.closest('[data-profile-close]')) return dialog.close();
         const option = event.target.closest('[data-profile-owner]');
         if (!option) return;
-        localStorage.setItem(CURRENT_USER_KEY, option.dataset.profileOwner);
+        const nextOwner = option.dataset.profileOwner;
+        if (!nextOwner || nextOwner === currentUser()) return dialog.close();
+        localStorage.setItem(CURRENT_USER_KEY, nextOwner);
+        window.location.reload();
       });
     }
 
