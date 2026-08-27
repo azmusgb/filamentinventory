@@ -38,6 +38,14 @@ test('physical spool mode progressively replaces card clutter while preserving n
   assert.match(css, /\.fi-ui \.inventory-command-more/);
 });
 
+test('recommended card actions use the authoritative dispatcher so placement opens Printer AMS', async () => {
+  const client = await read('spool-actions-client.js');
+  assert.match(client, /const primary = event\.target\.closest\('\[data-spool-primary\]'\)/);
+  assert.match(client, /runAction\(primary\.dataset\.spoolId, primary\.dataset\.spoolPrimary\)/);
+  assert.doesNotMatch(client, /triggerNative\(primary\.dataset\.spoolId, primary\.dataset\.spoolPrimary\)/);
+  assert.match(client, /if \(action === 'placement'\) \{ openPlacement\(id\); return; \}/);
+});
+
 test('QR arrivals for known spools open physical spool mode and consume one-shot scan intent', async () => {
   const client = await read('spool-actions-client.js');
   assert.match(client, /function openIncomingScan\(\)/);
