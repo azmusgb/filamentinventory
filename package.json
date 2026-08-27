@@ -3,7 +3,15 @@
   "private": true,
   "version": "9.0.0",
   "description": "Local-first household filament inventory PWA with secure sync, QR labels, owner/AMS tracking, and per-user UX customization.",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "lint": "node scripts/validate.mjs",
+    "test": "node --test",
+    "build": "node scripts/build.mjs",
+    "ci": "npm run lint && npm test && npm run build"
+  },
   "dependencies": {
     "@netlify/blobs": "11.0.1",
     "qrcode": "1.5.4"
