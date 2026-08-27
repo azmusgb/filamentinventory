@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 
@@ -87,4 +88,16 @@ test('backup metadata merges without lowering the state version', () => {
 
   assert.equal(merged.version, 9);
   assert.deepEqual(merged.meta, { local: true, backup: true, shared: 'incoming' });
+});
+
+test('restore UI loads and uses the tombstone-aware merge core', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  const household = await readFile(new URL('../household-client.js', import.meta.url), 'utf8');
+  const mergeIndex = html.indexOf('/state-merge.js');
+  const householdIndex = html.indexOf('/household-client.js');
+
+  assert.ok(mergeIndex >= 0, 'state-merge.js must be loaded by index.html');
+  assert.ok(householdIndex > mergeIndex, 'state-merge.js must load before household-client.js');
+  assert.match(household, /FilamentInventoryStateMerge\?\.mergeBackupStates/);
+  assert.doesNotMatch(household, /const current=readState\(\),byId=new Map\(current\.spools/);
 });
