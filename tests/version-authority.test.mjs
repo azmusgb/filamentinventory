@@ -5,13 +5,12 @@ import test from 'node:test';
 
 const require = createRequire(import.meta.url);
 const version = require('../app-version.js');
-
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('authoritative app and schema versions are explicit', () => {
-  assert.equal(version.APP_VERSION, '9.3.0');
+  assert.equal(version.APP_VERSION, '9.4.0');
   assert.equal(version.DATA_SCHEMA_VERSION, 10);
-  assert.equal(version.DISPLAY_VERSION, 'v9.3.0');
+  assert.equal(version.DISPLAY_VERSION, 'v9.4.0');
 });
 
 test('package metadata matches the authoritative app version', async () => {
@@ -43,7 +42,7 @@ test('runtime code uses current app version and schema contract', async () => {
 });
 
 test('stale user-facing release labels and backup names are gone', async () => {
-  const files = await Promise.all(['index.html','app.js','household-client.js','ux-client.js'].map(read));
+  const files = await Promise.all(['index.html','app.js','household-client.js','ux-client.js','labels-client.js'].map(read));
   const combined = files.join('\n');
   const forbidden = [
     'Inventory control center · v3',
@@ -51,6 +50,7 @@ test('stale user-facing release labels and backup names are gone', async () => {
     'Data, backup & install · v8',
     'Two-user household inventory · v8',
     'Personal experience · v9',
+    'Physical spool labels · v7',
     'filament-inventory-v8-',
     'Full v8 inventory CSV exported.',
     'Complete v8 backup exported.',
@@ -60,14 +60,11 @@ test('stale user-facing release labels and backup names are gone', async () => {
   forbidden.forEach(value => assert.equal(combined.includes(value), false, `stale label remains: ${value}`));
 });
 
-test('PWA publication includes version, isolation and smart intake modules', async () => {
-  const [assets, sw] = await Promise.all([read('scripts/public-assets.mjs'), read('sw.js')]);
-  assert.match(assets, /'app-version\.js'/);
-  assert.match(assets, /'user-isolation\.js'/);
-  assert.match(assets, /'intake-core\.js'/);
-  assert.match(assets, /'intake-client\.js'/);
-  assert.match(sw, /\/app-version\.js/);
-  assert.match(sw, /\/user-isolation\.js/);
-  assert.match(sw, /\/intake-core\.js/);
-  assert.match(sw, /\/intake-client\.js/);
+test('PWA publication includes scan modules', async () => {
+  const assets = await read('scripts/public-assets.mjs');
+  const sw = await read('sw.js');
+  assert.match(assets, /'scan-core\.js'/);
+  assert.match(assets, /'scan-client\.js'/);
+  assert.match(sw, /\/scan-core\.js/);
+  assert.match(sw, /\/scan-client\.js/);
 });
