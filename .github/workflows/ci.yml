@@ -52,6 +52,8 @@ jobs:
           test -f dist/user-isolation.js
           test -f dist/intake-core.js
           test -f dist/intake-client.js
+          test -f dist/weigh-core.js
+          test -f dist/weigh-client.js
           test -f dist/scan-core.js
           test -f dist/scan-client.js
           test -f dist/printer-core.js
