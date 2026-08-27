@@ -35,6 +35,7 @@ jobs:
       - name: Apply inventory command integration once
         if: github.event_name == 'pull_request'
         run: |
+          node scripts/prepare-inventory-command-helper.mjs
           node scripts/apply-inventory-command-integration.mjs
           git add -A
           if git diff --cached --quiet; then
