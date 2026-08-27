@@ -37,6 +37,7 @@
     next.spools = next.spools.map(spool => {
       const id = String(spool?.id || '').trim().toLowerCase();
       const old = priorById.get(id) || {};
+      const forcedChanged = pendingMeta.has(id);
       const forced = pendingMeta.get(id) || {};
       const hh = normalizeHousehold({...old, ...spool, ...forced}, old);
       if (spool?.archivedAt) {
@@ -48,7 +49,7 @@
       }
       const oldTime = Date.parse(String(old.updatedAt || '')) || 0;
       const newTime = Date.parse(String(spool?.updatedAt || '')) || 0;
-      const updatedAt = oldTime > newTime ? old.updatedAt : spool?.updatedAt;
+      const updatedAt = forcedChanged ? nowIso() : (oldTime > newTime ? old.updatedAt : spool?.updatedAt);
       return {...spool, ...hh, updatedAt};
     });
     return next;
