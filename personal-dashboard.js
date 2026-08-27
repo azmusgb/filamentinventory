@@ -23,10 +23,7 @@
   function scheduleRender() {
     if (renderQueued) return;
     renderQueued = true;
-    queueMicrotask(() => {
-      renderQueued = false;
-      render();
-    });
+    queueMicrotask(() => { renderQueued = false; render(); });
   }
 
   Storage.prototype.setItem = function(key, value) {
@@ -35,16 +32,11 @@
     return result;
   };
 
-  function setHtml(node, html) {
-    if (node && node.innerHTML !== html) node.innerHTML = html;
-  }
-
-  function setText(node, text) {
-    if (node && node.textContent !== text) node.textContent = text;
-  }
+  function setHtml(node, html) { if (node && node.innerHTML !== html) node.innerHTML = html; }
+  function setText(node, text) { if (node && node.textContent !== text) node.textContent = text; }
 
   function addRestoreAction() {
-    const actions = document.querySelector('#dashboardView .hero-actions');
+    const actions = document.querySelector('.dashboard-view .hero-actions');
     if (!actions || actions.querySelector('.dashboard-restore-btn')) return;
     const button = document.createElement('button');
     button.className = 'btn btn-ghost dashboard-restore-btn';
@@ -70,43 +62,54 @@
 
   function actionHtml(summary) {
     const actions = api()?.recommendedActions(state(), summary.owner) || [];
-    if (!summary.activeCount) return '<div class="empty"><strong>Start with your first spool</strong>Add a spool to unlock measurements, material mix, loaded status, activity, and reorder guidance.</div>';
-    if (!actions.length || (!summary.reorderCount && !summary.unknownCount)) return '<div class="empty"><strong>No urgent items</strong>Your inventory has no reorder or measurement items right now.</div>';
-    return actions.slice(0,3).map(action => `<button class="quick-item quick-button" type="button" data-dashboard-action="${esc(action.view)}" data-spool="${esc(action.spoolId)}"><span class="dot" style="color:${action.kind === 'reorder' ? '#fb7185' : action.kind === 'measure' ? '#f59e0b' : '#84cc16'}"></span><span><strong>${esc(action.title)}</strong><small>${esc(action.detail)}</small></span><span>›</span></button>`).join('');
+    if (!summary.activeCount) return '<div class="empty"><strong>Add your first spool</strong>Scan a label or add a spool to begin.</div>';
+    if (!actions.length || (!summary.reorderCount && !summary.unknownCount)) return '<div class="empty"><strong>All caught up</strong>No measurement or reorder items need attention.</div>';
+    return actions.slice(0,3).map(action => `<button class="quick-item quick-button" type="button" data-dashboard-action="${esc(action.view)}" data-spool="${esc(action.spoolId)}"><span class="dot" data-kind="${esc(action.kind)}"></span><span><strong>${esc(action.title)}</strong><small>${esc(action.detail)}</small></span><span>›</span></button>`).join('');
   }
 
   function composeHero(summary) {
     const owner = summary.owner;
     const empty = summary.activeCount === 0;
     const view = document.getElementById('dashboardView');
-    if (view) view.dataset.empty = String(empty);
+    if (view) {
+      view.dataset.empty = String(empty);
+      view.classList.add('dashboard-view');
+    }
 
-    setText(document.querySelector('#dashboardView .hero-copy .eyebrow'), 'Private inventory');
-    setText(document.getElementById('dashboardTitle'), `${owner}'s Inventory`);
+    setText(document.querySelector('.dashboard-view .hero-copy .eyebrow'), 'Home');
+    setText(document.getElementById('dashboardTitle'), empty ? `${owner}'s Inventory` : `${owner}'s filament`);
     const lead = empty
-      ? `No spools yet. Add ${owner}'s first spool to start tracking filament, measurements, storage and Printer / AMS placement.`
-      : `${summary.activeCount} active spool${summary.activeCount === 1 ? '' : 's'} · ${formatKg(summary.knownGrams)} known · ${summary.loadedCount} loaded · ${summary.reorderCount} reorder.`;
-    setText(document.querySelector('#dashboardView .hero .lead'), lead);
+      ? 'Add or scan a spool to start tracking what is available and where it is.'
+      : `${summary.activeCount} active · ${formatKg(summary.knownGrams)} known · ${summary.loadedCount} loaded`;
+    setText(document.querySelector('.dashboard-view .hero .lead'), lead);
 
     const add = document.getElementById('heroAddBtn');
     setText(add, empty ? '+ Add first spool' : '+ Add spool');
     add?.classList.add('btn-primary');
-    setText(document.querySelector('#dashboardView [data-jump="weigh"]'), 'Weigh');
-    setText(document.querySelector('#dashboardView [data-jump="inventory"]'), 'Inventory');
-    setText(document.querySelector('#dashboardView [data-jump="household"]'), 'Printer / AMS');
+    setText(document.querySelector('.dashboard-view [data-jump="weigh"]'), 'Weigh');
+    setText(document.querySelector('.dashboard-view [data-jump="inventory"]'), 'Inventory');
+    setText(document.querySelector('.dashboard-view [data-jump="household"]'), 'Printer / AMS');
     addRestoreAction();
 
-    const quick = document.querySelector('#dashboardView .quick-panel');
+    const quick = document.querySelector('.dashboard-view .quick-panel');
     if (quick) {
+      const attentionCount = summary.reorderCount + summary.unknownCount;
       setText(quick.querySelector('.eyebrow'), 'Needs attention');
-      setText(quick.querySelector('h3'), summary.reorderCount + summary.unknownCount ? `${summary.reorderCount + summary.unknownCount} item${summary.reorderCount + summary.unknownCount === 1 ? '' : 's'} need attention` : `You're all caught up`);
+      setText(quick.querySelector('h3'), attentionCount ? `${attentionCount} item${attentionCount === 1 ? '' : 's'}` : 'All caught up');
       setHtml(document.getElementById('priorityList'), actionHtml(summary));
-      setText(quick.querySelector(':scope > p'), 'Measured gross − tare is authoritative. Unknown stays unknown until verified.');
+      setText(quick.querySelector(':scope > p'), attentionCount ? 'Open an item to resolve it.' : 'No action required right now.');
     }
   }
 
-  function composeMetrics(summary) {
-    setHtml(document.getElementById('metrics'), canonicalMetrics(summary));
+  function composeMetrics(summary) { setHtml(document.getElementById('metrics'), canonicalMetrics(summary)); }
+
+  function composeSecondary() {
+    const view = document.getElementById('dashboardView');
+    if (!view) return;
+    const grid = [...view.children].find(node => node.classList?.contains('grid-2'));
+    if (grid) grid.classList.add('dashboard-secondary');
+    const audit = document.getElementById('auditDashboardCard');
+    if (audit) audit.classList.add('dashboard-recent');
   }
 
   function cleanPrivateLanguage(summary) {
@@ -117,21 +120,15 @@
       setText(boundary.querySelector('.user-boundary-title'), `${owner}'s Inventory`);
       setText(boundary.querySelector('.user-boundary-note'), 'Separate spools · separate history · separate sync & backups');
     }
-
     const householdTab = document.querySelector('.tab[data-view="household"]');
     setText(householdTab, 'Printer');
     setText(document.querySelector('#householdView .v8-hero .eyebrow'), `${owner}'s private inventory`);
     setText(document.getElementById('householdTitle'), `${owner}'s Printer / AMS`);
-
     const auditCard = document.getElementById('auditDashboardCard');
     if (auditCard) {
       setText(auditCard.querySelector('h3'), 'Recent activity');
-      setText(auditCard.querySelector('.panel-head p'), 'Latest inventory, measurements and Printer / AMS changes.');
-      auditCard.querySelectorAll('.audit-empty').forEach(node => {
-        if (/household/i.test(node.textContent)) setText(node, 'No activity recorded yet.');
-      });
+      setText(auditCard.querySelector('.panel-head p'), 'Latest changes.');
     }
-
     const auditPanel = document.getElementById('auditPanel');
     if (auditPanel) {
       setText(auditPanel.querySelector('.eyebrow'), 'Private activity ledger');
@@ -143,22 +140,13 @@
         ownerFilter.value = owner;
         ownerFilter.dispatchEvent(new Event('change', {bubbles:true}));
       }
-      auditPanel.querySelectorAll('.audit-empty').forEach(node => {
-        if (/household/i.test(node.textContent)) setText(node, 'Activity will appear here as inventory changes are made.');
-      });
     }
-
     const prefsCopy = document.querySelector('.ux-profile-head p');
-    if (prefsCopy && /shared inventory/i.test(prefsCopy.textContent)) {
-      setText(prefsCopy, 'Preferences are stored locally per user. Each private inventory can use its own layout, theme, landing page and defaults.');
-    }
-
+    if (prefsCopy && /shared inventory/i.test(prefsCopy.textContent)) setText(prefsCopy, 'Preferences are stored locally per user.');
     document.querySelectorAll('[data-jump="household"]').forEach(node => setText(node, 'Printer / AMS'));
   }
 
-  function removeLegacyPersonalPanel() {
-    document.getElementById('personalCommandCenter')?.remove();
-  }
+  function removeLegacyPersonalPanel() { document.getElementById('personalCommandCenter')?.remove(); }
 
   function openInventory(spoolId = '') {
     document.querySelector('.tab[data-view="inventory"]')?.click();
@@ -185,8 +173,6 @@
   }
 
   function openPrinter() { document.querySelector('.tab[data-view="household"]')?.click(); }
-  function addSpool() { const button = document.getElementById('addTopBtn') || document.getElementById('heroAddBtn'); button?.click(); }
-
   function handleDashboardAction(view, spoolId) {
     if (view === 'weigh') return openWeigh(spoolId);
     if (view === 'household') return openPrinter();
@@ -203,25 +189,18 @@
       const summary = core.summarizeOwner(state(), currentUser());
       composeHero(summary);
       composeMetrics(summary);
+      composeSecondary();
       cleanPrivateLanguage(summary);
-    } finally {
-      rendering = false;
-    }
+    } finally { rendering = false; }
   }
 
   function bind() {
     document.addEventListener('click', event => {
       const dashboardAction = event.target.closest('[data-dashboard-action]');
-      if (dashboardAction) {
-        handleDashboardAction(dashboardAction.dataset.dashboardAction, dashboardAction.dataset.spool || '');
-        return;
-      }
+      if (dashboardAction) { handleDashboardAction(dashboardAction.dataset.dashboardAction, dashboardAction.dataset.spool || ''); return; }
       if (event.target.closest('.tab[data-view]')) setTimeout(scheduleRender, 0);
     });
-
-    window.addEventListener('storage', event => {
-      if (event.key === STORAGE_KEY || event.key === CURRENT_USER_KEY) scheduleRender();
-    });
+    window.addEventListener('storage', event => { if (event.key === STORAGE_KEY || event.key === CURRENT_USER_KEY) scheduleRender(); });
   }
 
   function observe() {
@@ -232,14 +211,7 @@
     }
   }
 
-  function init() {
-    bind();
-    render();
-    observe();
-    setTimeout(render, 0);
-    setTimeout(render, 120);
-  }
-
+  function init() { bind(); render(); observe(); setTimeout(render, 0); setTimeout(render, 120); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true});
   else init();
 })();
