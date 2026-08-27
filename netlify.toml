@@ -23,6 +23,11 @@
     Cache-Control = "public, max-age=0, must-revalidate"
 
 [[headers]]
+  for = "/state-merge.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
   for = "/sync-client.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
