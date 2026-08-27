@@ -1,22 +1,28 @@
 # Changelog
 
-## v5 — Recovery-aware cloud sync
+## v6 — Pairing and key lifecycle
 
-- Added cloud revision IDs and concurrent-edit visibility.
-- Added device identity/naming and cloud device last-seen activity.
-- Added cloud activity history for sync/restore operations.
-- Added rolling cloud snapshots before cloud-changing syncs.
-- Added snapshot browser and reversible cloud restore.
-- Preserved capability-key security and local-first operation.
-- Preserved per-record newest-timestamp merge semantics, measurement-log union, and deletion tombstones.
-- Bumped service-worker cache to v5 while continuing to bypass `/api/*`.
+- Added private pairing links using URL fragments.
+- Fixed fresh-device onboarding so cloud data can populate an empty browser directly.
+- Added key rotation to revoke every device still using the prior capability key.
+- New replacement keys stay client-side during rotation; only the SHA-256 hash is sent to the admin Function.
+- Added a separate rate-limited `/api/sync-admin` Function for destructive/security operations.
+- Added cloud JSON download from the Sync screen.
+- Added explicit cloud wipe with typed confirmation and pre-wipe backup.
+- Preserved v5 revisions, activity, device names, rolling snapshots, reversible restore, tombstones, and merge behavior.
+- Bumped the offline cache to v6.
+
+## v5 — Cloud recovery and device visibility
+
+- Added cloud revision IDs and concurrent-edit detection.
+- Added named device registry and recent cloud activity.
+- Added rolling recovery snapshots and reversible snapshot restore.
 
 ## v4 — Secure cross-device sync
 
 - Added Netlify Functions + Netlify Blobs synchronization.
-- Added 256-bit capability-key model.
-- Added per-record merge semantics, measurement-history union/deduplication, tombstones, automatic sync, manual sync, and offline recovery.
+- Added browser-generated capability keys, record merge behavior, measurement-history union, and deletion tombstones.
 
 ## v3 — Inventory operations
 
-- Archive/restore lifecycle, mark empty with undo, history, CSV/JSON round-trip, sorting/filtering, drying date, deep spool links, and stronger PWA/security handling.
+- Added archive/restore lifecycle, Mark Empty with undo, full measurement history, sorting/filtering, drying date, deep spool links, CSV round-trip, and safer PWA behavior.
