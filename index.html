@@ -18,7 +18,7 @@
 <header class="topbar">
 <div class="topbar-inner">
 <div aria-hidden="true" class="mark"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 8h16M6 4h12l2 4-2 12H6L4 8l2-4Z"></path><path d="M8 12h8M9 16h6"></path></svg></div>
-<div class="brand"><h1>Filament Inventory</h1><p>Local-first spool tracking • measured when possible • conservative when unknown</p></div>
+<div class="brand"><h1>Filament Inventory</h1><p>Local-first spool tracking • measured when possible • conservative when unknown • <span data-app-version></span></p></div>
 <div class="top-actions"><button class="btn desktop-only" id="exportTopBtn" type="button">Backup</button><button class="btn btn-primary desktop-only" id="addTopBtn" type="button">+ Add spool</button></div>
 </div>
 </header>
@@ -33,7 +33,7 @@
 <section aria-labelledby="dashboardTitle" class="view active" id="dashboardView">
 <div class="hero">
 <article class="hero-card hero-copy">
-<span class="eyebrow">Inventory control center · v3</span>
+<span class="eyebrow">Inventory control center</span>
 <h2 id="dashboardTitle">Know what you have. Use what is low. Reorder with confidence.</h2>
 <p class="lead">Track brand, material, color, location, storage, drying, purchase details, reorder thresholds, and measured remaining weight. Archive finished spools without losing history, and keep backups portable to Google Sheets or another system later.</p>
 <div class="hero-actions"><button class="btn btn-primary" id="heroAddBtn" type="button">Add a spool</button><button class="btn" data-jump="weigh" type="button">Weigh a spool</button><button class="btn btn-ghost" data-jump="inventory" type="button">Browse inventory</button></div>
@@ -147,6 +147,7 @@
 </dialog>
 
 <div aria-live="polite" class="toast" id="toast" role="status"></div>
+<script defer src="/app-version.js"></script>
 <script defer src="/state-merge.js"></script>
 <script defer src="/audit-core.js"></script>
 <script defer src="/personal-core.js"></script>
