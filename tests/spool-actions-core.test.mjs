@@ -10,10 +10,11 @@ test('measured remaining is authoritative over visual estimate', () => {
   assert.deepEqual(result, {grams:430, percent:43, source:'Measured'});
 });
 
-test('active stored spool exposes safe contextual operations', () => {
+test('active stored spool exposes the complete physical lifecycle without a second mutation engine', () => {
   const spool = {id:'S1', startWeight:1000, visualPercent:60, reorderThreshold:250, placementState:'Stored'};
-  assert.deepEqual(core.actionsFor(spool).map(row => row.key), ['weigh','placement','edit','label','link','archive']);
+  assert.deepEqual(core.actionsFor(spool).map(row => row.key), ['weigh','placement','empty','edit','label','link','archive']);
   assert.equal(core.actionsFor(spool).find(row => row.key === 'placement').label, 'Load / move');
+  assert.equal(core.actionsFor(spool).find(row => row.key === 'empty').label, 'Mark empty');
   assert.equal(core.placementLabel(spool), 'Stored / unassigned');
 });
 
