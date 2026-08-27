@@ -39,6 +39,13 @@ test('contextual actions extend inventory, recent-command, Printer AMS and scan 
   assert.match(client, /globalThis\.FilamentInventorySpoolActions/);
 });
 
+test('observer refresh only enhances surrounding surfaces and cannot self-render the open dialog', async () => {
+  const client = await read('spool-actions-client.js');
+  const match = client.match(/function refresh\(\) \{([\s\S]*?)\n  \}\n\n  function queueRefresh/);
+  assert.ok(match, 'refresh function must remain inspectable');
+  assert.doesNotMatch(match[1], /renderDialog|spoolActionDialog/, 'DOM observer refresh must not rewrite its own dialog');
+});
+
 test('PWA and CI publish the contextual action modules', async () => {
   const [assets, sw, ci] = await Promise.all([read('scripts/public-assets.mjs'), read('sw.js'), read('.github/workflows/ci.yml')]);
   for (const file of ['spool-actions-core.js','spool-actions-client.js']) {
