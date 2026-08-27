@@ -5,7 +5,7 @@
 .fi-width-focus .weigh-card:first-child > .eyebrow,
 .fi-width-focus .weigh-card:first-child > h2,
 .fi-width-focus .weigh-card:first-child > p { display:none; }
-.fi-width-focus .weigh-card:first-child .form-grid { margin-top:0 !important; }
+.fi-width-focus .weigh-card:first-child .form-grid { margin-top:0; }
 .fi-width-focus .weigh-card:first-child .form-field:nth-child(2) .field { min-height:72px; font-size:clamp(var(--text-2xl),10vw,42px); font-weight:750; text-align:center; }
 .fi-width-focus .weigh-card:first-child .form-field:nth-child(3) .field { min-height:52px; }
 .fi-width-focus .weigh-card:first-child .form-field:nth-child(3) .muted { margin-top:var(--space-2); }
