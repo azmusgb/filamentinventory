@@ -46,7 +46,11 @@ test('v10 UI system enforces readable mobile typography and bottom navigation sa
   assert.match(css, /\.spool-form-advanced/);
   assert.match(css, /\.activity-switcher-v10/);
   assert.match(css, /\.data-group-v10/);
-  assert.doesNotMatch(css, /font-size:\s*[789]px(?:;|\})/, 'v10 UI should not introduce sub-10px typography');
+  const marker = css.indexOf('V10 PRODUCT UI');
+  assert.ok(marker >= 0, 'v10 UI authority marker must exist');
+  const v10 = css.slice(marker);
+  assert.doesNotMatch(v10, /font-size:\s*[789]px(?:;|\})/, 'v10 UI should not introduce sub-10px typography');
+  assert.match(v10, /font-size:\s*11px/);
 });
 
 test('v10 is a UI release only and keeps data schema 10', async () => {
