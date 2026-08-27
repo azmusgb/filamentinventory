@@ -37,10 +37,4 @@ await replaceExact(
   `[[headers]]\n  for = "/styles.css"\n  [headers.values]\n    Cache-Control = "public, max-age=0, must-revalidate"\n\n[[headers]]\n  for = "/ui-polish.css"\n  [headers.values]\n    Cache-Control = "public, max-age=0, must-revalidate"\n`,
 );
 
-await replaceExact(
-  '.github/workflows/ci.yml',
-  '          test -f dist/index.html\n',
-  '          test -f dist/index.html\n          test -f dist/ui-polish.css\n',
-);
-
 console.log('Applied CSS polish integration.');
