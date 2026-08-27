@@ -8,6 +8,7 @@
   const priorSetItem = Storage.prototype.setItem;
   let refreshQueued = false;
   let bodyObserver = null;
+  let openContext = Object.freeze({source:'inventory'});
 
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -68,6 +69,7 @@
     const primary = summary.primaryAction;
     const secondary = summary.actions.filter(action => !primary || action.key !== primary.key);
     const attention = summary.attention;
+    const scanAgain = openContext.source === 'scan' ? '<button class="btn" type="button" data-spool-sheet-action="scan">Scan another</button>' : '';
     body.innerHTML = `
       <section class="spool-action-summary" data-physical-spool="${esc(summary.id)}">
         <div class="spool-action-ident"><i class="spool-action-swatch" style="background:${esc(summary.colorHex)}"></i><div><strong>${esc(summary.id)}</strong><span>${esc(summary.brand)} · ${esc(summary.material)} · ${esc(summary.colorName)}</span></div></div>
@@ -75,18 +77,25 @@
         ${attention ? `<div class="spool-action-updated" data-attention="${esc(attention.tone)}"><span>${esc(attention.label)}</span><strong>${esc(attention.detail)}</strong></div>` : ''}
         <div class="spool-action-updated"><span>Last updated</span><strong>${esc(updated)}</strong></div>
       </section>
-      <section class="spool-action-grid" aria-label="Physical actions for ${esc(summary.id)}">${primary ? actionButton(primary, true) : ''}${secondary.map(action => actionButton(action)).join('')}<button class="btn" type="button" data-spool-sheet-action="scan">Scan another</button></section>
+      <section class="spool-action-grid" aria-label="Physical actions for ${esc(summary.id)}">${primary ? actionButton(primary, true) : ''}${secondary.map(action => actionButton(action)).join('')}${scanAgain}</section>
       <p class="spool-action-note">This physical-spool view reuses the authoritative inventory, Weigh, Printer / AMS, Labels, audit, sync, and lifecycle controls.</p>`;
   }
 
-  function open(id) {
+  function open(id, options = {}) {
     const spool = findSpool(id);
     if (!spool) { toast(`Spool ${id || ''} is not in ${currentUser()}'s inventory.`); return false; }
+    openContext = Object.freeze({source:String(options.source || 'inventory')});
     const dialog = ensureDialog();
+    if (openContext.source === 'scan') $('scanSpoolDialog')?.close();
     dialog.dataset.spoolId = spool.id;
+    dialog.dataset.source = openContext.source;
     renderDialog(spool);
     if (!dialog.open) dialog.showModal();
     return true;
+  }
+
+  function openPhysical(id, options = {}) {
+    return open(id, {...options, source:options.source || 'scan'});
   }
 
   function close() {
@@ -110,15 +119,30 @@
   }
 
   function triggerNative(id, action) {
-    const nativeAction = action === 'link' ? 'copylink' : action;
     close();
-    const current = document.querySelector(`#inventoryGrid .spool-card[data-id="${cssEscape(id)}"] button[data-action="${nativeAction}"]`);
+    const current = document.querySelector(`#inventoryGrid .spool-card[data-id="${cssEscape(id)}"] button[data-action="${action}"]`);
     if (current) { current.click(); return; }
     prepareInventoryCard(id, card => {
-      const button = card?.querySelector(`button[data-action="${nativeAction}"]`);
+      const button = card?.querySelector(`button[data-action="${action}"]`);
       if (button) button.click();
       else toast(`${id} action is unavailable in the current state.`);
     });
+  }
+
+  async function copyPhysicalLink(id) {
+    const url = new URL(location.href);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('spool', String(id));
+    url.searchParams.set('scan', '1');
+    url.hash = new URLSearchParams({'filament-user':currentUser()}).toString();
+    const value = url.toString();
+    try {
+      await navigator.clipboard.writeText(value);
+      toast(`Private spool link copied for ${id}.`);
+    } catch {
+      prompt('Copy this private spool link:', value);
+    }
   }
 
   function openPlacement(id) {
@@ -178,8 +202,9 @@
   function runAction(id, action) {
     if (action === 'placement') { openPlacement(id); return; }
     if (action === 'label') { openLabel(id); return; }
+    if (action === 'link') { close(); copyPhysicalLink(id); return; }
     if (action === 'scan') { openScanner(); return; }
-    if (['weigh','edit','archive','restore','delete','link'].includes(action)) triggerNative(id, action);
+    if (['weigh','empty','edit','archive','restore','delete'].includes(action)) triggerNative(id, action);
   }
 
   function enhanceInventoryCards() {
@@ -231,23 +256,6 @@
     });
   }
 
-  function enhanceScanDialog() {
-    const actions = document.querySelector('#scanSpoolDialog .scan-extended-actions');
-    if (!actions || actions.querySelector('.scan-more-actions')) return;
-    const button = document.createElement('button');
-    button.className = 'btn btn-primary scan-more-actions';
-    button.type = 'button';
-    button.textContent = 'Open spool';
-    button.addEventListener('click', () => {
-      const dialog = $('scanSpoolDialog');
-      const id = dialog?.dataset.spoolId;
-      if (!id || !findSpool(id)) return;
-      dialog.close();
-      open(id);
-    });
-    actions.prepend(button);
-  }
-
   function cleanIncomingScanUrl(url) {
     url.searchParams.delete('scan');
     url.searchParams.delete('spool');
@@ -261,8 +269,7 @@
     const id = String(url.searchParams.get('spool') || '').trim();
     if (!id || !findSpool(id)) return false;
     setTimeout(() => {
-      $('scanSpoolDialog')?.close();
-      if (open(id)) cleanIncomingScanUrl(url);
+      if (openPhysical(id, {source:'scan'})) cleanIncomingScanUrl(url);
     }, 140);
     return true;
   }
@@ -271,7 +278,6 @@
     enhanceInventoryCards();
     enhanceCommandRecent();
     enhancePrinterSlots();
-    enhanceScanDialog();
   }
 
   function queueRefresh() {
@@ -312,7 +318,7 @@
     bind();
     watch();
     queueRefresh();
-    globalThis.FilamentInventorySpoolActions = Object.freeze({open, close, refresh:queueRefresh, openIncomingScan});
+    globalThis.FilamentInventorySpoolActions = Object.freeze({open, openPhysical, close, refresh:queueRefresh, openIncomingScan});
     openIncomingScan();
   }
 
