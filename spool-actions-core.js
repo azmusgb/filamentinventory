@@ -61,6 +61,7 @@
     return Object.freeze([
       {key:'weigh', label:'Weigh now', kind:'primary'},
       {key:'placement', label:isLoaded(spool) ? 'Move / unload' : 'Load / move', kind:'default'},
+      {key:'empty', label:'Mark empty', kind:'default'},
       {key:'edit', label:'Edit details', kind:'default'},
       {key:'label', label:'QR label', kind:'default'},
       {key:'link', label:'Copy link', kind:'default'},
