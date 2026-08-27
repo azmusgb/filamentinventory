@@ -4,13 +4,11 @@
   const STORAGE_KEY = 'filament-inventory-v1';
   const CURRENT_USER_KEY = 'filament-current-user-v1';
   const OWNERS = ['Bill', 'Aimee'];
-  const PRIMARY_MOBILE_VIEWS = new Set(['dashboard', 'inventory', 'weigh', 'household']);
   const priorGetItem = Storage.prototype.getItem;
   const priorSetItem = Storage.prototype.setItem;
   let renderQueued = false;
   let rendering = false;
   let dashboardObserver = null;
-  let tabsObserver = null;
 
   const parse = (value, fallback = null) => { try { return JSON.parse(value); } catch { return fallback; } };
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -44,11 +42,6 @@
   function setText(node, text) {
     if (node && node.textContent !== text) node.textContent = text;
   }
-
-  function setHidden(node, hidden) {
-    if (node && node.hidden !== hidden) node.hidden = hidden;
-  }
-
 
   function addRestoreAction() {
     const actions = document.querySelector('#dashboardView .hero-actions');
@@ -167,48 +160,6 @@
     document.getElementById('personalCommandCenter')?.remove();
   }
 
-  function moreLabel(view, fallback) {
-    return ({history:'Activity',labels:'Labels',sync:'Sync',data:'Data & backup',preferences:'Preferences'}[view] || fallback || view);
-  }
-
-  function ensureMobileMore() {
-    const tabs = document.querySelector('.tabs');
-    if (!tabs) return;
-    let more = tabs.querySelector('.mobile-more-tab');
-    if (!more) {
-      more = document.createElement('button');
-      more.type = 'button';
-      more.className = 'mobile-more-tab';
-      more.textContent = 'More';
-      more.setAttribute('aria-selected', 'false');
-      more.setAttribute('aria-expanded', 'false');
-      tabs.appendChild(more);
-    }
-    let menu = document.getElementById('mobileMoreMenu');
-    if (!menu) {
-      menu = document.createElement('div');
-      menu.id = 'mobileMoreMenu';
-      menu.className = 'mobile-more-menu';
-      menu.hidden = true;
-      tabs.insertAdjacentElement('afterend', menu);
-    }
-
-    const secondary = [...tabs.querySelectorAll('.tab[data-view]')].filter(tab => !PRIMARY_MOBILE_VIEWS.has(tab.dataset.view));
-    const html = secondary.map(tab => `<button class="mobile-more-item" type="button" data-mobile-more-view="${esc(tab.dataset.view)}">${esc(moreLabel(tab.dataset.view, tab.textContent.trim()))}</button>`).join('');
-    setHtml(menu, html);
-  }
-
-  function syncMoreState() {
-    const tabs = document.querySelector('.tabs');
-    const more = tabs?.querySelector('.mobile-more-tab');
-    const menu = document.getElementById('mobileMoreMenu');
-    if (!more || !menu) return;
-    const active = tabs.querySelector('.tab[aria-selected="true"]')?.dataset.view || 'dashboard';
-    const secondaryActive = !PRIMARY_MOBILE_VIEWS.has(active);
-    more.setAttribute('aria-selected', String(secondaryActive));
-    menu.querySelectorAll('[data-mobile-more-view]').forEach(button => button.setAttribute('aria-current', button.dataset.mobileMoreView === active ? 'page' : 'false'));
-  }
-
   function openInventory(spoolId = '') {
     document.querySelector('.tab[data-view="inventory"]')?.click();
     setTimeout(() => {
@@ -265,44 +216,12 @@
         handleDashboardAction(dashboardAction.dataset.dashboardAction, dashboardAction.dataset.spool || '');
         return;
       }
-
-      const more = event.target.closest('.mobile-more-tab');
-      if (more) {
-        const menu = document.getElementById('mobileMoreMenu');
-        if (menu) {
-          menu.hidden = !menu.hidden;
-          more.setAttribute('aria-expanded', String(!menu.hidden));
-        }
-        return;
-      }
-
-      const item = event.target.closest('[data-mobile-more-view]');
-      if (item) {
-        document.querySelector(`.tab[data-view="${CSS.escape(item.dataset.mobileMoreView)}"]`)?.click();
-        const menu = document.getElementById('mobileMoreMenu');
-        if (menu) menu.hidden = true;
-        document.querySelector('.mobile-more-tab')?.setAttribute('aria-expanded', 'false');
-        setTimeout(syncMoreState, 0);
-        return;
-      }
-
-      if (event.target.closest('.tab[data-view]')) {
-        const menu = document.getElementById('mobileMoreMenu');
-        if (menu) menu.hidden = true;
-        setTimeout(() => { syncMoreState(); scheduleRender(); }, 0);
-      }
+      if (event.target.closest('.tab[data-view]')) setTimeout(scheduleRender, 0);
     });
 
     window.addEventListener('storage', event => {
       if (event.key === STORAGE_KEY || event.key === CURRENT_USER_KEY) scheduleRender();
     });
-
-    window.addEventListener('resize', () => {
-      if (window.innerWidth > 720) {
-        const menu = document.getElementById('mobileMoreMenu');
-        if (menu) menu.hidden = true;
-      }
-    }, {passive:true});
   }
 
   function observe() {
@@ -310,11 +229,6 @@
     if (dashboard && !dashboardObserver) {
       dashboardObserver = new MutationObserver(() => { if (!rendering) scheduleRender(); });
       dashboardObserver.observe(dashboard, {subtree:true, childList:true, characterData:true});
-    }
-    const tabs = document.querySelector('.tabs');
-    if (tabs && !tabsObserver) {
-      tabsObserver = new MutationObserver(() => { if (!rendering) scheduleRender(); });
-      tabsObserver.observe(tabs, {subtree:true, childList:true, attributes:true, attributeFilter:['aria-selected']});
     }
   }
 
