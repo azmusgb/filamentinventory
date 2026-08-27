@@ -99,7 +99,7 @@
     const style = document.createElement('style');
     style.id = 'auditV10Styles';
     style.textContent = `
-      .audit-panel{margin-bottom:16px}.audit-toolbar{display:grid;grid-template-columns:minmax(220px,1fr) 170px 190px auto;gap:10px;margin:14px 0}.audit-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0 4px}.audit-metric{padding:12px 13px;border:1px solid var(--line);border-radius:14px;background:rgba(3,10,18,.24)}.audit-metric span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.audit-metric strong{display:block;margin-top:4px;font-size:20px}.audit-list{display:grid;gap:8px;margin-top:14px}.audit-row{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:11px;align-items:start;padding:12px 13px;border:1px solid var(--line);border-radius:14px;background:rgba(3,10,18,.24)}.audit-dot{width:9px;height:9px;margin-top:5px;border-radius:50%;background:var(--ux-accent,var(--cyan))}.audit-row[data-category="measurement"] .audit-dot{background:#84cc16}.audit-row[data-category="ownership"] .audit-dot{background:#c084fc}.audit-row[data-category="placement"] .audit-dot{background:#38bdf8}.audit-row[data-category="lifecycle"] .audit-dot{background:#f59e0b}.audit-main strong{display:block;font-size:12px;line-height:1.45}.audit-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:5px;color:var(--muted);font-size:10px}.audit-chip{display:inline-flex;align-items:center;padding:3px 7px;border:1px solid var(--line);border-radius:999px}.audit-changes{margin-top:8px;color:var(--muted);font-size:10px;line-height:1.55}.audit-row .btn{min-height:32px;padding:6px 9px;font-size:10px}.audit-empty{padding:24px;border:1px dashed var(--line);border-radius:14px;color:var(--muted);text-align:center;font-size:12px}.audit-dashboard{margin:16px 0}.audit-dashboard-list{display:grid;gap:7px}.audit-dashboard-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 10px;border:1px solid var(--line);border-radius:12px;background:rgba(3,10,18,.2)}.audit-dashboard-row div{min-width:0}.audit-dashboard-row strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.audit-dashboard-row span{color:var(--muted);font-size:10px}.audit-head-actions{display:flex;gap:8px;flex-wrap:wrap}
+      .audit-panel{margin-bottom:16px}.audit-toolbar{display:grid;grid-template-columns:minmax(220px,1fr) 190px auto;gap:10px;margin:14px 0}.audit-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0 4px}.audit-metric{padding:12px 13px;border:1px solid var(--line);border-radius:14px;background:rgba(3,10,18,.24)}.audit-metric span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.audit-metric strong{display:block;margin-top:4px;font-size:20px}.audit-list{display:grid;gap:8px;margin-top:14px}.audit-row{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:11px;align-items:start;padding:12px 13px;border:1px solid var(--line);border-radius:14px;background:rgba(3,10,18,.24)}.audit-dot{width:9px;height:9px;margin-top:5px;border-radius:50%;background:var(--ux-accent,var(--cyan))}.audit-row[data-category="measurement"] .audit-dot{background:#84cc16}.audit-row[data-category="ownership"] .audit-dot{background:#c084fc}.audit-row[data-category="placement"] .audit-dot{background:#38bdf8}.audit-row[data-category="lifecycle"] .audit-dot{background:#f59e0b}.audit-main strong{display:block;font-size:12px;line-height:1.45}.audit-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:5px;color:var(--muted);font-size:10px}.audit-chip{display:inline-flex;align-items:center;padding:3px 7px;border:1px solid var(--line);border-radius:999px}.audit-changes{margin-top:8px;color:var(--muted);font-size:10px;line-height:1.55}.audit-row .btn{min-height:32px;padding:6px 9px;font-size:10px}.audit-empty{padding:24px;border:1px dashed var(--line);border-radius:14px;color:var(--muted);text-align:center;font-size:12px}.audit-dashboard{margin:16px 0}.audit-dashboard-list{display:grid;gap:7px}.audit-dashboard-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 10px;border:1px solid var(--line);border-radius:12px;background:rgba(3,10,18,.2)}.audit-dashboard-row div{min-width:0}.audit-dashboard-row strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.audit-dashboard-row span{color:var(--muted);font-size:10px}.audit-head-actions{display:flex;gap:8px;flex-wrap:wrap}
       @media(max-width:850px){.audit-toolbar{grid-template-columns:1fr 1fr}.audit-toolbar .field{grid-column:1/-1}.audit-metrics{grid-template-columns:1fr 1fr}}
       @media(max-width:560px){.audit-toolbar{grid-template-columns:1fr}.audit-toolbar .field{grid-column:auto}.audit-row{grid-template-columns:9px 1fr}.audit-row>.btn{grid-column:2}.audit-metrics{grid-template-columns:1fr 1fr}.audit-dashboard-row{align-items:flex-start;flex-direction:column}}
     `;
@@ -113,9 +113,9 @@
       panel.className = 'panel audit-panel';
       panel.id = 'auditPanel';
       panel.innerHTML = `
-        <div class="panel-head"><div><span class="eyebrow">Shared household ledger</span><h3 style="margin-top:6px">Household activity</h3><p id="auditCount">0 events</p></div><div class="audit-head-actions"><button class="btn" id="exportAuditBtn" type="button">Export activity CSV</button></div></div>
+        <div class="panel-head"><div><span class="eyebrow">Private activity</span><h3 style="margin-top:6px">Inventory activity</h3><p id="auditCount">0 events</p></div><div class="audit-head-actions"><button class="btn" id="exportAuditBtn" type="button">Export activity CSV</button></div></div>
         <div class="audit-metrics" id="auditMetrics"></div>
-        <div class="audit-toolbar"><input class="field" id="auditSearch" type="search" placeholder="Search spool, action, owner, device…"/><select class="select" id="auditOwner"><option value="">Bill + Aimee</option><option>Bill</option><option>Aimee</option></select><select class="select" id="auditCategory"><option value="">All activity</option><option value="inventory">Inventory</option><option value="measurement">Measurements</option><option value="ownership">Ownership</option><option value="placement">Printer / AMS</option><option value="lifecycle">Lifecycle</option></select><button class="btn" id="auditClear" type="button">Clear filters</button></div>
+        <div class="audit-toolbar"><input class="field" id="auditSearch" type="search" placeholder="Search spool, action, device…"/><select class="select" id="auditCategory"><option value="">All activity</option><option value="inventory">Inventory</option><option value="measurement">Measurements</option><option value="ownership">Ownership</option><option value="placement">Printer / AMS</option><option value="lifecycle">Lifecycle</option></select><button class="btn" id="auditClear" type="button">Clear filters</button></div>
         <div class="audit-list" id="auditList"></div>`;
       historyView.insertBefore(panel, historyView.firstElementChild);
     }
@@ -126,7 +126,7 @@
       const panel = document.createElement('section');
       panel.className = 'panel audit-dashboard';
       panel.id = 'auditDashboardCard';
-      panel.innerHTML = `<div class="panel-head"><div><h3>Recent household activity</h3><p>Latest inventory, measurement, owner and AMS changes.</p></div><button class="btn" id="auditOpenHistory" type="button">View activity</button></div><div class="audit-dashboard-list" id="auditDashboardList"></div>`;
+      panel.innerHTML = `<div class="panel-head"><div><h3>Recent activity</h3><p>Latest inventory, measurement, lifecycle and Printer / AMS changes.</p></div><button class="btn" id="auditOpenHistory" type="button">View activity</button></div><div class="audit-dashboard-list" id="auditDashboardList"></div>`;
       metrics.insertAdjacentElement('afterend', panel);
     }
   }
@@ -151,7 +151,7 @@
       ['Last 7 days', recent.length],
       ['Measurements', recent.filter(row => categoryFor(row.type) === 'measurement').length],
       ['Printer / AMS', recent.filter(row => categoryFor(row.type) === 'placement').length],
-      ['Owner changes', recent.filter(row => categoryFor(row.type) === 'ownership').length],
+      ['Lifecycle', recent.filter(row => categoryFor(row.type) === 'lifecycle').length],
     ];
     const el = document.getElementById('auditMetrics');
     if (el) el.innerHTML = values.map(([label,value]) => `<div class="audit-metric"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('');
@@ -183,7 +183,7 @@
     const rows = api?.normalizeAuditLog(readState()?.auditLog || []).slice().reverse().slice(0,5) || [];
     const el = document.getElementById('auditDashboardList');
     if (!el) return;
-    if (!rows.length) { el.innerHTML = '<div class="audit-empty">No household activity recorded yet.</div>'; return; }
+    if (!rows.length) { el.innerHTML = '<div class="audit-empty">No activity recorded yet.</div>'; return; }
     el.innerHTML = rows.map(row => `<div class="audit-dashboard-row"><div><strong>${esc(row.summary)}</strong><span>${esc(row.actor)}${row.device ? ` · ${esc(row.device)}` : ''}</span></div><span>${esc(relative(row.at))}</span></div>`).join('');
   }
 
