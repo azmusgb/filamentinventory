@@ -1,8 +1,8 @@
 {
   "name": "filamentinventory",
   "private": true,
-  "version": "8.0.0",
-  "description": "Local-first household filament inventory PWA with secure Netlify sync, QR spool labels, owner reporting, and printer/AMS placement tracking.",
+  "version": "9.0.0",
+  "description": "Local-first household filament inventory PWA with secure sync, QR labels, owner/AMS tracking, and per-user UX customization.",
   "engines": { "node": ">=20" },
   "dependencies": {
     "@netlify/blobs": "11.0.1",
