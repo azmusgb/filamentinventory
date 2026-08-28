@@ -6,23 +6,37 @@
   const TITLES = {dashboard:['Home','What needs attention and what is loaded now.'],inventory:['Inventory','Find, filter and manage spools.'],household:['Printer','Physical printer and AMS state.'],weigh:['Weigh spool','Record an authoritative remaining amount.'],history:['Activity','Recent inventory and measurement changes.'],labels:['QR labels','Identify physical spools.'],data:['Backup & data','Protect and transfer this private inventory.'],preferences:['Preferences','Personalize this private workspace.']};
   const $ = id => document.getElementById(id);
   const switchView = view => document.querySelector(`.tab[data-view="${CSS.escape(view)}"]`)?.click();
-  const loadScript = src => new Promise((resolve, reject) => {
-    if (document.querySelector(`script[data-fi-dynamic="${src}"]`)) { resolve(); return; }
-    const script = document.createElement('script');
-    script.src = src;
-    script.defer = true;
-    script.dataset.fiDynamic = src;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error(`Failed to load ${src}`));
-    document.head.appendChild(script);
-  });
+  const scriptLoads = new Map();
+  const loadScript = src => {
+    if (scriptLoads.has(src)) return scriptLoads.get(src);
+    const promise = new Promise((resolve, reject) => {
+      const existing = document.querySelector(`script[data-fi-dynamic="${src}"]`);
+      if (existing?.dataset.fiLoaded === '1') { resolve(); return; }
+      if (existing) {
+        existing.addEventListener('load', resolve, {once:true});
+        existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), {once:true});
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = src;
+      script.defer = true;
+      script.dataset.fiDynamic = src;
+      script.onload = () => { script.dataset.fiLoaded = '1'; resolve(); };
+      script.onerror = () => reject(new Error(`Failed to load ${src}`));
+      document.head.appendChild(script);
+    });
+    scriptLoads.set(src, promise);
+    return promise;
+  };
 
   async function ensurePrintReadiness() {
     try {
       if (!globalThis.FilamentInventoryPrintReadiness) await loadScript('/print-readiness-core.js');
       if (!globalThis.FilamentInventoryPrintReadinessUI) await loadScript('/print-readiness-client.js');
+      return Boolean(globalThis.FilamentInventoryPrintReadinessUI);
     } catch (error) {
       console.error('Print readiness failed to initialize.', error);
+      return false;
     }
   }
 
@@ -34,7 +48,7 @@
     const buttons = items => items.map(([view,label])=>`<button type="button" data-shell-view="${view}">${label}</button>`).join('');
     aside.innerHTML=`<nav class="fi-secondary-nav">${buttons(PRIMARY)}</nav><div class="fi-sidebar-group-label">Tools</div><nav class="fi-secondary-nav">${buttons(SECONDARY)}</nav><div class="fi-sidebar-spacer"></div><div class="fi-sidebar-group-label">Workflow</div><nav class="fi-secondary-nav"><button type="button" data-shell-action="print-readiness">Can I print this?</button><button type="button" data-shell-action="scan">Scan spool</button><button type="button" data-shell-action="add">Add spool</button></nav>`;
     shell.insertBefore(aside,shell.querySelector('main'));
-    aside.addEventListener('click',event=>{ const view=event.target.closest('[data-shell-view]'); if(view) return switchView(view.dataset.shellView); const action=event.target.closest('[data-shell-action]')?.dataset.shellAction; if(action==='add') ($('addTopBtn')||$('inventoryAddBtn')||$('heroAddBtn'))?.click(); if(action==='scan') document.querySelector('.scan-launch')?.click(); if(action==='print-readiness') globalThis.FilamentInventoryPrintReadinessUI?.open(); });
+    aside.addEventListener('click',async event=>{ const view=event.target.closest('[data-shell-view]'); if(view) return switchView(view.dataset.shellView); const action=event.target.closest('[data-shell-action]')?.dataset.shellAction; if(action==='add') ($('addTopBtn')||$('inventoryAddBtn')||$('heroAddBtn'))?.click(); if(action==='scan') document.querySelector('.scan-launch')?.click(); if(action==='print-readiness' && await ensurePrintReadiness()) globalThis.FilamentInventoryPrintReadinessUI.open(); });
   }
   function ensurePageHeaders() {
     document.querySelectorAll('.view[id$="View"]').forEach(view=>{
