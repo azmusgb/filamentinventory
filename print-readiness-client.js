@@ -46,13 +46,14 @@
   }
 
   function ensureLauncher() {
-    if (document.querySelector('[data-print-readiness]')) return;
+    if (document.querySelector('[data-print-readiness][data-print-launcher="home"]')) return;
     const host = document.querySelector('.fi-home-actions, #dashboardView .hero-actions');
     if (!host) return;
     const button = document.createElement('button');
     button.className = 'btn btn-primary';
     button.type = 'button';
     button.dataset.printReadiness = '';
+    button.dataset.printLauncher = 'home';
     button.textContent = 'Can I print this?';
     host.prepend(button);
   }
@@ -170,20 +171,22 @@
   }
 
   function resultConfig(status, row, result) {
-    const available = row?.grams === null ? 'Unknown' : `${Math.round(row.grams)} g`;
+    const physical = row?.grams === null ? 'Unknown' : `${Math.round(row.grams)} g`;
+    const available = row?.availableGrams === null ? 'Unknown' : `${Math.round(row.availableGrams)} g`;
     const required = `${Math.round(result.required)} g`;
+    const commitment = row?.reservedGrams > 0 ? ` ${Math.round(row.reservedGrams)} g is already reserved by ${row.reservedJobs} queued job${row.reservedJobs === 1 ? '' : 's'}, leaving ${available} available for this plan.` : '';
     return {
-      ready:{eyebrow:'Measured ready', title:'Enough verified filament', copy:`${available} is scale-backed and ${required} is required with your safety margin.`},
-      'estimate-ready':{eyebrow:'Provisional', title:'The estimate says enough — verify first', copy:`${available} is estimated, not measured. Plan it if useful, but verify the spool before starting the print.`},
+      ready:{eyebrow:'Measured ready', title:'Enough verified filament', copy:`${physical} is scale-backed and ${required} is required with your safety margin.${commitment}`},
+      'estimate-ready':{eyebrow:'Provisional', title:'The estimate says enough — verify first', copy:`${available} is available after queued commitments, but the quantity is estimated rather than measured. Plan it if useful, then verify before starting.`},
       'measurement-needed':{eyebrow:'Verification needed', title:'A matching spool has an unknown amount', copy:'Weigh this spool before relying on it for the print.'},
-      'not-enough':{eyebrow:'Not enough', title:'Best matching spool is short', copy:`${available} is available and ${required} is required with your safety margin.`},
+      'not-enough':{eyebrow:row?.reservedGrams > 0 ? 'Committed elsewhere' : 'Not enough', title:row?.reservedGrams > 0 ? 'Queued jobs already reserve this filament' : 'Best matching spool is short', copy:row?.reservedGrams > 0 ? `${physical} is recorded on the spool, but ${Math.round(row.reservedGrams)} g is committed to queued work. Only ${available} remains available to plan.` : `${available} is available and ${required} is required with your safety margin.`},
     }[status];
   }
 
   function alternativesMarkup(result, selectedId) {
     const rows = result.candidates.filter(row => String(row.spool.id) !== String(selectedId)).slice(0, 4);
     if (!rows.length) return '';
-    return `<details class="print-job-alternatives"><summary><span><strong>${rows.length} other matching spool${rows.length === 1 ? '' : 's'}</strong><small>Compare evidence, remaining amount and placement</small></span><span aria-hidden="true">＋</span></summary><div class="print-job-alternative-list">${rows.map(row => `<button type="button" class="print-job-alternative" data-print-select="${esc(row.spool.id)}"><i class="fi-spool-swatch" style="background:${esc(row.spool.colorHex || '#666d7d')}"></i><span><strong>${esc(row.spool.id)} · ${esc(row.spool.brand || 'Unknown')} · ${esc(row.spool.colorName || 'Unknown')}</strong><small>${esc(evidenceLabel(row))} · ${row.grams === null ? 'remaining unknown' : `${Math.round(row.grams)} g`} · ${row.loaded ? 'loaded' : 'stored'}</small></span><b>${row.enough ? 'Fits' : row.measurement.source === 'Unknown' ? 'Verify' : 'Short'}</b></button>`).join('')}</div></details>`;
+    return `<details class="print-job-alternatives"><summary><span><strong>${rows.length} other matching spool${rows.length === 1 ? '' : 's'}</strong><small>Compare evidence, committed grams and placement</small></span><span aria-hidden="true">＋</span></summary><div class="print-job-alternative-list">${rows.map(row => `<button type="button" class="print-job-alternative" data-print-select="${esc(row.spool.id)}"><i class="fi-spool-swatch" style="background:${esc(row.spool.colorHex || '#666d7d')}"></i><span><strong>${esc(row.spool.id)} · ${esc(row.spool.brand || 'Unknown')} · ${esc(row.spool.colorName || 'Unknown')}</strong><small>${esc(evidenceLabel(row))} · ${row.availableGrams === null ? 'available unknown' : `${Math.round(row.availableGrams)} g available`}${row.reservedGrams > 0 ? ` · ${Math.round(row.reservedGrams)} g reserved` : ''} · ${row.loaded ? 'loaded' : 'stored'}</small></span><b>${row.enough ? 'Fits' : row.measurement.source === 'Unknown' ? 'Verify' : row.reservedGrams > 0 ? 'Reserved' : 'Short'}</b></button>`).join('')}</div></details>`;
   }
 
   function renderResult(result) {
@@ -207,7 +210,7 @@
     host.innerHTML = `<section class="fi-readiness-result print-job-result" data-state="${esc(status)}">
       <div class="print-job-result-head"><div><span class="eyebrow">2 · ${esc(config.eyebrow)}</span><h3>${esc(config.title)}</h3><p>${esc(config.copy)}</p></div><span class="print-job-evidence" data-source="${esc(row.measurement.source.toLowerCase())}">${esc(evidenceLabel(row))}</span></div>
       <div class="print-job-spool"><i class="fi-spool-swatch" style="background:${esc(row.spool.colorHex || '#666d7d')}"></i><div><strong>${esc(row.spool.id)} · ${esc(row.spool.brand || 'Unknown')} · ${esc(row.spool.material || 'Unknown')}</strong><span>${esc(row.spool.productLine || '')}${row.spool.productLine ? ' · ' : ''}${esc(row.spool.colorName || 'Unknown')}</span></div></div>
-      <div class="print-job-metrics"><div><span>Slicer estimate</span><strong>${Math.round(result.needed)} g</strong></div><div><span>Required + margin</span><strong>${Math.round(result.required)} g</strong></div><div><span>Available now</span><strong>${row.grams === null ? 'Unknown' : `${Math.round(row.grams)} g`}</strong></div><div data-tone="${afterTone}"><span>Projected after</span><strong>${esc(after)}</strong></div></div>
+      <div class="print-job-metrics"><div><span>Required + margin</span><strong>${Math.round(result.required)} g</strong></div><div><span>On spool</span><strong>${row.grams === null ? 'Unknown' : `${Math.round(row.grams)} g`}</strong></div><div data-tone="${row.reservedGrams > 0 ? 'warning' : 'neutral'}"><span>Already reserved</span><strong>${Math.round(row.reservedGrams || 0)} g</strong></div><div><span>Available to plan</span><strong>${row.availableGrams === null ? 'Unknown' : `${Math.round(row.availableGrams)} g`}</strong></div><div data-tone="${afterTone}"><span>Projected after</span><strong>${esc(after)}</strong></div></div>
       <div class="print-job-placement"><span>Placement</span><strong>${esc(placementText(row))}</strong></div>
       <div class="dialog-actions print-job-result-actions">${candidateActions(row)}</div>
       ${alternativesMarkup(result, row.spool.id)}
@@ -218,7 +221,7 @@
     const form = $('printReadinessForm');
     if (form && !form.reportValidity()) return;
     const value = readState();
-    lastResult = core.evaluate(value.spools || [], requirementFromForm());
+    lastResult = core.evaluate(value.spools || [], requirementFromForm(), Date.now(), {printJobs:value.printJobs || []});
     if (!lastResult.candidates.some(row => String(row.spool.id) === String(selectedSpoolId))) selectedSpoolId = lastResult.recommended?.spool?.id || '';
     renderResult(lastResult);
     renderJobs();
@@ -236,19 +239,29 @@
     return ({planned:'Planned','in-progress':'Printing',completed:'Completed',cancelled:'Cancelled'})[job.status] || job.status;
   }
 
+  function startBlockMarkup(check, job) {
+    const id = esc(job.spoolId);
+    if (check.reason === 'verification-required') return `<button class="btn btn-primary" type="button" data-ready-action="weigh" data-ready-id="${id}">Verify spool on scale</button>`;
+    if (check.reason === 'not-loaded') return `<button class="btn btn-primary" type="button" data-ready-action="place" data-ready-id="${id}">Load spool</button>`;
+    if (check.reason === 'not-enough') return `<button class="btn btn-primary" type="button" data-ready-action="weigh" data-ready-id="${id}">Re-check remaining</button>`;
+    if (check.reason === 'reservation-conflict') return `<p class="print-job-warning">Other queued jobs reserve ${Math.round(check.reservedOther || 0)} g. Re-plan or cancel another commitment before starting.</p>`;
+    if (check.reason === 'spool-busy') return `<p class="print-job-warning">This spool is already being used by ${esc(jobTitle(check.conflictJob || {}))}.</p>`;
+    if (check.reason === 'printer-busy') return `<p class="print-job-warning">${esc(check.spool?.printerName || 'This printer')} is already running ${esc(jobTitle(check.conflictJob || {}))}.</p>`;
+    if (check.reason === 'spool-unavailable') return '<p class="print-job-warning">The planned spool is no longer available.</p>';
+    return '<p class="print-job-warning">This plan needs attention before it can start.</p>';
+  }
+
   function activeJobMarkup(job, value) {
     const spool = core.findSpool(value, job.spoolId);
     const current = spool ? core.measurement(spool) : {source:'Unknown',grams:null};
     const loaded = spool?.placementState === 'Loaded';
     const destination = loaded ? [spool.printerName || 'Printer', spool.feederName, spool.feederSlot ? `Slot ${spool.feederSlot}` : ''].filter(Boolean).join(' · ') : 'Not loaded';
+    const otherReserved = core.reservedGramsForSpool(value.printJobs || [], job.spoolId, job.id);
     let next = '';
 
     if (job.status === 'planned') {
-      if (!spool) next = '<p class="print-job-warning">The planned spool is no longer available.</p>';
-      else if (current.source !== 'Measured') next = `<button class="btn btn-primary" type="button" data-ready-action="weigh" data-ready-id="${esc(job.spoolId)}">Verify spool on scale</button>`;
-      else if (!loaded) next = `<button class="btn btn-primary" type="button" data-ready-action="place" data-ready-id="${esc(job.spoolId)}">Load spool</button>`;
-      else if (current.grams < job.requiredGrams) next = `<button class="btn btn-primary" type="button" data-ready-action="weigh" data-ready-id="${esc(job.spoolId)}">Re-check remaining</button>`;
-      else next = `<button class="btn btn-primary" type="button" data-print-start="${esc(job.id)}">Start print</button>`;
+      const check = core.startEligibility(value, job.id);
+      next = check.ok ? `<button class="btn btn-primary" type="button" data-print-start="${esc(job.id)}">Start print</button>` : startBlockMarkup(check, job);
       next += `<button class="btn" type="button" data-print-cancel="${esc(job.id)}">Cancel plan</button>`;
     } else if (job.status === 'in-progress') {
       const maximum = Number(job.remainingAtStart) || 0;
@@ -256,7 +269,7 @@
       next = `<div class="print-job-complete"><div class="form-field"><label for="printConsumed-${esc(job.id)}">Filament consumed (g)</label><input class="field" id="printConsumed-${esc(job.id)}" data-print-consumed="${esc(job.id)}" type="number" min="0.1" ${maximum ? `max="${maximum}"` : ''} step="0.1" value="${esc(suggested)}" inputmode="decimal"><small class="muted">Use the slicer’s actual/finished usage when available. This becomes a projected remaining amount until you re-weigh.</small></div><button class="btn btn-primary" type="button" data-print-complete="${esc(job.id)}">Complete print</button><button class="btn" type="button" data-print-cancel="${esc(job.id)}">Cancel job</button></div>`;
     }
 
-    return `<article class="print-job-active" data-job-status="${esc(job.status)}"><div class="print-job-active-head"><div><span class="eyebrow">3 · ${esc(jobStatusLabel(job))}</span><h3>${esc(jobTitle(job))}</h3></div><span class="print-job-job-chip">${esc(job.spoolId)}</span></div><div class="print-job-active-meta"><span>${Math.round(job.modelGrams)} g model</span><span>${Math.round(job.requiredGrams)} g with margin</span><span>${esc(current.source)} now</span><span>${esc(destination)}</span></div><div class="print-job-active-actions">${next}</div></article>`;
+    return `<article class="print-job-active" data-job-status="${esc(job.status)}"><div class="print-job-active-head"><div><span class="eyebrow">3 · ${esc(jobStatusLabel(job))}</span><h3>${esc(jobTitle(job))}</h3></div><span class="print-job-job-chip">${esc(job.spoolId)}</span></div><div class="print-job-active-meta"><span>${Math.round(job.modelGrams)} g model</span><span>${Math.round(job.requiredGrams)} g reserved</span><span>${current.grams === null ? 'Amount unknown' : `${Math.round(current.grams)} g on spool`}</span>${otherReserved > 0 ? `<span>${Math.round(otherReserved)} g reserved by other jobs</span>` : ''}<span>${esc(current.source)} now</span><span>${esc(destination)}</span></div><div class="print-job-active-actions">${next}</div></article>`;
   }
 
   function recentJobMarkup(job) {
@@ -268,43 +281,87 @@
     return `<div class="print-job-recent-row"><div><strong>${esc(jobTitle(job))}</strong><span>${esc(jobStatusLabel(job))} · ${esc(detail)}</span></div><time datetime="${esc(at || '')}">${esc(when)}</time></div>`;
   }
 
+  function queueRowMarkup(job, value) {
+    const spool = core.findSpool(value, job.spoolId);
+    const destination = spool?.placementState === 'Loaded' ? [spool.printerName || 'Printer', spool.feederName, spool.feederSlot ? `Slot ${spool.feederSlot}` : ''].filter(Boolean).join(' · ') : 'Not loaded';
+    return `<div class="print-queue-row" data-job-status="${esc(job.status)}"><span class="print-queue-state" aria-hidden="true"></span><div><strong>${esc(jobTitle(job))}</strong><small>${esc(jobStatusLabel(job))} · ${esc(job.spoolId)} · ${Math.round(job.requiredGrams)} g reserved · ${esc(destination)}</small></div></div>`;
+  }
+
+  function ensureQueueMount(surface, key) {
+    if (!surface) return null;
+    let node = surface.querySelector(`[data-print-queue-surface="${key}"]`);
+    if (node) return node;
+    node = document.createElement('section');
+    node.className = 'panel print-queue-summary';
+    node.dataset.printQueueSurface = key;
+    if (key === 'home') {
+      const hero = surface.querySelector('.hero');
+      if (hero) hero.insertAdjacentElement('afterend', node); else surface.prepend(node);
+    } else {
+      const header = surface.querySelector(':scope > .fi-page-header');
+      if (header) header.insertAdjacentElement('afterend', node); else surface.prepend(node);
+    }
+    return node;
+  }
+
+  function renderQueueSurfaces(value = readState(), active = core.activeJobs(value)) {
+    const surfaces = [{node:$('dashboardView'), key:'home'}, {node:$('householdView'), key:'printer'}];
+    if (!active.length) {
+      surfaces.forEach(({node,key}) => node?.querySelector(`[data-print-queue-surface="${key}"]`)?.remove());
+      return;
+    }
+    const printing = active.filter(job => job.status === 'in-progress').length;
+    const planned = active.length - printing;
+    const committed = Math.round(active.reduce((sum, job) => sum + (Number(job.requiredGrams) || 0), 0));
+    const summary = [printing ? `${printing} printing` : '', planned ? `${planned} planned` : '', `${committed} g committed`].filter(Boolean).join(' · ');
+    for (const {node,key} of surfaces) {
+      const mount = ensureQueueMount(node,key);
+      if (!mount) continue;
+      mount.innerHTML = `<div class="print-queue-summary-head"><div><span class="eyebrow">Print queue</span><h3>${esc(summary)}</h3><p>Queued jobs reserve filament so a later plan cannot silently spend the same grams twice.</p></div><button class="btn" type="button" data-print-readiness data-print-launcher="queue">Open queue</button></div><div class="print-queue-list">${active.slice(0,4).map(job => queueRowMarkup(job,value)).join('')}</div>`;
+    }
+  }
+
   function renderJobs() {
-    const host = $('printJobPanel');
-    if (!host) return;
     const value = readState();
     const active = core.activeJobs(value);
+    renderQueueSurfaces(value,active);
+    const host = $('printJobPanel');
+    if (!host) return;
     const recent = core.recentJobs(value, 5).filter(job => job.status === 'completed' || job.status === 'cancelled').slice(0, 3);
     if (!active.length && !recent.length) {
       host.innerHTML = '';
       return;
     }
-    host.innerHTML = `<section class="print-job-ledger"><div class="print-job-section-head"><div><span class="eyebrow">Print jobs</span><h3>${active.length ? 'Current plan' : 'Recent prints'}</h3></div></div>${active.map(job => activeJobMarkup(job, value)).join('')}${recent.length ? `<details class="print-job-history" ${active.length ? '' : 'open'}><summary><span><strong>Recent completed / cancelled</strong><small>${recent.length} recent job${recent.length === 1 ? '' : 's'}</small></span><span aria-hidden="true">＋</span></summary><div>${recent.map(recentJobMarkup).join('')}</div></details>` : ''}</section>`;
+    host.innerHTML = `<section class="print-job-ledger"><div class="print-job-section-head"><div><span class="eyebrow">Print jobs</span><h3>${active.length ? 'Current queue' : 'Recent prints'}</h3></div></div>${active.map(job => activeJobMarkup(job, value)).join('')}${recent.length ? `<details class="print-job-history" ${active.length ? '' : 'open'}><summary><span><strong>Recent completed / cancelled</strong><small>${recent.length} recent job${recent.length === 1 ? '' : 's'}</small></span><span aria-hidden="true">＋</span></summary><div>${recent.map(recentJobMarkup).join('')}</div></details>` : ''}</section>`;
   }
 
   function planSelected(id) {
     const value = readState();
     const result = core.planJob(value, requirementFromForm(), id || selectedSpoolId);
     if (!result.changed) {
-      const messages = { 'grams-required':'Enter the slicer filament estimate first.', 'spool-not-matching':'That spool no longer matches this print requirement.', 'not-enough':'That spool does not have enough recorded filament for this print.' };
+      const messages = { 'grams-required':'Enter the slicer filament estimate first.', 'spool-not-matching':'That spool no longer matches this print requirement.', 'not-enough':'That spool does not have enough recorded filament for this print.', 'reserved':'Queued jobs already reserve too much of this spool. Cancel or complete a commitment, or choose another spool.' };
       toast(messages[result.reason] || 'Could not create the print plan.');
       return;
     }
     writeState(result.state);
     emit('print:planned',{jobId:result.job.id,spoolId:result.job.spoolId});
-    toast(`${result.job.jobName || 'Print'} planned with ${result.job.spoolId}.`);
+    emit('print:queue-changed',{activeJobs:core.activeJobs(result.state).length});
+    toast(`${result.job.jobName || 'Print'} planned with ${result.job.spoolId} · ${Math.round(result.job.requiredGrams)} g reserved.`);
     renderJobs();
+    if (hasRecheckableQuery()) render();
   }
 
   function startPrint(jobId) {
     const result = core.startJob(readState(), jobId);
     if (!result.changed) {
-      const messages = { 'not-loaded':'Load the planned spool before starting.', 'verification-required':'Verify the spool on the scale before starting.', 'not-enough':'The measured spool no longer has enough filament.', 'spool-unavailable':'The planned spool is unavailable.' };
+      const messages = { 'not-loaded':'Load the planned spool before starting.', 'verification-required':'Verify the spool on the scale before starting.', 'not-enough':'The measured spool no longer has enough filament.', 'spool-unavailable':'The planned spool is unavailable.', 'spool-busy':'That spool is already assigned to another tracked print in progress.', 'printer-busy':'That printer already has another tracked print in progress.', 'reservation-conflict':'Other queued jobs now reserve too much filament for this print to start.' };
       toast(messages[result.reason] || 'Could not start this print.');
       renderJobs();
       return;
     }
     writeState(result.state);
     emit('print:started',{jobId:result.job.id,spoolId:result.job.spoolId});
+    emit('print:queue-changed',{activeJobs:core.activeJobs(result.state).length});
     toast(`${result.job.jobName || 'Print'} started.`);
     renderJobs();
   }
@@ -321,7 +378,9 @@
     writeState(result.state);
     emit('inventory:changed',{spoolId:result.job.spoolId,reason:'print-completed'});
     emit('print:completed',{jobId:result.job.id,spoolId:result.job.spoolId,consumedGrams:result.job.consumedGrams,remainingAfter:result.remainingAfter});
-    toast(`${result.job.jobName || 'Print'} completed · ${result.job.consumedGrams} g recorded.`);
+    emit('print:queue-changed',{activeJobs:core.activeJobs(result.state).length,reservationShortfall:result.reservationShortfall});
+    const warning = result.reservationShortfall > 0 ? ` ${Math.round(result.reservationShortfall)} g of remaining queued commitments now need re-checking.` : '';
+    toast(`${result.job.jobName || 'Print'} completed · ${result.job.consumedGrams} g recorded.${warning}`);
     renderJobs();
     if (hasRecheckableQuery()) render();
   }
@@ -334,8 +393,10 @@
     }
     writeState(result.state);
     emit('print:cancelled',{jobId:result.job.id,spoolId:result.job.spoolId});
-    toast(`${result.job.jobName || 'Print'} cancelled.`);
+    emit('print:queue-changed',{activeJobs:core.activeJobs(result.state).length});
+    toast(`${result.job.jobName || 'Print'} cancelled · reserved filament released.`);
     renderJobs();
+    if (hasRecheckableQuery()) render();
   }
 
   function openWorkflow(action, id) {
@@ -398,6 +459,7 @@
     if ($('printReadinessDialog')?.open && hasRecheckableQuery()) render();
     renderJobs();
   });
+  document.addEventListener('fi:navigation', () => renderQueueSurfaces());
 
   globalThis.FilamentInventoryPrintReadinessUI = Object.freeze({open,render,renderJobs,plan:planSelected,start:startPrint,complete:completePrint,cancel:cancelPrint});
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ensure,{once:true});
