@@ -65,6 +65,8 @@
   --layout-focus: 700px;
   --layout-standard: 1120px;
   --layout-workbench: 1480px;
+  --label-w: 2in;
+  --label-h: 1in;
 
   /* Typography */
   --font-display: "Space Grotesk", Inter, ui-sans-serif, system-ui, sans-serif;
