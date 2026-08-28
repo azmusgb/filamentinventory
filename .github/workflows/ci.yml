@@ -107,14 +107,7 @@ jobs:
         run: npx playwright install --with-deps chromium webkit
 
       - name: Browser interaction and visual regression
-        run: |
-          set -euo pipefail
-          if test -d e2e/__screenshots__; then
-            npm run test:e2e
-          else
-            echo "No visual baseline is committed yet; bootstrapping CI-rendered snapshots."
-            npm run test:e2e:update
-          fi
+        run: npm run test:e2e
 
       - name: Upload deploy and browser artifacts
         if: always()
@@ -126,6 +119,5 @@ jobs:
             test-output.txt
             test-results
             playwright-report
-            e2e/__screenshots__
           if-no-files-found: error
           retention-days: 7
