@@ -25,6 +25,7 @@
   const ESSENTIAL_FIELDS = new Set(['spoolId','brand','material','colorName','colorHex','startWeight','location','placementV8','printerV8','feederV8','slotV8']);
   const $ = id => document.getElementById(id);
   const qs = selector => document.querySelector(selector);
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const scriptLoads = new Map();
   const observedViews = new WeakSet();
   let currentRoute = 'dashboard';
@@ -91,6 +92,11 @@
     return active?.id.replace(/View$/,'') || document.querySelector('.tab[aria-selected="true"]')?.dataset.view || 'dashboard';
   }
 
+  function routeFromLocation() {
+    const requested = new URLSearchParams(location.hash.replace(/^#/,'')).get('view');
+    return requested && ROUTES[requested] ? requested : 'dashboard';
+  }
+
   function routeUrl(view) {
     const url = new URL(location.href);
     const hash = new URLSearchParams(url.hash.replace(/^#/,''));
@@ -128,11 +134,23 @@
     document.querySelectorAll('.tab[data-view]').forEach(tab => tab.setAttribute('aria-selected',String(tab.dataset.view === view)));
     syncingRoute = false;
     syncNavigation(view);
-    if (historyMode !== 'none') history[historyMode === 'push' ? 'pushState' : 'replaceState'](null,'',routeUrl(view));
+    if (historyMode !== 'none') {
+      const target = routeUrl(view);
+      const current = `${location.pathname}${location.search}${location.hash}`;
+      if (target !== current) history[historyMode === 'push' ? 'pushState' : 'replaceState'](null,'',target);
+    }
     window.scrollTo({top:0,behavior:'auto'});
     if (focus) focusRouteHeading(view);
     globalThis.FilamentInventoryEvents?.emit?.('navigation:changed',{view});
     document.dispatchEvent(new CustomEvent('fi:navigation',{detail:{view}}));
+    return true;
+  }
+
+  function restoreRouteFromHistory() {
+    const view = routeFromLocation();
+    if (!$(`${view}View`)) return false;
+    if (activeFromDom() !== view) return navigate(view,{historyMode:'none',focus:false});
+    syncNavigation(view);
     return true;
   }
 
@@ -217,10 +235,15 @@
     return globalThis.FilamentInventoryUsers?.currentUser?.() || localStorage.getItem('filament-current-user-v1') || 'Bill';
   }
 
-  function profileIdentity() {
-    const value = globalThis.FilamentInventoryProfileUI?.read?.();
-    const fallback = owner();
-    return {displayName:value?.identity?.displayName || fallback, initials:value?.identity?.initials || (fallback === 'Aimee' ? 'AR' : 'BR')};
+  function fallbackInitials(name) {
+    const parts=String(name||'').trim().split(/\s+/).filter(Boolean);
+    if(!parts.length) return 'FI';
+    return (parts.length===1?parts[0].slice(0,2):`${parts[0][0]}${parts.at(-1)[0]}`).toUpperCase();
+  }
+
+  function profileIdentity(forOwner=owner()) {
+    const value = globalThis.FilamentInventoryProfileUI?.readFor?.(forOwner) || (forOwner === owner() ? globalThis.FilamentInventoryProfileUI?.read?.() : null);
+    return {displayName:value?.identity?.displayName || forOwner, initials:value?.identity?.initials || fallbackInitials(forOwner)};
   }
 
   function ensureProfileMenu() {
@@ -235,8 +258,9 @@
       button.setAttribute('aria-haspopup','dialog');
       topActions.prepend(button);
     }
-    const identity = profileIdentity();
-    button.innerHTML = `<span class="profile-avatar" aria-hidden="true">${identity.initials}</span><span class="profile-chip-copy"><strong>${identity.displayName}</strong><small>Private inventory</small></span><span aria-hidden="true">⌄</span>`;
+    const currentOwner=owner();
+    const identity = profileIdentity(currentOwner);
+    button.innerHTML = `<span class="profile-avatar" aria-hidden="true">${esc(identity.initials)}</span><span class="profile-chip-copy"><strong>${esc(identity.displayName)}</strong><small>Private inventory</small></span><span aria-hidden="true">⌄</span>`;
     button.setAttribute('aria-label',`Switch private inventory. Current: ${identity.displayName}`);
 
     let dialog = qs('.profile-switch-dialog');
@@ -246,7 +270,7 @@
       document.body.appendChild(dialog);
     }
     const owners = globalThis.FilamentInventoryUsers?.OWNERS || ['Bill','Aimee'];
-    dialog.innerHTML = `<div class="dialog-head"><div><span class="eyebrow">Private inventories</span><h3>Switch workspace</h3></div><button class="btn icon-btn" type="button" data-dialog-close aria-label="Close">×</button></div><div class="dialog-body"><p class="muted">Each profile has separate spools, activity, backups and cloud sync.</p><div class="profile-options">${owners.map(name => `<button class="profile-option" type="button" data-profile-owner="${name}" aria-current="${String(name === owner())}"><span class="profile-avatar">${name === 'Aimee' ? 'AR' : 'BR'}</span><span><strong>${name}</strong><small>${name === owner() ? 'Current private inventory' : `Open ${name}'s private inventory`}</small></span><span aria-hidden="true">›</span></button>`).join('')}</div></div>`;
+    dialog.innerHTML = `<div class="dialog-head"><div><span class="eyebrow">Private inventories</span><h3>Switch workspace</h3></div><button class="btn icon-btn" type="button" data-dialog-close aria-label="Close">×</button></div><div class="dialog-body"><p class="muted">Each profile has separate spools, activity, backups and cloud sync.</p><div class="profile-options">${owners.map(name => {const option=profileIdentity(name);const current=name===currentOwner;return `<button class="profile-option" type="button" data-profile-owner="${esc(name)}" aria-current="${String(current)}"><span class="profile-avatar">${esc(option.initials)}</span><span><strong>${esc(option.displayName)}</strong><small>${current?'Current private inventory':`Open ${esc(option.displayName)}'s private inventory`}</small></span><span aria-hidden="true">›</span></button>`;}).join('')}</div></div>`;
   }
 
   function adoptPageActions() {
@@ -394,7 +418,7 @@
       if (route) {
         const view = route.dataset.shellView || route.dataset.bottomView;
         route.closest('dialog')?.close();
-        navigate(view,{historyMode:'replace',focus:true});
+        navigate(view,{historyMode:'push',focus:true});
         return;
       }
       const action = event.target.closest('[data-shell-action]');
@@ -402,10 +426,10 @@
       if (event.target.closest('.tab[data-view]')) setTimeout(reconcileLegacyRoute,0);
     });
 
-    window.addEventListener('hashchange',() => {
-      const view = new URLSearchParams(location.hash.replace(/^#/,'' )).get('view');
-      if (view && ROUTES[view] && activeFromDom() !== view) navigate(view,{historyMode:'none',focus:false});
-    });
+    const restore = () => restoreRouteFromHistory();
+    window.addEventListener('popstate',restore);
+    window.addEventListener('hashchange',restore);
+    document.addEventListener('fi:profile-updated',ensureProfileMenu);
   }
 
   function observeLateSurfaces() {
@@ -414,6 +438,7 @@
     new MutationObserver(records => {
       if (!records.some(record => [...record.addedNodes].some(node => node.nodeType === 1 && (node.matches?.('.view') || node.querySelector?.('.view'))))) return;
       updateShell();
+      restoreRouteFromHistory();
     }).observe(main,{childList:true});
   }
 
@@ -434,14 +459,13 @@
     observeLateSurfaces();
     await Promise.all([ensurePrintReadiness(),ensureProfilePreferences()]);
     updateShell();
-    const hashRoute = new URLSearchParams(location.hash.replace(/^#/,'' )).get('view');
-    if (hashRoute && ROUTES[hashRoute] && $(`${hashRoute}View`)) navigate(hashRoute,{historyMode:'none',focus:false});
+    restoreRouteFromHistory();
   }
 
   globalThis.FilamentInventoryNavigation = Object.freeze({
     navigate,
     current:() => currentRoute,
-    register:view => { const ok=registerSurface(view); if(ok) updateShell(); return ok; },
+    register:view => { const ok=registerSurface(view); if(ok) { updateShell(); restoreRouteFromHistory(); } return ok; },
     routes:ROUTES,
     action:runAction,
     sync:reconcileLegacyRoute,
