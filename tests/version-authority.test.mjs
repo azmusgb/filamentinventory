@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
-import { readFile } from 'node:fs/promises';
+import {createRequire} from 'node:module';
+import {readFile} from 'node:fs/promises';
 import test from 'node:test';
 
 const require = createRequire(import.meta.url);
@@ -23,13 +23,13 @@ test('package metadata matches the authoritative app version', async () => {
 
 test('browser entrypoint loads version authority and user isolation before state consumers', async () => {
   const html = await read('index.html');
-  const order = ['app-version.js', 'user-isolation.js', 'sync-client.js', 'household-client.js', 'ux-client.js', 'app.js'].map(name => html.indexOf(`/${name}`));
+  const order = ['app-version.js','user-isolation.js','sync-client.js','household-client.js','ux-client.js','app-shell-client.js','app.js'].map(name => html.indexOf(`/${name}`));
   assert.ok(order.every(index => index >= 0));
   assert.deepEqual(order, [...order].sort((a,b) => a-b));
   assert.match(html, /data-app-version/);
 });
 
-test('runtime code uses current app version and schema contract', async () => {
+test('runtime state code uses the current app version and schema contract', async () => {
   const [app, household, ux] = await Promise.all([read('app.js'), read('household-client.js'), read('ux-client.js')]);
   assert.match(app, /FilamentInventoryVersion/);
   assert.match(app, /DATA_SCHEMA_VERSION/);
@@ -37,8 +37,9 @@ test('runtime code uses current app version and schema contract', async () => {
   assert.match(household, /FilamentInventoryVersion/);
   assert.match(household, /DATA_SCHEMA_VERSION/);
   assert.match(household, /APP_VERSION/);
-  assert.match(ux, /FilamentInventoryVersion/);
-  assert.match(ux, /DISPLAY_VERSION/);
+  assert.match(ux, /V11 compatibility bridge/);
+  assert.match(ux, /FilamentInventoryLegacyUX/);
+  assert.doesNotMatch(ux, /const APP_VERSION\s*=|const DATA_SCHEMA_VERSION\s*=/);
 });
 
 test('stale user-facing release labels and backup names are gone', async () => {
@@ -60,10 +61,10 @@ test('stale user-facing release labels and backup names are gone', async () => {
   forbidden.forEach(value => assert.equal(combined.includes(value), false, `stale label remains: ${value}`));
 });
 
-test('PWA publication includes scan and physical-spool modules', async () => {
+test('PWA publication includes scan, physical-spool and V11 shell modules', async () => {
   const assets = await read('scripts/public-assets.mjs');
   const sw = await read('sw.js');
-  for (const name of ['scan-core.js','scan-client.js','spool-actions-core.js','spool-actions-client.js','printer-core.js','printer-dashboard.js']) {
+  for (const name of ['scan-core.js','scan-client.js','spool-actions-core.js','spool-actions-client.js','printer-core.js','printer-dashboard.js','app-shell-client.js']) {
     assert.match(assets, new RegExp(`'${name.replace('.', '\\.').replace('-', '\\-')}'`));
     assert.match(sw, new RegExp(`/${name.replace('.', '\\.').replace('-', '\\-')}`));
   }
