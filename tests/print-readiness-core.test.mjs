@@ -105,6 +105,64 @@ test('starting a job requires loaded measured evidence and enough headroom', () 
   assert.equal(start.job.status,'in-progress');
   assert.equal(start.job.remainingAtStart,650);
   assert.equal(start.job.evidenceAtStart,'Measured');
+  assert.equal(start.job.reservedAtStart,0);
+  assert.equal(start.job.availableAtStart,650);
+});
+
+test('active print plans reserve grams and prevent the same filament from being promised twice', () => {
+  const state = {spools:[measured()],printJobs:[]};
+  const first = core.planJob(state,{jobName:'Large part',material:'PLA',color:'Black',grams:300,safetyMargin:0},'S1','2026-08-28T14:00:00Z');
+  assert.equal(first.changed,true);
+  assert.equal(first.job.requiredGrams,300);
+  assert.equal(core.reservedGramsForSpool(first.state.printJobs,'S1'),300);
+
+  const availability = core.evaluate(first.state.spools,{material:'PLA',color:'Black',grams:400,safetyMargin:0},Date.parse('2026-08-28T14:01:00Z'),{printJobs:first.state.printJobs});
+  assert.equal(availability.recommended.grams,650);
+  assert.equal(availability.recommended.reservedGrams,300);
+  assert.equal(availability.recommended.availableGrams,350);
+  assert.equal(availability.status,'not-enough');
+
+  const second = core.planJob(first.state,{jobName:'Another large part',material:'PLA',color:'Black',grams:400,safetyMargin:0},'S1','2026-08-28T14:02:00Z');
+  assert.equal(second.changed,false);
+  assert.equal(second.reason,'reserved');
+});
+
+test('cancelling a planned job releases its reservation immediately', () => {
+  const state = {spools:[measured()],printJobs:[]};
+  const first = core.planJob(state,{material:'PLA',color:'Black',grams:500,safetyMargin:0},'S1','2026-08-28T14:00:00Z');
+  assert.equal(core.reservedGramsForSpool(first.state.printJobs,'S1'),500);
+  const cancelled = core.cancelJob(first.state,first.job.id,'2026-08-28T14:01:00Z');
+  assert.equal(cancelled.changed,true);
+  assert.equal(core.reservedGramsForSpool(cancelled.state.printJobs,'S1'),0);
+  const next = core.planJob(cancelled.state,{material:'PLA',color:'Black',grams:500,safetyMargin:0},'S1','2026-08-28T14:02:00Z');
+  assert.equal(next.changed,true);
+});
+
+test('one physical spool cannot start two tracked prints at the same time', () => {
+  const state = {spools:[measured({placementState:'Loaded',printerName:'P1S',feederName:'AMS 1',feederSlot:'1'})],printJobs:[]};
+  const first = core.planJob(state,{jobName:'Part A',material:'PLA',color:'Black',grams:200,safetyMargin:0},'S1','2026-08-28T14:00:00Z');
+  const second = core.planJob(first.state,{jobName:'Part B',material:'PLA',color:'Black',grams:200,safetyMargin:0},'S1','2026-08-28T14:01:00Z');
+  assert.equal(second.changed,true);
+  const started = core.startJob(second.state,first.job.id,'2026-08-28T14:02:00Z');
+  assert.equal(started.changed,true);
+  const blocked = core.startJob(started.state,second.job.id,'2026-08-28T14:03:00Z');
+  assert.equal(blocked.changed,false);
+  assert.equal(blocked.reason,'spool-busy');
+  assert.equal(blocked.conflictJob.id,first.job.id);
+});
+
+test('one printer cannot start two independently tracked jobs at the same time', () => {
+  const state = {spools:[
+    measured({id:'S1',placementState:'Loaded',printerName:'P1S',feederName:'AMS 1',feederSlot:'1'}),
+    measured({id:'S2',placementState:'Loaded',printerName:'P1S',feederName:'AMS 1',feederSlot:'2'}),
+  ],printJobs:[]};
+  const first = core.planJob(state,{jobName:'Part A',material:'PLA',color:'Black',grams:200,safetyMargin:0},'S1','2026-08-28T14:00:00Z');
+  const second = core.planJob(first.state,{jobName:'Part B',material:'PLA',color:'Black',grams:200,safetyMargin:0},'S2','2026-08-28T14:01:00Z');
+  const started = core.startJob(second.state,first.job.id,'2026-08-28T14:02:00Z');
+  assert.equal(started.changed,true);
+  const blocked = core.startJob(started.state,second.job.id,'2026-08-28T14:03:00Z');
+  assert.equal(blocked.changed,false);
+  assert.equal(blocked.reason,'printer-busy');
 });
 
 test('completing a print converts the stale scale reading into a usage estimate and records consumption', () => {
@@ -116,6 +174,7 @@ test('completing a print converts the stale scale reading into a usage estimate 
   assert.equal(done.job.status,'completed');
   assert.equal(done.job.consumedGrams,287);
   assert.equal(done.remainingAfter,363);
+  assert.equal(done.reservationShortfall,0);
   assert.equal(done.spool.gross,null);
   assert.equal(done.spool.tare,200);
   assert.equal(done.spool.estimatedRemainingGrams,363);
@@ -123,6 +182,18 @@ test('completing a print converts the stale scale reading into a usage estimate 
   assert.equal(done.spool.lastPrintJobId,done.job.id);
   assert.equal(core.measurement(done.spool).source,'Estimated');
   assert.equal(core.measurement(done.spool).evidence,'usage');
+});
+
+test('completion reports when actual consumption makes later queue commitments unsafe', () => {
+  const state = {spools:[measured({placementState:'Loaded',printerName:'P1S',feederName:'AMS 1',feederSlot:'1'})],printJobs:[]};
+  const first = core.planJob(state,{jobName:'First',material:'PLA',color:'Black',grams:300,safetyMargin:0},'S1','2026-08-28T14:00:00Z');
+  const second = core.planJob(first.state,{jobName:'Second',material:'PLA',color:'Black',grams:300,safetyMargin:0},'S1','2026-08-28T14:01:00Z');
+  const started = core.startJob(second.state,first.job.id,'2026-08-28T14:02:00Z');
+  const done = core.completeJob(started.state,first.job.id,400,'2026-08-28T15:00:00Z');
+  assert.equal(done.changed,true);
+  assert.equal(done.remainingAfter,250);
+  assert.equal(done.reservedAfter,300);
+  assert.equal(done.reservationShortfall,50);
 });
 
 test('completion rejects impossible consumption instead of silently clamping inventory', () => {
@@ -147,6 +218,8 @@ test('V11 shell lazy-loads readiness modules and exposes one print-check action'
   assert.match(client,/data-print-plan/);
   assert.match(client,/data-print-start/);
   assert.match(client,/data-print-complete/);
+  assert.match(client,/data-print-queue-surface/);
+  assert.match(client,/reserved filament released/);
 });
 
 test('print intelligence dialog remains labelled and live-announced', async () => {
