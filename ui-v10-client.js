@@ -3,7 +3,9 @@
 
   // V11 owns navigation, profile switching, page hierarchy, filters, dialogs,
   // Activity presentation and responsive shell behavior. This file remains as
-  // a compatibility bridge for older cached documents that still reference it.
+  // a compatibility bridge only for older cached documents that still reference it.
+  const isNativeV11Document = () => Boolean(document.querySelector('link[href="/css/components/v11.css"]'));
+
   function ensureWorkflowStyles() {
     const href = '/css/components/v11-workflows.css';
     if (document.querySelector(`link[href="${href}"]`)) return;
@@ -15,6 +17,7 @@
   }
 
   function init() {
+    if (isNativeV11Document()) return;
     ensureWorkflowStyles();
     document.documentElement.classList.remove('fi-v10');
     document.documentElement.classList.add('fi-v11');
@@ -23,6 +26,7 @@
 
   globalThis.FilamentInventoryUIV10 = Object.freeze({
     retired:true,
+    active:() => !isNativeV11Document(),
     sync:() => globalThis.FilamentInventoryNavigation?.sync?.(),
   });
 
