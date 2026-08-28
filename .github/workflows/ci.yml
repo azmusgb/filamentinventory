@@ -18,7 +18,7 @@ jobs:
   validate:
     name: Validate
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
 
     steps:
       - name: Check out repository
@@ -55,6 +55,7 @@ jobs:
           test -f dist/app-version.js
           test -f dist/build-meta.json
           test -f dist/user-isolation.js
+          test -f dist/pwa-client.js
           test -f dist/intake-core.js
           test -f dist/intake-client.js
           test -f dist/scan-core.js
@@ -99,13 +100,24 @@ jobs:
           console.log(`Verified exact build identity ${meta.commitRef}.`);
           NODE
 
-      - name: Upload deploy artifact
+      - name: Install browser test runner
+        run: npm run test:e2e:deps
+
+      - name: Install browser engines
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Browser interaction and visual regression
+        run: npm run test:e2e
+
+      - name: Upload deploy and browser artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: filamentinventory-dist-${{ github.run_id }}
+          name: filamentinventory-ci-${{ github.run_id }}
           path: |
             dist
             test-output.txt
+            test-results
+            playwright-report
           if-no-files-found: error
           retention-days: 7

@@ -207,6 +207,7 @@
     applyStartView();
     bindPersistenceGuards();
     matchMedia('(prefers-color-scheme: light)').addEventListener?.('change',()=>{if(read().appearance.theme==='system')apply();});
+    emitChanged();
   }
 
   globalThis.FilamentInventoryProfileUI=Object.freeze({read,readFor,write,apply,render,open:openPreferences,flush:flushPendingSave});

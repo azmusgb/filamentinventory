@@ -19,7 +19,18 @@
       link.dataset.fiComponent = 'printer';
       root.document.head.append(link);
     };
+    const ensurePwaRuntime = () => {
+      if (!root.document || root.FilamentInventoryPWA) return;
+      const src = '/pwa-client.js';
+      if (root.document.querySelector(`script[src="${src}"]`)) return;
+      const script = root.document.createElement('script');
+      script.src = src;
+      script.defer = true;
+      script.dataset.fiPwaRuntime = '1';
+      root.document.head.append(script);
+    };
     ensureComponentStyles();
+    ensurePwaRuntime();
     if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', applyLabels, {once:true});
     else applyLabels();
   }
