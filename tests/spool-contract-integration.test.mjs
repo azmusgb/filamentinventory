@@ -23,7 +23,7 @@ test('canonical spool runtime is included in the public build and offline shell'
     assert.ok(assets.includes(`'${asset}'`), `${asset} must be published`);
     assert.ok(serviceWorker.includes(`'/${asset}'`), `${asset} must be precached`);
   }
-  assert.match(serviceWorker, /filament-inventory-v38/);
+  assert.match(serviceWorker, /filament-inventory-v37/);
 });
 
 test('client bridge adds richer product fields and protects full-fidelity import/export', async () => {
