@@ -10,6 +10,7 @@
   const OWNERS = Object.freeze(['Bill', 'Aimee']);
   const PLACEMENT_STATES = Object.freeze(['Stored', 'Loaded']);
   const LIFECYCLE_STATES = Object.freeze(['Available', 'Loaded', 'Low', 'Empty', 'Archived']);
+  const STOCK_STATES = Object.freeze(['Unknown', 'Available', 'Low', 'Empty', 'Archived']);
   const CONFIDENCE_LEVELS = Object.freeze(['Confirmed', 'High', 'Medium', 'Low', 'Unknown']);
   const TRI_STATES = Object.freeze(['Yes', 'No', 'Unknown']);
 
@@ -119,18 +120,28 @@
     return {grams:null, percent:null, source:'Unknown', evidence:'none', measured:false};
   }
 
-  function lifecycle(spool = {}) {
+  function stockState(spool = {}) {
     if (spool.archivedAt) return 'Archived';
     const remaining = measurement(spool);
+    if (remaining.grams === null) return 'Unknown';
     if (remaining.grams === 0) return 'Empty';
-    if (String(spool.placementState) === 'Loaded') return 'Loaded';
     const threshold = isFiniteNumber(spool.reorderThreshold) ? Number(spool.reorderThreshold) : DEFAULT_REORDER_GRAMS;
-    if (remaining.grams !== null && remaining.grams <= threshold) return 'Low';
+    if (remaining.grams <= threshold) return 'Low';
+    return 'Available';
+  }
+
+  function lifecycle(spool = {}) {
+    if (spool.archivedAt) return 'Archived';
+    const stock = stockState(spool);
+    if (stock === 'Empty') return 'Empty';
+    if (String(spool.placementState) === 'Loaded') return 'Loaded';
+    if (stock === 'Low') return 'Low';
     return 'Available';
   }
 
   function reorderNeeded(spool = {}) {
-    return lifecycle(spool) === 'Low' || lifecycle(spool) === 'Empty';
+    const stock = stockState(spool);
+    return stock === 'Low' || stock === 'Empty';
   }
 
   function productLabel(spool = {}) {
@@ -138,6 +149,44 @@
       .map(value => safeText(value, 80))
       .filter(value => value && value !== 'Unknown')
       .join(' · ') || 'Unknown filament';
+  }
+
+  function placementLabel(spool = {}) {
+    if (spool.archivedAt) return 'Archived';
+    if (String(spool.placementState) !== 'Loaded') return safeText(spool.location, 80) || 'Stored / unassigned';
+    return [
+      safeText(spool.printerName, 60) || 'Loaded',
+      safeText(spool.feederName, 60),
+      safeText(spool.feederSlot, 24) ? `Slot ${safeText(spool.feederSlot, 24)}` : '',
+    ].filter(Boolean).join(' · ');
+  }
+
+  function evidenceLabel(spool = {}) {
+    const remaining = measurement(spool);
+    if (remaining.source === 'Measured') return 'Measured · scale';
+    if (remaining.evidence === 'usage') return 'Estimated · usage';
+    if (remaining.evidence === 'visual') return 'Estimated · visual';
+    return 'Unknown · verify';
+  }
+
+  function workflowSummary(input = {}, options = {}) {
+    const spool = normalizeSpool(input, options);
+    const remaining = measurement(spool);
+    const stock = stockState(spool);
+    const life = lifecycle(spool);
+    return Object.freeze({
+      spool,
+      productLabel:productLabel(spool),
+      placementLabel:placementLabel(spool),
+      lifecycle:life,
+      stock,
+      measurement:remaining,
+      evidenceLabel:evidenceLabel(spool),
+      reorderNeeded:reorderNeeded(spool),
+      needsMeasurement:remaining.grams === null || remaining.source !== 'Measured',
+      loaded:spool.placementState === 'Loaded' && !spool.archivedAt,
+      archived:Boolean(spool.archivedAt),
+    });
   }
 
   function validateSpool(input = {}, options = {}) {
@@ -201,6 +250,7 @@
     OWNERS,
     PLACEMENT_STATES,
     LIFECYCLE_STATES,
+    STOCK_STATES,
     CONFIDENCE_LEVELS,
     isFiniteNumber,
     numberOrNull,
@@ -208,9 +258,13 @@
     normalizeSpool,
     normalizeState,
     measurement,
+    stockState,
     lifecycle,
     reorderNeeded,
     productLabel,
+    placementLabel,
+    evidenceLabel,
+    workflowSummary,
     validateSpool,
     validateState,
   });
