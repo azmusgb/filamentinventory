@@ -24,6 +24,7 @@
   const PAGE_ACTIONS = Object.freeze({inventory:['inventoryAddBtn'], history:['exportHistoryBtn'], data:['installBtn']});
   const ESSENTIAL_FIELDS = new Set(['spoolId','brand','material','colorName','colorHex','startWeight','location','placementV8','printerV8','feederV8','slotV8']);
   const $ = id => document.getElementById(id);
+  const qs = selector => document.querySelector(selector);
   const scriptLoads = new Map();
   const observedViews = new WeakSet();
   let currentRoute = 'dashboard';
@@ -176,7 +177,7 @@
 
   function ensureSidebar() {
     const shell = document.querySelector('.app-shell');
-    if (!shell || $('.fiDesktopSidebar')) return;
+    if (!shell || $('fiDesktopSidebar')) return;
     const aside = document.createElement('aside');
     aside.id = 'fiDesktopSidebar';
     aside.className = 'fi-desktop-sidebar';
@@ -186,7 +187,7 @@
   }
 
   function ensureBottomNav() {
-    let nav = $('.mobile-bottom-nav');
+    let nav = qs('.mobile-bottom-nav');
     if (!nav) {
       nav = document.createElement('nav');
       nav.className = 'mobile-bottom-nav';
@@ -197,7 +198,7 @@
   }
 
   function ensureMoreSheet() {
-    let dialog = $('.fi-more-sheet');
+    let dialog = qs('.fi-more-sheet');
     if (dialog) return dialog;
     dialog = document.createElement('dialog');
     dialog.className = 'fi-more-sheet';
@@ -225,7 +226,7 @@
   function ensureProfileMenu() {
     const topActions = document.querySelector('.top-actions');
     if (!topActions) return;
-    let button = $('.profile-chip');
+    let button = qs('.profile-chip');
     if (!button) {
       button = document.createElement('button');
       button.className = 'profile-chip';
@@ -238,7 +239,7 @@
     button.innerHTML = `<span class="profile-avatar" aria-hidden="true">${identity.initials}</span><span class="profile-chip-copy"><strong>${identity.displayName}</strong><small>Private inventory</small></span><span aria-hidden="true">⌄</span>`;
     button.setAttribute('aria-label',`Switch private inventory. Current: ${identity.displayName}`);
 
-    let dialog = $('.profile-switch-dialog');
+    let dialog = qs('.profile-switch-dialog');
     if (!dialog) {
       dialog = document.createElement('dialog');
       dialog.className = 'profile-switch-dialog';
@@ -349,7 +350,7 @@
   }
 
   function harmonizeActivity() {
-    const switcher = $('.activity-switcher-v10');
+    const switcher = qs('.activity-switcher-v10');
     const actions = $('historyView')?.querySelector(':scope > .fi-page-header .fi-page-header-actions');
     if (!switcher || !actions || actions.contains(switcher)) return;
     const segments = switcher.querySelector('.activity-segments');
@@ -370,7 +371,10 @@
   }
 
   async function runAction(action) {
-    if (action === 'scan') return document.querySelector('.scan-launch')?.click();
+    if (action === 'scan') {
+      if (globalThis.FilamentInventoryScanner?.open) return globalThis.FilamentInventoryScanner.open();
+      return qs('.scan-launch')?.click();
+    }
     if (action === 'add') return ($('inventoryAddBtn') || $('heroAddBtn') || $('addTopBtn'))?.click();
     if (action === 'print' && await ensurePrintReadiness()) return globalThis.FilamentInventoryPrintReadinessUI.open();
   }
@@ -380,7 +384,7 @@
       const close = event.target.closest('[data-dialog-close]');
       if (close) { close.closest('dialog')?.close(); return; }
       const profile = event.target.closest('[data-profile-menu]');
-      if (profile) { const dialog = $('.profile-switch-dialog'); if (dialog && !dialog.open) dialog.showModal(); return; }
+      if (profile) { const dialog = qs('.profile-switch-dialog'); if (dialog && !dialog.open) dialog.showModal(); return; }
       const ownerButton = event.target.closest('[data-profile-owner]');
       if (ownerButton) { ownerButton.closest('dialog')?.close(); localStorage.setItem('filament-current-user-v1',ownerButton.dataset.profileOwner); return; }
       const more = event.target.closest('[data-bottom-more]');
