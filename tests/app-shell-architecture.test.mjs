@@ -76,6 +76,34 @@ test('V11 shell owns one profile switcher while user isolation owns reload and d
   assert.match(isolation, /physicalKey\(rawOwner\(\),key\)/);
 });
 
+test('V11 shell removes inactive and legacy surfaces from the accessibility model', async () => {
+  const js = await read('app-shell-client.js');
+  for (const contract of [
+    'function ensureSkipLink()',
+    "main.id = 'mainContent'",
+    "main.setAttribute('tabindex','-1')",
+    "surface.setAttribute('aria-hidden'",
+    "surface.setAttribute('inert','')",
+    "surface.removeAttribute('inert')",
+    "tabs.setAttribute('aria-hidden','true')",
+    "tabs.setAttribute('inert','')",
+    'tabs.hidden = true',
+    "'mobileAddBtn'",
+  ]) assert.ok(js.includes(contract), `missing V11 accessibility contract: ${contract}`);
+});
+
+test('V11 dialog triggers and shell-owned dialogs are explicitly associated', async () => {
+  const js = await read('app-shell-client.js');
+  assert.match(js, /spoolDialog\.setAttribute\('aria-labelledby','dialogTitle'\)/);
+  assert.match(js, /aria-controls="fiMoreSheet"/);
+  assert.match(js, /aria-labelledby','fiMoreSheetTitle'/);
+  assert.match(js, /aria-controls','fiProfileSwitchDialog'/);
+  assert.match(js, /aria-labelledby','fiProfileSwitchTitle'/);
+  assert.match(js, /aria-controls','fiInventoryFilterDialog'/);
+  assert.match(js, /aria-labelledby','fiInventoryFilterTitle'/);
+  assert.match(js, /control\.setAttribute\('aria-haspopup','dialog'\)/);
+});
+
 test('V11 dialog and responsive shell invariants are explicit and accessibility-safe', async () => {
   const css = await read('css/components/v11.css');
   assert.match(css, /html\.fi-v11 dialog:not\(\[open\]\)\s*\{\s*display:\s*none/);
