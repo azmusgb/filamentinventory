@@ -48,8 +48,12 @@ test('retired V10 bridge is dormant on native V11 documents but remains availabl
   assert.match(bridge, /active:\(\) => !isNativeV11Document\(\)/);
 });
 
-test('V11.1 PWA refreshes its shell cache while retaining the compatibility bridge offline', async () => {
-  const sw = await read('sw.js');
-  assert.match(sw, /const CACHE = 'filament-inventory-v36'/);
-  for (const asset of ['/profile-preferences-client.js','/app-shell-client.js','/ui-v10-client.js']) assert.ok(sw.includes(asset), `missing PWA asset ${asset}`);
+test('V11 PWA registration and v37 cache publish the current shell while retaining the compatibility bridge offline', async () => {
+  const [sw,pwa,version] = await Promise.all([read('sw.js'),read('pwa-client.js'),read('app-version.js')]);
+  assert.match(sw, /const CACHE = 'filament-inventory-v37'/);
+  for (const asset of ['/pwa-client.js','/profile-preferences-client.js','/app-shell-client.js','/ui-v10-client.js']) assert.ok(sw.includes(asset), `missing PWA asset ${asset}`);
+  assert.match(pwa, /navigator\.serviceWorker\.register\(SW_URL, \{scope:'\/'\}\)/);
+  assert.match(pwa, /FilamentInventoryPWA/);
+  assert.match(version, /ensurePwaRuntime/);
+  assert.match(version, /script\.src = src/);
 });
