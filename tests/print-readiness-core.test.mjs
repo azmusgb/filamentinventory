@@ -27,7 +27,22 @@ test('archived and wrong-material spools are excluded', () => {
   assert.equal(result.status,'no-match');
 });
 
-test('current shell loads readiness modules and client injects launcher', async () => {
+test('specialized materials do not match their base polymer', () => {
+  const spools = [
+    {id:'S1',material:'PLA',colorName:'Black',gross:900,tare:200},
+    {id:'S2',material:'PLA+',colorName:'Black',gross:900,tare:200},
+    {id:'S3',material:'Nylon',colorName:'Black',gross:900,tare:200},
+    {id:'S4',material:'Nylon-CF',colorName:'Black',gross:900,tare:200},
+  ];
+  const plaPlus = core.evaluate(spools,{material:'PLA+',color:'Black',grams:100,safetyMargin:0});
+  const nylonCf = core.evaluate(spools,{material:'Nylon-CF',color:'Black',grams:100,safetyMargin:0});
+  assert.equal(plaPlus.recommended.spool.id,'S2');
+  assert.deepEqual(plaPlus.candidates.map(row => row.spool.id), ['S2']);
+  assert.equal(nylonCf.recommended.spool.id,'S4');
+  assert.deepEqual(nylonCf.candidates.map(row => row.spool.id), ['S4']);
+});
+
+test('current shell loads readiness modules and client injects launcher safely', async () => {
   const shell = await read('app-shell-client.js');
   const client = await read('print-readiness-client.js');
   assert.match(shell, /print-readiness-core\.js/);
@@ -35,4 +50,7 @@ test('current shell loads readiness modules and client injects launcher', async 
   assert.match(client, /(?:dataset\.printReadiness\s*=|data-print-readiness)/);
   assert.match(client, /\[data-print-readiness\]/);
   assert.match(client, /Can I print this\?/);
+  assert.match(client, /type=\"button\" data-readiness-close/);
+  assert.match(client, /data-ready-action=\"open\"[^>]*>Review spool</);
+  assert.doesNotMatch(client, /result\.status === 'measurement-needed' \? 'weigh' : row\.loaded \? 'open' : 'place'/);
 });
