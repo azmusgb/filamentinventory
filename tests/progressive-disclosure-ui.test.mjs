@@ -14,17 +14,19 @@ test('mobile primary navigation contains durable destinations plus Scan action a
   assert.doesNotMatch(js,/data-bottom-view="weigh"/);
   assert.doesNotMatch(js,/data-bottom-view="history"/);
   assert.match(js,/fi-more-sheet/);
-  assert.match(js,/data-shell-view="weigh"/);
-  assert.match(js,/data-shell-view="history"/);
+  assert.match(js,/\['Workflow',\[\['weigh','Weigh spool'\],\['print','Can I print this\?'\]\]\]/);
+  assert.match(js,/\['Manage',\[\['history','Activity'\],\['labels','QR labels'\]\]\]/);
 });
 
-test('spool editing and inventory filtering use progressive disclosure', async () => {
-  const [js, css] = await Promise.all([read('app-shell-client.js'),read('css/components/v11.css')]);
+test('spool editing and inventory filtering use semantic progressive disclosure', async () => {
+  const js = await read('app-shell-client.js');
   assert.match(js,/spool-form-essentials/);
   assert.match(js,/spool-form-advanced/);
+  assert.match(js,/document\.createElement\('details'\)/);
   assert.match(js,/inventory-filter-dialog/);
-  assert.match(css,/\.spool-form-advanced/);
-  assert.match(css,/\.inventory-filter-dialog/);
+  assert.match(js,/document\.createElement\('dialog'\)/);
+  assert.match(js,/data-filter-reset/);
+  assert.match(js,/data-filter-apply/);
 });
 
 test('empty Home and dashboard reporting remain intentionally compact', async () => {
