@@ -10,7 +10,7 @@ const CORE = [
   '/sync-client.js', '/security-client.js', '/labels-client.js', '/household-client.js', '/ux-client.js', '/audit-client.js',
   '/personal-dashboard.js', '/profile-preferences-client.js', '/intake-client.js', '/scan-client.js', '/printer-dashboard.js',
   '/inventory-command-client.js', '/spool-actions-client.js', '/smart-weigh-client.js', '/bulk-actions-client.js',
-  '/print-readiness-client.js', '/ui-v10-client.js', '/app-shell-client.js', '/app.js', '/manifest.webmanifest', '/icon.svg'
+  '/print-readiness-client.js', '/ui-v10-client.js', '/app-shell-client.js', '/navigation-architecture.js', '/app.js', '/manifest.webmanifest', '/icon.svg'
 ];
 
 self.addEventListener('install', event => {
