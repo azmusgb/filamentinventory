@@ -1,10 +1,10 @@
-const CACHE = 'filament-inventory-v36';
+const CACHE = 'filament-inventory-v37';
 const CORE = [
   '/', '/index.html', '/styles.css', '/ui-system.css',
   '/css/tokens.css', '/css/base.css', '/css/layout.css', '/css/foundation.css',
   '/css/components/app-shell.css', '/css/components/v11.css', '/css/components/v11-workflows.css', '/css/components/dashboard.css', '/css/components/printer.css',
   '/css/components/weigh.css', '/css/components/physical-spool.css', '/css/components/profile-preferences.css',
-  '/app-version.js', '/events.js', '/user-isolation.js', '/state-merge.js', '/audit-core.js', '/personal-core.js',
+  '/app-version.js', '/events.js', '/user-isolation.js', '/pwa-client.js', '/state-merge.js', '/audit-core.js', '/personal-core.js',
   '/profile-preferences-core.js', '/intake-core.js', '/scan-core.js', '/printer-core.js', '/inventory-command-core.js',
   '/spool-actions-core.js', '/smart-weigh-core.js', '/bulk-actions-core.js', '/print-readiness-core.js', '/workflows.js',
   '/sync-client.js', '/security-client.js', '/labels-client.js', '/household-client.js', '/ux-client.js', '/audit-client.js',
