@@ -30,44 +30,33 @@ test('V10 compatibility bridge is retired from presentation ownership', async ()
   assert.match(bridge, /retired:true/);
   assert.match(bridge, /ensureWorkflowStyles/);
   assert.match(bridge, /classList\.add\('fi-v11'\)/);
-  for (const retiredOwner of [
-    'profileMenuButton',
-    'mobileBottomNav',
-    'inventoryFilterDialog',
-    'activitySwitcherV10',
-    'data-group-featured',
-  ]) assert.doesNotMatch(bridge, new RegExp(retiredOwner), `V10 bridge still owns ${retiredOwner}`);
+  for (const retiredOwner of ['profileMenuButton','mobileBottomNav','inventoryFilterDialog','activitySwitcherV10','data-group-featured']) {
+    assert.doesNotMatch(bridge, new RegExp(retiredOwner), `V10 bridge still owns ${retiredOwner}`);
+  }
 });
 
-test('V11 semantic styles own shell, dialogs and workflow surfaces', async () => {
-  const [shellCss, workflowCss] = await Promise.all([
-    read('css/components/v11.css'),
-    read('css/components/v11-workflows.css'),
-  ]);
-  for (const contract of [
-    '.fi-desktop-sidebar',
-    '.mobile-bottom-nav',
-    '.inventory-filter-dialog',
-    '.spool-form-advanced',
-    '.profile-switch-dialog',
-    'dialog:not([open])',
-  ]) assert.ok(shellCss.includes(contract), `missing V11 shell CSS contract: ${contract}`);
-  for (const contract of [
-    '.weigh-step',
-    '.audit-toolbar',
-    '.labels-workflow',
-    '.sync-status',
-    '@media print',
-  ]) assert.ok(workflowCss.includes(contract), `missing V11 workflow CSS contract: ${contract}`);
+test('V11 semantic styles own shell, dialogs, Home and selected-target safety surfaces', async () => {
+  const css = await read('css/components/v11.css');
+  for (const contract of ['.fi-desktop-sidebar','.mobile-bottom-nav','.profile-chip','.fi-home-dashboard','.fi-selected-targets','dialog:not([open])']) {
+    assert.ok(css.includes(contract), `missing V11 shell CSS contract: ${contract}`);
+  }
+  assert.match(css, /env\(safe-area-inset-bottom\)/);
+  assert.match(css, /prefers-reduced-motion: reduce/);
+  assert.doesNotMatch(css, /!important/);
+});
+
+test('V11 workflow stylesheet owns guided task surfaces and print labels', async () => {
+  const css = await read('css/components/v11-workflows.css');
+  for (const contract of ['.weigh-step','.audit-toolbar','.labels-workflow','.sync-status','@media print']) {
+    assert.ok(css.includes(contract), `missing V11 workflow CSS contract: ${contract}`);
+  }
 });
 
 test('V11 tokens remain the canonical custom-property authority', async () => {
   const tokens = await read('css/tokens.css');
-  for (const token of [
-    '--color-bg:', '--color-surface:', '--color-text:', '--color-accent:',
-    '--layout-sidebar:', '--layout-focus:', '--layout-standard:', '--layout-workbench:',
-    '--label-w:', '--label-h:',
-  ]) assert.ok(tokens.includes(token), `missing V11 token: ${token}`);
+  for (const token of ['--color-bg:','--color-surface:','--color-text:','--color-accent:','--layout-sidebar:','--layout-focus:','--layout-standard:','--layout-workbench:','--label-w:','--label-h:']) {
+    assert.ok(tokens.includes(token), `missing V11 token: ${token}`);
+  }
 });
 
 test('V11 remains presentation-only on data schema 10', async () => {
