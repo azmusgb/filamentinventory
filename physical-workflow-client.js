@@ -11,7 +11,6 @@
 
   const parse = (value, fallback = null) => { try { return JSON.parse(value); } catch { return fallback; } };
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-  const cssEscape = value => globalThis.CSS?.escape ? CSS.escape(String(value)) : String(value).replace(/["\\]/g, '\\$&');
 
   function ensureStyles() {
     const href = '/css/components/physical-workflow.css';
@@ -39,10 +38,23 @@
   function toast(message) {
     const node = document.getElementById('toast');
     if (!node) return;
-    node.textContent = message;
+    if (node.textContent !== message) node.textContent = message;
     node.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => node.classList.remove('show'), 2800);
+  }
+
+  function setText(node, value) {
+    if (!node) return;
+    const next = String(value ?? '');
+    if (node.textContent !== next) node.textContent = next;
+  }
+
+  function setRenderedHtml(node, signature, html) {
+    if (!node || node.dataset.workflowSignature === signature) return false;
+    node.dataset.workflowSignature = signature;
+    node.innerHTML = html;
+    return true;
   }
 
   function badge(label, tone = 'muted') {
@@ -69,8 +81,7 @@
     const ident = body.querySelector('.spool-action-ident');
     if (ident) {
       const copy = ident.querySelector('div');
-      const secondary = copy?.querySelector('span');
-      if (secondary) secondary.textContent = `${summary.productLabel} · ${summary.colorName}`;
+      setText(copy?.querySelector('span'), `${summary.productLabel} · ${summary.colorName}`);
     }
 
     let workflowCard = body.querySelector('.physical-workflow-card');
@@ -85,7 +96,12 @@
     const useAction = summary.recommendation.key === 'use'
       ? `<button class="btn btn-primary physical-workflow-next-action" type="button" data-physical-mark-used="${esc(summary.id)}">${esc(summary.recommendation.label)}</button>`
       : '';
-    workflowCard.innerHTML = `
+    const signature = JSON.stringify([
+      summary.id, summary.lifecycle, summary.stock, summary.remainingLabel, summary.percentLabel,
+      summary.evidenceLabel, summary.placement, summary.recommendation.key, summary.lastUsedAt,
+      summary.details.map(row => [row.label,row.value]),
+    ]);
+    setRenderedHtml(workflowCard, signature, `
       <div class="physical-workflow-status" aria-label="Canonical spool status">
         ${badge(summary.lifecycle, summary.archived ? 'muted' : summary.loaded ? 'info' : 'success')}
         ${badge(summary.evidenceLabel, summary.evidenceTone)}
@@ -94,10 +110,9 @@
       <div class="physical-workflow-next"><span>Recommended next step</span><strong>${esc(summary.recommendation.label)}</strong><p>${esc(summary.recommendation.reason)}</p>${useAction}</div>
       <div class="physical-workflow-steps" aria-label="Physical spool workflow">${summary.steps.map(stepMarkup).join('')}</div>
       ${detailMarkup(summary.details)}
-      ${summary.lastUsedAt ? `<div class="physical-workflow-last-used"><span>Last used</span><strong>${esc(new Date(summary.lastUsedAt).toLocaleString())}</strong></div>` : ''}`;
+      ${summary.lastUsedAt ? `<div class="physical-workflow-last-used"><span>Last used</span><strong>${esc(new Date(summary.lastUsedAt).toLocaleString())}</strong></div>` : ''}`);
 
-    const metric = body.querySelector('.spool-action-metrics > div:first-child small');
-    if (metric) metric.textContent = `${summary.evidenceLabel} · ${summary.percentLabel}`;
+    setText(body.querySelector('.spool-action-metrics > div:first-child small'), `${summary.evidenceLabel} · ${summary.percentLabel}`);
   }
 
   function spoolIdFromPrinterRow(row) {
@@ -117,11 +132,9 @@
       row.dataset.canonicalStock = summary.stock.toLowerCase();
       const main = row.querySelector('.printer-slot-main');
       const title = main?.querySelector('strong');
-      const sub = main?.querySelector('span');
-      if (title) title.textContent = `${summary.id} · ${summary.productLabel} · ${summary.colorName}`;
-      if (sub) {
-        sub.textContent = `${summary.remainingLabel} · ${summary.percentLabel} · ${summary.evidenceLabel}${summary.reorderNeeded ? ' · Reorder' : ''}`;
-      }
+      const sub = main?.querySelector('span:not(.physical-workflow-inline-badge)');
+      setText(title, `${summary.id} · ${summary.productLabel} · ${summary.colorName}`);
+      setText(sub, `${summary.remainingLabel} · ${summary.percentLabel} · ${summary.evidenceLabel}${summary.reorderNeeded ? ' · Reorder' : ''}`);
       let chip = main?.querySelector('.physical-workflow-inline-badge');
       if (!chip && main) {
         chip = document.createElement('span');
@@ -130,7 +143,7 @@
       }
       if (chip) {
         chip.dataset.tone = summary.evidenceTone;
-        chip.textContent = summary.evidenceLabel;
+        setText(chip, summary.evidenceLabel);
       }
     });
   }
@@ -154,18 +167,19 @@
     }
     const spool = selectedWeighSpool();
     if (!spool) {
-      status.textContent = 'Choose a spool to review its current evidence.';
       status.dataset.tone = 'muted';
+      setRenderedHtml(status, 'none', '<strong>Choose a spool</strong><span>Select a spool to review its current remaining-filament evidence.</span>');
       return;
     }
     const summary = workflow.summary(spool);
     status.dataset.tone = summary.evidenceTone;
+    const signature = `${summary.id}|${summary.remainingLabel}|${summary.percentLabel}|${summary.evidenceLabel}`;
     if (summary.measurement.source === 'Measured') {
-      status.innerHTML = `<strong>${esc(summary.remainingLabel)} currently measured</strong><span>${esc(summary.evidenceLabel)} · ${esc(summary.percentLabel)}. Saving another scale reading replaces the prior measurement.</span>`;
+      setRenderedHtml(status, signature, `<strong>${esc(summary.remainingLabel)} currently measured</strong><span>${esc(summary.evidenceLabel)} · ${esc(summary.percentLabel)}. Saving another scale reading replaces the prior measurement.</span>`);
     } else if (summary.measurement.source === 'Estimated') {
-      status.innerHTML = `<strong>${esc(summary.remainingLabel)} currently estimated</strong><span>${esc(summary.evidenceLabel)} · ${esc(summary.percentLabel)}. This scale workflow upgrades the estimate to measured evidence.</span>`;
+      setRenderedHtml(status, signature, `<strong>${esc(summary.remainingLabel)} currently estimated</strong><span>${esc(summary.evidenceLabel)} · ${esc(summary.percentLabel)}. This scale workflow upgrades the estimate to measured evidence.</span>`);
     } else {
-      status.innerHTML = '<strong>Remaining filament is unknown</strong><span>No usable amount is recorded yet. This scale workflow will create authoritative measured evidence.</span>';
+      setRenderedHtml(status, signature, '<strong>Remaining filament is unknown</strong><span>No usable amount is recorded yet. This scale workflow will create authoritative measured evidence.</span>');
     }
   }
 
