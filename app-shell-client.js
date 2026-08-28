@@ -88,14 +88,18 @@
   }
 
   function ensureSkipLink() {
-    let main = document.querySelector('.app-shell > main');
+    const main = document.querySelector('.app-shell > main');
     if (!main) return;
     if (!main.id) main.id = 'mainContent';
+    if (!main.hasAttribute('tabindex')) main.setAttribute('tabindex','-1');
     if (document.querySelector('.fi-skip-link')) return;
     const link = document.createElement('a');
-    link.className = 'fi-skip-link';
+    link.className = 'fi-skip-link btn sr-only';
     link.href = `#${main.id}`;
     link.textContent = 'Skip to content';
+    link.addEventListener('focus',() => link.classList.remove('sr-only'));
+    link.addEventListener('blur',() => link.classList.add('sr-only'));
+    link.addEventListener('click',() => requestAnimationFrame(() => main.focus({preventScroll:true})));
     document.body.prepend(link);
   }
 
@@ -511,7 +515,7 @@
       tabs.setAttribute('inert','');
       tabs.hidden = true;
     }
-    ['exportTopBtn','addTopBtn'].forEach(id => $(id)?.classList.add('fi-global-duplicate'));
+    ['exportTopBtn','addTopBtn','mobileAddBtn'].forEach(id => $(id)?.classList.add('fi-global-duplicate'));
     const brandCopy = document.querySelector('.brand p');
     if (brandCopy) brandCopy.textContent = 'Private filament workspace';
     ensureSidebar();
