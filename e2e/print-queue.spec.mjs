@@ -37,6 +37,7 @@ test('queued jobs reserve grams, surface on Home and release the commitment when
   await page.locator('#printMaterial').fill('PLA');
   await page.locator('#printColor').fill('Black');
   await page.locator('#printGrams').fill('300');
+  await page.locator('.print-job-options > summary').click();
   await page.locator('#printMargin').fill('0');
   await page.getByRole('button',{name:'Check inventory'}).click();
   await expect(page.locator('#printReadinessResult')).toContainText('Enough verified filament');
