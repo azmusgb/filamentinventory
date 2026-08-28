@@ -3,8 +3,16 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './e2e',
   outputDir: 'test-results/browser',
+  snapshotPathTemplate: '{testDir}/__screenshots__/{testFilePath}/{projectName}/{arg}{ext}',
   timeout: 30000,
-  expect: { timeout: 6000 },
+  expect: {
+    timeout: 6000,
+    toHaveScreenshot: {
+      animations: 'disabled',
+      caret: 'hide',
+      maxDiffPixelRatio: 0.01,
+    },
+  },
   fullyParallel: true,
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 2 : undefined,
@@ -16,6 +24,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
+    reducedMotion: 'reduce',
   },
   webServer: {
     command: 'node scripts/serve-dist.mjs',
