@@ -13,7 +13,10 @@
 .fi-ui .profile-settings-head { display:flex; justify-content:space-between; gap:var(--space-4); margin-bottom:var(--space-5); }
 .fi-ui .profile-settings-head h3 { margin:0; font-size:var(--text-xl); }
 .fi-ui .profile-settings-head p { margin:4px 0 0; color:var(--color-text-muted); font-size:var(--text-sm); }
-.fi-ui .profile-settings-actions { display:flex; justify-content:space-between; gap:var(--space-3); padding:var(--space-5) var(--space-6); background:color-mix(in srgb,var(--color-surface) 72%,transparent); }
+.fi-ui .profile-settings-actions { display:flex; align-items:center; justify-content:space-between; gap:var(--space-3); padding:var(--space-5) var(--space-6); background:color-mix(in srgb,var(--color-surface) 72%,transparent); }
+.fi-ui .profile-save-cluster { display:flex; align-items:center; justify-content:flex-end; gap:var(--space-3); min-width:0; }
+.fi-ui .profile-save-status { color:var(--color-text-subtle); font-size:var(--text-xs); white-space:nowrap; }
+.fi-ui .profile-save-status[data-state="saving"] { color:var(--color-accent); }
 .fi-ui[data-profile-density="compact"] .panel,
 .fi-ui[data-profile-density="compact"] .hero-card { border-radius:var(--radius-md); }
 .fi-ui[data-profile-density="compact"] .inventory-grid { gap:var(--space-2); }
@@ -29,5 +32,7 @@
 @media (max-width:640px) {
   .fi-ui .profile-settings-section { padding:var(--space-5); }
   .fi-ui .profile-settings-actions { display:grid; grid-template-columns:1fr; padding:var(--space-5); }
-  .fi-ui .profile-settings-actions .btn-primary { grid-row:1; }
+  .fi-ui .profile-save-cluster { display:grid; grid-template-columns:1fr; justify-items:stretch; }
+  .fi-ui .profile-save-status { text-align:center; }
+  .fi-ui .profile-save-cluster .btn-primary { grid-row:1; width:100%; }
 }

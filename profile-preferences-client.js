@@ -6,15 +6,18 @@
   const users=globalThis.FilamentInventoryUsers;
   const $=id=>document.getElementById(id);
   const owner=()=>users?.currentUser?.()||'Bill';
-  const storageKey=()=>`${users?.USER_PREFIX||'filament-user-v1'}:${owner().toLowerCase()}:preferences`;
-  const read=()=>{try{return core.normalize(JSON.parse(localStorage.getItem(storageKey())||'{}'),owner());}catch{return core.defaults(owner());}};
+  const normalizeOwner=value=>users?.OWNERS?.includes(String(value))?String(value):owner();
+  const storageKey=(forOwner=owner())=>`${users?.USER_PREFIX||'filament-user-v1'}:${normalizeOwner(forOwner).toLowerCase()}:preferences`;
+  const readFor=(forOwner=owner())=>{const target=normalizeOwner(forOwner);try{return core.normalize(JSON.parse(localStorage.getItem(storageKey(target))||'{}'),target);}catch{return core.defaults(target);}};
+  const read=()=>readFor(owner());
   const write=value=>{const normalized=core.normalize(value,owner());localStorage.setItem(storageKey(),JSON.stringify(normalized));return normalized;};
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let applying=false;
   let resetSnapshot=null;
+  let saveTimer=0;
 
   function navigate(view){
-    if(globalThis.FilamentInventoryNavigation?.navigate?.(view,{historyMode:'replace',focus:true})) return;
+    if(globalThis.FilamentInventoryNavigation?.navigate?.(view,{historyMode:'push',focus:true})) return;
     document.querySelector(`.tab[data-view="${CSS.escape(view)}"]`)?.click();
   }
 
@@ -46,10 +49,10 @@
       </section>
       <form class="panel profile-preferences-form" id="profilePreferencesForm">
         <section class="profile-settings-section"><div class="profile-settings-head"><div><h3>Identity</h3><p>How this workspace appears in the app.</p></div></div><div class="form-grid"><div class="form-field"><label for="profileDisplayName">Display name</label><input class="field" id="profileDisplayName" maxlength="48" value="${esc(p.identity.displayName)}"></div><div class="form-field"><label for="profileInitials">Initials</label><input class="field" id="profileInitials" maxlength="3" value="${esc(p.identity.initials)}"></div></div></section>
-        <section class="profile-settings-section"><div class="profile-settings-head"><div><h3>Appearance</h3><p>Theme and density preview immediately on this device.</p></div></div><div class="form-grid"><div class="form-field"><label for="profileTheme">Theme</label><select class="select" id="profileTheme"><option value="system">Follow system</option><option value="dark">Dark</option><option value="light">Light</option></select></div><div class="form-field"><label for="profileAccent">Accent</label><select class="select" id="profileAccent">${core.ACCENTS.map(value=>`<option value="${value}">${optionLabel(value)}</option>`).join('')}</select></div><div class="form-field"><label for="profileDensity">Density</label><select class="select" id="profileDensity"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></div></div></section>
+        <section class="profile-settings-section"><div class="profile-settings-head"><div><h3>Appearance</h3><p>Theme, accent and density preview immediately and save automatically.</p></div></div><div class="form-grid"><div class="form-field"><label for="profileTheme">Theme</label><select class="select" id="profileTheme"><option value="system">Follow system</option><option value="dark">Dark</option><option value="light">Light</option></select></div><div class="form-field"><label for="profileAccent">Accent</label><select class="select" id="profileAccent">${core.ACCENTS.map(value=>`<option value="${value}">${optionLabel(value)}</option>`).join('')}</select></div><div class="form-field"><label for="profileDensity">Density</label><select class="select" id="profileDensity"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></div></div></section>
         <section class="profile-settings-section"><div class="profile-settings-head"><div><h3>Workspace</h3><p>Choose where this profile starts and how much Home shows.</p></div></div><div class="form-grid"><div class="form-field"><label for="profileStartView">Start on</label><select class="select" id="profileStartView"><option value="dashboard">Home</option><option value="inventory">Inventory</option><option value="household">Printer</option></select></div><div class="form-field"><label for="profileDashboardDetail">Home detail</label><select class="select" id="profileDashboardDetail"><option value="focused">Focused</option><option value="balanced">Balanced</option></select></div></div></section>
         <section class="profile-settings-section"><div class="profile-settings-head"><div><h3>Printing defaults</h3><p>Defaults used by print checks and newly added spools.</p></div></div><div class="form-grid"><div class="form-field"><label for="profileSafetyMargin">Print safety margin (%)</label><input class="field" id="profileSafetyMargin" type="number" min="0" max="100" step="1" value="${p.printing.safetyMargin}"></div><div class="form-field"><label for="profileReorder">Default reorder threshold (g)</label><input class="field" id="profileReorder" type="number" min="0" max="5000" step="10" value="${p.printing.defaultReorderGrams}"></div><div class="form-field"><label for="profileStartWeight">Default spool weight (g)</label><input class="field" id="profileStartWeight" type="number" min="1" max="10000" step="50" value="${p.printing.defaultStartWeight}"></div></div></section>
-        <div class="profile-settings-actions"><button class="btn" type="button" data-profile-reset>Reset defaults</button><button class="btn btn-primary" type="submit">Save preferences</button></div>
+        <div class="profile-settings-actions"><button class="btn" type="button" data-profile-reset>Reset defaults</button><div class="profile-save-cluster"><span class="profile-save-status" data-profile-save-status role="status" aria-live="polite" data-state="saved">Saved automatically</span><button class="btn btn-primary" type="submit">Save now</button></div></div>
       </form>
     </div>`;
     $('profileTheme').value=p.appearance.theme;
@@ -57,7 +60,10 @@
     $('profileDensity').value=p.appearance.density;
     $('profileStartView').value=p.workspace.startView;
     $('profileDashboardDetail').value=p.workspace.dashboardDetail;
-    $('profilePreferencesForm').addEventListener('submit',save);
+    const form=$('profilePreferencesForm');
+    form?.addEventListener('submit',saveNow);
+    form?.addEventListener('input',scheduleSave);
+    form?.addEventListener('change',scheduleSave);
     ['profileTheme','profileAccent','profileDensity'].forEach(id=>$(id)?.addEventListener('change',previewAppearance));
     view.querySelector('[data-profile-reset]')?.addEventListener('click',resetDefaults);
   }
@@ -71,10 +77,62 @@
     };
   }
 
+  function setSaveStatus(text,state='saved'){
+    const node=document.querySelector('[data-profile-save-status]');
+    if(!node) return;
+    node.textContent=text;
+    node.dataset.state=state;
+  }
+
+  function updateIdentityPreview(p){
+    const view=$('preferencesView');
+    if(!view) return;
+    const avatar=view.querySelector('.profile-identity-preview .profile-avatar-lg');
+    const title=view.querySelector('.profile-identity-preview h3');
+    if(avatar) avatar.textContent=p.identity.initials;
+    if(title) title.textContent=p.identity.displayName;
+  }
+
+  function emitChanged(){
+    const detail={owner:owner()};
+    globalThis.FilamentInventoryEvents?.emit?.('profile:preferences-changed',detail);
+    document.dispatchEvent(new CustomEvent('fi:profile-updated',{detail}));
+  }
+
   function previewAppearance(){
     const current=read();
-    const preview=core.merge(current,{appearance:{theme:$('profileTheme')?.value,accent:$('profileAccent')?.value,density:$('profileDensity')?.value}},owner());
+    const draft=formValue();
+    const preview=core.merge(current,{appearance:draft.appearance},owner());
     apply(preview,{persist:false});
+  }
+
+  function persistForm({announce=false}={}){
+    if(!$('profilePreferencesForm')) return null;
+    if(saveTimer){clearTimeout(saveTimer);saveTimer=0;}
+    const next=write(formValue());
+    apply(next,{persist:false});
+    updateIdentityPreview(next);
+    emitChanged();
+    setSaveStatus('Saved automatically','saved');
+    if(announce) toast('Preferences saved.');
+    return next;
+  }
+
+  function scheduleSave(){
+    if(!$('profilePreferencesForm')) return;
+    if(saveTimer) clearTimeout(saveTimer);
+    setSaveStatus('Saving…','saving');
+    saveTimer=setTimeout(()=>{saveTimer=0;persistForm();},450);
+  }
+
+  function flushPendingSave(){
+    if(!saveTimer) return;
+    clearTimeout(saveTimer);saveTimer=0;persistForm();
+  }
+
+  function saveNow(event){
+    event?.preventDefault();
+    persistForm({announce:true});
   }
 
   function toast(message,undo){
@@ -86,25 +144,16 @@
     node.classList.add('show');setTimeout(()=>node.classList.remove('show'),undo?6000:2600);
   }
 
-  function save(event){
-    event?.preventDefault();
-    const next=write(formValue());
-    apply(next,{persist:false});
-    render();
-    globalThis.FilamentInventoryEvents?.emit?.('profile:preferences-changed',{owner:owner()});
-    document.dispatchEvent(new CustomEvent('fi:profile-updated',{detail:{owner:owner()}}));
-    toast('Preferences saved.');
-  }
-
   function resetDefaults(){
+    if(saveTimer){clearTimeout(saveTimer);saveTimer=0;}
     resetSnapshot=read();
     const next=write(core.defaults(owner()));
     apply(next,{persist:false});
     render();
-    document.dispatchEvent(new CustomEvent('fi:profile-updated',{detail:{owner:owner()}}));
+    emitChanged();
     toast('Profile defaults restored.',()=>{
       if(!resetSnapshot) return;
-      write(resetSnapshot);apply(resetSnapshot,{persist:false});render();document.dispatchEvent(new CustomEvent('fi:profile-updated',{detail:{owner:owner()}}));resetSnapshot=null;
+      const restored=write(resetSnapshot);apply(restored,{persist:false});render();emitChanged();resetSnapshot=null;
     });
   }
 
@@ -145,14 +194,21 @@
     setTimeout(()=>navigate(p.workspace.startView),100);
   }
 
+  function bindPersistenceGuards(){
+    document.addEventListener('fi:navigation',flushPendingSave);
+    window.addEventListener('pagehide',flushPendingSave);
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)flushPendingSave();});
+  }
+
   function init(){
     ensureSurface();
     render();
     apply();
     applyStartView();
+    bindPersistenceGuards();
     matchMedia('(prefers-color-scheme: light)').addEventListener?.('change',()=>{if(read().appearance.theme==='system')apply();});
   }
 
-  globalThis.FilamentInventoryProfileUI=Object.freeze({read,write,apply,render,open:openPreferences});
+  globalThis.FilamentInventoryProfileUI=Object.freeze({read,readFor,write,apply,render,open:openPreferences,flush:flushPendingSave});
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
 })();
