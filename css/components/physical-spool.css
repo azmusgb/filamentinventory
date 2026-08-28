@@ -28,10 +28,37 @@
 .fi-ui .spool-action-grid .btn { min-height:48px; justify-content:center; }
 .fi-ui .spool-action-note { margin:var(--space-4) 0 0; color:var(--color-text-muted); font-size:var(--text-sm); line-height:1.5; }
 .fi-ui .spool-action-bar { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:var(--space-2); margin-top:var(--space-3); }
+
+/* Global dialog state invariant: closed native dialogs must never participate in layout. */
+.fi-ui dialog:not([open]) { display:none; }
+.fi-ui dialog[open] { isolation:isolate; }
+
+/* Empty Home is a single onboarding surface, not a tool dashboard. */
+.fi-ui .fi-home-compact[data-empty="true"] > .fi-page-header { display:none; }
+.fi-ui .fi-home-compact[data-empty="true"] .hero-copy > .eyebrow { display:none; }
+.fi-ui .fi-home-compact[data-empty="true"] .hero-copy::after { display:none; }
+.fi-ui .fi-home-compact[data-empty="true"] [data-print-readiness] { display:none; }
+.fi-ui .fi-home-compact[data-empty="true"] .dashboard-restore-btn { display:none; }
+.fi-ui .fi-home-compact[data-empty="true"] .hero-actions .btn:not(.btn-primary) { display:none; }
+.fi-ui .fi-home-compact[data-empty="true"] .hero-actions .btn-primary { width:100%; }
+
 @media (min-width:560px) {
   .fi-ui .spool-action-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .fi-ui .spool-action-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .fi-ui .spool-action-grid .btn-primary { grid-column:1 / -1; }
+}
+@media (max-width:959px) {
+  .fi-ui.fi-v10 .mobile-bottom-nav [data-bottom-scan] {
+    color:var(--color-text);
+    background:color-mix(in srgb,var(--color-accent) 12%,var(--color-surface));
+    border:1px solid color-mix(in srgb,var(--color-accent) 30%,var(--color-border));
+    box-shadow:none;
+  }
+  .fi-ui.fi-v10 .mobile-bottom-nav button[aria-current="page"] {
+    color:var(--color-text);
+    background:color-mix(in srgb,var(--color-accent) 18%,var(--color-surface));
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--color-accent) 36%,transparent);
+  }
 }
 @media (max-width:559px) {
   .fi-ui .spool-action-dialog { width:100vw; max-width:none; margin:auto 0 0; border-radius:var(--radius-xl) var(--radius-xl) 0 0; border-bottom:0; }
