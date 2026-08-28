@@ -1,24 +1,64 @@
 (function(root, factory) {
-  const api = factory();
+  const resolveContract = () => {
+    if (typeof module === 'object' && module.exports) return require('./spool-contract-core.js');
+    return root?.FilamentInventorySpoolContract || null;
+  };
+  const api = factory(resolveContract);
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.FilamentInventoryPrinter = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function(resolveContract) {
   'use strict';
 
   const validNum = value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value));
   const text = value => String(value || '').trim();
+  const contract = () => resolveContract?.() || null;
 
   function measurement(spool = {}) {
+    const api = contract();
+    if (api?.measurement) return api.measurement(spool);
     const start = validNum(spool.startWeight) && Number(spool.startWeight) > 0 ? Number(spool.startWeight) : 1000;
     if (validNum(spool.gross) && validNum(spool.tare) && Number(spool.gross) >= Number(spool.tare)) {
-      const grams = Math.min(start, Math.max(0, Number(spool.gross) - Number(spool.tare)));
-      return {grams, percent:Math.round((grams / start) * 1000) / 10, source:'Measured'};
+      const grams = Math.max(0, Number(spool.gross) - Number(spool.tare));
+      return {grams, percent:Math.round(Math.min(100, grams / start * 100) * 10) / 10, source:'Measured', evidence:'scale', measured:true};
     }
     if (validNum(spool.visualPercent)) {
       const percent = Math.max(0, Math.min(100, Number(spool.visualPercent)));
-      return {grams:Math.round(start * percent / 100), percent, source:'Visual'};
+      return {grams:Math.round(start * percent / 100), percent, source:'Estimated', evidence:'visual', measured:false};
     }
-    return {grams:null, percent:null, source:'Unknown'};
+    return {grams:null, percent:null, source:'Unknown', evidence:'none', measured:false};
+  }
+
+  function reorderNeeded(spool = {}) {
+    const api = contract();
+    if (api?.reorderNeeded) return api.reorderNeeded(spool);
+    if (spool.archivedAt) return false;
+    const m = measurement(spool);
+    return m.grams !== null && m.grams <= Number(spool.reorderThreshold ?? 250);
+  }
+
+  function stockState(spool = {}) {
+    const api = contract();
+    if (api?.stockState) return api.stockState(spool);
+    if (spool.archivedAt) return 'Archived';
+    const m = measurement(spool);
+    if (m.grams === null) return 'Unknown';
+    if (m.grams === 0) return 'Empty';
+    return reorderNeeded(spool) ? 'Low' : 'Available';
+  }
+
+  function evidenceLabel(spool = {}) {
+    const api = contract();
+    if (api?.evidenceLabel) return api.evidenceLabel(spool);
+    const m = measurement(spool);
+    if (m.source === 'Measured') return 'Measured · scale';
+    if (m.source === 'Estimated') return 'Estimated · visual';
+    return 'Unknown · verify';
+  }
+
+  function productLabel(spool = {}) {
+    const api = contract();
+    if (api?.productLabel) return api.productLabel(spool);
+    return [spool.brand, spool.productLine, spool.material].map(text).filter(value => value && value !== 'Unknown').join(' · ') || 'Unknown filament';
   }
 
   function slotKey(spool = {}) {
@@ -62,11 +102,9 @@
     const active = activeSpools(state);
     const loaded = loadedSpools(state);
     const known = loaded.map(measurement).filter(m => m.grams !== null);
-    const low = loaded.filter(spool => {
-      const m = measurement(spool);
-      return m.grams !== null && m.grams <= Number(spool.reorderThreshold ?? 250);
-    });
+    const low = loaded.filter(reorderNeeded);
     const unknown = loaded.filter(spool => measurement(spool).grams === null);
+    const estimated = loaded.filter(spool => measurement(spool).source === 'Estimated');
     return {
       active:active.length,
       loaded:loaded.length,
@@ -74,6 +112,7 @@
       knownLoadedGrams:known.reduce((sum,m) => sum + m.grams, 0),
       lowLoaded:low,
       unknownLoaded:unknown,
+      estimatedLoaded:estimated,
       conflicts:slotConflicts(state),
     };
   }
@@ -85,8 +124,10 @@
     if (context.material && text(spool.material).toLowerCase() === text(context.material).toLowerCase()) score += 20;
     if (context.color && text(spool.colorName).toLowerCase().includes(text(context.color).toLowerCase())) score += 12;
     if (m.grams !== null) score += Math.min(20, m.grams / 100);
-    if (m.grams === null) score -= 4;
-    if (m.grams !== null && m.grams <= Number(spool.reorderThreshold ?? 250)) score -= 12;
+    if (m.source === 'Measured') score += 4;
+    else if (m.source === 'Estimated') score += 1;
+    else score -= 4;
+    if (reorderNeeded(spool)) score -= 12;
     return score;
   }
 
@@ -96,5 +137,5 @@
       .sort((a,b) => b.score - a.score || String(a.spool.id).localeCompare(String(b.spool.id), undefined, {numeric:true}));
   }
 
-  return Object.freeze({measurement, slotKey, activeSpools, loadedSpools, printerGroups, slotConflicts, summary, candidateScore, rankedCandidates});
+  return Object.freeze({measurement, reorderNeeded, stockState, evidenceLabel, productLabel, slotKey, activeSpools, loadedSpools, printerGroups, slotConflicts, summary, candidateScore, rankedCandidates});
 });
