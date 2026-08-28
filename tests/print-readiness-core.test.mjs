@@ -47,10 +47,22 @@ test('current shell loads readiness modules and client injects launcher safely',
   const client = await read('print-readiness-client.js');
   assert.match(shell, /print-readiness-core\.js/);
   assert.match(shell, /print-readiness-client\.js/);
+  assert.match(shell, /const scriptLoads = new Map\(\)/);
+  assert.match(shell, /action==='print-readiness' && await ensurePrintReadiness\(\)/);
   assert.match(client, /(?:dataset\.printReadiness\s*=|data-print-readiness)/);
   assert.match(client, /\[data-print-readiness\]/);
   assert.match(client, /Can I print this\?/);
   assert.match(client, /type=\"button\" data-readiness-close/);
   assert.match(client, /data-ready-action=\"open\"[^>]*>Review spool</);
   assert.doesNotMatch(client, /result\.status === 'measurement-needed' \? 'weigh' : row\.loaded \? 'open' : 'place'/);
+});
+
+test('readiness dialog is labelled and refreshes a prior query after corrective workflows', async () => {
+  const client = await read('print-readiness-client.js');
+  assert.match(client, /aria-labelledby','printReadinessTitle'/);
+  assert.match(client, /id=\"printReadinessTitle\"/);
+  assert.match(client, /role=\"status\" aria-live=\"polite\" aria-atomic=\"true\"/);
+  assert.match(client, /host\.dataset\.hasResult = '1'/);
+  assert.match(client, /function hasRecheckableQuery\(\)/);
+  assert.match(client, /if \(hasRecheckableQuery\(\)\) render\(\)/);
 });
