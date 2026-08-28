@@ -34,6 +34,11 @@
     return promise;
   };
 
+  const loadStylesheet = href => {
+    if (document.querySelector(`link[data-fi-dynamic-style="${href}"]`)) return;
+    const link=document.createElement('link'); link.rel='stylesheet'; link.href=href; link.dataset.fiDynamicStyle=href; document.head.appendChild(link);
+  };
+
   async function ensurePrintReadiness() {
     try {
       if (!globalThis.FilamentInventoryPrintReadiness) await loadScript('/print-readiness-core.js');
@@ -41,6 +46,18 @@
       return Boolean(globalThis.FilamentInventoryPrintReadinessUI);
     } catch (error) {
       console.error('Print readiness failed to initialize.', error);
+      return false;
+    }
+  }
+
+  async function ensureProfilePreferences() {
+    try {
+      loadStylesheet('/css/components/profile-preferences.css');
+      if (!globalThis.FilamentInventoryProfilePreferences) await loadScript('/profile-preferences-core.js');
+      if (!globalThis.FilamentInventoryProfileUI) await loadScript('/profile-preferences-client.js');
+      return Boolean(globalThis.FilamentInventoryProfileUI);
+    } catch (error) {
+      console.error('Profile personalization failed to initialize.', error);
       return false;
     }
   }
@@ -123,7 +140,7 @@
   }
 
   function harmonize() {
-    adoptPageActions(); suppressLegacyPageHeads(); compactHome(); quietTopbar(); harmonizeActivitySwitcher(); enhanceBottomNav(); sync();
+    ensureWidths(); ensurePageHeaders(); adoptPageActions(); suppressLegacyPageHeads(); compactHome(); quietTopbar(); harmonizeActivitySwitcher(); enhanceBottomNav(); sync();
   }
 
   function scheduleHarmonize() {
@@ -132,7 +149,7 @@
   }
 
   function init(){
-    document.documentElement.classList.add('fi-app-frame'); ensureWidths(); ensureSidebar(); ensurePageHeaders(); simplifyLegacyNav(); harmonize(); ensurePrintReadiness();
+    document.documentElement.classList.add('fi-app-frame'); ensureWidths(); ensureSidebar(); ensurePageHeaders(); simplifyLegacyNav(); harmonize(); ensurePrintReadiness(); ensureProfilePreferences().then(scheduleHarmonize);
     document.addEventListener('click',e=>{ if(e.target.closest('.tab[data-view]')) setTimeout(sync,0); });
     new MutationObserver(scheduleHarmonize).observe(document.body,{childList:true,subtree:true});
   }
