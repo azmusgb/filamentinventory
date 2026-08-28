@@ -32,6 +32,7 @@ test('current shell loads readiness modules and client injects launcher', async 
   const client = await read('print-readiness-client.js');
   assert.match(shell, /print-readiness-core\.js/);
   assert.match(shell, /print-readiness-client\.js/);
-  assert.match(client, /data\.printReadiness/);
+  assert.match(client, /(?:dataset\.printReadiness\s*=|data-print-readiness)/);
+  assert.match(client, /\[data-print-readiness\]/);
   assert.match(client, /Can I print this\?/);
 });
