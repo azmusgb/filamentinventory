@@ -248,7 +248,7 @@ html.fi-v11 .inventory-evidence-chip[data-evidence="unknown"] {
 
   html.fi-v11 .fi-page-inventory .spool-card .meta,
   html.fi-v11 .fi-page-inventory .spool-action-bar {
-    display: none !important;
+    display: none;
   }
 
   html.fi-v11.bulk-selection-mode .fi-page-inventory .spool-card-more {
