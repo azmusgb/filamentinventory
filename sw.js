@@ -1,4 +1,4 @@
-const CACHE = 'filament-inventory-v35';
+const CACHE = 'filament-inventory-v36';
 const CORE = [
   '/', '/index.html', '/styles.css', '/ui-system.css',
   '/css/tokens.css', '/css/base.css', '/css/layout.css', '/css/foundation.css',
