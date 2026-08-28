@@ -7,6 +7,7 @@
   'use strict';
 
   const MAX_AUDIT_ENTRIES = 1500;
+  const MAX_PRINT_JOBS = 250;
 
   function timestamp(value) {
     const parsed = Date.parse(String(value || ''));
@@ -15,6 +16,16 @@
 
   function recordTime(spool) {
     return Math.max(timestamp(spool?.updatedAt), timestamp(spool?.createdAt));
+  }
+
+  function printJobTime(job) {
+    return Math.max(
+      timestamp(job?.updatedAt),
+      timestamp(job?.completedAt),
+      timestamp(job?.cancelledAt),
+      timestamp(job?.startedAt),
+      timestamp(job?.plannedAt),
+    );
   }
 
   function normalizeTombstones(value) {
@@ -49,6 +60,24 @@
       if (!old || timestamp(at) >= timestamp(old.at)) map.set(id, row);
     }
     return [...map.values()].sort((a,b) => timestamp(a?.at) - timestamp(b?.at)).slice(-Math.max(1, Number(limit) || MAX_AUDIT_ENTRIES));
+  }
+
+  function mergePrintJobs(currentValue, incomingValue, limit = MAX_PRINT_JOBS) {
+    const map = new Map();
+    for (const row of [
+      ...(Array.isArray(currentValue) ? currentValue : []),
+      ...(Array.isArray(incomingValue) ? incomingValue : []),
+    ]) {
+      const id = String(row?.id || '').trim();
+      const spoolId = String(row?.spoolId || '').trim();
+      const plannedAt = String(row?.plannedAt || '');
+      if (!id || !spoolId || !timestamp(plannedAt)) continue;
+      const old = map.get(id);
+      if (!old || printJobTime(row) >= printJobTime(old)) map.set(id, row);
+    }
+    return [...map.values()]
+      .sort((a,b) => printJobTime(a) - printJobTime(b) || String(a.id).localeCompare(String(b.id)))
+      .slice(-Math.max(1, Number(limit) || MAX_PRINT_JOBS));
   }
 
   function mergeBackupStates(currentRaw, incomingRaw) {
@@ -92,6 +121,7 @@
 
     const weighLog = [...logs.values()].sort((a, b) => timestamp(a?.at) - timestamp(b?.at));
     const auditLog = mergeAuditLogs(current.auditLog, incoming.auditLog);
+    const printJobs = mergePrintJobs(current.printJobs, incoming.printJobs);
     const version = Math.max(Number(current.version) || 0, Number(incoming.version) || 0);
 
     return {
@@ -101,16 +131,20 @@
       spools,
       weighLog,
       auditLog,
+      printJobs,
       tombstones,
       meta: { ...(current.meta || {}), ...(incoming.meta || {}) },
     };
   }
 
   return Object.freeze({
+    MAX_PRINT_JOBS,
     mergeAuditLogs,
+    mergePrintJobs,
     mergeBackupStates,
     mergeTombstones,
     normalizeTombstones,
+    printJobTime,
     recordTime,
     timestamp,
   });
