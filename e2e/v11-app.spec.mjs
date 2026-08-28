@@ -67,6 +67,9 @@ async function boot(page) {
   await expect(page.locator('html')).toHaveClass(/fi-v11/);
   await expect.poll(() => page.locator('.view.active').count()).toBe(1);
   await expect.poll(() => page.evaluate(() => Boolean(globalThis.FilamentInventoryNavigation))).toBe(true);
+  await expect.poll(() => page.evaluate(() => Boolean(globalThis.FilamentInventoryProfileUI))).toBe(true);
+  await expect(page.locator('.profile-chip')).toContainText('Bill Lab');
+  await expect(page.locator('#dashboardTitle')).toContainText('Bill Lab');
 }
 
 async function navigate(page, view) {
