@@ -1,0 +1,33 @@
+@import url("../tokens.css");
+
+.fi-ui .profile-preferences-view { padding-bottom:var(--space-8); }
+.fi-ui .profile-preferences-grid { display:grid; grid-template-columns:minmax(240px,.68fr) minmax(0,1.6fr); gap:var(--space-5); align-items:start; }
+.fi-ui .profile-identity-card { position:sticky; top:84px; padding:var(--space-6); }
+.fi-ui .profile-identity-preview { display:flex; align-items:center; gap:var(--space-4); margin-bottom:var(--space-4); }
+.fi-ui .profile-avatar-lg { width:58px; height:58px; display:grid; place-items:center; border-radius:var(--radius-lg); background:color-mix(in srgb,var(--color-accent) 18%,var(--color-surface-raised)); border:1px solid color-mix(in srgb,var(--color-accent) 42%,var(--color-border)); color:var(--color-text); font-size:var(--text-xl); font-weight:800; letter-spacing:-.03em; }
+.fi-ui .profile-identity-preview h3 { margin:4px 0 2px; font-size:var(--text-2xl); letter-spacing:-.035em; }
+.fi-ui .profile-identity-preview p { margin:0; color:var(--color-text-muted); }
+.fi-ui .profile-preferences-form { padding:0; overflow:hidden; }
+.fi-ui .profile-settings-section { padding:var(--space-6); border-bottom:1px solid var(--color-border); }
+.fi-ui .profile-settings-section:last-of-type { border-bottom:0; }
+.fi-ui .profile-settings-head { display:flex; justify-content:space-between; gap:var(--space-4); margin-bottom:var(--space-5); }
+.fi-ui .profile-settings-head h3 { margin:0; font-size:var(--text-xl); }
+.fi-ui .profile-settings-head p { margin:4px 0 0; color:var(--color-text-muted); font-size:var(--text-sm); }
+.fi-ui .profile-settings-actions { display:flex; justify-content:space-between; gap:var(--space-3); padding:var(--space-5) var(--space-6); background:color-mix(in srgb,var(--color-surface) 72%,transparent); }
+.fi-ui[data-profile-density="compact"] .panel,
+.fi-ui[data-profile-density="compact"] .hero-card { border-radius:var(--radius-md); }
+.fi-ui[data-profile-density="compact"] .inventory-grid { gap:var(--space-2); }
+.fi-ui[data-profile-density="compact"] .spool-card,
+.fi-ui[data-profile-density="compact"] .metric { padding:var(--space-3); }
+.fi-ui[data-profile-dashboard="focused"] .dashboard-secondary { display:none; }
+.fi-ui[data-profile-dashboard="balanced"] .dashboard-secondary { display:grid; }
+
+@media (max-width:860px) {
+  .fi-ui .profile-preferences-grid { grid-template-columns:1fr; }
+  .fi-ui .profile-identity-card { position:static; }
+}
+@media (max-width:640px) {
+  .fi-ui .profile-settings-section { padding:var(--space-5); }
+  .fi-ui .profile-settings-actions { display:grid; grid-template-columns:1fr; padding:var(--space-5); }
+  .fi-ui .profile-settings-actions .btn-primary { grid-row:1; }
+}
