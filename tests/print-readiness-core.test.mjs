@@ -42,27 +42,28 @@ test('specialized materials do not match their base polymer', () => {
   assert.deepEqual(nylonCf.candidates.map(row => row.spool.id), ['S4']);
 });
 
-test('current shell loads readiness modules and client injects launcher safely', async () => {
+test('V11 shell lazy-loads readiness modules and exposes one print-check action', async () => {
   const shell = await read('app-shell-client.js');
   const client = await read('print-readiness-client.js');
   assert.match(shell, /print-readiness-core\.js/);
   assert.match(shell, /print-readiness-client\.js/);
   assert.match(shell, /const scriptLoads = new Map\(\)/);
-  assert.match(shell, /action==='print-readiness' && await ensurePrintReadiness\(\)/);
+  assert.match(shell, /action === 'print' && await ensurePrintReadiness\(\)/);
   assert.match(client, /(?:dataset\.printReadiness\s*=|data-print-readiness)/);
   assert.match(client, /\[data-print-readiness\]/);
   assert.match(client, /Can I print this\?/);
-  assert.match(client, /type=\"button\" data-readiness-close/);
-  assert.match(client, /data-ready-action=\"open\"[^>]*>Review spool</);
+  assert.match(client, /type="button" data-readiness-close/);
+  assert.match(client, /data-ready-action="open"[^>]*>Review spool</);
   assert.doesNotMatch(client, /result\.status === 'measurement-needed' \? 'weigh' : row\.loaded \? 'open' : 'place'/);
 });
 
-test('readiness dialog is labelled and refreshes a prior query after corrective workflows', async () => {
+test('readiness dialog is labelled, announced and refreshes a prior query after corrective workflows', async () => {
   const client = await read('print-readiness-client.js');
   assert.match(client, /aria-labelledby','printReadinessTitle'/);
-  assert.match(client, /id=\"printReadinessTitle\"/);
-  assert.match(client, /role=\"status\" aria-live=\"polite\" aria-atomic=\"true\"/);
-  assert.match(client, /host\.dataset\.hasResult = '1'/);
+  assert.match(client, /id="printReadinessTitle"/);
+  assert.match(client, /role="status" aria-live="polite" aria-atomic="true"/);
+  assert.match(client, /host\.dataset\.hasResult='1'/);
   assert.match(client, /function hasRecheckableQuery\(\)/);
-  assert.match(client, /if \(hasRecheckableQuery\(\)\) render\(\)/);
+  assert.match(client, /if\(hasRecheckableQuery\(\)\)render\(\)/);
+  assert.match(client, /dialog\.showModal\(\)/);
 });
