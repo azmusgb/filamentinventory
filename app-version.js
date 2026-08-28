@@ -17,7 +17,36 @@
       link.rel = 'stylesheet';
       link.href = href;
       link.dataset.fiComponent = 'printer';
-      root.document.head.append(link);
+      root.document.head.appendChild(link);
+    };
+    const loadRuntimeScript = src => new Promise((resolve, reject) => {
+      if (!root.document) return resolve();
+      const existing = root.document.querySelector(`script[src="${src}"]`);
+      if (existing?.dataset.loaded === '1') return resolve();
+      if (existing) {
+        existing.addEventListener('load', resolve, {once:true});
+        existing.addEventListener('error', reject, {once:true});
+        return;
+      }
+      const script = root.document.createElement('script');
+      script.src = src;
+      script.async = false;
+      script.dataset.fiRuntime = '1';
+      script.addEventListener('load', () => {
+        script.dataset.loaded = '1';
+        resolve();
+      }, {once:true});
+      script.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), {once:true});
+      root.document.head.appendChild(script);
+    });
+    const ensureSpoolContractRuntime = () => {
+      if (!root.document || root.FilamentInventorySpoolContractUI) return;
+      const coreReady = root.FilamentInventorySpoolContract
+        ? Promise.resolve()
+        : loadRuntimeScript('/spool-contract-core.js');
+      coreReady
+        .then(() => root.FilamentInventorySpoolContractUI ? undefined : loadRuntimeScript('/spool-contract-client.js'))
+        .catch(error => console.error('Canonical spool contract failed to initialize.', error));
     };
     const ensurePwaRuntime = () => {
       if (!root.document || root.FilamentInventoryPWA) return;
@@ -27,9 +56,10 @@
       script.src = src;
       script.defer = true;
       script.dataset.fiPwaRuntime = '1';
-      root.document.head.append(script);
+      root.document.head.appendChild(script);
     };
     ensureComponentStyles();
+    ensureSpoolContractRuntime();
     ensurePwaRuntime();
     if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', applyLabels, {once:true});
     else applyLabels();
