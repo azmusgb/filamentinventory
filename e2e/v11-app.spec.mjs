@@ -88,6 +88,7 @@ async function seedBrowser(page) {
     }
     globalThis.Date = FixedDate;
 
+    if (sessionStorage.getItem('fi-e2e-seeded') === '1') return;
     localStorage.clear();
     localStorage.setItem('filament-current-user-v1', 'Bill');
     localStorage.setItem('filament-user-isolation-v1', JSON.stringify({
@@ -101,6 +102,7 @@ async function seedBrowser(page) {
     localStorage.setItem('filament-user-v1:aimee:preferences', JSON.stringify(data.aimeePrefs));
     localStorage.setItem('filament-user-v1:bill:sync-settings', JSON.stringify({ enabled: false, lastRevision: '', lastSyncedAt: null }));
     localStorage.setItem('filament-user-v1:aimee:sync-settings', JSON.stringify({ enabled: false, lastRevision: '', lastSyncedAt: null }));
+    sessionStorage.setItem('fi-e2e-seeded', '1');
   }, payload);
 }
 
@@ -189,12 +191,17 @@ test('profile switcher uses each profile custom identity and reloads into isolat
   await expect.poll(() => page.evaluate(() => localStorage.getItem('filament-current-user-v1'))).toBe('Aimee');
   await expect(page.locator('body')).toHaveAttribute('data-inventory-user', 'Aimee');
   await expect(page.locator('.profile-chip')).toContainText('Aimee Studio');
+  await navigate(page, 'inventory');
+  await expect(page.locator('#inventoryGrid .spool-card')).toHaveCount(1);
+  await expect(page.locator('#inventoryGrid .spool-card')).toContainText('A001');
 });
 
 test('service worker activates the current PWA shell cache with V11 assets', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'PWA cache contract is exercised once in Chromium.');
+  await expect.poll(() => page.evaluate(() => Boolean(globalThis.FilamentInventoryPWA))).toBe(true);
   const result = await page.evaluate(async () => {
     if (!('serviceWorker' in navigator) || !('caches' in globalThis)) return null;
+    await globalThis.FilamentInventoryPWA?.ready;
     const registration = await navigator.serviceWorker.ready;
     const keys = await caches.keys();
     const cacheName = keys.find(key => key.startsWith('filament-inventory-v')) || '';
@@ -205,15 +212,17 @@ test('service worker activates the current PWA shell cache with V11 assets', asy
       shell: Boolean(await cache?.match('/css/components/v11.css')),
       workflows: Boolean(await cache?.match('/css/components/v11-workflows.css')),
       appShell: Boolean(await cache?.match('/app-shell-client.js')),
+      pwaRuntime: Boolean(await cache?.match('/pwa-client.js')),
     };
   });
 
   expect(result).not.toBeNull();
   expect(result.script).toContain('/sw.js');
-  expect(result.cacheName).toMatch(/^filament-inventory-v\d+$/);
+  expect(result.cacheName).toBe('filament-inventory-v37');
   expect(result.shell).toBe(true);
   expect(result.workflows).toBe(true);
   expect(result.appShell).toBe(true);
+  expect(result.pwaRuntime).toBe(true);
 });
 
 test('mobile Back and Forward restore the exact app surface', async ({ page }, testInfo) => {
