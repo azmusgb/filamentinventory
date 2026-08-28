@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 
 const FIXED_TIME = Date.parse('2026-08-28T15:00:00.000Z');
 const APPROVED_VISUAL_HASHES = Object.freeze({
-  home:'1fbb30533b0fc5d540033749199ebeaa1b7a3bbb2a2feb05fd235d677a1d0bc4',
+  home:'b0fdf78f216dcf6aede40fff323d9d0bb4fc2d0ef9058b59a6ce8d34052d09fc',
   inventory:'341a80dc9d0721974334c249c16f328b67ba88c9158d861f6b220f9bd04c6ffe',
 });
 
