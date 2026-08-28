@@ -1,0 +1,864 @@
+/* Filament Inventory v11 workflow surfaces ------------------------------- */
+
+/* Weigh ------------------------------------------------------------------ */
+html.fi-v11 .weigh-workflow-v11 .weigh-layout {
+  align-items: start;
+  gap: var(--space-5);
+}
+
+html.fi-v11 .weigh-workflow-card,
+html.fi-v11 .weigh-result-card {
+  padding: var(--space-6);
+}
+
+html.fi-v11 .weigh-legacy-title {
+  display: none;
+}
+
+html.fi-v11 .weigh-guided-form,
+html.fi-v11 .weigh-steps {
+  display: grid;
+  gap: var(--space-4);
+}
+
+html.fi-v11 .weigh-step {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+html.fi-v11 .weigh-step-marker {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+
+html.fi-v11 .weigh-step-content {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+html.fi-v11 .weigh-step-head strong {
+  display: block;
+  color: var(--color-text);
+  font-size: var(--text-base);
+}
+
+html.fi-v11 .weigh-step-head span {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+html.fi-v11 .weigh-step .form-field {
+  margin: 0;
+}
+
+html.fi-v11 .weigh-use-tare {
+  margin-top: var(--space-2);
+}
+
+html.fi-v11 .weigh-optional {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+html.fi-v11 .weigh-optional summary,
+html.fi-v11 .sync-advanced summary {
+  display: flex;
+  min-height: var(--control-lg);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  list-style: none;
+}
+
+html.fi-v11 .weigh-optional summary::-webkit-details-marker,
+html.fi-v11 .sync-advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+html.fi-v11 .weigh-optional summary strong,
+html.fi-v11 .sync-advanced summary strong {
+  display: block;
+  color: var(--color-text);
+  font-size: var(--text-base);
+}
+
+html.fi-v11 .weigh-optional summary small,
+html.fi-v11 .sync-advanced summary small {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+html.fi-v11 .weigh-optional-fields {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+html.fi-v11 .weigh-save-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+html.fi-v11 .weigh-save-actions .form-field {
+  width: 100%;
+  margin: 0;
+}
+
+html.fi-v11 .weigh-save-actions .btn {
+  width: 100%;
+  min-height: var(--control-lg);
+}
+
+html.fi-v11 .weigh-result-card .calc {
+  margin-top: var(--space-4);
+}
+
+html.fi-v11 .weigh-result-card .calc-row {
+  min-height: 48px;
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+html.fi-v11 .weigh-result-card .calc-row:last-child {
+  border-bottom: 0;
+}
+
+html.fi-v11 .weigh-result-card .calc-row strong {
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+}
+
+/* Activity --------------------------------------------------------------- */
+html.fi-v11 .fi-activity-panel {
+  padding: var(--space-5);
+}
+
+html.fi-v11 .fi-activity-legacy-measurements {
+  display: none;
+}
+
+html.fi-v11 .audit-content-head {
+  margin-bottom: var(--space-4);
+}
+
+html.fi-v11 .audit-content-head h3 {
+  margin: 5px 0 0;
+  font-size: var(--text-xl);
+}
+
+html.fi-v11 .audit-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+html.fi-v11 .audit-metric {
+  display: grid;
+  gap: 4px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+html.fi-v11 .audit-metric span {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+html.fi-v11 .audit-metric strong {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+}
+
+html.fi-v11 .audit-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px auto;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+html.fi-v11 .audit-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+html.fi-v11 .audit-row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+html.fi-v11 .audit-dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+}
+
+html.fi-v11 .audit-row[data-category="measurement"] .audit-dot {
+  background: var(--color-success);
+}
+
+html.fi-v11 .audit-row[data-category="placement"] .audit-dot {
+  background: var(--color-info);
+}
+
+html.fi-v11 .audit-row[data-category="lifecycle"] .audit-dot {
+  background: var(--color-warning);
+}
+
+html.fi-v11 .audit-main > strong {
+  color: var(--color-text);
+  font-size: var(--text-base);
+}
+
+html.fi-v11 .audit-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+html.fi-v11 .audit-chip {
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-info);
+}
+
+html.fi-v11 .audit-changes {
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+html.fi-v11 .audit-empty {
+  padding: var(--space-6);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* Labels ----------------------------------------------------------------- */
+html.fi-v11 .labels-workflow {
+  display: grid;
+  grid-template-columns: minmax(320px, .88fr) minmax(380px, 1.12fr);
+  gap: var(--space-5);
+}
+
+html.fi-v11 .labels-card {
+  min-width: 0;
+  padding: var(--space-5);
+}
+
+html.fi-v11 .labels-step-head {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+}
+
+html.fi-v11 .labels-step-number {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+
+html.fi-v11 .labels-step-head h3 {
+  margin: 4px 0 0;
+  font-size: var(--text-xl);
+}
+
+html.fi-v11 .labels-step-head p {
+  margin: 5px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+html.fi-v11 .label-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+html.fi-v11 .label-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+html.fi-v11 .label-selection-count {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+html.fi-v11 .spool-pick-list {
+  display: grid;
+  max-height: 570px;
+  gap: 7px;
+  margin-top: var(--space-3);
+  overflow: auto;
+}
+
+html.fi-v11 .spool-pick {
+  display: grid;
+  grid-template-columns: auto 12px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 56px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  cursor: pointer;
+}
+
+html.fi-v11 .spool-pick:hover {
+  border-color: var(--color-border);
+}
+
+html.fi-v11 .spool-pick input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-accent);
+}
+
+html.fi-v11 .spool-pick .swatch {
+  width: 12px;
+  height: 34px;
+  border-radius: 6px;
+}
+
+html.fi-v11 .spool-pick-copy {
+  min-width: 0;
+}
+
+html.fi-v11 .spool-pick-copy strong,
+html.fi-v11 .spool-pick-copy small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.fi-v11 .spool-pick-copy strong {
+  font-size: var(--text-sm);
+}
+
+html.fi-v11 .spool-pick-copy small,
+html.fi-v11 .spool-pick-status {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+html.fi-v11 .label-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+html.fi-v11 .label-preview {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 104px;
+  padding: 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  color: #07111f;
+}
+
+html.fi-v11 .label-preview img {
+  width: 82px;
+  height: 82px;
+}
+
+html.fi-v11 .label-preview strong {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 16px;
+}
+
+html.fi-v11 .label-line {
+  margin-top: 4px;
+  color: #27364b;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+html.fi-v11 .label-remaining {
+  font-weight: 800;
+}
+
+html.fi-v11 .label-preview-empty,
+html.fi-v11 .sync-empty {
+  display: grid;
+  gap: 5px;
+  padding: var(--space-6);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+html.fi-v11 .label-preview-empty strong {
+  color: var(--color-text);
+}
+
+html.fi-v11 .labels-print-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+html.fi-v11 .labels-print-bar span {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+html.fi-v11 [id="physicalPrintRoot"] {
+  display: none;
+}
+
+/* Sync ------------------------------------------------------------------- */
+html.fi-v11 .sync-workflow {
+  display: grid;
+  gap: var(--space-4);
+}
+
+html.fi-v11 .sync-card,
+html.fi-v11 .sync-advanced {
+  padding: var(--space-5);
+}
+
+html.fi-v11 .sync-status {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+html.fi-v11 .sync-status strong {
+  display: block;
+  font-size: var(--text-base);
+}
+
+html.fi-v11 .sync-status span {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+html.fi-v11 .sync-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: var(--radius-pill);
+  background: var(--color-text-subtle);
+}
+
+html.fi-v11 .sync-status[data-state="ready"] .sync-dot {
+  background: var(--color-success);
+}
+
+html.fi-v11 .sync-status[data-state="working"] .sync-dot {
+  background: var(--color-info);
+  animation: sync-pulse 1.1s ease-in-out infinite;
+}
+
+html.fi-v11 .sync-status[data-state="offline"] .sync-dot {
+  background: var(--color-warning);
+}
+
+html.fi-v11 .sync-status[data-state="error"] .sync-dot {
+  background: var(--color-danger);
+}
+
+html.fi-v11 .sync-connect-form {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 680px;
+  margin-top: var(--space-5);
+}
+
+html.fi-v11 .sync-connect-copy h3 {
+  margin: 5px 0 0;
+  font-size: var(--text-xl);
+}
+
+html.fi-v11 .sync-connect-copy p {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+html.fi-v11 .sync-actions,
+html.fi-v11 .sync-primary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+html.fi-v11 .sync-connected {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+html.fi-v11 .sync-connected[hidden] {
+  display: none;
+}
+
+html.fi-v11 .sync-last,
+html.fi-v11 .sync-revision {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+html.fi-v11 .toggle-row {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+html.fi-v11 .toggle-row strong,
+html.fi-v11 .toggle-row small {
+  display: block;
+}
+
+html.fi-v11 .toggle-row small {
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+html.fi-v11 .toggle-row input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--color-accent);
+}
+
+html.fi-v11 .sync-advanced {
+  padding: 0;
+  overflow: hidden;
+}
+
+html.fi-v11 .sync-advanced-body {
+  display: grid;
+  gap: var(--space-5);
+  padding: 0 var(--space-5) var(--space-5);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+html.fi-v11 .sync-section {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+}
+
+html.fi-v11 .sync-section-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+html.fi-v11 .sync-section-head h3 {
+  margin: 4px 0 0;
+  font-size: var(--text-lg);
+}
+
+html.fi-v11 .sync-section-head p {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+html.fi-v11 .device-name-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  max-width: 560px;
+}
+
+html.fi-v11 .sync-list {
+  display: grid;
+  gap: 7px;
+}
+
+html.fi-v11 .sync-row,
+html.fi-v11 .snapshot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+html.fi-v11 .sync-row strong,
+html.fi-v11 .snapshot-row strong {
+  display: block;
+  font-size: var(--text-sm);
+}
+
+html.fi-v11 .sync-row span,
+html.fi-v11 .snapshot-row span {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+html.fi-v11 .sync-security-note {
+  display: grid;
+  gap: 4px;
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-success) 28%, var(--color-border-subtle));
+  border-radius: var(--radius-md);
+  background: var(--color-success-soft);
+}
+
+html.fi-v11 .sync-security-note span {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+html.fi-v11 .sync-danger-actions {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+html.fi-v11 .sync-key-reveal {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+@keyframes sync-pulse {
+  0%, 100% { opacity: .55; transform: scale(.86); }
+  50% { opacity: 1; transform: scale(1.16); }
+}
+
+/* Responsive ------------------------------------------------------------- */
+@media (max-width: 900px) {
+  html.fi-v11 .labels-workflow {
+    grid-template-columns: 1fr;
+  }
+
+  html.fi-v11 .spool-pick-list {
+    max-height: 420px;
+  }
+}
+
+@media (max-width: 640px) {
+  html.fi-v11 .weigh-workflow-card,
+  html.fi-v11 .weigh-result-card,
+  html.fi-v11 .fi-activity-panel,
+  html.fi-v11 .labels-card,
+  html.fi-v11 .sync-card {
+    padding: var(--space-4);
+  }
+
+  html.fi-v11 .audit-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  html.fi-v11 .audit-toolbar,
+  html.fi-v11 .label-controls,
+  html.fi-v11 .device-name-row {
+    grid-template-columns: 1fr;
+  }
+
+  html.fi-v11 .audit-row {
+    grid-template-columns: 9px minmax(0, 1fr);
+  }
+
+  html.fi-v11 .audit-row > .btn {
+    grid-column: 2;
+    width: 100%;
+  }
+
+  html.fi-v11 .label-actions,
+  html.fi-v11 .labels-print-bar,
+  html.fi-v11 .sync-section-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  html.fi-v11 .spool-pick {
+    grid-template-columns: auto 10px minmax(0, 1fr);
+  }
+
+  html.fi-v11 .spool-pick-status {
+    grid-column: 3;
+  }
+
+  html.fi-v11 .sync-primary-actions .btn,
+  html.fi-v11 .sync-actions .btn {
+    flex: 1 1 100%;
+  }
+
+  html.fi-v11 .sync-row,
+  html.fi-v11 .snapshot-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  html.fi-v11 .snapshot-row .btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.fi-v11 .sync-status[data-state="working"] .sync-dot {
+    animation: none;
+  }
+}
+
+/* Label print surface ----------------------------------------------------- */
+@media print {
+  @page { margin: .18in; }
+
+  body.print-labels * {
+    visibility: hidden;
+  }
+
+  body.print-labels [id="physicalPrintRoot"],
+  body.print-labels [id="physicalPrintRoot"] * {
+    visibility: visible;
+  }
+
+  body.print-labels [id="physicalPrintRoot"] {
+    display: grid;
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    grid-template-columns: repeat(auto-fill, var(--label-w));
+    grid-auto-rows: var(--label-h);
+    gap: .08in;
+    align-content: start;
+  }
+
+  body.print-labels .physical-print-label {
+    display: grid;
+    box-sizing: border-box;
+    width: var(--label-w);
+    height: var(--label-h);
+    grid-template-columns: calc(var(--label-h) - .12in) 1fr;
+    align-items: center;
+    gap: .06in;
+    padding: .05in;
+    overflow: hidden;
+    break-inside: avoid;
+    border: 1px solid #d0d5dd;
+    border-radius: .04in;
+    background: #ffffff;
+    color: #000000;
+  }
+
+  body.print-labels .physical-print-label img {
+    display: block;
+    width: calc(var(--label-h) - .14in);
+    height: calc(var(--label-h) - .14in);
+  }
+
+  body.print-labels .physical-print-label strong {
+    display: block;
+    overflow: hidden;
+    font: 700 10pt/1 Arial, sans-serif;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.print-labels .physical-print-label span,
+  body.print-labels .physical-print-label small {
+    display: block;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.print-labels .physical-print-label span {
+    font: 7.5pt/1.18 Arial, sans-serif;
+  }
+
+  body.print-labels .physical-print-label small {
+    color: #444444;
+    font: 6pt/1.1 Arial, sans-serif;
+  }
+}
