@@ -46,7 +46,7 @@
   }
 
   function ensureLauncher() {
-    if (document.querySelector('[data-print-readiness][data-print-launcher="home"]')) return;
+    if (document.querySelector('[data-print-readiness]:not([data-print-launcher="queue"])')) return;
     const host = document.querySelector('.fi-home-actions, #dashboardView .hero-actions');
     if (!host) return;
     const button = document.createElement('button');
@@ -54,6 +54,8 @@
     button.type = 'button';
     button.dataset.printReadiness = '';
     button.dataset.printLauncher = 'home';
+    button.setAttribute('aria-haspopup','dialog');
+    button.setAttribute('aria-controls','printReadinessDialog');
     button.textContent = 'Can I print this?';
     host.prepend(button);
   }
@@ -317,7 +319,7 @@
     for (const {node,key} of surfaces) {
       const mount = ensureQueueMount(node,key);
       if (!mount) continue;
-      mount.innerHTML = `<div class="print-queue-summary-head"><div><span class="eyebrow">Print queue</span><h3>${esc(summary)}</h3><p>Queued jobs reserve filament so a later plan cannot silently spend the same grams twice.</p></div><button class="btn" type="button" data-print-readiness data-print-launcher="queue">Open queue</button></div><div class="print-queue-list">${active.slice(0,4).map(job => queueRowMarkup(job,value)).join('')}</div>`;
+      mount.innerHTML = `<div class="print-queue-summary-head"><div><span class="eyebrow">Print queue</span><h3>${esc(summary)}</h3><p>Queued jobs reserve filament so a later plan cannot silently spend the same grams twice.</p></div><button class="btn" type="button" data-print-readiness data-print-launcher="queue" aria-haspopup="dialog" aria-controls="printReadinessDialog">Open queue</button></div><div class="print-queue-list">${active.slice(0,4).map(job => queueRowMarkup(job,value)).join('')}</div>`;
     }
   }
 
