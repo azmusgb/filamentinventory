@@ -87,6 +87,46 @@
     }
   }
 
+  function ensureSkipLink() {
+    let main = document.querySelector('.app-shell > main');
+    if (!main) return;
+    if (!main.id) main.id = 'mainContent';
+    if (document.querySelector('.fi-skip-link')) return;
+    const link = document.createElement('a');
+    link.className = 'fi-skip-link';
+    link.href = `#${main.id}`;
+    link.textContent = 'Skip to content';
+    document.body.prepend(link);
+  }
+
+  function setSurfaceAccessibility(surface, active) {
+    if (!surface) return;
+    surface.setAttribute('aria-hidden', active ? 'false' : 'true');
+    if (active) surface.removeAttribute('inert');
+    else surface.setAttribute('inert','');
+  }
+
+  function syncSurfaceAccessibility(activeView = activeFromDom()) {
+    document.querySelectorAll('.view[id$="View"]').forEach(surface => setSurfaceAccessibility(surface, surface.id === `${activeView}View`));
+  }
+
+  function annotateDialogSemantics() {
+    const spoolDialog = $('spoolDialog');
+    if (spoolDialog) spoolDialog.setAttribute('aria-labelledby','dialogTitle');
+    const bindings = [
+      ['#inventoryAddBtn, #heroAddBtn, #addTopBtn, #mobileAddBtn','spoolDialog'],
+      ['[data-shell-action="add"]','spoolDialog'],
+      ['[data-shell-action="print"], [data-print-readiness]','printReadinessDialog'],
+      ['[data-bottom-more]','fiMoreSheet'],
+      ['[data-profile-menu]','fiProfileSwitchDialog'],
+      ['[data-filter-open]','fiInventoryFilterDialog'],
+    ];
+    for (const [selector,id] of bindings) document.querySelectorAll(selector).forEach(control => {
+      control.setAttribute('aria-haspopup','dialog');
+      control.setAttribute('aria-controls',id);
+    });
+  }
+
   function activeFromDom() {
     const active = document.querySelector('.view.active[id$="View"]');
     return active?.id.replace(/View$/,'') || document.querySelector('.tab[aria-selected="true"]')?.dataset.view || 'dashboard';
@@ -115,6 +155,7 @@
     document.querySelectorAll('[data-bottom-view]').forEach(button => button.setAttribute('aria-current',button.dataset.bottomView === view ? 'page' : 'false'));
     const more = document.querySelector('[data-bottom-more]');
     if (more) more.setAttribute('aria-current',['dashboard','inventory','household'].includes(view) ? 'false' : 'page');
+    syncSurfaceAccessibility(view);
   }
 
   function focusRouteHeading(view) {
@@ -130,7 +171,11 @@
     const surface = $(`${view}View`);
     if (!surface) return false;
     syncingRoute = true;
-    document.querySelectorAll('.view[id$="View"]').forEach(node => node.classList.toggle('active',node === surface));
+    document.querySelectorAll('.view[id$="View"]').forEach(node => {
+      const active = node === surface;
+      node.classList.toggle('active',active);
+      setSurfaceAccessibility(node,active);
+    });
     document.querySelectorAll('.tab[data-view]').forEach(tab => tab.setAttribute('aria-selected',String(tab.dataset.view === view)));
     syncingRoute = false;
     syncNavigation(view);
@@ -172,6 +217,7 @@
     if (!meta || !surface) return false;
     surface.classList.add('fi-page',`fi-page-${view}`);
     surface.dataset.pageWidth = meta.width;
+    setSurfaceAccessibility(surface,surface.classList.contains('active'));
     observeRoute(surface);
     ensurePageHeader(view,surface,meta);
     return true;
@@ -212,21 +258,23 @@
       nav.setAttribute('aria-label','Primary navigation');
       document.body.appendChild(nav);
     }
-    nav.innerHTML = `<button type="button" data-bottom-view="dashboard"><span aria-hidden="true">⌂</span><small>Home</small></button><button type="button" data-bottom-view="inventory"><span aria-hidden="true">▦</span><small>Inventory</small></button><button type="button" data-bottom-scan><span aria-hidden="true">⌁</span><small>Scan</small></button><button type="button" data-bottom-view="household"><span aria-hidden="true">◉</span><small>Printer</small></button><button type="button" data-bottom-more><span aria-hidden="true">•••</span><small>More</small></button>`;
+    nav.innerHTML = `<button type="button" data-bottom-view="dashboard"><span aria-hidden="true">⌂</span><small>Home</small></button><button type="button" data-bottom-view="inventory"><span aria-hidden="true">▦</span><small>Inventory</small></button><button type="button" data-bottom-scan><span aria-hidden="true">⌁</span><small>Scan</small></button><button type="button" data-bottom-view="household"><span aria-hidden="true">◉</span><small>Printer</small></button><button type="button" data-bottom-more aria-haspopup="dialog" aria-controls="fiMoreSheet"><span aria-hidden="true">•••</span><small>More</small></button>`;
   }
 
   function ensureMoreSheet() {
     let dialog = qs('.fi-more-sheet');
     if (dialog) return dialog;
     dialog = document.createElement('dialog');
+    dialog.id = 'fiMoreSheet';
     dialog.className = 'fi-more-sheet';
+    dialog.setAttribute('aria-labelledby','fiMoreSheetTitle');
     const groups = [
       ['Workflow',[['weigh','Weigh spool'],['print','Can I print this?']]],
       ['Manage',[['history','Activity'],['labels','QR labels']]],
       ['Devices & data',[['sync','Sync devices'],['data','Backup & data']]],
       ['Settings',[['preferences','Preferences']]],
     ];
-    dialog.innerHTML = `<div class="dialog-head"><div><span class="eyebrow">More</span><h3>Tools & settings</h3></div><button class="btn icon-btn" type="button" data-dialog-close aria-label="Close">×</button></div><div class="dialog-body"><div class="fi-more-groups">${groups.map(([label,items]) => `<section class="fi-more-group"><h4>${label}</h4><div class="fi-more-actions">${items.map(([key,text]) => key === 'print' ? `<button class="fi-more-action" type="button" data-shell-action="print"><span>${text}</span><b aria-hidden="true">›</b></button>` : `<button class="fi-more-action" type="button" data-shell-view="${key}"><span>${text}</span><b aria-hidden="true">›</b></button>`).join('')}</div></section>`).join('')}</div></div>`;
+    dialog.innerHTML = `<div class="dialog-head"><div><span class="eyebrow">More</span><h3 id="fiMoreSheetTitle">Tools & settings</h3></div><button class="btn icon-btn" type="button" data-dialog-close aria-label="Close">×</button></div><div class="dialog-body"><div class="fi-more-groups">${groups.map(([label,items]) => `<section class="fi-more-group"><h4>${label}</h4><div class="fi-more-actions">${items.map(([key,text]) => key === 'print' ? `<button class="fi-more-action" type="button" data-shell-action="print"><span>${text}</span><b aria-hidden="true">›</b></button>` : `<button class="fi-more-action" type="button" data-shell-view="${key}"><span>${text}</span><b aria-hidden="true">›</b></button>`).join('')}</div></section>`).join('')}</div></div>`;
     document.body.appendChild(dialog);
     return dialog;
   }
@@ -256,6 +304,7 @@
       button.type = 'button';
       button.dataset.profileMenu = '';
       button.setAttribute('aria-haspopup','dialog');
+      button.setAttribute('aria-controls','fiProfileSwitchDialog');
       topActions.prepend(button);
     }
     const currentOwner=owner();
@@ -266,11 +315,13 @@
     let dialog = qs('.profile-switch-dialog');
     if (!dialog) {
       dialog = document.createElement('dialog');
+      dialog.id = 'fiProfileSwitchDialog';
       dialog.className = 'profile-switch-dialog';
+      dialog.setAttribute('aria-labelledby','fiProfileSwitchTitle');
       document.body.appendChild(dialog);
     }
     const owners = globalThis.FilamentInventoryUsers?.OWNERS || ['Bill','Aimee'];
-    dialog.innerHTML = `<div class="dialog-head"><div><span class="eyebrow">Private inventories</span><h3>Switch workspace</h3></div><button class="btn icon-btn" type="button" data-dialog-close aria-label="Close">×</button></div><div class="dialog-body"><p class="muted">Each profile has separate spools, activity, backups and cloud sync.</p><div class="profile-options">${owners.map(name => {const option=profileIdentity(name);const current=name===currentOwner;return `<button class="profile-option" type="button" data-profile-owner="${esc(name)}" aria-current="${String(current)}"><span class="profile-avatar">${esc(option.initials)}</span><span><strong>${esc(option.displayName)}</strong><small>${current?'Current private inventory':`Open ${esc(option.displayName)}'s private inventory`}</small></span><span aria-hidden="true">›</span></button>`;}).join('')}</div></div>`;
+    dialog.innerHTML = `<div class="dialog-head"><div><span class="eyebrow">Private inventories</span><h3 id="fiProfileSwitchTitle">Switch workspace</h3></div><button class="btn icon-btn" type="button" data-dialog-close aria-label="Close">×</button></div><div class="dialog-body"><p class="muted">Each profile has separate spools, activity, backups and cloud sync.</p><div class="profile-options">${owners.map(name => {const option=profileIdentity(name);const current=name===currentOwner;return `<button class="profile-option" type="button" data-profile-owner="${esc(name)}" aria-current="${String(current)}"><span class="profile-avatar">${esc(option.initials)}</span><span><strong>${esc(option.displayName)}</strong><small>${current?'Current private inventory':`Open ${esc(option.displayName)}'s private inventory`}</small></span><span aria-hidden="true">›</span></button>`;}).join('')}</div></div>`;
   }
 
   function adoptPageActions() {
@@ -327,8 +378,10 @@
     controls.querySelector('.inventory-search-slot').appendChild(search);
     grid.insertAdjacentElement('beforebegin',controls);
     const dialog = document.createElement('dialog');
+    dialog.id = 'fiInventoryFilterDialog';
     dialog.className = 'inventory-filter-dialog';
-    dialog.innerHTML = `<div class="dialog-head"><div><span class="eyebrow">Inventory</span><h3>Filters & sort</h3></div><button class="btn icon-btn" type="button" data-dialog-close aria-label="Close">×</button></div><div class="dialog-body"><div class="inventory-filter-mount"></div><div class="dialog-actions"><button class="btn" type="button" data-filter-reset>Reset</button><button class="btn btn-primary" type="button" data-filter-apply>Show inventory</button></div></div>`;
+    dialog.setAttribute('aria-labelledby','fiInventoryFilterTitle');
+    dialog.innerHTML = `<div class="dialog-head"><div><span class="eyebrow">Inventory</span><h3 id="fiInventoryFilterTitle">Filters & sort</h3></div><button class="btn icon-btn" type="button" data-dialog-close aria-label="Close">×</button></div><div class="dialog-body"><div class="inventory-filter-mount"></div><div class="dialog-actions"><button class="btn" type="button" data-filter-reset>Reset</button><button class="btn btn-primary" type="button" data-filter-apply>Show inventory</button></div></div>`;
     dialog.querySelector('.inventory-filter-mount').appendChild(toolbar);
     document.body.appendChild(dialog);
     const updateCount = () => {
@@ -344,7 +397,10 @@
     };
     toolbar.addEventListener('input',updateCount);
     toolbar.addEventListener('change',updateCount);
-    controls.querySelector('[data-filter-open]').addEventListener('click',() => dialog.showModal());
+    const filterOpen = controls.querySelector('[data-filter-open]');
+    filterOpen.setAttribute('aria-haspopup','dialog');
+    filterOpen.setAttribute('aria-controls','fiInventoryFilterDialog');
+    filterOpen.addEventListener('click',() => dialog.showModal());
     dialog.querySelector('[data-filter-reset]').addEventListener('click',() => { $('clearFiltersBtn')?.click(); updateCount(); });
     dialog.querySelector('[data-filter-apply]').addEventListener('click',() => dialog.close());
     updateCount();
@@ -391,6 +447,7 @@
     groupDataPage();
     harmonizeActivity();
     ensureProfileMenu();
+    annotateDialogSemantics();
     syncNavigation(activeFromDom());
   }
 
@@ -416,6 +473,7 @@
       if (event.target.closest('[data-bottom-scan]')) { runAction('scan'); return; }
       const route = event.target.closest('[data-shell-view],[data-bottom-view]');
       if (route) {
+        event.preventDefault();
         const view = route.dataset.shellView || route.dataset.bottomView;
         route.closest('dialog')?.close();
         navigate(view,{historyMode:'push',focus:true});
@@ -446,8 +504,13 @@
     document.documentElement.classList.add('fi-app-frame','fi-v11');
     loadStylesheet('/css/tokens.css');
     loadStylesheet('/css/components/v11.css');
+    ensureSkipLink();
     const tabs = document.querySelector('.tabs');
-    if (tabs) tabs.setAttribute('aria-hidden','true');
+    if (tabs) {
+      tabs.setAttribute('aria-hidden','true');
+      tabs.setAttribute('inert','');
+      tabs.hidden = true;
+    }
     ['exportTopBtn','addTopBtn'].forEach(id => $(id)?.classList.add('fi-global-duplicate'));
     const brandCopy = document.querySelector('.brand p');
     if (brandCopy) brandCopy.textContent = 'Private filament workspace';
@@ -459,6 +522,7 @@
     observeLateSurfaces();
     await Promise.all([ensurePrintReadiness(),ensureProfilePreferences()]);
     updateShell();
+    annotateDialogSemantics();
     restoreRouteFromHistory();
   }
 
