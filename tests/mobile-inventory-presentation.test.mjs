@@ -34,8 +34,9 @@ test('mobile inventory CSS reduces control and card density without hiding trust
   assert.match(css,/@media \(max-width: 640px\)/);
   assert.match(css,/\.inventory-command-hint\s*\{\s*display: none/);
   assert.match(css,/\.fi-page-header-actions\s*\{[^}]*width: auto/s);
-  assert.match(css,/\.spool-action-bar\s*\{\s*display: none !important/);
+  assert.match(css,/\.spool-action-bar\s*\{\s*display: none/);
   assert.match(css,/\.bulk-selection-mode[^}]*\.spool-card-more\s*\{\s*display: none/);
+  assert.doesNotMatch(css,/!important/);
   assert.match(css,/\.inventory-evidence-chip\[data-evidence="measured"\]/);
   assert.match(css,/\.inventory-evidence-chip\[data-evidence="estimated"\]/);
   assert.match(css,/\.inventory-evidence-chip\[data-evidence="unknown"\]/);
