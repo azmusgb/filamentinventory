@@ -1,8 +1,8 @@
-const CACHE = 'filament-inventory-v33';
+const CACHE = 'filament-inventory-v34';
 const CORE = [
   '/', '/index.html', '/styles.css', '/ui-system.css',
   '/css/tokens.css', '/css/base.css', '/css/layout.css', '/css/foundation.css',
-  '/css/components/app-shell.css', '/css/components/dashboard.css', '/css/components/printer.css',
+  '/css/components/app-shell.css', '/css/components/v11.css', '/css/components/dashboard.css', '/css/components/printer.css',
   '/css/components/weigh.css', '/css/components/physical-spool.css', '/css/components/profile-preferences.css',
   '/app-version.js', '/events.js', '/user-isolation.js', '/state-merge.js', '/audit-core.js', '/personal-core.js',
   '/profile-preferences-core.js', '/intake-core.js', '/scan-core.js', '/printer-core.js', '/inventory-command-core.js',
