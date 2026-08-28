@@ -18,7 +18,7 @@ jobs:
   validate:
     name: Validate
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
 
     steps:
       - name: Check out repository
@@ -99,13 +99,32 @@ jobs:
           console.log(`Verified exact build identity ${meta.commitRef}.`);
           NODE
 
-      - name: Upload deploy artifact
+      - name: Install browser test runner
+        run: npm run test:e2e:deps
+
+      - name: Install browser engines
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Browser interaction and visual regression
+        run: |
+          set -euo pipefail
+          if test -d e2e/__screenshots__; then
+            npm run test:e2e
+          else
+            echo "No visual baseline is committed yet; bootstrapping CI-rendered snapshots."
+            npm run test:e2e:update
+          fi
+
+      - name: Upload deploy and browser artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: filamentinventory-dist-${{ github.run_id }}
+          name: filamentinventory-ci-${{ github.run_id }}
           path: |
             dist
             test-output.txt
+            test-results
+            playwright-report
+            e2e/__screenshots__
           if-no-files-found: error
           retention-days: 7
