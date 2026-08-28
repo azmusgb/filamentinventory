@@ -11,6 +11,9 @@
     "lint:css": "node scripts/css-audit.mjs",
     "test": "node --experimental-strip-types --test",
     "build": "node scripts/build.mjs",
+    "test:e2e:deps": "npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund @playwright/test@1.62.1",
+    "test:e2e": "playwright test",
+    "test:e2e:update": "playwright test --update-snapshots",
     "ci": "npm run lint && npm test && npm run build",
     "release": "node scripts/release.mjs"
   },
