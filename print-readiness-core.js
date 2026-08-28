@@ -10,6 +10,7 @@
   'use strict';
 
   const MAX_PRINT_JOBS = 250;
+  const ACTIVE_JOB_STATUSES = new Set(['planned','in-progress']);
   const finite = value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value));
   const number = value => finite(value) ? Number(value) : null;
   const clean = (value, max = 120) => String(value ?? '').trim().slice(0, max);
@@ -134,6 +135,63 @@
     return Object.freeze({status:'recommended', printer, feeder, slot:'', label:`${printer} · ${feeder}`});
   }
 
+  function normalizePrintJob(job = {}) {
+    const status = ['planned','in-progress','completed','cancelled'].includes(String(job.status)) ? String(job.status) : 'planned';
+    return {
+      ...job,
+      id:clean(job.id, 120),
+      status,
+      jobName:clean(job.jobName, 100),
+      spoolId:clean(job.spoolId, 64),
+      material:clean(job.material, 80),
+      color:clean(job.color, 80),
+      modelGrams:Math.max(0, number(job.modelGrams) || 0),
+      safetyMargin:clamp(Math.max(0, number(job.safetyMargin) || 0), 0, 100),
+      requiredGrams:Math.max(0, number(job.requiredGrams) || 0),
+      remainingAtPlan:number(job.remainingAtPlan),
+      reservedBeforePlan:Math.max(0, number(job.reservedBeforePlan) || 0),
+      availableAtPlan:number(job.availableAtPlan),
+      remainingAtStart:number(job.remainingAtStart),
+      reservedAtStart:Math.max(0, number(job.reservedAtStart) || 0),
+      availableAtStart:number(job.availableAtStart),
+      remainingAfter:number(job.remainingAfter),
+      consumedGrams:number(job.consumedGrams),
+      evidenceAtPlan:clean(job.evidenceAtPlan, 24),
+      evidenceAtStart:clean(job.evidenceAtStart, 24),
+      plannedAt:iso(job.plannedAt),
+      startedAt:iso(job.startedAt),
+      completedAt:iso(job.completedAt),
+      cancelledAt:iso(job.cancelledAt),
+      updatedAt:iso(job.updatedAt) || iso(job.completedAt) || iso(job.startedAt) || iso(job.cancelledAt) || iso(job.plannedAt),
+      placement:job.placement && typeof job.placement === 'object' ? {...job.placement} : null,
+    };
+  }
+
+  function normalizePrintJobs(value, limit = MAX_PRINT_JOBS) {
+    const map = new Map();
+    for (const raw of Array.isArray(value) ? value : []) {
+      const job = normalizePrintJob(raw);
+      if (!job.id || !job.spoolId || !job.plannedAt) continue;
+      const old = map.get(job.id);
+      if (!old || Date.parse(job.updatedAt || job.plannedAt) >= Date.parse(old.updatedAt || old.plannedAt)) map.set(job.id, job);
+    }
+    return [...map.values()].sort((a,b) => Date.parse(a.plannedAt) - Date.parse(b.plannedAt)).slice(-Math.max(1, Number(limit) || MAX_PRINT_JOBS));
+  }
+
+  function reservationRows(printJobs = [], spoolId = '', excludeJobId = '') {
+    const target = clean(spoolId, 64).toLowerCase();
+    const excluded = clean(excludeJobId, 120);
+    if (!target) return [];
+    return normalizePrintJobs(printJobs).filter(job => ACTIVE_JOB_STATUSES.has(job.status)
+      && job.id !== excluded
+      && clean(job.spoolId, 64).toLowerCase() === target
+      && job.requiredGrams > 0);
+  }
+
+  function reservedGramsForSpool(printJobs = [], spoolId = '', excludeJobId = '') {
+    return Math.round(reservationRows(printJobs, spoolId, excludeJobId).reduce((sum, job) => sum + job.requiredGrams, 0) * 10) / 10;
+  }
+
   function candidateScore(row, requirement, now) {
     let score = 0;
     if (row.measurement.source === 'Measured' && row.enough) score += 100000;
@@ -146,26 +204,34 @@
     if (row.measurement.source === 'Measured') score += 2200;
     if (row.enough && row.after !== null && row.after >= row.reorder) score += 1500;
     if (row.enough && row.after !== null && row.after < row.reorder) score -= 400;
-    if (row.known) score += Math.min(800, row.grams / 5);
+    if (row.known) score += Math.min(800, Math.max(0, row.availableGrams || 0) / 5);
+    if (row.reservedGrams > 0) score -= Math.min(1200, row.reservedGrams / 2);
     const ageDays = freshness(row.spool, now);
     if (ageDays !== null) score += Math.max(0, 365 - Math.min(365, ageDays));
     return score;
   }
 
-  function evaluate(spools = [], query = {}, now = Date.now()) {
+  function evaluate(spools = [], query = {}, now = Date.now(), options = {}) {
     const requirement = normalizeRequirement(query);
+    const printJobs = Array.isArray(options?.printJobs) ? options.printJobs : [];
+    const excludeJobId = clean(options?.excludeJobId, 120);
     const candidates = (Array.isArray(spools) ? spools : []).filter(spool => matches(spool, requirement)).map(spool => {
       const current = measurement(spool);
       const grams = current.grams;
       const known = grams !== null;
-      const enough = known && grams >= requirement.required;
+      const reservedGrams = reservedGramsForSpool(printJobs, spool.id, excludeJobId);
+      const availableGrams = known ? Math.max(0, Math.round((grams - reservedGrams) * 10) / 10) : null;
+      const enough = known && availableGrams >= requirement.required;
       const reorder = finite(spool.reorderThreshold) ? Math.max(0, Number(spool.reorderThreshold)) : 250;
-      const after = known ? grams - requirement.required : null;
+      const after = known ? Math.round((availableGrams - requirement.required) * 10) / 10 : null;
       const loaded = spool.placementState === 'Loaded';
       const row = {
         spool,
         measurement:current,
         grams,
+        reservedGrams,
+        availableGrams,
+        reservedJobs:reservationRows(printJobs, spool.id, excludeJobId).length,
         required:requirement.required,
         after,
         known,
@@ -202,47 +268,9 @@
         measuredReady:candidates.filter(row => row.enough && row.measurement.source === 'Measured').length,
         estimatedReady:candidates.filter(row => row.enough && row.measurement.source === 'Estimated').length,
         unknown:candidates.filter(row => row.measurement.source === 'Unknown').length,
+        reserved:candidates.filter(row => row.reservedGrams > 0).length,
       }),
     });
-  }
-
-  function normalizePrintJob(job = {}) {
-    const status = ['planned','in-progress','completed','cancelled'].includes(String(job.status)) ? String(job.status) : 'planned';
-    return {
-      ...job,
-      id:clean(job.id, 120),
-      status,
-      jobName:clean(job.jobName, 100),
-      spoolId:clean(job.spoolId, 64),
-      material:clean(job.material, 80),
-      color:clean(job.color, 80),
-      modelGrams:Math.max(0, number(job.modelGrams) || 0),
-      safetyMargin:clamp(Math.max(0, number(job.safetyMargin) || 0), 0, 100),
-      requiredGrams:Math.max(0, number(job.requiredGrams) || 0),
-      remainingAtPlan:number(job.remainingAtPlan),
-      remainingAtStart:number(job.remainingAtStart),
-      remainingAfter:number(job.remainingAfter),
-      consumedGrams:number(job.consumedGrams),
-      evidenceAtPlan:clean(job.evidenceAtPlan, 24),
-      evidenceAtStart:clean(job.evidenceAtStart, 24),
-      plannedAt:iso(job.plannedAt),
-      startedAt:iso(job.startedAt),
-      completedAt:iso(job.completedAt),
-      cancelledAt:iso(job.cancelledAt),
-      updatedAt:iso(job.updatedAt) || iso(job.completedAt) || iso(job.startedAt) || iso(job.cancelledAt) || iso(job.plannedAt),
-      placement:job.placement && typeof job.placement === 'object' ? {...job.placement} : null,
-    };
-  }
-
-  function normalizePrintJobs(value, limit = MAX_PRINT_JOBS) {
-    const map = new Map();
-    for (const raw of Array.isArray(value) ? value : []) {
-      const job = normalizePrintJob(raw);
-      if (!job.id || !job.spoolId || !job.plannedAt) continue;
-      const old = map.get(job.id);
-      if (!old || Date.parse(job.updatedAt || job.plannedAt) >= Date.parse(old.updatedAt || old.plannedAt)) map.set(job.id, job);
-    }
-    return [...map.values()].sort((a,b) => Date.parse(a.plannedAt) - Date.parse(b.plannedAt)).slice(-Math.max(1, Number(limit) || MAX_PRINT_JOBS));
   }
 
   function cloneState(state = {}) {
@@ -277,10 +305,13 @@
     const state = cloneState(stateRaw);
     const requirement = normalizeRequirement(query);
     if (requirement.grams <= 0) return {changed:false, reason:'grams-required', state};
-    const result = evaluate(state.spools, requirement, Date.parse(at) || Date.now());
+    const result = evaluate(state.spools, requirement, Date.parse(at) || Date.now(), {printJobs:state.printJobs});
     const row = result.candidates.find(candidate => clean(candidate.spool.id, 64).toLowerCase() === clean(spoolId, 64).toLowerCase()) || null;
     if (!row) return {changed:false, reason:'spool-not-matching', state, result};
-    if (row.known && !row.enough) return {changed:false, reason:'not-enough', state, result, candidate:row};
+    if (row.known && !row.enough) {
+      const reservationConflict = row.reservedGrams > 0 && row.grams >= requirement.required;
+      return {changed:false, reason:reservationConflict ? 'reserved' : 'not-enough', state, result, candidate:row};
+    }
 
     const job = normalizePrintJob({
       id:makeJobId(state, row.spool.id, at),
@@ -293,6 +324,8 @@
       safetyMargin:requirement.safetyMargin,
       requiredGrams:requirement.required,
       remainingAtPlan:row.grams,
+      reservedBeforePlan:row.reservedGrams,
+      availableAtPlan:row.availableGrams,
       evidenceAtPlan:row.measurement.source,
       readinessAtPlan:result.status,
       verificationRequired:row.measurement.source !== 'Measured',
@@ -304,27 +337,65 @@
     return {changed:true, state, job, result, candidate:row};
   }
 
-  function startJob(stateRaw = {}, jobId = '', at = new Date().toISOString()) {
+  function activeJobs(state = {}) {
+    return normalizePrintJobs(state.printJobs).filter(job => ACTIVE_JOB_STATUSES.has(job.status)).sort((a,b) => Date.parse(b.updatedAt || b.plannedAt) - Date.parse(a.updatedAt || a.plannedAt));
+  }
+
+  function runningJobForSpool(state = {}, spoolId = '', excludeJobId = '') {
+    const target = clean(spoolId, 64).toLowerCase();
+    const excluded = clean(excludeJobId, 120);
+    return normalizePrintJobs(state.printJobs).find(job => job.status === 'in-progress'
+      && job.id !== excluded
+      && clean(job.spoolId, 64).toLowerCase() === target) || null;
+  }
+
+  function runningJobForPrinter(state = {}, printer = '', excludeJobId = '') {
+    const target = clean(printer, 60).toLowerCase();
+    const excluded = clean(excludeJobId, 120);
+    if (!target) return null;
+    for (const job of normalizePrintJobs(state.printJobs)) {
+      if (job.status !== 'in-progress' || job.id === excluded) continue;
+      const spool = findSpool(state, job.spoolId);
+      if (clean(spool?.printerName, 60).toLowerCase() === target) return job;
+    }
+    return null;
+  }
+
+  function startEligibility(stateRaw = {}, jobId = '') {
     const state = cloneState(stateRaw);
     const job = state.printJobs.find(row => row.id === clean(jobId, 120));
-    if (!job) return {changed:false, reason:'job-not-found', state};
-    if (job.status !== 'planned') return {changed:false, reason:'job-not-planned', state, job};
+    if (!job) return {ok:false, reason:'job-not-found', state};
+    if (job.status !== 'planned') return {ok:false, reason:'job-not-planned', state, job};
     const spool = findSpool(state, job.spoolId);
-    if (!spool || spool.archivedAt) return {changed:false, reason:'spool-unavailable', state, job};
-    if (spool.placementState !== 'Loaded') return {changed:false, reason:'not-loaded', state, job, spool};
+    if (!spool || spool.archivedAt) return {ok:false, reason:'spool-unavailable', state, job};
+    if (spool.placementState !== 'Loaded') return {ok:false, reason:'not-loaded', state, job, spool};
     const current = measurement(spool);
-    if (current.source !== 'Measured') return {changed:false, reason:'verification-required', state, job, spool, measurement:current};
-    if (current.grams < job.requiredGrams) return {changed:false, reason:'not-enough', state, job, spool, measurement:current};
+    if (current.source !== 'Measured') return {ok:false, reason:'verification-required', state, job, spool, measurement:current};
+    const spoolBusy = runningJobForSpool(state, job.spoolId, job.id);
+    if (spoolBusy) return {ok:false, reason:'spool-busy', state, job, spool, measurement:current, conflictJob:spoolBusy};
+    const printerBusy = runningJobForPrinter(state, spool.printerName, job.id);
+    if (printerBusy) return {ok:false, reason:'printer-busy', state, job, spool, measurement:current, conflictJob:printerBusy};
+    const reservedOther = reservedGramsForSpool(state.printJobs, job.spoolId, job.id);
+    const availableForJob = Math.max(0, Math.round((current.grams - reservedOther) * 10) / 10);
+    if (availableForJob < job.requiredGrams) return {ok:false, reason:reservedOther > 0 ? 'reservation-conflict' : 'not-enough', state, job, spool, measurement:current, reservedOther, availableForJob};
+    return {ok:true, reason:'ready', state, job, spool, measurement:current, reservedOther, availableForJob};
+  }
 
+  function startJob(stateRaw = {}, jobId = '', at = new Date().toISOString()) {
+    const check = startEligibility(stateRaw, jobId);
+    if (!check.ok) return {changed:false, ...check};
+    const {state, job, spool, measurement:current, reservedOther, availableForJob} = check;
     job.status = 'in-progress';
     job.startedAt = at;
     job.updatedAt = at;
     job.remainingAtStart = current.grams;
+    job.reservedAtStart = reservedOther;
+    job.availableAtStart = availableForJob;
     job.evidenceAtStart = current.source;
     job.verificationRequired = false;
     job.placement = placementRecommendation(spool, state.spools, {printer:spool.printerName, feeder:spool.feederName, slot:spool.feederSlot});
     state.printJobs = normalizePrintJobs(state.printJobs);
-    return {changed:true, state, job, spool, measurement:current};
+    return {changed:true, state, job, spool, measurement:current, reservedOther, availableForJob};
   }
 
   function completeJob(stateRaw = {}, jobId = '', consumedGrams, at = new Date().toISOString()) {
@@ -360,8 +431,10 @@
     job.remainingAfter = remainingAfter;
     state.printJobs = normalizePrintJobs(state.printJobs);
 
+    const reservedAfter = reservedGramsForSpool(state.printJobs, spool.id);
+    const reservationShortfall = Math.max(0, Math.round((reservedAfter - remainingAfter) * 10) / 10);
     const reorder = finite(spool.reorderThreshold) ? Math.max(0, Number(spool.reorderThreshold)) : 250;
-    return {changed:true, state, job, spool, remainingAfter, reorderNeeded:remainingAfter <= reorder};
+    return {changed:true, state, job, spool, remainingAfter, reservedAfter, reservationShortfall, reorderNeeded:remainingAfter <= reorder};
   }
 
   function cancelJob(stateRaw = {}, jobId = '', at = new Date().toISOString()) {
@@ -374,10 +447,6 @@
     job.updatedAt = at;
     state.printJobs = normalizePrintJobs(state.printJobs);
     return {changed:true, state, job};
-  }
-
-  function activeJobs(state = {}) {
-    return normalizePrintJobs(state.printJobs).filter(job => job.status === 'planned' || job.status === 'in-progress').sort((a,b) => Date.parse(b.updatedAt || b.plannedAt) - Date.parse(a.updatedAt || a.plannedAt));
   }
 
   function recentJobs(state = {}, limit = 5) {
@@ -398,13 +467,18 @@
     evaluate,
     normalizePrintJob,
     normalizePrintJobs,
+    reservationRows,
+    reservedGramsForSpool,
     findSpool,
     findJob,
     planJob,
+    startEligibility,
     startJob,
     completeJob,
     cancelJob,
     activeJobs,
+    runningJobForSpool,
+    runningJobForPrinter,
     recentJobs,
   });
 });
