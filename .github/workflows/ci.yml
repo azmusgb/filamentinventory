@@ -53,6 +53,7 @@ jobs:
           test -f dist/css/components/v11.css
           test -f dist/css/components/v11-workflows.css
           test -f dist/css/components/physical-workflow.css
+          test -f dist/css/components/print-job.css
           test -f dist/app-version.js
           test -f dist/build-meta.json
           test -f dist/user-isolation.js
@@ -69,6 +70,8 @@ jobs:
           test -f dist/spool-actions-client.js
           test -f dist/bulk-actions-core.js
           test -f dist/bulk-actions-client.js
+          test -f dist/print-readiness-core.js
+          test -f dist/print-readiness-client.js
           test -f dist/ui-v10-client.js
           test -f dist/app-shell-client.js
           test -f dist/app.js
