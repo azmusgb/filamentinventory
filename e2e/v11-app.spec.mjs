@@ -25,7 +25,7 @@ const spool = (overrides = {}) => ({
 
 const state = (owner, spools) => ({
   version: 10, appVersion: '10.2.0', profile: owner, savedAt: '2026-08-28T15:00:00.000Z',
-  meta: { lastBackupAt: null }, spools, weighLog: [], auditLog: [], tombstones: {},
+  meta: { lastBackupAt: null }, spools, weighLog: [], auditLog: [], printJobs: [], tombstones: {},
 });
 
 async function seedBrowser(page) {
@@ -153,15 +153,58 @@ test('service worker activates the current PWA shell cache with V11 assets', asy
     const keys=await caches.keys();
     const cacheName=keys.find(key=>key.startsWith('filament-inventory-v'))||'';
     const cache=cacheName?await caches.open(cacheName):null;
-    return {script:registration.active?.scriptURL||'',cacheName,shell:Boolean(await cache?.match('/css/components/v11.css')),workflows:Boolean(await cache?.match('/css/components/v11-workflows.css')),appShell:Boolean(await cache?.match('/app-shell-client.js')),pwaRuntime:Boolean(await cache?.match('/pwa-client.js'))};
+    return {script:registration.active?.scriptURL||'',cacheName,shell:Boolean(await cache?.match('/css/components/v11.css')),workflows:Boolean(await cache?.match('/css/components/v11-workflows.css')),printJob:Boolean(await cache?.match('/css/components/print-job.css')),appShell:Boolean(await cache?.match('/app-shell-client.js')),pwaRuntime:Boolean(await cache?.match('/pwa-client.js'))};
   });
   expect(result).not.toBeNull();
   expect(result.script).toContain('/sw.js');
-  expect(result.cacheName).toBe('filament-inventory-v37');
+  expect(result.cacheName).toBe('filament-inventory-v38');
   expect(result.shell).toBe(true);
   expect(result.workflows).toBe(true);
+  expect(result.printJob).toBe(true);
   expect(result.appShell).toBe(true);
   expect(result.pwaRuntime).toBe(true);
+});
+
+test('measured loaded spool can be planned, started and completed through print intelligence', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium','Full print lifecycle is exercised once in Chromium.');
+  await page.evaluate(() => {
+    const key='filament-inventory-v1';
+    const value=JSON.parse(localStorage.getItem(key)||'{}');
+    const row=(value.spools||[]).find(spool=>spool.id==='T001');
+    row.gross=800;
+    row.tare=200;
+    row.visualPercent=80;
+    row.placementState='Loaded';
+    row.printerName='P1S';
+    row.feederName='AMS 1';
+    row.feederSlot='1';
+    row.loadedAt='2026-08-28T14:00:00.000Z';
+    row.updatedAt='2026-08-28T14:00:00.000Z';
+    localStorage.setItem(key,JSON.stringify(value));
+  });
+
+  await page.locator('[data-shell-action="print"]').click();
+  await expect(page.locator('#printReadinessDialog[open]')).toBeVisible();
+  await page.locator('#printJobName').fill('Bracket test');
+  await page.locator('#printMaterial').fill('PLA');
+  await page.locator('#printColor').fill('White');
+  await page.locator('#printGrams').fill('200');
+  await page.getByRole('button',{name:'Check inventory'}).click();
+  await expect(page.locator('#printReadinessResult')).toContainText('Measured ready');
+  await expect(page.locator('#printReadinessResult')).toContainText('Measured · scale');
+  await page.getByRole('button',{name:'Plan with this spool'}).click();
+  await expect(page.locator('#printJobPanel')).toContainText('Bracket test');
+  await page.getByRole('button',{name:'Start print'}).click();
+  await expect(page.locator('#printJobPanel')).toContainText('Printing');
+  await page.locator('[data-print-consumed]').fill('180');
+  await page.getByRole('button',{name:'Complete print'}).click();
+  await expect(page.locator('#printJobPanel')).toContainText('Completed');
+  await expect.poll(() => page.evaluate(() => {
+    const value=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}');
+    const row=(value.spools||[]).find(spool=>spool.id==='T001');
+    const latest=(value.printJobs||[]).at(-1);
+    return `${latest?.status}|${latest?.consumedGrams}|${row?.gross}|${row?.estimatedRemainingGrams}|${row?.remainingEvidenceSource}`;
+  })).toBe('completed|180|null|420|print-job');
 });
 
 test('mobile Back and Forward restore the exact app surface', async ({ page }, testInfo) => {
@@ -190,6 +233,7 @@ test('mobile More hands off to one isolated Print Check dialog', async ({ page }
   await expect(page.locator('.fi-more-sheet')).not.toHaveAttribute('open','');
   await expect(page.locator('#printReadinessDialog[open]')).toBeVisible();
   await expect(page.locator('dialog[open]')).toHaveCount(1);
+  await expect(page.locator('#printReadinessDialog')).toContainText('Print intelligence');
   await page.keyboard.press('Escape');
   await expect(page.locator('#printReadinessDialog')).not.toHaveAttribute('open','');
 });
