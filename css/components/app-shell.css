@@ -72,7 +72,7 @@
   .fi-app-frame.fi-v10 .mobile-bottom-nav button > span { font-size:18px; }
   .fi-app-frame.fi-v10 .mobile-bottom-nav button > small { font-size:10px; letter-spacing:.01em; }
   .fi-app-frame.fi-v10 .mobile-bottom-nav button[aria-current="page"] { box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--color-accent) 16%,transparent); }
-  .fi-app-frame.fi-v10 .mobile-bottom-nav [data-bottom-scan] { color:#06111d; background:linear-gradient(135deg,var(--ux-accent,var(--cyan)),var(--ux-accent2,var(--blue))); box-shadow:0 8px 20px var(--accent-glow); }
+  .fi-app-frame.fi-v10 .mobile-bottom-nav [data-bottom-scan] { color:#06111d; background:linear-gradient(135deg,var(--color-accent),var(--color-accent-secondary)); box-shadow:0 8px 20px color-mix(in srgb,var(--color-accent) 18%,transparent); }
 }
 
 @media (max-width:640px) {
