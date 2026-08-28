@@ -48,6 +48,16 @@
         .then(() => root.FilamentInventorySpoolContractUI ? undefined : loadRuntimeScript('/spool-contract-client.js'))
         .catch(error => console.error('Canonical spool contract failed to initialize.', error));
     };
+    const ensurePhysicalWorkflowRuntime = () => {
+      if (!root.document || root.FilamentInventoryPhysicalWorkflowUI) return;
+      const contractReady = root.FilamentInventorySpoolContract
+        ? Promise.resolve()
+        : loadRuntimeScript('/spool-contract-core.js');
+      contractReady
+        .then(() => root.FilamentInventoryPhysicalWorkflow ? undefined : loadRuntimeScript('/physical-workflow-core.js'))
+        .then(() => root.FilamentInventoryPhysicalWorkflowUI ? undefined : loadRuntimeScript('/physical-workflow-client.js'))
+        .catch(error => console.error('Physical spool workflow failed to initialize.', error));
+    };
     const ensurePwaRuntime = () => {
       if (!root.document || root.FilamentInventoryPWA) return;
       const src = '/pwa-client.js';
@@ -60,6 +70,7 @@
     };
     ensureComponentStyles();
     ensureSpoolContractRuntime();
+    ensurePhysicalWorkflowRuntime();
     ensurePwaRuntime();
     if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', applyLabels, {once:true});
     else applyLabels();
