@@ -91,6 +91,7 @@
   }
 
   function quietTopbar() {
+    ['exportTopBtn','addTopBtn'].forEach(id => $(id)?.classList.add('fi-global-duplicate'));
     const copy=document.querySelector('.brand p'); if(!copy || copy.dataset.shellQuiet==='1') return;
     copy.dataset.shellQuiet='1';
     const version=copy.querySelector('[data-app-version]')?.textContent?.trim();
