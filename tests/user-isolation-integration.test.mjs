@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import {readFile} from 'node:fs/promises';
 import test from 'node:test';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('browser loads isolation before sync and household state consumers', async () => {
+test('browser loads isolation before sync and private state consumers', async () => {
   const html = await read('index.html');
   const isolation = html.indexOf('/user-isolation.js');
   const sync = html.indexOf('/sync-client.js');
@@ -34,14 +34,16 @@ test('sync and security requests are profile-scoped', async () => {
   assert.match(admin, /owner\.toLowerCase\(\).*:\$\{key\}/);
 });
 
-test('active UI has a persistent profile boundary and removes cross-user transfer controls', async () => {
-  const isolation = await read('user-isolation.js');
-  assert.match(isolation, /Private inventory workspace/);
-  assert.match(isolation, /Separate spools · separate history · separate backups · separate cloud sync/);
-  assert.match(isolation, /data-v8-transfer/);
-  assert.match(isolation, /ownerReportV8/);
-  assert.match(isolation, /ownerFilterV8/);
-  assert.match(isolation, /location\.reload\(\)/);
+test('V11 exposes one persistent profile boundary while isolation owns storage routing and reload', async () => {
+  const [isolation, shell] = await Promise.all([read('user-isolation.js'),read('app-shell-client.js')]);
+  assert.match(isolation, /OWNERS=Object\.freeze\(\['Bill','Aimee'\]\)/);
+  assert.match(isolation, /physicalKey\(rawOwner\(\),key\)/);
+  assert.match(isolation, /key===CURRENT_USER_KEY/);
+  assert.match(isolation, /host\.location\.reload\(\)/);
+  assert.match(shell, /profile-switch-dialog/);
+  assert.match(shell, /Private inventories/);
+  assert.match(shell, /separate spools, activity, backups and cloud sync/i);
+  assert.doesNotMatch(shell, /Transfer ownership|Both owners|ownerReportV8|ownerFilterV8/);
 });
 
 test('PWA and deploy output include the isolation boundary', async () => {

@@ -17,10 +17,9 @@
   let applyingRemote = false;
   let cloudMeta = null;
   let snapshotRows = [];
+  let confirmAction = null;
 
-  const parse = (text, fallback = null) => {
-    try { return JSON.parse(text); } catch { return fallback; }
-  };
+  const parse = (text, fallback = null) => { try { return JSON.parse(text); } catch { return fallback; } };
   const nowIso = () => new Date().toISOString();
   const validKey = key => /^[A-Za-z0-9_-]{32,128}$/.test(String(key || '').trim());
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -44,22 +43,19 @@
   function readSettings() {
     const parsed = parse(nativeGetItem.call(localStorage, SYNC_SETTINGS_STORAGE), {});
     return {
-      enabled: Boolean(parsed?.enabled),
-      auto: parsed?.auto !== false,
-      lastSyncedAt: parsed?.lastSyncedAt || null,
-      lastRevision: String(parsed?.lastRevision || ''),
-      deviceName: String(parsed?.deviceName || detectDeviceName()).slice(0, 60),
+      enabled:Boolean(parsed?.enabled),
+      auto:parsed?.auto !== false,
+      lastSyncedAt:parsed?.lastSyncedAt || null,
+      lastRevision:String(parsed?.lastRevision || ''),
+      deviceName:String(parsed?.deviceName || detectDeviceName()).slice(0,60),
     };
   }
 
   function writeSettings(next) {
-    nativeSetItem.call(localStorage, SYNC_SETTINGS_STORAGE, JSON.stringify({...readSettings(), ...next}));
+    nativeSetItem.call(localStorage, SYNC_SETTINGS_STORAGE, JSON.stringify({...readSettings(),...next}));
   }
 
-  function readKey() {
-    return String(nativeGetItem.call(localStorage, SYNC_KEY_STORAGE) || '').trim();
-  }
-
+  function readKey() { return String(nativeGetItem.call(localStorage, SYNC_KEY_STORAGE) || '').trim(); }
   function writeKey(key) {
     const clean = String(key || '').trim();
     if (clean) nativeSetItem.call(localStorage, SYNC_KEY_STORAGE, clean);
@@ -77,13 +73,13 @@
 
   function deviceInfo() {
     const settings = readSettings();
-    return { id:deviceId(), name:settings.deviceName || detectDeviceName() };
+    return {id:deviceId(),name:settings.deviceName || detectDeviceName()};
   }
 
   function normalizeTombstones(value) {
     const out = {};
     if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
-    Object.entries(value).forEach(([id, at]) => {
+    Object.entries(value).forEach(([id,at]) => {
       const key = String(id || '').trim().toLowerCase();
       if (key && at && !Number.isNaN(Date.parse(String(at)))) out[key] = String(at);
     });
@@ -92,33 +88,32 @@
 
   function readLocal() {
     const state = parse(nativeGetItem.call(localStorage, STORAGE_KEY), null);
-    if (!state || !Array.isArray(state.spools)) return null;
-    return state;
+    return state && Array.isArray(state.spools) ? state : null;
   }
 
-  function augmentState(previous, next) {
+  function augmentState(previous,next) {
     if (!next || !Array.isArray(next.spools)) return next;
-    const tombstones = {...normalizeTombstones(previous?.tombstones), ...normalizeTombstones(next.tombstones)};
-    const nextIds = new Set(next.spools.map(s => String(s?.id || '').trim().toLowerCase()).filter(Boolean));
+    const tombstones = {...normalizeTombstones(previous?.tombstones),...normalizeTombstones(next.tombstones)};
+    const nextIds = new Set(next.spools.map(spool => String(spool?.id || '').trim().toLowerCase()).filter(Boolean));
     for (const spool of previous?.spools || []) {
       const id = String(spool?.id || '').trim().toLowerCase();
       if (id && !nextIds.has(id)) tombstones[id] = nowIso();
     }
-    next.version = Math.max(Number(next.version) || 0, VERSION);
+    next.version = Math.max(Number(next.version) || 0,VERSION);
     next.tombstones = tombstones;
     return next;
   }
 
-  Storage.prototype.setItem = function(key, value) {
+  Storage.prototype.setItem = function(key,value) {
     if (!applyingRemote && this === localStorage && key === STORAGE_KEY) {
       const previous = readLocal();
-      const next = parse(String(value), null);
-      if (next && Array.isArray(next.spools)) value = JSON.stringify(augmentState(previous, next));
-      nativeSetItem.call(this, key, value);
+      const next = parse(String(value),null);
+      if (next && Array.isArray(next.spools)) value = JSON.stringify(augmentState(previous,next));
+      nativeSetItem.call(this,key,value);
       scheduleSync();
       return;
     }
-    nativeSetItem.call(this, key, value);
+    nativeSetItem.call(this,key,value);
   };
 
   function cloudState() {
@@ -135,7 +130,7 @@
 
   function fingerprint(state) {
     if (!state) return '';
-    return JSON.stringify({spools:state.spools || [], weighLog:state.weighLog || [], auditLog:state.auditLog || [], tombstones:state.tombstones || {}});
+    return JSON.stringify({spools:state.spools || [],weighLog:state.weighLog || [],auditLog:state.auditLog || [],tombstones:state.tombstones || {}});
   }
 
   function applyRemoteState(remote) {
@@ -144,7 +139,7 @@
     if (fingerprint(cloudState()) === fingerprint(remote)) return false;
     const next = {
       ...current,
-      version:Math.max(Number(current.version) || 0, VERSION),
+      version:Math.max(Number(current.version) || 0,VERSION),
       savedAt:nowIso(),
       spools:remote.spools,
       weighLog:Array.isArray(remote.weighLog) ? remote.weighLog : [],
@@ -152,7 +147,7 @@
       tombstones:normalizeTombstones(remote.tombstones),
     };
     applyingRemote = true;
-    nativeSetItem.call(localStorage, STORAGE_KEY, JSON.stringify(next));
+    nativeSetItem.call(localStorage,STORAGE_KEY,JSON.stringify(next));
     applyingRemote = false;
     return true;
   }
@@ -162,7 +157,7 @@
     const key = readKey();
     if (!settings.enabled || !settings.auto || !validKey(key) || !navigator.onLine) return;
     clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => syncNow({silent:true}), 1500);
+    syncTimer = setTimeout(() => syncNow({silent:true}),1500);
   }
 
   function toast(message) {
@@ -170,17 +165,17 @@
     if (!el) return;
     el.textContent = message;
     el.classList.add('show');
-    setTimeout(() => el.classList.remove('show'), 3200);
+    setTimeout(() => el.classList.remove('show'),3200);
   }
 
-  function setStatus(state, title, detail) {
+  function setStatus(state,title,detail) {
     const box = document.getElementById('syncStatusBox');
     if (!box) return;
     box.dataset.state = state;
-    const t = document.getElementById('syncStatusTitle');
-    const d = document.getElementById('syncStatusDetail');
-    if (t) t.textContent = title;
-    if (d) d.textContent = detail;
+    const titleNode = document.getElementById('syncStatusTitle');
+    const detailNode = document.getElementById('syncStatusDetail');
+    if (titleNode) titleNode.textContent = title;
+    if (detailNode) detailNode.textContent = detail;
   }
 
   function formatWhen(value) {
@@ -193,39 +188,24 @@
     const el = document.getElementById('syncDevices');
     if (!el) return;
     const devices = Array.isArray(cloudMeta?.devices) ? cloudMeta.devices : [];
-    if (!devices.length) {
-      el.innerHTML = '<div class="sync-empty">No cloud device activity yet.</div>';
-      return;
-    }
+    if (!devices.length) { el.innerHTML='<div class="sync-empty">No cloud device activity yet.</div>'; return; }
     const mine = deviceId();
-    el.innerHTML = devices.slice().sort((a,b) => Date.parse(b.lastSeenAt||0)-Date.parse(a.lastSeenAt||0)).slice(0,8).map(d =>
-      `<div class="sync-row"><div><strong>${esc(d.name || 'Device')}${d.id === mine ? ' · this device' : ''}</strong><span>${esc(formatWhen(d.lastSeenAt))}</span></div><span>${esc(d.lastAction || 'sync')}</span></div>`
-    ).join('');
+    el.innerHTML = devices.slice().sort((a,b) => Date.parse(b.lastSeenAt || 0)-Date.parse(a.lastSeenAt || 0)).slice(0,8).map(device => `<div class="sync-row"><div><strong>${esc(device.name || 'Device')}${device.id === mine ? ' · this device' : ''}</strong><span>${esc(formatWhen(device.lastSeenAt))}</span></div><span>${esc(device.lastAction || 'sync')}</span></div>`).join('');
   }
 
   function renderActivity() {
     const el = document.getElementById('syncActivity');
     if (!el) return;
     const rows = Array.isArray(cloudMeta?.activity) ? cloudMeta.activity : [];
-    if (!rows.length) {
-      el.innerHTML = '<div class="sync-empty">No cloud activity yet.</div>';
-      return;
-    }
-    el.innerHTML = rows.slice(0,8).map(row =>
-      `<div class="sync-row"><div><strong>${esc(row.deviceName || 'Device')} · ${esc(row.type || 'sync')}</strong><span>${esc(formatWhen(row.at))}</span></div><span>${esc(row.summary || '')}</span></div>`
-    ).join('');
+    if (!rows.length) { el.innerHTML='<div class="sync-empty">No cloud activity yet.</div>'; return; }
+    el.innerHTML = rows.slice(0,8).map(row => `<div class="sync-row"><div><strong>${esc(row.deviceName || 'Device')} · ${esc(row.type || 'sync')}</strong><span>${esc(formatWhen(row.at))}</span></div><span>${esc(row.summary || '')}</span></div>`).join('');
   }
 
   function renderSnapshots() {
     const el = document.getElementById('snapshotList');
     if (!el) return;
-    if (!snapshotRows.length) {
-      el.innerHTML = '<div class="sync-empty">No cloud snapshots yet. A snapshot is created before a cloud-changing sync or restore.</div>';
-      return;
-    }
-    el.innerHTML = snapshotRows.map(row =>
-      `<div class="snapshot-row"><div><strong>${esc(formatWhen(row.createdAt))}</strong><span>Revision ${esc(row.revision || 'unknown')} · ${Number(row.spoolCount || 0)} spools</span></div><button class="btn" data-restore-revision="${esc(row.revision || '')}" type="button">Restore</button></div>`
-    ).join('');
+    if (!snapshotRows.length) { el.innerHTML='<div class="sync-empty">Load recovery snapshots when you need to undo a cloud change.</div>'; return; }
+    el.innerHTML = snapshotRows.map(row => `<div class="snapshot-row"><div><strong>${esc(formatWhen(row.createdAt))}</strong><span>Revision ${esc(row.revision || 'unknown')} · ${Number(row.spoolCount || 0)} spools</span></div><button class="btn" data-restore-revision="${esc(row.revision || '')}" type="button">Restore</button></div>`).join('');
   }
 
   function renderSync() {
@@ -249,23 +229,22 @@
     const last = document.getElementById('lastSyncText');
     if (last) {
       const revision = settings.lastRevision ? ` · revision ${settings.lastRevision}` : '';
-      last.textContent = settings.lastSyncedAt ? `Last successful sync: ${formatWhen(settings.lastSyncedAt)}${revision}` : 'Not synced yet on this device.';
+      last.textContent = settings.lastSyncedAt ? `Last successful sync: ${formatWhen(settings.lastSyncedAt)}${revision}` : 'Connected, but this device has not completed its first sync yet.';
     }
     const cloud = document.getElementById('cloudRevisionText');
-    if (cloud) cloud.textContent = cloudMeta?.revision ? `Cloud revision ${cloudMeta.revision} · updated ${formatWhen(cloudMeta.updatedAt)}` : 'Cloud revision not loaded yet.';
-
+    if (cloud) cloud.textContent = cloudMeta?.revision ? `Cloud revision ${cloudMeta.revision} · updated ${formatWhen(cloudMeta.updatedAt)}` : 'Cloud revision will appear after a status check.';
     renderDevices();
     renderActivity();
     renderSnapshots();
 
-    if (!navigator.onLine) setStatus('offline', 'Offline', 'Local inventory remains available. Sync resumes when this device reconnects.');
-    else if (syncInFlight) setStatus('working', 'Syncing…', 'Merging this device with the private cloud inventory.');
-    else if (connected) setStatus('ready', 'Cloud sync connected', settings.auto ? 'Automatic merge sync is enabled.' : 'Automatic sync is off; use Sync now when needed.');
-    else setStatus('locked', 'Cloud sync is not connected', 'Paste the private key from another device, or create a new one here.');
+    if (!navigator.onLine) setStatus('offline','Offline','Local inventory is still available. Sync resumes when this device reconnects.');
+    else if (syncInFlight) setStatus('working','Syncing…','Merging this device with the private cloud inventory.');
+    else if (connected) setStatus('ready','Devices are connected',settings.auto ? 'Changes sync automatically after edits and reconnects.' : 'Automatic sync is off. Use Sync now when you want to merge changes.');
+    else setStatus('locked','Connect another device','Paste the private key from an existing device, or create the first private sync key here.');
   }
 
-  async function apiRequest(method, key, body, query = '') {
-    const response = await fetch(`${API}${query}`, {
+  async function apiRequest(method,key,body,query='') {
+    const response = await fetch(`${API}${query}`,{
       method,
       headers:{Accept:'application/json','X-Filament-Sync-Key':key,'X-Filament-Profile':currentProfile(),...(body ? {'Content-Type':'application/json'} : {})},
       body:body ? JSON.stringify(body) : undefined,
@@ -282,7 +261,7 @@
     if (revision) writeSettings({lastRevision:revision});
   }
 
-  async function syncNow({silent=false} = {}) {
+  async function syncNow({silent=false}={}) {
     const key = readKey();
     const state = cloudState();
     const settings = readSettings();
@@ -290,26 +269,26 @@
     syncInFlight = true;
     renderSync();
     try {
-      const result = await apiRequest('POST', key, {action:'sync',state,device:deviceInfo(),baseRevision:settings.lastRevision || null});
+      const result = await apiRequest('POST',key,{action:'sync',state,device:deviceInfo(),baseRevision:settings.lastRevision || null});
       absorbMeta(result);
       const changed = applyRemoteState(result.state);
-      writeSettings({enabled:true, lastSyncedAt:nowIso(), lastRevision:String(result?.meta?.revision || '')});
+      writeSettings({enabled:true,lastSyncedAt:nowIso(),lastRevision:String(result?.meta?.revision || '')});
       renderSync();
       updateHealthBadge();
       if (result?.merge?.concurrent && !silent) {
         const conflicts = Number(result?.merge?.conflictedSpools || 0);
         if (conflicts > 0) toast(`Concurrent edits reconciled; ${conflicts} spool${conflicts === 1 ? '' : 's'} had same-field conflicts resolved by the newer edit.`);
         else if (result?.merge?.baseRecovered) toast('Concurrent edits reconciled from a recovery snapshot.');
-        else toast('Concurrent edits merged by newest spool because the base snapshot was unavailable.');
+        else toast('Concurrent edits merged using the newest spool state.');
       }
       if (changed) {
         if (!silent) toast('Cloud changes merged. Refreshing inventory…');
-        setTimeout(() => location.reload(), 450);
+        setTimeout(() => location.reload(),450);
       } else if (!silent) toast('Cloud sync complete.');
       return true;
     } catch (error) {
-      console.warn('Cloud sync failed', error);
-      setStatus('error', 'Sync needs attention', error.message || 'Try again when online.');
+      console.warn('Cloud sync failed',error);
+      setStatus('error','Sync needs attention',error.message || 'Try again when online.');
       if (!silent) toast(error.message || 'Cloud sync failed.');
       return false;
     } finally {
@@ -318,11 +297,11 @@
     }
   }
 
-  async function loadCloudMeta({silent=true} = {}) {
+  async function loadCloudMeta({silent=true}={}) {
     const key = readKey();
     if (!validKey(key) || !navigator.onLine || syncInFlight) return false;
     try {
-      const result = await apiRequest('GET', key, null, '?view=meta');
+      const result = await apiRequest('GET',key,null,'?view=meta');
       absorbMeta(result);
       renderSync();
       return true;
@@ -338,34 +317,33 @@
     syncInFlight = true;
     renderSync();
     try {
-      const result = await apiRequest('GET', key, null, '?view=snapshots');
+      const result = await apiRequest('GET',key,null,'?view=snapshots');
       snapshotRows = Array.isArray(result.snapshots) ? result.snapshots : [];
       absorbMeta(result);
       renderSync();
-      toast(snapshotRows.length ? `${snapshotRows.length} cloud snapshots loaded.` : 'No cloud snapshots yet.');
+      toast(snapshotRows.length ? `${snapshotRows.length} recovery snapshot${snapshotRows.length === 1 ? '' : 's'} loaded.` : 'No recovery snapshots yet.');
     } catch (error) {
-      toast(error.message || 'Could not load cloud snapshots.');
+      toast(error.message || 'Could not load recovery snapshots.');
     } finally {
       syncInFlight = false;
       renderSync();
     }
   }
 
-  async function restoreSnapshot(revision) {
+  async function performRestoreSnapshot(revision) {
     const key = readKey();
     if (!validKey(key) || !revision || syncInFlight) return;
-    if (!confirm(`Restore cloud revision ${revision}? The current cloud state will be snapshotted first, so this restore is reversible.`)) return;
     syncInFlight = true;
     renderSync();
     try {
-      const result = await apiRequest('POST', key, {action:'restore',revision,device:deviceInfo()});
+      const result = await apiRequest('POST',key,{action:'restore',revision,device:deviceInfo()});
       absorbMeta(result);
       const changed = applyRemoteState(result.state);
-      writeSettings({enabled:true, lastSyncedAt:nowIso(), lastRevision:String(result?.meta?.revision || '')});
+      writeSettings({enabled:true,lastSyncedAt:nowIso(),lastRevision:String(result?.meta?.revision || '')});
       snapshotRows = [];
       renderSync();
-      toast('Cloud snapshot restored.');
-      if (changed) setTimeout(() => location.reload(), 450);
+      toast('Recovery snapshot restored.');
+      if (changed) setTimeout(() => location.reload(),450);
     } catch (error) {
       toast(error.message || 'Snapshot restore failed.');
     } finally {
@@ -378,29 +356,39 @@
     event.preventDefault();
     const input = document.getElementById('syncKeyInput');
     const key = String(input?.value || '').trim();
-    if (!validKey(key)) return setStatus('error', 'Invalid sync key', 'Paste the complete key created by this app.');
-    setStatus('working', 'Connecting…', 'Checking for an existing private cloud inventory.');
+    if (!validKey(key)) return setStatus('error','Invalid sync key','Paste the complete private key created by this app.');
+    setStatus('working','Connecting…','Checking the private cloud inventory.');
     try {
-      const result = await apiRequest('GET', key, null, '?view=meta');
-      if (!result.exists) throw new Error('No cloud inventory exists for that key. Check for a typo, or create a new key on the first device.');
+      const result = await apiRequest('GET',key,null,'?view=meta');
+      if (!result.exists) throw new Error('No cloud inventory exists for that key. Check for a typo, or create the first key on the original device.');
       writeKey(key);
-      writeSettings({enabled:true, lastRevision:String(result?.meta?.revision || '')});
+      writeSettings({enabled:true,lastRevision:String(result?.meta?.revision || '')});
       absorbMeta(result);
-      if (input) input.value = '';
+      if (input) input.value='';
       renderSync();
       await syncNow();
     } catch (error) {
-      setStatus('error', 'Could not connect', error.message || 'Check the key and try again.');
+      setStatus('error','Could not connect',error.message || 'Check the key and try again.');
     }
   }
 
   function generateKey() { return makeId(32); }
 
+  function showKeyDialog(key,title='Private sync key') {
+    const dialog = document.getElementById('syncKeyDialog');
+    const input = document.getElementById('syncKeyReveal');
+    if (!dialog || !input) return;
+    dialog.querySelector('[data-key-title]').textContent = title;
+    input.value = key;
+    dialog.showModal();
+    setTimeout(() => input.select(),30);
+  }
+
   async function createNewKey() {
     if (!crypto?.getRandomValues) return toast('Secure key generation is not supported in this browser.');
     const key = generateKey();
     writeKey(key);
-    writeSettings({enabled:true, lastRevision:''});
+    writeSettings({enabled:true,lastRevision:''});
     renderSync();
     const ok = await syncNow();
     if (!ok) {
@@ -411,9 +399,9 @@
     }
     try {
       await navigator.clipboard.writeText(key);
-      toast('New sync key created and copied. Save it in your password manager.');
+      toast('New sync key copied. Save it in your password manager, then paste it on the other device.');
     } catch {
-      prompt('Save this sync key. You will need it on your other devices:', key);
+      showKeyDialog(key,'Save this private sync key');
     }
   }
 
@@ -421,13 +409,12 @@
     const key = readKey();
     if (!key) return;
     try { await navigator.clipboard.writeText(key); toast('Sync key copied.'); }
-    catch { prompt('Copy your sync key:', key); }
+    catch { showKeyDialog(key,'Copy this private sync key'); }
   }
 
-  function forgetKey() {
-    if (!confirm('Forget the private sync key on this device? The cloud inventory will not be deleted.')) return;
+  function performForgetKey() {
     writeKey('');
-    writeSettings({enabled:false, lastRevision:''});
+    writeSettings({enabled:false,lastRevision:''});
     cloudMeta = null;
     snapshotRows = [];
     clearTimeout(syncTimer);
@@ -436,69 +423,131 @@
     toast('Sync key removed from this device.');
   }
 
+  function showConfirm({title,copy,confirmText='Continue',danger=false,onConfirm}) {
+    const dialog = document.getElementById('syncConfirmDialog');
+    if (!dialog) return;
+    dialog.querySelector('[data-confirm-title]').textContent = title;
+    dialog.querySelector('[data-confirm-copy]').textContent = copy;
+    const button = dialog.querySelector('[data-confirm-accept]');
+    button.textContent = confirmText;
+    button.classList.toggle('btn-danger',danger);
+    button.classList.toggle('btn-primary',!danger);
+    confirmAction = onConfirm;
+    dialog.showModal();
+  }
+
   function saveDeviceName() {
     const input = document.getElementById('deviceNameInput');
     const name = String(input?.value || '').trim().slice(0,60) || detectDeviceName();
     writeSettings({deviceName:name});
-    if (input) input.value = name;
+    if (input) input.value=name;
     renderSync();
     scheduleSync();
     toast('Device name saved.');
   }
 
-  function injectStyle() {
-    const style = document.createElement('style');
-    style.textContent = `.sync-layout{display:grid;grid-template-columns:1.02fr .98fr;gap:18px}.sync-card{padding:22px}.sync-status{margin-top:18px;display:grid;grid-template-columns:auto 1fr;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:16px;background:rgba(3,10,18,.34)}.sync-status strong{display:block;font-size:14px}.sync-status span{display:block;margin-top:3px;color:var(--muted);font-size:12px;line-height:1.45}.sync-dot{width:12px;height:12px;border-radius:50%;background:#64748b;box-shadow:0 0 18px currentColor}.sync-status[data-state=ready] .sync-dot{color:#84cc16;background:#84cc16}.sync-status[data-state=working] .sync-dot{color:#38bdf8;background:#38bdf8;animation:syncPulse 1.1s ease-in-out infinite}.sync-status[data-state=offline] .sync-dot{color:#f59e0b;background:#f59e0b}.sync-status[data-state=error] .sync-dot{color:#ef4444;background:#ef4444}.sync-options{display:grid;gap:10px;margin-top:18px}.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px;border:1px solid var(--line);border-radius:16px;background:rgba(3,10,18,.28);text-transform:none;letter-spacing:0}.toggle-row span{min-width:0}.toggle-row strong{display:block;color:var(--text);font-size:13px}.toggle-row small{display:block;margin-top:4px;color:var(--muted);font-size:11px;line-height:1.45}.toggle-row input{width:22px;height:22px;accent-color:var(--cyan);flex:0 0 auto}.sync-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.sync-actions .btn{flex:1}.sync-notes{display:grid;gap:11px;margin-top:18px}.sync-notes>div{padding:14px;border:1px solid var(--line);border-radius:15px;background:rgba(3,10,18,.28)}.sync-notes strong{display:block;font-size:13px}.sync-notes span{display:block;margin-top:4px;color:var(--muted);font-size:12px;line-height:1.5}.sync-section{margin-top:18px}.sync-list{display:grid;gap:8px;margin-top:10px}.sync-row,.snapshot-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border:1px solid var(--line);border-radius:13px;background:rgba(3,10,18,.25)}.sync-row>div,.snapshot-row>div{min-width:0}.sync-row strong,.snapshot-row strong{display:block;font-size:12px}.sync-row span,.snapshot-row span{display:block;color:var(--muted);font-size:11px;margin-top:2px}.snapshot-row .btn{flex:0 0 auto;min-height:34px;padding:6px 10px}.sync-empty{padding:14px;border:1px dashed var(--line);border-radius:13px;color:var(--muted);font-size:12px}.device-name-row{display:grid;grid-template-columns:1fr auto;gap:8px}@keyframes syncPulse{0%,100%{opacity:.55;transform:scale(.85)}50%{opacity:1;transform:scale(1.15)}}@media(max-width:900px){.sync-layout{grid-template-columns:1fr}}@media(max-width:520px){.device-name-row{grid-template-columns:1fr}.sync-row,.snapshot-row{align-items:flex-start}.snapshot-row{flex-direction:column}.snapshot-row .btn{width:100%}}`;
-    document.head.appendChild(style);
+  function syncMarkup() {
+    return `<div class="sync-workflow"><section class="panel sync-card sync-primary-card"><div class="sync-status" id="syncStatusBox"><i class="sync-dot" aria-hidden="true"></i><div><strong id="syncStatusTitle">Checking sync…</strong><span id="syncStatusDetail">Checking this device for a private key.</span></div></div><form id="syncLoginForm" class="sync-connect-form"><div class="sync-connect-copy"><span class="eyebrow">Connect this device</span><h3>Use the same private inventory on another device</h3><p>Paste the private sync key from an existing device. If this is the first device, create a new key and save it in your password manager.</p></div><div class="form-field"><label for="syncKeyInput">Private sync key</label><input autocomplete="off" autocapitalize="none" class="field" id="syncKeyInput" placeholder="Paste the key from another device" spellcheck="false" type="password"></div><div class="sync-actions"><button class="btn btn-primary" type="submit">Connect device</button><button class="btn" id="syncGenerateBtn" type="button">Create first sync key</button></div></form><div id="syncControls" class="sync-connected" hidden><div class="sync-primary-actions"><button class="btn btn-primary" id="syncNowBtn" type="button">Sync now</button><button class="btn" id="copySyncKeyBtn" type="button">Copy key for another device</button></div><p class="sync-last" id="lastSyncText">Connected, but this device has not completed its first sync yet.</p><p class="sync-revision" id="cloudRevisionText">Cloud revision will appear after a status check.</p><label class="toggle-row" for="autoSyncToggle"><span><strong>Automatic sync</strong><small>Merge changes after edits and whenever this device comes back online.</small></span><input id="autoSyncToggle" type="checkbox" checked></label></div></section><details class="panel sync-advanced"><summary><span><strong>Devices, recovery & settings</strong><small>Device name, recovery snapshots, cloud history and private-key controls</small></span><span aria-hidden="true">＋</span></summary><div class="sync-advanced-body"><section class="sync-section"><div class="sync-section-head"><div><span class="eyebrow">This device</span><h3>Name this device</h3></div></div><div class="device-name-row"><input class="field" id="deviceNameInput" maxlength="60" placeholder="iPhone"><button class="btn" id="saveDeviceNameBtn" type="button">Save name</button></div></section><section class="sync-section"><div class="sync-section-head"><div><span class="eyebrow">Known devices</span><h3>Recently connected</h3></div></div><div class="sync-list" id="syncDevices"></div></section><section class="sync-section"><div class="sync-section-head"><div><span class="eyebrow">Recovery</span><h3>Cloud snapshots</h3><p>Snapshots are created before cloud-changing sync or restore operations.</p></div><button class="btn" id="loadSnapshotsBtn" type="button">Load snapshots</button></div><div class="sync-list" id="snapshotList"></div></section><section class="sync-section"><div class="sync-section-head"><div><span class="eyebrow">Cloud activity</span><h3>Recent sync events</h3></div></div><div class="sync-list" id="syncActivity"></div></section><section class="sync-security-note"><strong>Private by capability key</strong><span>The raw key stays on your devices. Local inventory remains the working copy even when cloud sync is unavailable.</span></section><div class="sync-danger-actions"><button class="btn btn-danger" id="syncForgetBtn" type="button">Forget key on this device</button></div></div></details></div>`;
   }
 
-  function syncMarkup() {
-    return `<div class="sync-layout"><section class="panel sync-card"><span class="eyebrow">Secure cross-device sync · v5</span><h2 id="syncTitle" style="margin:8px 0 6px;font-size:30px;letter-spacing:-.04em">Sync with a recovery plan.</h2><p class="muted" style="line-height:1.6">The capability key still protects the cloud inventory, but v5 adds device identity, cloud revisions, activity visibility, and rolling recovery snapshots.</p><div class="sync-status" id="syncStatusBox"><i class="sync-dot"></i><div><strong id="syncStatusTitle">Checking sync…</strong><span id="syncStatusDetail">Checking this device for a private key.</span></div></div><form class="form-grid" id="syncLoginForm" style="margin-top:18px"><div class="form-field full"><label for="syncKeyInput">Private sync key</label><input autocomplete="off" autocapitalize="none" class="field" id="syncKeyInput" placeholder="Paste the key from another device" spellcheck="false" type="password"/></div><div class="form-field full sync-actions"><button class="btn btn-primary" type="submit">Connect existing key</button><button class="btn" id="syncGenerateBtn" type="button">Create new sync key</button></div></form><div id="syncControls" hidden><div class="sync-options"><label class="toggle-row" for="autoSyncToggle"><span><strong>Automatic sync</strong><small>Merge changes after edits and when this device comes back online.</small></span><input id="autoSyncToggle" type="checkbox" checked/></label><div><label for="deviceNameInput">This device name</label><div class="device-name-row"><input class="field" id="deviceNameInput" maxlength="60" placeholder="iPhone"/><button class="btn" id="saveDeviceNameBtn" type="button">Save name</button></div></div></div><div class="sync-actions"><button class="btn btn-primary" id="syncNowBtn" type="button">Sync now</button><button class="btn" id="copySyncKeyBtn" type="button">Copy sync key</button><button class="btn" id="syncForgetBtn" type="button">Forget key</button></div><p class="muted" id="lastSyncText" style="font-size:12px;margin:14px 0 0">Not synced yet.</p><p class="muted" id="cloudRevisionText" style="font-size:12px;margin:6px 0 0">Cloud revision not loaded yet.</p></div><div class="sync-section"><span class="eyebrow">Known devices</span><div class="sync-list" id="syncDevices"></div></div><div class="sync-section"><span class="eyebrow">Recent cloud activity</span><div class="sync-list" id="syncActivity"></div></div></section><aside class="panel sync-card"><span class="eyebrow">Recovery snapshots</span><h3 style="margin-top:8px">Undo a bad cloud change.</h3><p class="muted" style="line-height:1.6">Before cloud state changes, v5 preserves a rolling snapshot. Restoring one first snapshots the current cloud state, so the restore itself is reversible.</p><div class="sync-actions"><button class="btn" id="loadSnapshotsBtn" type="button">Load cloud snapshots</button></div><div class="sync-list" id="snapshotList"></div><div class="sync-notes"><div><strong>Capability-key security</strong><span>The raw 256-bit key remains only on your devices. It is not stored in GitHub, Blob data, JSON backup, or CSV export.</span></div><div><strong>Conflict-aware merge</strong><span>When a prior cloud revision is available, concurrent edits use three-way snapshot reconciliation so independent fields survive. True same-field conflicts resolve to the newer edit and are reported.</span></div><div><strong>Offline-first</strong><span>Local inventory remains the working copy. Cloud sync is additive resilience, not a dependency.</span></div></div></aside></div>`;
+  function ensureDialogs() {
+    if (!document.getElementById('syncConfirmDialog')) {
+      const dialog=document.createElement('dialog');
+      dialog.id='syncConfirmDialog';
+      dialog.className='sync-confirm-dialog';
+      dialog.innerHTML=`<div class="dialog-head"><div><span class="eyebrow">Confirm change</span><h3 data-confirm-title>Continue?</h3></div><button class="btn icon-btn" type="button" data-confirm-cancel aria-label="Close">×</button></div><div class="dialog-body"><p class="fi-confirm-copy" data-confirm-copy></p><div class="dialog-actions"><button class="btn" type="button" data-confirm-cancel>Cancel</button><button class="btn btn-primary" type="button" data-confirm-accept>Continue</button></div></div>`;
+      document.body.appendChild(dialog);
+      dialog.addEventListener('close',() => { confirmAction=null; });
+    }
+    if (!document.getElementById('syncKeyDialog')) {
+      const dialog=document.createElement('dialog');
+      dialog.id='syncKeyDialog';
+      dialog.className='sync-key-dialog';
+      dialog.innerHTML=`<div class="dialog-head"><div><span class="eyebrow">Private sync key</span><h3 data-key-title>Private sync key</h3></div><button class="btn icon-btn" type="button" data-key-close aria-label="Close">×</button></div><div class="dialog-body"><p class="muted">Store this key in your password manager. Anyone with the key can access this profile's cloud inventory.</p><input class="field sync-key-reveal" id="syncKeyReveal" readonly><div class="dialog-actions"><button class="btn btn-primary" type="button" data-key-close>Done</button></div></div>`;
+      document.body.appendChild(dialog);
+    }
   }
 
   function injectUi() {
-    injectStyle();
-    const tabs = document.querySelector('.tabs');
-    const dataTab = tabs?.querySelector('[data-view="data"]');
+    const tabs=document.querySelector('.tabs');
+    const dataTab=tabs?.querySelector('[data-view="data"]');
     if (tabs && dataTab && !tabs.querySelector('[data-view="sync"]')) {
-      const btn = document.createElement('button'); btn.className='tab'; btn.dataset.view='sync'; btn.setAttribute('aria-selected','false'); btn.textContent='Sync'; tabs.insertBefore(btn,dataTab);
+      const button=document.createElement('button');
+      button.className='tab';
+      button.dataset.view='sync';
+      button.setAttribute('aria-selected','false');
+      button.textContent='Sync';
+      tabs.insertBefore(button,dataTab);
     }
-    const dataView = document.getElementById('dataView');
+    const dataView=document.getElementById('dataView');
     if (dataView && !document.getElementById('syncView')) {
-      const section=document.createElement('section'); section.className='view'; section.id='syncView'; section.setAttribute('aria-labelledby','syncTitle'); section.innerHTML=syncMarkup(); dataView.parentNode.insertBefore(section,dataView);
+      const section=document.createElement('section');
+      section.className='view';
+      section.id='syncView';
+      section.setAttribute('aria-label','Sync devices');
+      section.innerHTML=syncMarkup();
+      dataView.parentNode.insertBefore(section,dataView);
     }
-    const eyebrow=document.querySelector('#dashboardView .hero-copy .eyebrow'); if (eyebrow) eyebrow.textContent='Inventory control center · v5';
-    const heroActions=document.querySelector('#dashboardView .hero-actions');
-    if (heroActions && !heroActions.querySelector('[data-jump="sync"]')) { const btn=document.createElement('button'); btn.className='btn'; btn.type='button'; btn.dataset.jump='sync'; btn.textContent='Sync devices'; heroActions.insertBefore(btn,heroActions.lastElementChild); }
-    const dataTitle=document.getElementById('dataTitle'); if (dataTitle) dataTitle.textContent='Data, backup & install · v5';
+    ensureDialogs();
   }
 
   function bind() {
-    document.getElementById('syncLoginForm')?.addEventListener('submit', connectExisting);
-    document.getElementById('syncGenerateBtn')?.addEventListener('click', createNewKey);
-    document.getElementById('syncNowBtn')?.addEventListener('click', () => syncNow());
-    document.getElementById('copySyncKeyBtn')?.addEventListener('click', copyKey);
-    document.getElementById('syncForgetBtn')?.addEventListener('click', forgetKey);
-    document.getElementById('loadSnapshotsBtn')?.addEventListener('click', loadSnapshots);
-    document.getElementById('saveDeviceNameBtn')?.addEventListener('click', saveDeviceName);
-    document.getElementById('snapshotList')?.addEventListener('click', event => { const btn=event.target.closest('[data-restore-revision]'); if (btn) restoreSnapshot(btn.dataset.restoreRevision); });
-    document.getElementById('autoSyncToggle')?.addEventListener('change', event => { writeSettings({auto:Boolean(event.target.checked)}); renderSync(); if (event.target.checked) scheduleSync(); });
-    window.addEventListener('online', () => { renderSync(); loadCloudMeta(); scheduleSync(); });
-    window.addEventListener('offline', renderSync);
-    window.addEventListener('focus', () => { if (validKey(readKey()) && navigator.onLine) loadCloudMeta(); });
+    document.getElementById('syncLoginForm')?.addEventListener('submit',connectExisting);
+    document.getElementById('syncGenerateBtn')?.addEventListener('click',createNewKey);
+    document.getElementById('syncNowBtn')?.addEventListener('click',() => syncNow());
+    document.getElementById('copySyncKeyBtn')?.addEventListener('click',copyKey);
+    document.getElementById('syncForgetBtn')?.addEventListener('click',() => showConfirm({title:'Forget this device key?',copy:'This removes the private sync key from this device only. The cloud inventory is not deleted.',confirmText:'Forget key',danger:true,onConfirm:performForgetKey}));
+    document.getElementById('loadSnapshotsBtn')?.addEventListener('click',loadSnapshots);
+    document.getElementById('saveDeviceNameBtn')?.addEventListener('click',saveDeviceName);
+    document.getElementById('snapshotList')?.addEventListener('click',event => {
+      const button=event.target.closest('[data-restore-revision]');
+      if (!button) return;
+      const revision=button.dataset.restoreRevision;
+      showConfirm({title:`Restore revision ${revision}?`,copy:'The current cloud state is snapshotted first, so this restore can itself be reversed.',confirmText:'Restore snapshot',onConfirm:() => performRestoreSnapshot(revision)});
+    });
+    document.getElementById('autoSyncToggle')?.addEventListener('change',event => { writeSettings({auto:Boolean(event.target.checked)}); renderSync(); if(event.target.checked) scheduleSync(); });
+    document.addEventListener('click',event => {
+      if (event.target.closest('[data-confirm-cancel]')) { document.getElementById('syncConfirmDialog')?.close(); return; }
+      if (event.target.closest('[data-confirm-accept]')) {
+        const action=confirmAction;
+        document.getElementById('syncConfirmDialog')?.close();
+        action?.();
+        return;
+      }
+      if (event.target.closest('[data-key-close]')) document.getElementById('syncKeyDialog')?.close();
+    });
+    window.addEventListener('online',() => { renderSync(); loadCloudMeta(); scheduleSync(); });
+    window.addEventListener('offline',renderSync);
+    window.addEventListener('focus',() => { if(validKey(readKey()) && navigator.onLine) loadCloudMeta(); });
   }
 
   function updateHealthBadge() {
-    const health=document.getElementById('dataHealth'); if (!health) return;
-    const existing=document.getElementById('syncHealthCard'); const settings=readSettings(); const connected=validKey(readKey());
-    const html=`<strong>${connected?'Cloud sync connected':'Local only'}</strong><span>${connected?(settings.lastSyncedAt?`Last sync ${formatWhen(settings.lastSyncedAt)}`:'Connected; first sync pending'):'Connect the Sync tab for cross-device recovery.'}</span>`;
-    if (existing) existing.innerHTML=html; else { const box=document.createElement('article'); box.id='syncHealthCard'; box.className='health-card'; box.innerHTML=html; health.appendChild(box); }
+    const health=document.getElementById('dataHealth');
+    if (!health) return;
+    const existing=document.getElementById('syncHealthCard');
+    const settings=readSettings();
+    const connected=validKey(readKey());
+    const html=`<strong>${connected ? 'Cloud sync connected' : 'Local only'}</strong><span>${connected ? (settings.lastSyncedAt ? `Last sync ${formatWhen(settings.lastSyncedAt)}` : 'Connected; first sync pending') : 'Connect Sync devices for cross-device recovery.'}</span>`;
+    if (existing) existing.innerHTML=html;
+    else {
+      const box=document.createElement('article');
+      box.id='syncHealthCard';
+      box.className='health-card';
+      box.innerHTML=html;
+      health.appendChild(box);
+    }
   }
 
   function init() {
-    injectUi(); bind(); renderSync(); updateHealthBadge();
+    injectUi();
+    bind();
+    renderSync();
+    updateHealthBadge();
     if (validKey(readKey()) && navigator.onLine) { loadCloudMeta(); scheduleSync(); }
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
+  globalThis.FilamentInventorySync = Object.freeze({syncNow,loadCloudMeta,connected:() => validKey(readKey())});
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',init,{once:true});
+  else init();
 })();

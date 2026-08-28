@@ -1,74 +1,69 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import {readFile} from 'node:fs/promises';
 import test from 'node:test';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('personal dashboard layer loads after household/audit layers and before v10/app orchestration', async () => {
+test('personal dashboard loads after isolation and audit layers before V11 shell orchestration', async () => {
   const html = await read('index.html');
   const personalCore = html.indexOf('/personal-core.js');
   const isolation = html.indexOf('/user-isolation.js');
-  const household = html.indexOf('/household-client.js');
   const audit = html.indexOf('/audit-client.js');
   const personal = html.indexOf('/personal-dashboard.js');
-  const v10 = html.indexOf('/ui-v10-client.js');
+  const shell = html.indexOf('/app-shell-client.js');
   const app = html.indexOf('/app.js');
   assert.ok(personalCore >= 0 && personalCore < isolation, 'personal-core.js must load before the user isolation boundary');
-  assert.ok(isolation < household, 'user-isolation.js must load before household/client UI');
-  assert.ok(personal > audit && personal < v10 && v10 < app, 'personal dashboard must feed the v10 UI controller before app mutations');
+  assert.ok(isolation < audit && audit < personal, 'isolated activity must exist before dashboard composition');
+  assert.ok(personal < shell && shell < app, 'dashboard composition must feed the V11 shell before app mutations');
 });
 
-test('dashboard uses the global isolated workspace switch instead of a duplicate profile selector', async () => {
-  const source = await read('personal-dashboard.js');
-  assert.doesNotMatch(source, /id="personalUser"/);
-  assert.doesNotMatch(source, /Working as/);
-  assert.match(source, /userBoundary/);
-  assert.match(source, /Private inventory/);
+test('dashboard consumes the global isolated profile identity instead of creating a duplicate switcher', async () => {
+  const [dashboard, shell] = await Promise.all([read('personal-dashboard.js'),read('app-shell-client.js')]);
+  assert.doesNotMatch(dashboard, /id="personalUser"|Working as|profile-switch-dialog/);
+  assert.match(dashboard, /FilamentInventoryUsers\?\.currentUser/);
+  assert.match(dashboard, /FilamentInventoryProfileUI\?\.read/);
+  assert.match(shell, /profile-switch-dialog/);
+  assert.match(shell, /data-profile-owner/);
 });
 
-test('dashboard consolidates metrics and empty-state analytics without a second command center or runtime stylesheet', async () => {
-  const [source, css] = await Promise.all([read('personal-dashboard.js'), read('ui-system.css')]);
-  assert.match(source, /canonicalMetrics/);
+test('dashboard is one decision-focused Home surface with a deliberate zero-spool state', async () => {
+  const [source, css] = await Promise.all([read('personal-dashboard.js'), read('css/components/v11.css')]);
   assert.doesNotMatch(source, /createElement\(['"]style['"]\)/);
-  assert.match(source, /data\.empty|dataset\.empty/);
+  assert.match(source, /fi-home-dashboard/);
+  assert.match(source, /dataset\.empty/);
   assert.match(source, /\+ Add first spool/);
-  assert.match(source, /Restore backup/);
-  assert.match(source, /removeLegacyPersonalPanel/);
-  assert.match(css, /#dashboardView\[data-empty="true"\]/);
+  assert.match(source, /Scan spool/);
+  assert.match(source, /print\.hidden = empty/);
+  assert.doesNotMatch(source, /Restore backup/);
+  assert.match(css, /\.fi-home-empty/);
 });
 
-test('v10 mobile navigation is a native-style bottom bar with Home, Spools, Add, Printer and More', async () => {
-  const [client, personal, css] = await Promise.all([read('ui-v10-client.js'), read('personal-dashboard.js'), read('ui-system.css')]);
-  assert.match(client, /mobileBottomNav/);
-  assert.match(client, /data-bottom-view="dashboard"/);
-  assert.match(client, /data-bottom-view="inventory"/);
-  assert.match(client, /data-bottom-add/);
-  assert.match(client, /data-bottom-view="household"/);
-  assert.match(client, /data-bottom-more/);
-  assert.match(client, /mobileMoreSheetV10/);
-  assert.doesNotMatch(personal, /PRIMARY_MOBILE_VIEWS|ensureMobileMore|syncMoreState|mobile-more-tab|mobileMoreMenu/);
+test('V11 mobile navigation is owned by the shell and exposes Home, Inventory, Scan, Printer and More', async () => {
+  const [shell, personal, css] = await Promise.all([read('app-shell-client.js'), read('personal-dashboard.js'), read('css/components/v11.css')]);
+  assert.match(shell, /mobile-bottom-nav/);
+  assert.match(shell, /data-bottom-view="dashboard"/);
+  assert.match(shell, /data-bottom-view="inventory"/);
+  assert.match(shell, /data-bottom-scan/);
+  assert.match(shell, /data-bottom-view="household"/);
+  assert.match(shell, /data-bottom-more/);
+  assert.doesNotMatch(personal, /mobile-bottom-nav|data-bottom-view|data-bottom-more/);
   assert.match(css, /\.mobile-bottom-nav/);
   assert.match(css, /safe-area-inset-bottom/);
 });
 
-test('dashboard actively removes obsolete shared-household language from visible surfaces', async () => {
+test('dashboard language is operational and free of obsolete shared-household framing', async () => {
   const source = await read('personal-dashboard.js');
-  assert.match(source, /Recent activity/);
-  assert.match(source, /Private activity ledger/);
-  assert.match(source, /separate history · separate sync & backups/);
-  assert.doesNotMatch(source, /Shared household inventory/);
-  assert.doesNotMatch(source, /Shared activity/);
+  for (const expected of ['Needs attention','Loaded now','All caught up','No spools yet']) assert.ok(source.includes(expected),`missing dashboard copy: ${expected}`);
+  for (const stale of ['Shared household inventory','Shared activity','Bill + Aimee','Transfer ownership']) assert.equal(source.includes(stale),false,`stale shared copy remains: ${stale}`);
 });
 
 test('dashboard does not create a competing add-spool implementation', async () => {
   const source = await read('personal-dashboard.js');
   assert.doesNotMatch(source, /showModal\(.*spoolDialog|new FormData|spools\.push/);
-  assert.doesNotMatch(source, /\.click\(\) \|\| document\.getElementById\('heroAddBtn'\)/);
+  assert.match(source, /id="heroAddBtn"/);
 });
 
-test('PWA manifest list includes personal core, consolidated dashboard and v10 controller assets', async () => {
+test('PWA manifest publishes personal core, consolidated dashboard, V11 shell and compatibility bridge', async () => {
   const source = await read('scripts/public-assets.mjs');
-  assert.match(source, /'personal-core\.js'/);
-  assert.match(source, /'personal-dashboard\.js'/);
-  assert.match(source, /'ui-v10-client\.js'/);
+  for (const asset of ['personal-core.js','personal-dashboard.js','app-shell-client.js','ui-v10-client.js']) assert.ok(source.includes(`'${asset}'`),`missing ${asset}`);
 });

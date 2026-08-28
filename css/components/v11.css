@@ -1,0 +1,1582 @@
+/* Filament Inventory v11 ---------------------------------------------------
+   One visual language for shell, pages, dialogs and domain workflows.
+   Feature modules keep domain logic; this layer owns presentation contracts.
+*/
+
+html.fi-v11,
+html.fi-v11 body {
+  min-height: 100%;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
+
+html.fi-v11 body {
+  margin: 0;
+  overflow-x: hidden;
+}
+
+html.fi-v11 body::before {
+  content: none;
+}
+
+html.fi-v11 .app-shell {
+  width: 100%;
+  max-width: none;
+  min-height: 100dvh;
+  background: var(--color-bg);
+}
+
+html.fi-v11 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: color-mix(in srgb, var(--color-bg) 94%, transparent);
+  box-shadow: none;
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+html.fi-v11 .topbar-inner {
+  min-height: 64px;
+  padding: 10px 16px;
+  gap: 12px;
+}
+
+html.fi-v11 .topbar .mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: linear-gradient(145deg, var(--color-accent), var(--color-accent-secondary));
+  color: var(--color-text-on-accent);
+  box-shadow: none;
+}
+
+html.fi-v11 .brand h1,
+html.fi-v11 h1,
+html.fi-v11 h2,
+html.fi-v11 h3,
+html.fi-v11 h4 {
+  font-family: var(--font-display);
+}
+
+html.fi-v11 .brand h1 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 17px;
+  line-height: 1.1;
+  letter-spacing: -.02em;
+}
+
+html.fi-v11 .brand p {
+  margin: 3px 0 0;
+  color: var(--color-text-subtle);
+  font-size: 11px;
+}
+
+html.fi-v11 .top-actions {
+  margin-left: auto;
+  gap: 8px;
+}
+
+html.fi-v11 .fi-global-duplicate,
+html.fi-v11 .user-boundary,
+html.fi-v11 .mobile-add,
+html.fi-v11 .tabs {
+  display: none;
+}
+
+/* Shared controls ---------------------------------------------------------- */
+html.fi-v11 .btn,
+html.fi-v11 button,
+html.fi-v11 input,
+html.fi-v11 select,
+html.fi-v11 textarea {
+  font-family: var(--font-body);
+}
+
+html.fi-v11 .btn {
+  min-height: var(--control-md);
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 650;
+  transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+}
+
+html.fi-v11 .btn:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-strong);
+}
+
+html.fi-v11 .btn:active {
+  transform: translateY(1px);
+}
+
+html.fi-v11 .btn-primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-secondary));
+  color: var(--color-text-on-accent);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--color-accent-secondary) 28%, transparent);
+}
+
+html.fi-v11 .btn-primary:hover {
+  border-color: transparent;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 92%, white), var(--color-accent-secondary));
+}
+
+html.fi-v11 .btn-danger {
+  border-color: color-mix(in srgb, var(--color-danger) 35%, var(--color-border));
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+html.fi-v11 .btn-ghost {
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+html.fi-v11 .btn:disabled,
+html.fi-v11 button:disabled {
+  cursor: not-allowed;
+  border-color: var(--color-border-subtle);
+  background: var(--color-disabled-bg);
+  color: var(--color-disabled-text);
+  box-shadow: none;
+  opacity: 1;
+}
+
+html.fi-v11 :is(button, input, select, textarea, a):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-focus) 44%, transparent);
+  outline-offset: 2px;
+}
+
+html.fi-v11 .field,
+html.fi-v11 .select,
+html.fi-v11 input[type="text"],
+html.fi-v11 input[type="search"],
+html.fi-v11 input[type="number"],
+html.fi-v11 input[type="date"],
+html.fi-v11 textarea,
+html.fi-v11 select {
+  min-height: var(--control-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  box-shadow: none;
+}
+
+html.fi-v11 textarea.field {
+  min-height: 96px;
+}
+
+html.fi-v11 .form-field label {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+html.fi-v11 .muted {
+  color: var(--color-text-muted);
+}
+
+html.fi-v11 .eyebrow {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+/* Shell -------------------------------------------------------------------- */
+html.fi-v11 .fi-desktop-sidebar {
+  display: none;
+}
+
+html.fi-v11 .fi-secondary-nav {
+  display: grid;
+  gap: 4px;
+}
+
+html.fi-v11 .fi-secondary-nav button {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  align-items: center;
+  gap: 11px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  text-align: left;
+}
+
+html.fi-v11 .fi-secondary-nav button:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+html.fi-v11 .fi-secondary-nav button[aria-current="page"] {
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+  font-weight: 700;
+}
+
+html.fi-v11 .fi-sidebar-group-label {
+  padding: 18px 12px 6px;
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+html.fi-v11 .fi-sidebar-group-label:first-child {
+  padding-top: 0;
+}
+
+html.fi-v11 .fi-sidebar-spacer {
+  flex: 1;
+}
+
+html.fi-v11 .fi-quick-actions {
+  padding-top: 2px;
+}
+
+html.fi-v11 .fi-quick-actions button:first-child {
+  min-height: 46px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 24%, transparent);
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+}
+
+html.fi-v11 .fi-nav-icon {
+  display: inline-grid;
+  width: 20px;
+  min-width: 20px;
+  place-items: center;
+  color: currentColor;
+  font-size: 15px;
+}
+
+html.fi-v11 .profile-chip {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 5px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  box-shadow: none;
+}
+
+html.fi-v11 .profile-avatar {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(145deg, #c9b8ff, var(--color-accent-secondary));
+  color: #1a1030;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+html.fi-v11 .profile-chip-copy {
+  display: grid;
+  line-height: 1.05;
+  text-align: left;
+}
+
+html.fi-v11 .profile-chip-copy strong {
+  font-size: 12.5px;
+}
+
+html.fi-v11 .profile-chip-copy small {
+  margin-top: 3px;
+  color: var(--color-text-subtle);
+  font-size: 9.5px;
+}
+
+/* Page contract ------------------------------------------------------------ */
+html.fi-v11 main {
+  min-width: 0;
+}
+
+html.fi-v11 .view {
+  display: none;
+  width: 100%;
+}
+
+html.fi-v11 .view.active {
+  display: block;
+}
+
+html.fi-v11 .view[data-page-width="focus"] {
+  max-width: var(--layout-focus);
+  margin-inline: auto;
+}
+
+html.fi-v11 .view[data-page-width="standard"] {
+  max-width: var(--layout-standard);
+  margin-inline: auto;
+}
+
+html.fi-v11 .view[data-page-width="workbench"] {
+  max-width: var(--layout-workbench);
+  margin-inline: auto;
+}
+
+html.fi-v11 .fi-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-5);
+  margin: 0 0 var(--space-5);
+}
+
+html.fi-v11 .fi-page-header-copy h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(25px, 2.5vw, 32px);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -.03em;
+}
+
+html.fi-v11 .fi-page-header-copy p {
+  max-width: 62ch;
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+html.fi-v11 .fi-page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+html.fi-v11 .fi-page-header-actions:empty {
+  display: none;
+}
+
+html.fi-v11 .fi-legacy-page-head {
+  display: none;
+}
+
+html.fi-v11 .panel,
+html.fi-v11 .hero-card,
+html.fi-v11 .data-box,
+html.fi-v11 .printer-card,
+html.fi-v11 .sync-panel {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: none;
+}
+
+html.fi-v11 .panel-head h3 {
+  color: var(--color-text);
+}
+
+html.fi-v11 .panel-head p {
+  color: var(--color-text-muted);
+}
+
+/* Home --------------------------------------------------------------------- */
+html.fi-v11 .fi-page-dashboard > .fi-page-header {
+  display: none;
+}
+
+html.fi-v11 .fi-home-dashboard {
+  display: grid;
+  gap: 24px;
+}
+
+html.fi-v11 .fi-home-intro {
+  padding-top: 10px;
+}
+
+html.fi-v11 .fi-home-intro h2 {
+  max-width: 720px;
+  margin: 0 0 7px;
+  color: var(--color-text);
+  font-size: clamp(27px, 4vw, 34px);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -.03em;
+}
+
+html.fi-v11 .fi-home-intro .lead {
+  max-width: 52ch;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+html.fi-v11 .fi-home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+html.fi-v11 .fi-home-actions .btn {
+  min-height: var(--control-lg);
+}
+
+html.fi-v11 .fi-home-actions .btn-primary {
+  min-width: 180px;
+}
+
+html.fi-v11 .fi-home-section {
+  display: grid;
+  gap: 10px;
+}
+
+html.fi-v11 .fi-home-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+html.fi-v11 .fi-home-section-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+html.fi-v11 .fi-section-count {
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+html.fi-v11 .fi-home-list {
+  display: grid;
+  gap: 9px;
+}
+
+html.fi-v11 .fi-home-row,
+html.fi-v11 .quick-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 66px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: left;
+}
+
+html.fi-v11 .fi-home-row:hover,
+html.fi-v11 .quick-item:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface-raised);
+}
+
+html.fi-v11 .fi-spool-swatch {
+  width: 12px;
+  height: 40px;
+  border: 1px solid color-mix(in srgb, white 16%, transparent);
+  border-radius: 7px;
+}
+
+html.fi-v11 .fi-row-copy {
+  min-width: 0;
+}
+
+html.fi-v11 .fi-row-copy strong {
+  display: block;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.fi-v11 .fi-row-copy small {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.fi-v11 .fi-status-chip {
+  padding: 5px 8px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+html.fi-v11 .fi-status-chip[data-state="danger"] {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+html.fi-v11 .fi-status-chip[data-state="warning"] {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+html.fi-v11 .fi-status-chip[data-state="success"] {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+html.fi-v11 .fi-home-legacy-sinks {
+  display: none;
+}
+
+html.fi-v11 .fi-home-empty .fi-home-secondary,
+html.fi-v11 .fi-home-empty [data-print-readiness] {
+  display: none;
+}
+
+/* Inventory ---------------------------------------------------------------- */
+html.fi-v11 .fi-page-inventory .panel {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+html.fi-v11 .inventory-compact-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+html.fi-v11 .inventory-search-slot .search-wrap,
+html.fi-v11 .inventory-search-slot .field {
+  width: 100%;
+}
+
+html.fi-v11 .inventory-filter-open {
+  min-width: 92px;
+}
+
+html.fi-v11 .inventory-filter-open strong {
+  display: inline-grid;
+  min-width: 19px;
+  height: 19px;
+  margin-left: 6px;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-strong);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+html.fi-v11 .inventory-filter-open.has-filters {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
+  background: var(--color-accent-soft);
+}
+
+html.fi-v11 .inventory-command {
+  margin-bottom: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+html.fi-v11 .inventory-command-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+html.fi-v11 .inventory-command-copy {
+  display: grid;
+  gap: 2px;
+}
+
+html.fi-v11 .inventory-command-copy .eyebrow,
+html.fi-v11 .inventory-command-copy > span:last-child,
+html.fi-v11 .inventory-command-shortcut {
+  display: none;
+}
+
+html.fi-v11 .inventory-command-copy strong {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+html.fi-v11 .inventory-command-modes {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+  scrollbar-width: none;
+}
+
+html.fi-v11 .inventory-command-modes::-webkit-scrollbar {
+  display: none;
+}
+
+html.fi-v11 .inventory-command-mode {
+  display: inline-flex;
+  min-height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+html.fi-v11 .inventory-command-mode[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--color-accent) 36%, var(--color-border));
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+}
+
+html.fi-v11 .inventory-command-mode strong {
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+html.fi-v11 .inventory-command-filters,
+html.fi-v11 .inventory-command-recent {
+  margin-top: 8px;
+}
+
+html.fi-v11 .inventory-command-recent {
+  display: none;
+}
+
+html.fi-v11 .inventory-filter-token,
+html.fi-v11 .inventory-command-clear {
+  min-height: 30px;
+  margin: 0 5px 5px 0;
+  padding: 0 9px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+html.fi-v11 .inventory-command-hint {
+  color: var(--color-text-subtle);
+  font-size: 11px;
+}
+
+html.fi-v11 .inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 10px;
+}
+
+html.fi-v11 .spool-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: none;
+}
+
+html.fi-v11 .spool-card:hover {
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-surface-raised) 62%, var(--color-surface));
+}
+
+html.fi-v11 .spool-head {
+  min-height: 66px;
+  padding: 12px;
+}
+
+html.fi-v11 .spool-title h4 {
+  font-size: 14px;
+}
+
+html.fi-v11 .spool-title p,
+html.fi-v11 .spool-body small,
+html.fi-v11 .meta span {
+  color: var(--color-text-muted);
+}
+
+html.fi-v11 .spool-body {
+  padding: 0 12px 12px;
+}
+
+html.fi-v11 .fill-top strong {
+  font-family: var(--font-mono);
+}
+
+html.fi-v11 .progress {
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-strong);
+}
+
+html.fi-v11 .spool-card .meta {
+  margin-top: 11px;
+}
+
+html.fi-v11 .card-actions {
+  gap: 6px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+html.fi-v11 .card-actions .btn {
+  min-height: 36px;
+  padding-inline: 10px;
+  font-size: 11px;
+}
+
+html.fi-v11 .bulk-select-control {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+}
+
+html.fi-v11 .bulk-select-control span {
+  display: none;
+}
+
+html.fi-v11 .bulk-select-control b {
+  font-size: 10px;
+}
+
+html.fi-v11 .bulk-selected {
+  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+html.fi-v11 .bulk-action-dock {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  z-index: 70;
+  width: min(760px, calc(100% - 28px));
+  transform: translateX(-50%);
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-strong);
+  box-shadow: var(--shadow-float);
+}
+
+html.fi-v11 .bulk-action-summary span {
+  color: var(--color-text-muted);
+}
+
+html.fi-v11 .bulk-action-buttons {
+  gap: 6px;
+}
+
+html.fi-v11 .bulk-action-buttons .btn {
+  min-height: 36px;
+  border-radius: var(--radius-pill);
+}
+
+/* Printer ------------------------------------------------------------------ */
+html.fi-v11 .printer-command {
+  display: grid;
+  gap: 14px;
+}
+
+html.fi-v11 .printer-hero {
+  padding: 18px;
+}
+
+html.fi-v11 .printer-hero .eyebrow {
+  display: none;
+}
+
+html.fi-v11 .printer-hero h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+html.fi-v11 .printer-hero .muted {
+  margin-bottom: 0;
+}
+
+html.fi-v11 .printer-private-chip {
+  padding: 5px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-info);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+html.fi-v11 .printer-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+html.fi-v11 .printer-metric {
+  padding: 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+html.fi-v11 .printer-metric span,
+html.fi-v11 .printer-metric small {
+  color: var(--color-text-muted);
+}
+
+html.fi-v11 .printer-metric strong {
+  font-family: var(--font-mono);
+}
+
+html.fi-v11 .printer-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr);
+  gap: 12px;
+}
+
+html.fi-v11 .printer-panel {
+  padding: 16px;
+}
+
+html.fi-v11 .printer-slot,
+html.fi-v11 .printer-candidate,
+html.fi-v11 .printer-attention-row {
+  border-color: var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+html.fi-v11 .printer-slot[data-low="true"] {
+  border-color: color-mix(in srgb, var(--color-warning) 38%, var(--color-border));
+}
+
+html.fi-v11 .printer-slot[data-unknown="true"] {
+  border-color: color-mix(in srgb, var(--color-info) 35%, var(--color-border));
+}
+
+html.fi-v11 .printer-form,
+html.fi-v11 .printer-context {
+  gap: 10px;
+}
+
+html.fi-v11 .printer-empty {
+  color: var(--color-text-muted);
+}
+
+/* Weigh -------------------------------------------------------------------- */
+html.fi-v11 .weigh-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, .72fr);
+  gap: 12px;
+}
+
+html.fi-v11 .weigh-card {
+  padding: 18px;
+}
+
+html.fi-v11 .weigh-card > .eyebrow,
+html.fi-v11 .weigh-card > h2,
+html.fi-v11 .weigh-card > p.muted {
+  display: none;
+}
+
+html.fi-v11 .calc {
+  border-color: var(--color-border-subtle);
+  background: var(--color-surface-raised);
+}
+
+html.fi-v11 .calc-row strong {
+  font-family: var(--font-mono);
+}
+
+/* Activity ----------------------------------------------------------------- */
+html.fi-v11 .activity-segments {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+}
+
+html.fi-v11 .activity-segments button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+html.fi-v11 .activity-segments button[aria-pressed="true"] {
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+}
+
+html.fi-v11 .history-list,
+html.fi-v11 .audit-list {
+  display: grid;
+  gap: 8px;
+}
+
+/* Labels ------------------------------------------------------------------- */
+html.fi-v11 .labels-layout {
+  gap: 12px;
+}
+
+html.fi-v11 .labels-card {
+  border-color: var(--color-border-subtle);
+  background: var(--color-surface);
+}
+
+html.fi-v11 .spool-pick {
+  border-color: var(--color-border-subtle);
+  background: var(--color-surface-raised);
+}
+
+html.fi-v11 .spool-pick span,
+html.fi-v11 .physical-tip {
+  color: var(--color-text-muted);
+}
+
+html.fi-v11 .label-preview {
+  border-radius: var(--radius-md);
+}
+
+/* Sync --------------------------------------------------------------------- */
+html.fi-v11 .sync-layout,
+html.fi-v11 .sync-grid {
+  gap: 12px;
+}
+
+html.fi-v11 .sync-panel {
+  padding: 16px;
+}
+
+html.fi-v11 .sync-row,
+html.fi-v11 .snapshot-row {
+  border-color: var(--color-border-subtle);
+  background: var(--color-surface-raised);
+}
+
+html.fi-v11 .sync-empty {
+  color: var(--color-text-muted);
+}
+
+html.fi-v11 [data-state="ready"] {
+  border-color: color-mix(in srgb, var(--color-success) 32%, var(--color-border));
+}
+
+html.fi-v11 [data-state="offline"],
+html.fi-v11 [data-state="locked"] {
+  border-color: color-mix(in srgb, var(--color-warning) 32%, var(--color-border));
+}
+
+/* Backup & data ------------------------------------------------------------ */
+html.fi-v11 .data-actions {
+  display: grid;
+  gap: 12px;
+}
+
+html.fi-v11 .data-group-v10 {
+  display: grid;
+  gap: 10px;
+}
+
+html.fi-v11 .data-group-head h4 {
+  margin-bottom: 3px;
+}
+
+html.fi-v11 .data-group-head p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+html.fi-v11 .data-group-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 10px;
+}
+
+html.fi-v11 .data-box {
+  padding: 16px;
+}
+
+html.fi-v11 .data-box p {
+  color: var(--color-text-muted);
+}
+
+html.fi-v11 .data-group-danger {
+  margin-top: 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+/* Preferences -------------------------------------------------------------- */
+html.fi-v11 .profile-preferences-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, .62fr) minmax(0, 1.38fr);
+  gap: 12px;
+}
+
+html.fi-v11 .profile-identity-card,
+html.fi-v11 .profile-preferences-form {
+  padding: 18px;
+}
+
+html.fi-v11 .profile-settings-section + .profile-settings-section {
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+html.fi-v11 .profile-settings-head p {
+  color: var(--color-text-muted);
+}
+
+html.fi-v11 .profile-settings-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 14px;
+  background: linear-gradient(180deg, transparent, var(--color-surface) 22%);
+}
+
+/* Empty states ------------------------------------------------------------- */
+html.fi-v11 .empty,
+html.fi-v11 .inventory-command-empty,
+html.fi-v11 .printer-empty,
+html.fi-v11 .sync-empty {
+  padding: 18px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+html.fi-v11 .empty strong,
+html.fi-v11 .inventory-command-empty strong,
+html.fi-v11 .printer-empty strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--color-text);
+}
+
+/* Dialog system ------------------------------------------------------------ */
+html.fi-v11:has(dialog[open]),
+html.fi-v11:has(dialog[open]) body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html.fi-v11 dialog:not([open]) {
+  display: none;
+}
+
+html.fi-v11 dialog[open] {
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-float);
+}
+
+html.fi-v11 dialog::backdrop {
+  background: var(--color-overlay-strong);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+html.fi-v11:has(dialog[open]) .mobile-bottom-nav,
+html.fi-v11:has(dialog[open]) .bulk-action-dock {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+html.fi-v11 .dialog-head,
+html.fi-v11 .spool-action-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+html.fi-v11 .dialog-head h3,
+html.fi-v11 .spool-action-head h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+html.fi-v11 .dialog-body,
+html.fi-v11 .spool-action-body {
+  padding: 16px 18px 18px;
+}
+
+html.fi-v11 .dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+html.fi-v11 .dialog-actions .btn {
+  min-width: 110px;
+}
+
+html.fi-v11 .fi-selected-targets {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0 4px;
+}
+
+html.fi-v11 .fi-selected-target {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+}
+
+html.fi-v11 .fi-selected-target i {
+  width: 10px;
+  height: 28px;
+  border-radius: 6px;
+}
+
+html.fi-v11 .fi-selected-target strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.fi-v11 .fi-selected-target small {
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+}
+
+html.fi-v11 .fi-confirm-copy {
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
+/* Print readiness ---------------------------------------------------------- */
+html.fi-v11 .fi-readiness-options {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+html.fi-v11 .fi-readiness-result {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+html.fi-v11 .fi-readiness-result[data-state="ready"] {
+  border-color: color-mix(in srgb, var(--color-success) 42%, var(--color-border));
+  background: var(--color-success-soft);
+}
+
+html.fi-v11 .fi-readiness-result[data-state="measurement-needed"] {
+  border-color: color-mix(in srgb, var(--color-warning) 42%, var(--color-border));
+  background: var(--color-warning-soft);
+}
+
+html.fi-v11 .fi-readiness-result[data-state="not-enough"],
+html.fi-v11 .fi-readiness-result[data-state="no-match"] {
+  border-color: color-mix(in srgb, var(--color-danger) 42%, var(--color-border));
+  background: var(--color-danger-soft);
+}
+
+html.fi-v11 .fi-readiness-result h3 {
+  margin: 0 0 5px;
+}
+
+html.fi-v11 .fi-readiness-result p {
+  margin: 4px 0;
+}
+
+html.fi-v11 .fi-readiness-metric {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 8px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+html.fi-v11 .fi-readiness-metric strong {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+}
+
+/* Toast -------------------------------------------------------------------- */
+html.fi-v11 .toast {
+  left: 50%;
+  right: auto;
+  bottom: 22px;
+  transform: translate(-50%, 18px);
+  max-width: min(520px, calc(100% - 28px));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-strong);
+  color: var(--color-text);
+  box-shadow: var(--shadow-float);
+}
+
+html.fi-v11 .toast.show {
+  transform: translate(-50%, 0);
+}
+
+/* Responsive --------------------------------------------------------------- */
+@media (min-width: 960px) {
+  html.fi-v11 .app-shell {
+    display: grid;
+    grid-template-columns: var(--layout-sidebar) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+
+  html.fi-v11 .app-shell > .topbar {
+    grid-column: 1 / -1;
+  }
+
+  html.fi-v11 .fi-desktop-sidebar {
+    display: flex;
+    grid-column: 1;
+    grid-row: 2;
+    position: sticky;
+    top: 64px;
+    height: calc(100dvh - 64px);
+    flex-direction: column;
+    padding: 20px 12px 16px;
+    border-right: 1px solid var(--color-border-subtle);
+    background: color-mix(in srgb, var(--color-bg) 96%, transparent);
+  }
+
+  html.fi-v11 .app-shell > main {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    padding: 28px 30px 48px;
+  }
+
+  html.fi-v11 .mobile-bottom-nav {
+    display: none;
+  }
+}
+
+@media (max-width: 959px) {
+  html.fi-v11 body {
+    padding-bottom: calc(82px + env(safe-area-inset-bottom));
+  }
+
+  html.fi-v11 .topbar-inner {
+    min-height: 62px;
+    padding: 10px 14px;
+  }
+
+  html.fi-v11 .brand p {
+    display: none;
+  }
+
+  html.fi-v11 .profile-chip-copy small {
+    display: none;
+  }
+
+  html.fi-v11 .app-shell > main {
+    width: 100%;
+    padding: 20px 16px 28px;
+  }
+
+  html.fi-v11 .fi-page-header {
+    align-items: flex-start;
+    margin-bottom: 16px;
+  }
+
+  html.fi-v11 .fi-page-header-copy h2 {
+    font-size: 23px;
+  }
+
+  html.fi-v11 .fi-page-header-copy p {
+    max-width: 36ch;
+    font-size: 12.5px;
+  }
+
+  html.fi-v11 .fi-page-header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  html.fi-v11 .mobile-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 55;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    min-height: calc(68px + env(safe-area-inset-bottom));
+    padding: 7px 5px max(9px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--color-border-subtle);
+    background: color-mix(in srgb, var(--color-bg) 96%, transparent);
+    box-shadow: 0 -12px 32px rgba(0,0,0,.22);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+
+  html.fi-v11 .mobile-bottom-nav button {
+    display: flex;
+    min-height: 50px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px 2px;
+    border: 0;
+    border-radius: 11px;
+    background: transparent;
+    color: var(--color-text-subtle);
+  }
+
+  html.fi-v11 .mobile-bottom-nav button > span {
+    font-size: 17px;
+    line-height: 1;
+  }
+
+  html.fi-v11 .mobile-bottom-nav button > small {
+    font-size: 9.5px;
+    font-weight: 650;
+  }
+
+  html.fi-v11 .mobile-bottom-nav button[aria-current="page"] {
+    color: var(--color-accent);
+  }
+
+  html.fi-v11 .mobile-bottom-nav [data-bottom-scan] {
+    color: var(--color-text-subtle);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  html.fi-v11 .mobile-bottom-nav [data-bottom-scan] > span {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--color-accent), var(--color-accent-secondary));
+    color: var(--color-text-on-accent);
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--color-accent-secondary) 30%, transparent);
+  }
+
+  html.fi-v11 .printer-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  html.fi-v11 .printer-layout,
+  html.fi-v11 .weigh-layout,
+  html.fi-v11 .profile-preferences-grid {
+    grid-template-columns: 1fr;
+  }
+
+  html.fi-v11 .bulk-action-dock {
+    bottom: calc(78px + env(safe-area-inset-bottom));
+    border-radius: var(--radius-lg);
+  }
+
+  html.fi-v11 .bulk-action-summary {
+    margin-bottom: 8px;
+  }
+
+  html.fi-v11 .bulk-action-buttons {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  html.fi-v11 .bulk-action-buttons .btn {
+    flex: 0 0 auto;
+  }
+
+  html.fi-v11 .toast {
+    bottom: calc(82px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 640px) {
+  html.fi-v11 .topbar .mark {
+    width: 36px;
+    height: 36px;
+  }
+
+  html.fi-v11 .brand h1 {
+    font-size: 16px;
+  }
+
+  html.fi-v11 .fi-page-header {
+    display: grid;
+    gap: 10px;
+  }
+
+  html.fi-v11 .fi-page-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  html.fi-v11 .fi-page-header-actions .btn {
+    flex: 1;
+  }
+
+  html.fi-v11 .fi-home-intro {
+    padding-top: 2px;
+  }
+
+  html.fi-v11 .fi-home-intro h2 {
+    font-size: 27px;
+  }
+
+  html.fi-v11 .fi-home-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  html.fi-v11 .fi-home-actions .btn-primary {
+    grid-column: 1 / -1;
+  }
+
+  html.fi-v11 .inventory-grid {
+    grid-template-columns: 1fr;
+  }
+
+  html.fi-v11 .spool-card .meta {
+    display: none;
+  }
+
+  html.fi-v11 .card-actions {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+
+  html.fi-v11 .card-actions .btn {
+    flex: 0 0 auto;
+  }
+
+  html.fi-v11 dialog[open] {
+    width: 100%;
+    max-width: none;
+    max-height: min(88dvh, 760px);
+    margin: auto 0 0;
+    overflow: auto;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 24px 24px 0 0;
+    box-shadow: var(--shadow-modal);
+  }
+
+  html.fi-v11 .dialog-head,
+  html.fi-v11 .spool-action-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding-top: 18px;
+    background: var(--color-surface);
+  }
+
+  html.fi-v11 .dialog-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    padding: 12px 0 max(4px, env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, transparent, var(--color-surface) 22%);
+  }
+
+  html.fi-v11 .dialog-actions .btn {
+    flex: 1;
+    min-width: 0;
+  }
+
+  html.fi-v11 .printer-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.fi-v11 *,
+  html.fi-v11 *::before,
+  html.fi-v11 *::after {
+    scroll-behavior: auto;
+    transition-duration: .01ms;
+    animation-duration: .01ms;
+    animation-iteration-count: 1;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html.fi-v11 .topbar,
+  html.fi-v11 .mobile-bottom-nav,
+  html.fi-v11 dialog::backdrop {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
