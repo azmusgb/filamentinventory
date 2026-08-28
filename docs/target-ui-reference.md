@@ -1,1 +1,0 @@
-Target UI source supplied in conversation on 2026-08-28. Production implementation keeps real app data/state and adopts the supplied mobile hierarchy, modal isolation, CTA hierarchy, and navigation semantics.
