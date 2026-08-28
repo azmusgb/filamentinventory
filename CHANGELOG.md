@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — Canonical spool contract
+
+- Added a canonical spool domain contract shared across the current local-first application layers.
+- Added first-class product-line, filament-diameter, manufacturer-SKU, and lot/batch metadata without breaking existing v10 records.
+- Made scale measurements explicitly **Measured**, visual/usage values explicitly **Estimated**, and unverifiable remaining amounts explicitly **Unknown**.
+- Added derived lifecycle states for Available, Loaded, Low, Empty, and Archived spools while preserving the existing Stored/Loaded physical-placement model.
+- Added state validation for duplicate spool IDs, impossible gross/tare values, suspicious above-nominal measurements, and duplicate printer/AMS slot assignments.
+- Added a storage compatibility bridge so legacy saves preserve richer canonical fields, audit/tombstone metadata, and newer backup timestamps instead of silently dropping them.
+- Upgraded JSON and CSV import/export to retain canonical product, ownership, placement, weight-evidence, and lifecycle data.
+- Extended the spool editor with product line, diameter, manufacturer SKU, and lot/batch fields while keeping the primary add workflow compact.
+- Added unit/integration coverage and PWA precaching for the canonical contract runtime.
+
 ## v9 — Per-user customization and experience
 
 - Added a dedicated **Customize** workspace.
