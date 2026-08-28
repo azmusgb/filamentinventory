@@ -51,9 +51,9 @@ test('V11 mobile navigation is owned by the shell and exposes Home, Inventory, S
   assert.match(css, /safe-area-inset-bottom/);
 });
 
-test('dashboard language is private, operational and free of obsolete shared-household framing', async () => {
+test('dashboard language is operational and free of obsolete shared-household framing', async () => {
   const source = await read('personal-dashboard.js');
-  for (const expected of ['Needs attention','Loaded now','private inventory','All caught up']) assert.ok(source.toLowerCase().includes(expected.toLowerCase()));
+  for (const expected of ['Needs attention','Loaded now','All caught up','No spools yet']) assert.ok(source.includes(expected),`missing dashboard copy: ${expected}`);
   for (const stale of ['Shared household inventory','Shared activity','Bill + Aimee','Transfer ownership']) assert.equal(source.includes(stale),false,`stale shared copy remains: ${stale}`);
 });
 
