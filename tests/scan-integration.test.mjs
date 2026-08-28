@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import {readFile} from 'node:fs/promises';
 import test from 'node:test';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('browser loads scan core and client around existing private UI layers', async () => {
   const html = await read('index.html');
-  const names = ['intake-core.js','scan-core.js','user-isolation.js','labels-client.js','intake-client.js','scan-client.js','app.js'];
+  const names = ['intake-core.js','scan-core.js','user-isolation.js','labels-client.js','intake-client.js','scan-client.js','app-shell-client.js','app.js'];
   const positions = names.map(name => html.indexOf(`/${name}`));
   assert.ok(positions.every(index => index >= 0));
   assert.deepEqual(positions, [...positions].sort((a,b) => a-b));
@@ -16,9 +16,10 @@ test('scanner is progressive and preserves an iPhone-safe fallback', async () =>
   const client = await read('scan-client.js');
   assert.match(client, /BarcodeDetector/);
   assert.match(client, /getUserMedia/);
-  assert.match(client, /Camera or Control Center/);
-  assert.match(client, /Code Scanner/);
+  assert.match(client, /Apple Camera or Code Scanner/);
+  assert.match(client, /system QR scanner is the most reliable option/);
   assert.match(client, /qrManualId/);
+  assert.match(client, /liveScanningSupported\(\)/);
   assert.doesNotMatch(client, /https:\/\/.*(?:cdn|unpkg|jsdelivr)/i);
 });
 
@@ -27,9 +28,9 @@ test('current-workspace scans open physical spool mode without a page reload', a
   assert.match(client, /function openPhysicalSpool\(id\)/);
   assert.match(client, /FilamentInventorySpoolActions/);
   assert.match(client, /actions\.openPhysical/);
-  assert.match(client, /exists && resolved === current/);
-  assert.match(client, /Opening physical spool controls/);
-  assert.match(client, /if \(!openPhysicalSpool\(parsed\.spoolId\)\) location\.assign\(target\)/);
+  assert.match(client, /exists&&resolved===current/);
+  assert.match(client, /Opening spool controls/);
+  assert.match(client, /if\(!openPhysicalSpool\(parsed\.spoolId\)\)location\.assign\(target\)/);
 });
 
 test('cross-profile scans still use a profile-aware reload to preserve isolation', async () => {
@@ -41,23 +42,21 @@ test('cross-profile scans still use a profile-aware reload to preserve isolation
   assert.match(client, /location\.replace\(core\.buildSpoolTarget/);
 });
 
-test('scanner exposes a small public adapter for scan-another from physical spool mode', async () => {
+test('scanner exposes a small public adapter for shell and physical-spool workflows', async () => {
   const client = await read('scan-client.js');
-  assert.match(client, /globalThis\.FilamentInventoryScanner = Object\.freeze/);
+  assert.match(client, /globalThis\.FilamentInventoryScanner=Object\.freeze/);
   assert.match(client, /open:openScanner/);
   assert.match(client, /close:closeScanner/);
   assert.match(client, /process:processScanValue/);
 });
 
-test('legacy scan result collapses duplicate routing into Open spool and Scan another', async () => {
+test('scanner has one direct found-spool path and one explicit unknown-spool recovery path', async () => {
   const client = await read('scan-client.js');
-  assert.match(client, /id="scanOpenSpoolBtn"/);
-  assert.match(client, />Open spool</);
-  assert.match(client, />Scan another</);
-  assert.doesNotMatch(client, /function openEditFromScan/);
-  assert.doesNotMatch(client, /function openPlacementFromScan/);
-  assert.doesNotMatch(client, /id="scanEditBtn"/);
-  assert.doesNotMatch(client, /id="scanPlacementBtn"/);
+  assert.match(client, /function openPhysicalSpool\(id\)/);
+  assert.match(client, /function showUnknown\(id\)/);
+  assert.match(client, /data-unknown-sync/);
+  assert.match(client, /data-unknown-add/);
+  assert.doesNotMatch(client, /function openEditFromScan|function openPlacementFromScan|scanOpenSpoolBtn|scanEditBtn|scanPlacementBtn/);
   assert.match(client, /resolveProfile/);
 });
 
