@@ -24,7 +24,7 @@ test('compact cards distinguish quantity evidence from identification confidence
   const source = await read('inventory-card-client.js');
   for (const evidence of ['Measured','Visual estimate','Unknown']) assert.ok(source.includes(`'${evidence}'`), `missing evidence label ${evidence}`);
   assert.match(source,/Identification confidence:/);
-  assert.match(source,/data\.spoolActionsOpen = id/);
+  assert.match(source,/button\.dataset\.spoolActionsOpen = id/);
   assert.match(source,/Not measured/);
   assert.match(source,/progress\.hidden = evidence\.tone === 'unknown'/);
 });
