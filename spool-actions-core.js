@@ -1,22 +1,33 @@
 (function(root, factory) {
-  const api = factory();
+  const resolveContract = () => {
+    if (typeof module === 'object' && module.exports) return require('./spool-contract-core.js');
+    return root?.FilamentInventorySpoolContract || null;
+  };
+  const api = factory(resolveContract);
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.FilamentInventorySpoolActionCore = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function(resolveContract) {
   'use strict';
 
   const validNum = value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value));
   const text = value => String(value || '').trim();
+  const contract = () => resolveContract?.() || null;
 
   function measurement(spool = {}) {
+    const canonical = contract()?.measurement?.(spool);
+    if (canonical) return {grams:canonical.grams, percent:canonical.percent, source:canonical.source};
     const start = validNum(spool.startWeight) && Number(spool.startWeight) > 0 ? Number(spool.startWeight) : 1000;
     if (validNum(spool.gross) && validNum(spool.tare) && Number(spool.gross) >= Number(spool.tare)) {
-      const grams = Math.min(start, Math.max(0, Number(spool.gross) - Number(spool.tare)));
-      return {grams, percent:Math.round((grams / start) * 1000) / 10, source:'Measured'};
+      const grams = Math.max(0, Number(spool.gross) - Number(spool.tare));
+      return {grams, percent:Math.round(Math.min(100, grams / start * 100) * 10) / 10, source:'Measured'};
+    }
+    if (validNum(spool.estimatedRemainingGrams)) {
+      const grams = Math.max(0, Number(spool.estimatedRemainingGrams));
+      return {grams, percent:Math.round(Math.min(100, grams / start * 100) * 10) / 10, source:'Estimated'};
     }
     if (validNum(spool.visualPercent)) {
       const percent = Math.max(0, Math.min(100, Number(spool.visualPercent)));
-      return {grams:Math.round(start * percent / 100), percent, source:'Visual'};
+      return {grams:Math.round(start * percent / 100), percent, source:'Estimated'};
     }
     return {grams:null, percent:null, source:'Unknown'};
   }
@@ -30,6 +41,8 @@
   }
 
   function placementLabel(spool = {}) {
+    const canonical = contract()?.placementLabel?.(spool);
+    if (canonical) return canonical;
     if (isArchived(spool)) return 'Archived';
     if (!isLoaded(spool)) return text(spool.location) || 'Stored / unassigned';
     const parts = [text(spool.printerName) || 'Loaded', text(spool.feederName), text(spool.feederSlot) ? `Slot ${text(spool.feederSlot)}` : ''].filter(Boolean);
@@ -37,10 +50,17 @@
   }
 
   function stockLabel(spool = {}) {
+    const canonical = contract();
+    if (canonical?.stockState) {
+      const stock = canonical.stockState(spool);
+      if (stock === 'Archived') return 'Archived';
+      if (stock === 'Unknown') return 'Needs measurement';
+      if (stock === 'Low' || stock === 'Empty') return 'Reorder';
+    }
     if (isArchived(spool)) return 'Archived';
     const m = measurement(spool);
     if (m.grams === null) return 'Needs measurement';
-    if (m.grams <= Number(spool.reorderThreshold ?? 250)) return 'Reorder';
+    if (contract()?.reorderNeeded?.(spool) || m.grams <= Number(spool.reorderThreshold ?? 250)) return 'Reorder';
     const p = Number(m.percent);
     if (p >= 85) return 'Nearly full';
     if (p >= 70) return 'High';
@@ -88,11 +108,19 @@
     });
 
     const threshold = Number(spool.reorderThreshold ?? 250);
-    if (m.grams <= threshold) return Object.freeze({
+    if (contract()?.reorderNeeded?.(spool) || m.grams <= threshold) return Object.freeze({
       key:'reorder',
       label:'Low filament',
       detail:`${Math.round(m.grams)} g remaining · reorder threshold ${Math.round(threshold)} g`,
       tone:'danger',
+      action:m.source === 'Measured' && isLoaded(spool) ? 'placement' : 'weigh',
+    });
+
+    if (m.source !== 'Measured') return Object.freeze({
+      key:'verify',
+      label:'Estimate needs verification',
+      detail:`${Math.round(m.grams)} g is estimated. Weigh this spool before relying on the amount for a print.`,
+      tone:'warning',
       action:'weigh',
     });
 
@@ -125,9 +153,12 @@
 
   function summary(spool = {}) {
     const m = measurement(spool);
+    const canonical = contract();
     return Object.freeze({
       id:text(spool.id),
       brand:text(spool.brand) || 'Unknown',
+      productLine:text(spool.productLine),
+      productLabel:canonical?.productLabel?.(spool) || [spool.brand,spool.productLine,spool.material].map(text).filter(Boolean).join(' · '),
       material:text(spool.material) || 'Unknown',
       colorName:text(spool.colorName) || 'Unknown',
       colorHex:/^#[0-9a-f]{6}$/i.test(text(spool.colorHex)) ? text(spool.colorHex) : '#64748b',
@@ -136,13 +167,17 @@
       remainingLabel:remainingLabel(spool),
       percentLabel:percentLabel(spool),
       measurementSource:m.source,
+      measurementEvidence:canonical?.measurement?.(spool)?.evidence || 'none',
       stock:stockLabel(spool),
+      stockState:canonical?.stockState?.(spool) || null,
+      lifecycle:canonical?.lifecycle?.(spool) || null,
       placement:placementLabel(spool),
       loaded:isLoaded(spool),
       archived:isArchived(spool),
       attention:attentionFor(spool),
       primaryAction:primaryActionFor(spool),
       updatedAt:spool.updatedAt || null,
+      lastUsedAt:spool.lastUsedAt || null,
       actions:actionsFor(spool),
     });
   }
