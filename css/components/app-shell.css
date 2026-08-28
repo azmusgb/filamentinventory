@@ -1,14 +1,15 @@
 /* Application shell: stable destinations, task-appropriate page widths. */
 .fi-app-frame { min-height:100vh; }
 .fi-desktop-sidebar { display:none; }
-.fi-app-frame.fi-v10 .app-shell > .tabs { display:none !important; }
+.fi-app-frame.fi-v10 .app-shell > .tabs { display:none; }
 .fi-page-header { display:flex; align-items:flex-end; justify-content:space-between; gap:var(--space-4); margin-bottom:var(--space-5); }
 .fi-page-header-copy { min-width:0; }
 .fi-page-header-copy h2 { margin:0; font-size:var(--text-2xl); letter-spacing:-.03em; }
 .fi-page-header-copy p { max-width:720px; margin:var(--space-1) 0 0; color:var(--color-text-muted); line-height:1.45; }
 .fi-page-header-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:var(--space-2); }
 .fi-page-header-actions:empty { display:none; }
-.fi-legacy-page-head { display:none !important; }
+.fi-legacy-page-head { display:none; }
+.fi-global-duplicate { display:none; }
 .view[data-page-width="focus"] { max-width:680px; margin-inline:auto; }
 .view[data-page-width="standard"] { max-width:1080px; margin-inline:auto; }
 .view[data-page-width="workbench"] { max-width:1440px; margin-inline:auto; }
@@ -25,7 +26,6 @@
 .fi-activity-header-switcher { margin:0; }
 .fi-activity-header-switcher .activity-segments { margin:0; }
 .fi-app-frame .topbar .brand p { max-width:420px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.fi-app-frame #exportTopBtn,.fi-app-frame #addTopBtn { display:none !important; }
 .fi-home-compact .hero { align-items:stretch; }
 .fi-home-compact .hero-copy { padding-block:clamp(20px,3vw,34px); }
 .fi-home-compact .hero-copy h2 { max-width:720px; font-size:clamp(30px,4vw,48px); line-height:1.02; }
