@@ -9,14 +9,18 @@
   const SPECIAL_FIELDS = new Set([
     'id','createdAt','updatedAt','owner','placementState','printerName','feederName','feederSlot','loadedAt','archivedAt','gross','tare'
   ]);
+  const PRINT_USAGE_FIELDS = new Set([
+    'estimatedRemainingGrams','visualPercent','remainingEvidenceSource','remainingEvidenceAt','lastUsedAt','lastPrintJobId','lastPrintConsumptionGrams'
+  ]);
   const FIELD_LABELS = {
     brand:'brand', material:'material', colorName:'color', colorHex:'color swatch', spoolType:'spool format',
-    startWeight:'starting weight', visualPercent:'visual estimate', location:'location', confidence:'confidence',
+    startWeight:'starting weight', visualPercent:'visual estimate', estimatedRemainingGrams:'estimated remaining', location:'location', confidence:'confidence',
     opened:'opened state', bagged:'storage state', purchaseSource:'purchase source', purchasePrice:'purchase price',
-    purchaseDate:'purchase date', reorderThreshold:'reorder threshold', lastDriedDate:'last dried date', notes:'notes'
+    purchaseDate:'purchase date', reorderThreshold:'reorder threshold', lastDriedDate:'last dried date', notes:'notes', lastUsedAt:'last used'
   };
 
   const text = (value, max = 160) => String(value ?? '').trim().slice(0, max);
+  const finite = value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value));
   const timestamp = value => {
     const parsed = Date.parse(String(value || ''));
     return Number.isFinite(parsed) ? parsed : 0;
@@ -30,12 +34,16 @@
   const byId = state => new Map((Array.isArray(state?.spools) ? state.spools : [])
     .filter(row => row && text(row.id, 64))
     .map(row => [text(row.id, 64).toLowerCase(), row]));
+  const jobsById = state => new Map((Array.isArray(state?.printJobs) ? state.printJobs : [])
+    .filter(row => row && text(row.id,120) && text(row.spoolId,64))
+    .map(row => [text(row.id,120), row]));
   const measurementKey = row => [text(row?.id,64).toLowerCase(), text(row?.at,64), String(row?.gross ?? ''), String(row?.tare ?? ''), text(row?.note,160)].join('|');
   const placementText = spool => {
     if (spool?.placementState !== 'Loaded') return spool?.location ? `storage · ${text(spool.location,60)}` : 'storage';
     return [text(spool.printerName,60) || 'printer', text(spool.feederName,60), text(spool.feederSlot,24) ? `slot ${text(spool.feederSlot,24)}` : ''].filter(Boolean).join(' · ');
   };
   const displaySpool = spool => [text(spool?.id,64), text(spool?.brand,60), text(spool?.material,60), text(spool?.colorName,60)].filter(Boolean).join(' · ');
+  const displayJob = job => text(job?.jobName,100) || [text(job?.material,60),text(job?.color,60)].filter(Boolean).join(' · ') || 'Print';
 
   function normalizeAuditEntry(entry) {
     if (!entry || typeof entry !== 'object') return null;
@@ -99,12 +107,38 @@
       if (!key) continue;
       measurementSpools.add(key);
       const spool = (Array.isArray(next.spools) ? next.spools : []).find(item => text(item?.id,64).toLowerCase() === key) || {id:row.id};
-      const remaining = Number.isFinite(Number(row.remaining)) ? `${Math.round(Number(row.remaining))} g remaining` : 'measurement recorded';
+      const remaining = finite(row.remaining) ? `${Math.round(Number(row.remaining))} g remaining` : 'measurement recorded';
       emit('measurement.saved', `${text(row.id,64)} · ${remaining}${row.note ? ` · ${text(row.note,100)}` : ''}`, spool);
     }
 
     const before = byId(previous);
     const after = byId(next);
+    const previousJobs = jobsById(previous);
+    const nextJobs = jobsById(next);
+    const completedSpools = new Set();
+
+    for (const [jobId, newJob] of nextJobs) {
+      const oldJob = previousJobs.get(jobId);
+      const spoolKey = text(newJob.spoolId,64).toLowerCase();
+      const spool = after.get(spoolKey) || before.get(spoolKey) || {id:newJob.spoolId};
+      if (!oldJob) {
+        const model = finite(newJob.modelGrams) ? `${Math.round(Number(newJob.modelGrams))} g` : 'quantity unknown';
+        emit('usage.print-planned', `Planned ${displayJob(newJob)} · ${model} · ${text(newJob.spoolId,64)}`, spool);
+        continue;
+      }
+      if (text(oldJob.status,24) === text(newJob.status,24)) continue;
+      if (newJob.status === 'in-progress') {
+        emit('usage.print-started', `Started ${displayJob(newJob)} · ${text(newJob.spoolId,64)}`, spool);
+      } else if (newJob.status === 'completed') {
+        completedSpools.add(spoolKey);
+        const consumed = finite(newJob.consumedGrams) ? `${Math.round(Number(newJob.consumedGrams))} g consumed` : 'consumption recorded';
+        const remaining = finite(newJob.remainingAfter) ? `${Math.round(Number(newJob.remainingAfter))} g projected remaining` : 'remaining projection unavailable';
+        emit('usage.print-completed', `Completed ${displayJob(newJob)} · ${consumed} · ${remaining}`, spool);
+      } else if (newJob.status === 'cancelled') {
+        emit('usage.print-cancelled', `Cancelled ${displayJob(newJob)} · ${text(newJob.spoolId,64)}`, spool);
+      }
+    }
+
     const ids = new Set([...before.keys(), ...after.keys()]);
     for (const id of ids) {
       const oldSpool = before.get(id);
@@ -141,6 +175,7 @@
       for (const field of keys) {
         if (SPECIAL_FIELDS.has(field)) continue;
         if (measurementSpools.has(id) && field === 'location') continue;
+        if (completedSpools.has(id) && PRINT_USAGE_FIELDS.has(field)) continue;
         if (same(oldSpool[field], newSpool[field])) continue;
         changes.push({field:FIELD_LABELS[field] || field, from:text(oldSpool[field],120), to:text(newSpool[field],120)});
       }
