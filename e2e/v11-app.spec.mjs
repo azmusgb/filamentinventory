@@ -183,7 +183,7 @@ test('measured loaded spool can be planned, started and completed through print 
     localStorage.setItem(key,JSON.stringify(value));
   });
 
-  await page.locator('[data-shell-action="print"]').click();
+  await page.locator('[data-shell-action="print"]:visible').click();
   await expect(page.locator('#printReadinessDialog[open]')).toBeVisible();
   await page.locator('#printJobName').fill('Bracket test');
   await page.locator('#printMaterial').fill('PLA');
