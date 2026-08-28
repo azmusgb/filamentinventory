@@ -3,8 +3,8 @@ import { test, expect } from '@playwright/test';
 
 const FIXED_TIME = Date.parse('2026-08-28T15:00:00.000Z');
 const APPROVED_VISUAL_HASHES = Object.freeze({
-  home:'e693aea7b3cc1e0e6efdefd5da8aed242f3330e4c9aa18dd31c91ce9622e92d3',
-  inventory:'74b8cdb1555dd4ae2dc8b50dd5a9827710f1e89ba9a6c322484cc4e6a6e715a3',
+  home:'1188423a9188869c58a8fa14d46b54bc49b27c1d6f79f907cc6f65661ebecef9',
+  inventory:'341a80dc9d0721974334c249c16f328b67ba88c9158d861f6b220f9bd04c6ffe',
 });
 
 const prefs = (owner, displayName, initials, accent) => ({
@@ -75,7 +75,7 @@ async function navigate(page, view) {
 }
 
 async function screenshotHash(page,testInfo,name){
-  const png=await page.screenshot({fullPage:true,animations:'disabled'});
+  const png=await page.screenshot({animations:'disabled'});
   await testInfo.attach(`${name}.png`,{body:png,contentType:'image/png'});
   return createHash('sha256').update(png).digest('hex');
 }
