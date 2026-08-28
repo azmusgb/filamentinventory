@@ -57,6 +57,7 @@ export const PUBLIC_ASSETS = Object.freeze([
   'print-readiness-client.js',
   'ui-v10-client.js',
   'app-shell-client.js',
+  'navigation-architecture.js',
   'sw.js',
   'manifest.webmanifest',
   'icon.svg',
