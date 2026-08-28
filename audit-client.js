@@ -30,9 +30,7 @@
     return state?.spools ? state : null;
   }
 
-  function auditApi() {
-    return globalThis.FilamentInventoryAudit;
-  }
+  function auditApi() { return globalThis.FilamentInventoryAudit; }
 
   function scheduleRender() {
     if (renderQueued) return;
@@ -42,7 +40,6 @@
 
   Storage.prototype.setItem = function(key, value) {
     if (this !== localStorage || key !== STORAGE_KEY || writingAudit) return priorSetItem.call(this, key, value);
-
     const before = pendingBeforeState || readState();
     pendingBeforeState = null;
     const result = priorSetItem.call(this, key, value);
@@ -94,29 +91,35 @@
     return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString();
   };
 
-
-  function injectViews() {
+  function injectView() {
     const historyView = document.getElementById('historyView');
-    if (historyView && !document.getElementById('auditPanel')) {
-      const panel = document.createElement('section');
-      panel.className = 'panel audit-panel';
-      panel.id = 'auditPanel';
-      panel.innerHTML = `
-        <div class="panel-head"><div><span class="eyebrow">Private activity</span><h3 style="margin-top:6px">Inventory activity</h3><p id="auditCount">0 events</p></div><div class="audit-head-actions"><button class="btn" id="exportAuditBtn" type="button">Export activity CSV</button></div></div>
-        <div class="audit-metrics" id="auditMetrics"></div>
-        <div class="audit-toolbar"><input class="field" id="auditSearch" type="search" placeholder="Search spool, action, device…"/><select class="select" id="auditCategory"><option value="">All activity</option><option value="inventory">Inventory</option><option value="measurement">Measurements</option><option value="ownership">Ownership</option><option value="placement">Printer / AMS</option><option value="lifecycle">Lifecycle</option></select><button class="btn" id="auditClear" type="button">Clear filters</button></div>
-        <div class="audit-list" id="auditList"></div>`;
-      historyView.insertBefore(panel, historyView.firstElementChild);
+    if (!historyView) return;
+
+    const legacyPanel = [...historyView.children].find(node => node.classList?.contains('panel') && node.id !== 'auditPanel');
+    if (legacyPanel) {
+      legacyPanel.classList.add('measurement-history-panel','fi-activity-legacy-measurements');
+      legacyPanel.hidden = true;
     }
 
-    const dashboardView = document.getElementById('dashboardView');
-    const metrics = dashboardView?.querySelector('.metrics');
-    if (dashboardView && metrics && !document.getElementById('auditDashboardCard')) {
-      const panel = document.createElement('section');
-      panel.className = 'panel audit-dashboard';
-      panel.id = 'auditDashboardCard';
-      panel.innerHTML = `<div class="panel-head"><div><h3>Recent activity</h3><p>Latest inventory, measurement, lifecycle and Printer / AMS changes.</p></div><button class="btn" id="auditOpenHistory" type="button">View activity</button></div><div class="audit-dashboard-list" id="auditDashboardList"></div>`;
-      metrics.insertAdjacentElement('afterend', panel);
+    if (document.getElementById('auditPanel')) return;
+    const panel = document.createElement('section');
+    panel.className = 'panel audit-panel fi-activity-panel';
+    panel.id = 'auditPanel';
+    panel.innerHTML = `
+      <div class="panel-head audit-content-head"><div><span class="eyebrow">Private activity</span><h3>Everything that changed</h3><p id="auditCount">0 events</p></div><div class="audit-head-actions"><button class="btn" id="exportAuditBtn" type="button">Export activity CSV</button></div></div>
+      <div class="audit-metrics" id="auditMetrics"></div>
+      <div class="audit-toolbar"><div class="search-wrap"><label class="sr-only" for="auditSearch">Search activity</label><input class="field" id="auditSearch" type="search" placeholder="Search spool, action, device…"/></div><select class="select" id="auditCategory" aria-label="Activity category"><option value="">All activity</option><option value="measurement">Measurements</option><option value="placement">Printer / AMS</option><option value="inventory">Inventory</option><option value="lifecycle">Lifecycle</option><option value="ownership">Ownership</option></select><button class="btn" id="auditClear" type="button">Clear</button></div>
+      <div class="audit-list" id="auditList"></div>`;
+    historyView.prepend(panel);
+  }
+
+  function adoptHeaderAction() {
+    const button = document.getElementById('exportAuditBtn');
+    const actions = document.querySelector('#historyView > .fi-page-header .fi-page-header-actions');
+    if (button && actions && !actions.contains(button)) {
+      button.classList.add('fi-page-action');
+      actions.appendChild(button);
+      document.querySelector('.audit-head-actions')?.remove();
     }
   }
 
@@ -125,11 +128,10 @@
     const state = readState();
     const rows = api?.normalizeAuditLog(state?.auditLog || []) || [];
     const q = String(document.getElementById('auditSearch')?.value || '').trim().toLowerCase();
-    const owner = document.getElementById('auditOwner')?.value || '';
     const category = document.getElementById('auditCategory')?.value || '';
     return rows.slice().reverse().filter(row => {
       const hay = [row.summary,row.spoolId,row.actor,row.device,row.type,row.owner,...(row.changes || []).flatMap(c => [c.field,c.from,c.to])].join(' ').toLowerCase();
-      return (!q || hay.includes(q)) && (!owner || row.actor === owner || row.owner === owner) && (!category || categoryFor(row.type) === category);
+      return (!q || hay.includes(q)) && (!category || categoryFor(row.type) === category);
     });
   }
 
@@ -167,22 +169,14 @@
     }).join('');
   }
 
-  function renderDashboard() {
-    const api = auditApi();
-    const rows = api?.normalizeAuditLog(readState()?.auditLog || []).slice().reverse().slice(0,5) || [];
-    const el = document.getElementById('auditDashboardList');
-    if (!el) return;
-    if (!rows.length) { el.innerHTML = '<div class="audit-empty">No activity recorded yet.</div>'; return; }
-    el.innerHTML = rows.map(row => `<div class="audit-dashboard-row"><div><strong>${esc(row.summary)}</strong><span>${esc(row.actor)}${row.device ? ` · ${esc(row.device)}` : ''}</span></div><span>${esc(relative(row.at))}</span></div>`).join('');
-  }
-
   function renderAll() {
+    injectView();
+    adoptHeaderAction();
     renderTimeline();
-    renderDashboard();
   }
 
   function focusSpool(id) {
-    document.querySelector('.tab[data-view="inventory"]')?.click();
+    if (!globalThis.FilamentInventoryNavigation?.navigate?.('inventory',{historyMode:'replace',focus:true})) document.querySelector('.tab[data-view="inventory"]')?.click();
     setTimeout(() => {
       const search = document.getElementById('searchInput');
       const lifecycle = document.getElementById('lifecycleFilter');
@@ -207,7 +201,10 @@
     const a = document.createElement('a');
     a.href = url;
     a.download = `filament-activity-${nowIso().slice(0,10)}.csv`;
-    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url),1000);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url),1000);
   }
 
   function bind() {
@@ -216,26 +213,25 @@
       pendingBeforeState = snapshot;
       setTimeout(() => { if (pendingBeforeState === snapshot) pendingBeforeState = null; }, 0);
     }, true);
-    ['auditSearch'].forEach(id => document.getElementById(id)?.addEventListener('input', renderTimeline));
-    ['auditOwner','auditCategory'].forEach(id => document.getElementById(id)?.addEventListener('change', renderTimeline));
-    document.getElementById('auditClear')?.addEventListener('click', () => {
-      if (document.getElementById('auditSearch')) document.getElementById('auditSearch').value = '';
-      if (document.getElementById('auditOwner')) document.getElementById('auditOwner').value = '';
-      if (document.getElementById('auditCategory')) document.getElementById('auditCategory').value = '';
-      renderTimeline();
-    });
-    document.getElementById('exportAuditBtn')?.addEventListener('click', exportCsv);
-    document.getElementById('auditOpenHistory')?.addEventListener('click', () => document.querySelector('.tab[data-view="history"]')?.click());
+    document.addEventListener('input', event => { if (event.target?.id === 'auditSearch') renderTimeline(); });
+    document.addEventListener('change', event => { if (event.target?.id === 'auditCategory') renderTimeline(); });
     document.addEventListener('click', event => {
+      if (event.target.closest('#auditClear')) {
+        if (document.getElementById('auditSearch')) document.getElementById('auditSearch').value = '';
+        if (document.getElementById('auditCategory')) document.getElementById('auditCategory').value = '';
+        renderTimeline();
+        return;
+      }
+      if (event.target.closest('#exportAuditBtn')) { exportCsv(); return; }
       const target = event.target.closest('[data-audit-spool]');
       if (target) focusSpool(target.dataset.auditSpool);
-      if (event.target.closest('.tab[data-view="history"],.tab[data-view="dashboard"]')) setTimeout(renderAll,0);
     });
+    document.addEventListener('fi:navigation', event => { if (event.detail?.view === 'history') setTimeout(renderAll,0); });
     window.addEventListener('storage', event => { if (event.key === STORAGE_KEY) renderAll(); });
   }
 
   function init() {
-    injectViews();
+    injectView();
     bind();
     renderAll();
   }
