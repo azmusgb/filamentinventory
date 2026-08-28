@@ -1,0 +1,268 @@
+/* Mobile Inventory Presentation -------------------------------------------
+   Optimizes the high-frequency inventory list for scanning, trust and action.
+   Domain state remains owned by the existing inventory / spool modules.
+*/
+
+html.fi-v11 .spool-card-more {
+  display: none;
+}
+
+html.fi-v11 .inventory-quantity-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+html.fi-v11 .inventory-quantity-amount {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+html.fi-v11 .inventory-evidence-chip {
+  justify-self: end;
+  padding: 3px 7px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+html.fi-v11 .inventory-evidence-chip[data-evidence="measured"] {
+  border-color: color-mix(in srgb, var(--color-success) 34%, var(--color-border-subtle));
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+html.fi-v11 .inventory-evidence-chip[data-evidence="estimated"] {
+  border-color: color-mix(in srgb, var(--color-info) 30%, var(--color-border-subtle));
+  background: color-mix(in srgb, var(--color-info) 10%, var(--color-surface));
+  color: var(--color-info);
+}
+
+html.fi-v11 .inventory-evidence-chip[data-evidence="unknown"] {
+  color: var(--color-text-subtle);
+}
+
+@media (max-width: 640px) {
+  html.fi-v11[data-current-view="inventory"] .app-shell > main {
+    padding: 12px 10px 22px;
+  }
+
+  html.fi-v11 .fi-page-inventory > .fi-page-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 10px;
+    margin-bottom: 10px;
+  }
+
+  html.fi-v11 .fi-page-inventory .fi-page-header-copy h2 {
+    font-size: 22px;
+  }
+
+  html.fi-v11 .fi-page-inventory .fi-page-header-copy p {
+    max-width: 28ch;
+    margin-top: 3px;
+    font-size: 11.5px;
+    line-height: 1.35;
+  }
+
+  html.fi-v11 .fi-page-inventory .fi-page-header-actions {
+    width: auto;
+    align-self: center;
+    justify-content: flex-end;
+  }
+
+  html.fi-v11 .fi-page-inventory .fi-page-header-actions .btn {
+    min-height: 38px;
+    flex: 0 0 auto;
+    padding-inline: 11px;
+    border-radius: 11px;
+    font-size: 11.5px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-command {
+    margin-bottom: 8px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-command-head {
+    margin-bottom: 7px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-command-copy strong {
+    font-size: 11px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-command-modes {
+    gap: 5px;
+    padding-bottom: 1px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-command-mode {
+    min-height: 31px;
+    gap: 5px;
+    padding: 0 9px;
+    font-size: 10px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-command-mode strong {
+    font-size: 9px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-command-filters {
+    margin-top: 3px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-command-hint {
+    display: none;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-compact-controls {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-compact-controls .field,
+  html.fi-v11 .fi-page-inventory .inventory-filter-open {
+    min-height: 39px;
+    border-radius: 11px;
+    font-size: 11.5px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-filter-open {
+    min-width: 78px;
+    padding-inline: 9px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-filter-open strong {
+    min-width: 17px;
+    height: 17px;
+    margin-left: 4px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-grid {
+    gap: 7px;
+  }
+
+  html.fi-v11 .fi-page-inventory .spool-card {
+    border-radius: 13px;
+  }
+
+  html.fi-v11 .fi-page-inventory .spool-card:hover {
+    transform: none;
+  }
+
+  html.fi-v11 .fi-page-inventory .spool-head {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto auto;
+    min-height: 52px;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 9px 6px;
+  }
+
+  html.fi-v11 .fi-page-inventory .swatch {
+    width: 34px;
+    height: 34px;
+    border-width: 5px;
+  }
+
+  html.fi-v11 .fi-page-inventory .spool-title h4 {
+    font-size: 13px;
+    line-height: 1.2;
+  }
+
+  html.fi-v11 .fi-page-inventory .spool-title p {
+    margin-top: 2px;
+    font-size: 10.5px;
+    line-height: 1.2;
+  }
+
+  html.fi-v11 .fi-page-inventory .confidence {
+    margin-left: 0;
+    padding: 3px 5px;
+    border-radius: 7px;
+    font-size: 7.5px;
+    letter-spacing: .035em;
+    white-space: nowrap;
+  }
+
+  html.fi-v11 .fi-page-inventory .spool-card-more {
+    display: inline-grid;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 9px;
+    background: var(--color-surface-raised);
+    color: var(--color-text-muted);
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  html.fi-v11 .fi-page-inventory .spool-card-more:active {
+    background: var(--color-surface-strong);
+  }
+
+  html.fi-v11 .fi-page-inventory .spool-body {
+    padding: 0 9px 8px;
+  }
+
+  html.fi-v11 .fi-page-inventory .fill-top.inventory-quantity-row {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    gap: 7px;
+    min-height: 25px;
+    margin: 0 0 5px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-quantity-percent {
+    font-size: 17px;
+    line-height: 1;
+    letter-spacing: -.03em;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-quantity-amount {
+    font-size: 9.5px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-evidence-chip {
+    padding: 2px 6px;
+    font-size: 8px;
+  }
+
+  html.fi-v11 .fi-page-inventory .progress {
+    height: 3px;
+    margin: 0;
+    border: 0;
+  }
+
+  html.fi-v11 .fi-page-inventory .spool-card .meta,
+  html.fi-v11 .fi-page-inventory .spool-action-bar {
+    display: none !important;
+  }
+
+  html.fi-v11.bulk-selection-mode .fi-page-inventory .spool-card-more {
+    display: none;
+  }
+
+  html.fi-v11.bulk-selection-mode .fi-page-inventory .spool-head {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+  }
+
+  html.fi-v11 .fi-page-inventory .bulk-select-control {
+    top: 7px;
+    right: 7px;
+    min-height: 28px;
+    padding-inline: 7px;
+  }
+}
