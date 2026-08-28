@@ -9,6 +9,7 @@ const STORE_NAME = 'filament-inventory-sync';
 const MAX_SPOOLS = 5000;
 const MAX_LOGS = 5000;
 const MAX_AUDIT = 1500;
+const MAX_PRINT_JOBS = 250;
 const MAX_BODY_BYTES = 2_000_000;
 const MAX_SNAPSHOTS = 12;
 const MAX_ACTIVITY = 24;
@@ -78,6 +79,16 @@ function recordTime(spool: any): number {
   return Math.max(timestamp(spool?.updatedAt), timestamp(spool?.createdAt));
 }
 
+function printJobTime(job: any): number {
+  return Math.max(
+    timestamp(job?.updatedAt),
+    timestamp(job?.completedAt),
+    timestamp(job?.cancelledAt),
+    timestamp(job?.startedAt),
+    timestamp(job?.plannedAt),
+  );
+}
+
 function normalizeTombstones(value: unknown): Record<string,string> {
   const out: Record<string,string> = {};
   if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
@@ -115,10 +126,51 @@ function normalizeAuditLog(value: unknown): any[] {
   return [...map.values()].sort((a,b) => timestamp(a.at) - timestamp(b.at)).slice(-MAX_AUDIT);
 }
 
+export function normalizePrintJobs(value: unknown): any[] {
+  const map = new Map<string,any>();
+  for (const raw of Array.isArray(value) ? value : []) {
+    const id = String(raw?.id || '').trim().slice(0,120);
+    const spoolId = String(raw?.spoolId || '').trim().slice(0,64);
+    const plannedAt = String(raw?.plannedAt || '');
+    const status = ['planned','in-progress','completed','cancelled'].includes(String(raw?.status)) ? String(raw.status) : 'planned';
+    if (!id || !spoolId || !timestamp(plannedAt)) continue;
+    const normalized = {
+      ...raw,
+      id,
+      spoolId,
+      status,
+      jobName:String(raw?.jobName || '').trim().slice(0,100),
+      material:String(raw?.material || '').trim().slice(0,80),
+      color:String(raw?.color || '').trim().slice(0,80),
+      plannedAt,
+      updatedAt:String(raw?.updatedAt || raw?.completedAt || raw?.cancelledAt || raw?.startedAt || plannedAt),
+    };
+    const old = map.get(id);
+    if (!old || printJobTime(normalized) >= printJobTime(old)) map.set(id, normalized);
+  }
+  return [...map.values()]
+    .sort((a,b) => printJobTime(a) - printJobTime(b) || String(a.id).localeCompare(String(b.id)))
+    .slice(-MAX_PRINT_JOBS);
+}
+
+export function mergePrintJobs(remoteValue: unknown, incomingValue: unknown): any[] {
+  return normalizePrintJobs([
+    ...(Array.isArray(remoteValue) ? remoteValue : []),
+    ...(Array.isArray(incomingValue) ? incomingValue : []),
+  ]);
+}
+
 export function normalizeState(value: any) {
   const spools = Array.isArray(value?.spools) ? value.spools.filter((s:any) => s && String(s.id || '').trim()).slice(0, MAX_SPOOLS) : [];
   const weighLog = Array.isArray(value?.weighLog) ? value.weighLog.filter((x:any) => x && String(x.id || '').trim()).slice(-MAX_LOGS) : [];
-  return { version:Math.max(Number(value?.version) || 0, 5), spools, weighLog, auditLog:normalizeAuditLog(value?.auditLog), tombstones:normalizeTombstones(value?.tombstones) };
+  return {
+    version:Math.max(Number(value?.version) || 0, 5),
+    spools,
+    weighLog,
+    auditLog:normalizeAuditLog(value?.auditLog),
+    printJobs:normalizePrintJobs(value?.printJobs),
+    tombstones:normalizeTombstones(value?.tombstones),
+  };
 }
 
 function revision(): string {
@@ -216,9 +268,11 @@ export function mergeStates(remoteRaw: any, incomingRaw: any) {
   }
   const weighLog = [...logMap.values()].sort((a,b) => timestamp(a.at) - timestamp(b.at)).slice(-MAX_LOGS);
   const auditLog = normalizeAuditLog([...remote.auditLog, ...incoming.auditLog]);
+  const printJobs = mergePrintJobs(remote.printJobs, incoming.printJobs);
+  const version = Math.max(Number(remote.version) || 0, Number(incoming.version) || 0, 5);
 
   return {
-    state:{ version:5, spools, weighLog, auditLog, tombstones },
+    state:{ version, spools, weighLog, auditLog, printJobs, tombstones },
     stats:{ incomingWins, remoteWins, deletedApplied }
   };
 }
@@ -253,6 +307,7 @@ async function listSnapshots(store: ReturnType<typeof getStore>, hash: string) {
       createdAt:item.updatedAt,
       spoolCount:item.state.spools.length,
       logCount:item.state.weighLog.length,
+      printJobCount:item.state.printJobs.length,
     });
   }
   return rows;
@@ -359,7 +414,7 @@ export default async (req: Request) => {
       updatedAt:at,
       state:merged.state,
       devices:updateDevices(current?.devices || [], device, 'sync', at),
-      activity:addActivity(current?.activity || [], device, 'sync', `${merged.state.spools.length} spools · ${merged.state.weighLog.length} measurements`, at),
+      activity:addActivity(current?.activity || [], device, 'sync', `${merged.state.spools.length} spools · ${merged.state.weighLog.length} measurements · ${merged.state.printJobs.length} print jobs`, at),
     };
     await store.setJSON(blobKey, next);
     return json({ ok:true, state:next.state, meta:publicMeta(next), merge:{...merged.stats, concurrent, changed:true} });
