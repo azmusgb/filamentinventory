@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — Print-job intelligence
+
+- Evolved **Can I print this?** into a guided print workflow covering requirement, candidate selection, verification, placement, start, completion, and recent job history without adding another primary navigation area.
+- Candidate ranking now trusts scale-backed **Measured** remaining amounts over visual or usage-derived **Estimated** values, even when an estimated spool is already loaded.
+- Added a distinct provisional `estimate-ready` result so estimated quantity is never presented as verified print readiness.
+- Added printer/AMS placement recommendations, including conservative open-slot suggestions when one printer and feeder context is unambiguous.
+- Added planned, in-progress, completed, and cancelled print-job records with guarded lifecycle transitions.
+- Starting a print now requires the selected spool to be loaded, scale-measured, and still contain the required filament plus safety margin.
+- Completing a print records reported filament consumption and converts the pre-print scale reading into a usage-derived remaining estimate until the spool is weighed again.
+- Added explicit print planning/start/completion/cancellation events to Activity and suppressed duplicate generic inventory-change noise for print-generated remaining-weight fields.
+- Added print-job merge semantics to local backup restore and Netlify cloud sync so independent jobs survive multi-device synchronization and the newest lifecycle transition wins for the same job ID.
+- Added responsive, keyboard-focusable, reduced-motion-aware print intelligence UI plus unit, integration, cloud-sync, publication, and offline-cache regression coverage.
+
 ## Unreleased — Physical spool command workflow
 
 - Added one canonical **Identify → Verify → Place → Use** workflow for a spool in hand.

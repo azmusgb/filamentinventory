@@ -13,6 +13,7 @@ export const PUBLIC_ASSETS = Object.freeze([
   'css/components/weigh.css',
   'css/components/physical-spool.css',
   'css/components/physical-workflow.css',
+  'css/components/print-job.css',
   'css/components/profile-preferences.css',
   'css/foundation.css',
   'app-version.js',

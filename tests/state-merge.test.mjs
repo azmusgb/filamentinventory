@@ -4,10 +4,11 @@ import { createRequire } from 'node:module';
 import test from 'node:test';
 
 const require = createRequire(import.meta.url);
-const { mergeBackupStates, mergeTombstones, normalizeTombstones } = require('../state-merge.js');
+const { mergeBackupStates, mergePrintJobs, mergeTombstones, normalizeTombstones } = require('../state-merge.js');
 
 const at = minute => `2026-08-27T03:${String(minute).padStart(2, '0')}:00.000Z`;
 const spool = (id, updatedAt, extra = {}) => ({ id, brand: 'Test', material: 'PLA', updatedAt, ...extra });
+const job = (id, spoolId, plannedAt, extra = {}) => ({ id, spoolId, plannedAt, updatedAt:plannedAt, status:'planned', ...extra });
 
 test('incoming backup tombstone deletes an older local spool and its logs', () => {
   const current = {
@@ -72,6 +73,28 @@ test('measurement history deduplicates while preserving unrelated live rows', ()
 
   assert.equal(merged.weighLog.length, 2);
   assert.deepEqual(merged.weighLog.map(row => row.id).sort(), ['S001', 'S002']);
+});
+
+test('print-job merge keeps jobs from both devices and newest state for the same job id', () => {
+  const local = [
+    job('J1','S001',at(1),{status:'planned'}),
+    job('J2','S002',at(2),{status:'completed',completedAt:at(4),updatedAt:at(4),consumedGrams:100}),
+  ];
+  const incoming = [
+    job('J1','S001',at(1),{status:'in-progress',startedAt:at(3),updatedAt:at(3)}),
+    job('J3','S003',at(5),{status:'planned'}),
+  ];
+  const merged = mergePrintJobs(local,incoming);
+  assert.deepEqual(merged.map(row => row.id),['J1','J2','J3']);
+  assert.equal(merged.find(row => row.id === 'J1').status,'in-progress');
+  assert.equal(merged.find(row => row.id === 'J2').consumedGrams,100);
+});
+
+test('backup merge preserves print jobs across devices instead of allowing one array to replace another', () => {
+  const current = {version:10,spools:[spool('S001',at(1))],weighLog:[],auditLog:[],printJobs:[job('J1','S001',at(1))],tombstones:{}};
+  const incoming = {version:10,spools:[spool('S001',at(2))],weighLog:[],auditLog:[],printJobs:[job('J2','S001',at(2))],tombstones:{}};
+  const merged = mergeBackupStates(current,incoming);
+  assert.deepEqual(merged.printJobs.map(row => row.id),['J1','J2']);
 });
 
 test('newest valid tombstone wins per spool id', () => {

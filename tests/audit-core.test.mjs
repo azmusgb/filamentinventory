@@ -19,6 +19,10 @@ const spool = (id, updatedAt, extra = {}) => ({
   updatedAt,
   ...extra,
 });
+const job = (status, extra = {}) => ({
+  id:'J1',spoolId:'S001',jobName:'Bracket',material:'PLA+',color:'Black',modelGrams:200,requiredGrams:220,
+  status,plannedAt:at(5),updatedAt:at(5),...extra,
+});
 
 function context() {
   let n = 0;
@@ -54,6 +58,35 @@ test('records owner transfer and printer placement independently', () => {
   assert.deepEqual(events.map(row => row.type).sort(), ['ownership.transferred','placement.loaded']);
   assert.match(events.find(row => row.type === 'ownership.transferred').summary, /Bill → Aimee/);
   assert.match(events.find(row => row.type === 'placement.loaded').summary, /P1S/);
+});
+
+test('records print plan, start, completion and cancellation as explicit usage activity', () => {
+  const baseSpool = spool('S001',at(1),{gross:800,tare:200,placementState:'Loaded',printerName:'P1S'});
+  const planned = job('planned');
+  const plannedEvents = buildAuditEvents({spools:[baseSpool],printJobs:[]},{spools:[baseSpool],printJobs:[planned]},context());
+  assert.equal(plannedEvents.length,1);
+  assert.equal(plannedEvents[0].type,'usage.print-planned');
+
+  const running = job('in-progress',{startedAt:at(10),updatedAt:at(10),remainingAtStart:600});
+  const startEvents = buildAuditEvents({spools:[baseSpool],printJobs:[planned]},{spools:[baseSpool],printJobs:[running]},context());
+  assert.equal(startEvents.length,1);
+  assert.equal(startEvents[0].type,'usage.print-started');
+
+  const completed = job('completed',{startedAt:at(10),completedAt:at(20),updatedAt:at(20),remainingAtStart:600,consumedGrams:190,remainingAfter:410});
+  const projectedSpool = spool('S001',at(20),{
+    tare:200,gross:null,placementState:'Loaded',printerName:'P1S',estimatedRemainingGrams:410,visualPercent:null,
+    remainingEvidenceSource:'print-job',remainingEvidenceAt:at(20),lastUsedAt:at(20),lastPrintJobId:'J1',lastPrintConsumptionGrams:190,
+  });
+  const completedEvents = buildAuditEvents({spools:[baseSpool],printJobs:[running]},{spools:[projectedSpool],printJobs:[completed]},context());
+  assert.equal(completedEvents.filter(row => row.type === 'usage.print-completed').length,1);
+  assert.equal(completedEvents.filter(row => row.type === 'inventory.updated').length,0);
+  assert.match(completedEvents[0].summary,/190 g consumed/);
+  assert.match(completedEvents[0].summary,/410 g projected remaining/);
+
+  const cancelled = job('cancelled',{cancelledAt:at(12),updatedAt:at(12)});
+  const cancelEvents = buildAuditEvents({spools:[baseSpool],printJobs:[planned]},{spools:[baseSpool],printJobs:[cancelled]},context());
+  assert.equal(cancelEvents.length,1);
+  assert.equal(cancelEvents[0].type,'usage.print-cancelled');
 });
 
 test('records ordinary field edits with compact change details', () => {

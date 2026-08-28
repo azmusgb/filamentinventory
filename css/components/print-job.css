@@ -1,0 +1,127 @@
+/* Print Job Intelligence -------------------------------------------------- */
+@import url("../tokens.css");
+
+.fi-ui .print-job-dialog { width:min(760px,calc(100vw - 24px)); max-width:760px; }
+.fi-ui .print-job-shell { max-height:min(92vh,900px); max-height:min(92dvh,900px); }
+.fi-ui .print-job-body { display:grid; gap:var(--space-5); }
+.fi-ui .print-job-requirement,
+.fi-ui .print-job-result,
+.fi-ui .print-job-ledger { display:grid; gap:var(--space-4); }
+.fi-ui .print-job-requirement { padding:var(--space-4); border:1px solid var(--color-border-subtle); border-radius:var(--radius-lg); background:var(--color-surface); }
+.fi-ui .print-job-section-head { display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-3); }
+.fi-ui .print-job-section-head h3,
+.fi-ui .print-job-result h3,
+.fi-ui .print-job-active h3 { margin:5px 0 0; font-size:var(--text-xl); letter-spacing:-.02em; }
+.fi-ui .print-job-result p { margin:var(--space-2) 0 0; color:var(--color-text-muted); line-height:1.5; }
+.fi-ui .print-job-form-grid { gap:var(--space-3); }
+.fi-ui .print-job-check-action { display:flex; justify-content:flex-end; }
+.fi-ui .print-job-check-action .btn { min-width:160px; }
+
+.fi-ui .print-job-options,
+.fi-ui .print-job-alternatives,
+.fi-ui .print-job-history { border:1px solid var(--color-border-subtle); border-radius:var(--radius-md); background:var(--color-surface-raised); }
+.fi-ui .print-job-options summary,
+.fi-ui .print-job-alternatives summary,
+.fi-ui .print-job-history summary { display:flex; min-height:var(--control-lg); align-items:center; justify-content:space-between; gap:var(--space-3); padding:var(--space-3) var(--space-4); cursor:pointer; list-style:none; }
+.fi-ui .print-job-options summary::-webkit-details-marker,
+.fi-ui .print-job-alternatives summary::-webkit-details-marker,
+.fi-ui .print-job-history summary::-webkit-details-marker { display:none; }
+.fi-ui .print-job-options summary strong,
+.fi-ui .print-job-alternatives summary strong,
+.fi-ui .print-job-history summary strong { display:block; color:var(--color-text); font-size:var(--text-sm); }
+.fi-ui .print-job-options summary small,
+.fi-ui .print-job-alternatives summary small,
+.fi-ui .print-job-history summary small { display:block; margin-top:3px; color:var(--color-text-muted); font-size:var(--text-xs); }
+.fi-ui .print-job-option-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-3); padding:0 var(--space-4) var(--space-4); }
+
+.fi-ui .print-job-result { padding:var(--space-5); border:1px solid var(--color-border); border-radius:var(--radius-lg); background:var(--color-surface); }
+.fi-ui .print-job-result[data-state="ready"] { border-color:color-mix(in srgb,var(--color-success) 42%,var(--color-border)); }
+.fi-ui .print-job-result[data-state="estimate-ready"],
+.fi-ui .print-job-result[data-state="measurement-needed"] { border-color:color-mix(in srgb,var(--color-warning) 42%,var(--color-border)); }
+.fi-ui .print-job-result[data-state="not-enough"] { border-color:color-mix(in srgb,var(--color-danger) 42%,var(--color-border)); }
+.fi-ui .print-job-result-head { display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-4); }
+.fi-ui .print-job-result-head > div { min-width:0; }
+.fi-ui .print-job-evidence { flex:0 0 auto; padding:6px 9px; border:1px solid var(--color-border); border-radius:var(--radius-pill); background:var(--color-surface-raised); color:var(--color-text-muted); font-family:var(--font-mono); font-size:var(--text-xs); font-weight:700; }
+.fi-ui .print-job-evidence[data-source="measured"] { border-color:color-mix(in srgb,var(--color-success) 34%,var(--color-border)); color:var(--color-success); }
+.fi-ui .print-job-evidence[data-source="estimated"] { border-color:color-mix(in srgb,var(--color-warning) 34%,var(--color-border)); color:var(--color-warning); }
+
+.fi-ui .print-job-spool { display:grid; grid-template-columns:42px minmax(0,1fr); align-items:center; gap:var(--space-3); padding:var(--space-3); border:1px solid var(--color-border-subtle); border-radius:var(--radius-md); background:var(--color-surface-raised); }
+.fi-ui .print-job-spool .fi-spool-swatch { width:42px; height:42px; border-radius:var(--radius-md); }
+.fi-ui .print-job-spool strong,
+.fi-ui .print-job-spool span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fi-ui .print-job-spool strong { font-size:var(--text-base); }
+.fi-ui .print-job-spool span { margin-top:3px; color:var(--color-text-muted); font-size:var(--text-sm); }
+
+.fi-ui .print-job-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:var(--space-2); }
+.fi-ui .print-job-metrics > div { min-width:0; padding:var(--space-3); border:1px solid var(--color-border-subtle); border-radius:var(--radius-md); background:var(--color-surface-raised); }
+.fi-ui .print-job-metrics span,
+.fi-ui .print-job-metrics strong { display:block; }
+.fi-ui .print-job-metrics span { color:var(--color-text-muted); font-size:var(--text-xs); }
+.fi-ui .print-job-metrics strong { margin-top:4px; font-family:var(--font-mono); font-size:var(--text-base); }
+.fi-ui .print-job-metrics [data-tone="warning"] strong { color:var(--color-warning); }
+.fi-ui .print-job-placement { display:grid; gap:4px; padding:var(--space-3) var(--space-4); border-left:3px solid var(--color-info); border-radius:var(--radius-md); background:var(--color-info-soft); }
+.fi-ui .print-job-placement span { color:var(--color-text-muted); font-size:var(--text-xs); text-transform:uppercase; letter-spacing:.06em; }
+.fi-ui .print-job-placement strong { line-height:1.4; }
+.fi-ui .print-job-result-actions { margin:0; }
+
+.fi-ui .print-job-alternative-list { display:grid; gap:6px; padding:0 var(--space-3) var(--space-3); }
+.fi-ui .print-job-alternative { display:grid; grid-template-columns:12px minmax(0,1fr) auto; align-items:center; gap:var(--space-2); width:100%; padding:10px; border:1px solid var(--color-border-subtle); border-radius:var(--radius-md); background:var(--color-surface); color:var(--color-text); text-align:left; cursor:pointer; }
+.fi-ui .print-job-alternative:hover { border-color:var(--color-border-strong); }
+.fi-ui .print-job-alternative:focus-visible { outline:2px solid var(--color-focus); outline-offset:2px; }
+.fi-ui .print-job-alternative .fi-spool-swatch { width:12px; height:34px; border-radius:6px; }
+.fi-ui .print-job-alternative span { min-width:0; }
+.fi-ui .print-job-alternative strong,
+.fi-ui .print-job-alternative small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fi-ui .print-job-alternative small { margin-top:3px; color:var(--color-text-muted); font-size:var(--text-xs); }
+.fi-ui .print-job-alternative b { color:var(--color-text-muted); font-size:var(--text-xs); }
+
+.fi-ui .print-job-ledger { padding-top:var(--space-1); }
+.fi-ui .print-job-active { display:grid; gap:var(--space-3); padding:var(--space-4); border:1px solid var(--color-border); border-radius:var(--radius-lg); background:var(--color-surface); }
+.fi-ui .print-job-active[data-job-status="in-progress"] { border-color:color-mix(in srgb,var(--color-info) 45%,var(--color-border)); }
+.fi-ui .print-job-active-head { display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-3); }
+.fi-ui .print-job-job-chip { padding:5px 8px; border-radius:var(--radius-pill); background:var(--color-accent-soft); color:var(--color-info); font-family:var(--font-mono); font-size:var(--text-xs); font-weight:700; }
+.fi-ui .print-job-active-meta { display:flex; flex-wrap:wrap; gap:6px; }
+.fi-ui .print-job-active-meta span { padding:5px 8px; border-radius:var(--radius-pill); background:var(--color-surface-raised); color:var(--color-text-muted); font-size:var(--text-xs); }
+.fi-ui .print-job-active-actions { display:flex; flex-wrap:wrap; gap:var(--space-2); }
+.fi-ui .print-job-warning { margin:0; color:var(--color-danger); }
+.fi-ui .print-job-complete { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:end; gap:var(--space-2); width:100%; }
+.fi-ui .print-job-complete .form-field { margin:0; }
+.fi-ui .print-job-complete small { display:block; margin-top:5px; line-height:1.4; }
+
+.fi-ui .print-job-history > div { display:grid; gap:1px; padding:0 var(--space-3) var(--space-3); }
+.fi-ui .print-job-recent-row { display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-3); padding:10px; border-top:1px solid var(--color-border-subtle); }
+.fi-ui .print-job-recent-row:first-child { border-top:0; }
+.fi-ui .print-job-recent-row strong,
+.fi-ui .print-job-recent-row span { display:block; }
+.fi-ui .print-job-recent-row span,
+.fi-ui .print-job-recent-row time { margin-top:3px; color:var(--color-text-muted); font-size:var(--text-xs); }
+.fi-ui .print-job-recent-row time { flex:0 0 auto; }
+.fi-ui .print-job-footer { margin:0; padding-top:var(--space-1); border-top:1px solid var(--color-border-subtle); }
+
+@media (max-width:720px) {
+  .fi-ui .print-job-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .fi-ui .print-job-option-fields { grid-template-columns:1fr; }
+  .fi-ui .print-job-complete { grid-template-columns:1fr; }
+  .fi-ui .print-job-complete .btn { width:100%; }
+}
+
+@media (max-width:559px) {
+  .fi-ui .print-job-dialog { width:100vw; max-width:none; margin:auto 0 0; border-radius:var(--radius-xl) var(--radius-xl) 0 0; border-bottom:0; }
+  .fi-ui .print-job-shell { max-height:94vh; max-height:94dvh; }
+  .fi-ui .print-job-result,
+  .fi-ui .print-job-requirement,
+  .fi-ui .print-job-active { padding:var(--space-4); }
+  .fi-ui .print-job-result-head { display:grid; }
+  .fi-ui .print-job-evidence { justify-self:start; }
+  .fi-ui .print-job-result-actions,
+  .fi-ui .print-job-active-actions { display:grid; grid-template-columns:1fr; }
+  .fi-ui .print-job-result-actions .btn,
+  .fi-ui .print-job-active-actions .btn,
+  .fi-ui .print-job-check-action .btn { width:100%; }
+  .fi-ui .print-job-check-action { display:block; }
+  .fi-ui .print-job-recent-row { display:grid; }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  .fi-ui .print-job-alternative { transition:none; }
+}
