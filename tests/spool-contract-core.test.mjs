@@ -45,12 +45,32 @@ test('scale evidence is authoritative and visual evidence is explicitly estimate
   assert.deepEqual(unknown, {grams:null,percent:null,source:'Unknown',evidence:'none',measured:false});
 });
 
-test('lifecycle is derived from archive, empty, loaded and low-stock evidence in priority order', () => {
+test('lifecycle and stock state preserve low-stock attention even while a spool is loaded', () => {
   assert.equal(contract.lifecycle({archivedAt:'2026-08-28T12:00:00Z',placementState:'Loaded'}), 'Archived');
   assert.equal(contract.lifecycle({startWeight:1000,gross:200,tare:200,placementState:'Loaded'}), 'Empty');
   assert.equal(contract.lifecycle({startWeight:1000,gross:800,tare:200,placementState:'Loaded'}), 'Loaded');
   assert.equal(contract.lifecycle({startWeight:1000,gross:400,tare:200,reorderThreshold:250,placementState:'Stored'}), 'Low');
   assert.equal(contract.lifecycle({startWeight:1000,gross:900,tare:200,reorderThreshold:250,placementState:'Stored'}), 'Available');
+
+  const loadedLow = {startWeight:1000,gross:400,tare:200,reorderThreshold:250,placementState:'Loaded'};
+  assert.equal(contract.lifecycle(loadedLow), 'Loaded');
+  assert.equal(contract.stockState(loadedLow), 'Low');
+  assert.equal(contract.reorderNeeded(loadedLow), true);
+});
+
+test('workflow summary separates lifecycle, stock, placement and evidence', () => {
+  const summary = contract.workflowSummary({
+    id:'S9', brand:'Bambu Lab', productLine:'PLA Basic', material:'PLA', colorName:'Blue Grey',
+    startWeight:1000, visualPercent:20, reorderThreshold:250,
+    placementState:'Loaded', printerName:'P1S', feederName:'AMS 1', feederSlot:'2',
+  });
+  assert.equal(summary.lifecycle, 'Loaded');
+  assert.equal(summary.stock, 'Low');
+  assert.equal(summary.reorderNeeded, true);
+  assert.equal(summary.measurement.source, 'Estimated');
+  assert.equal(summary.evidenceLabel, 'Estimated · visual');
+  assert.equal(summary.placementLabel, 'P1S · AMS 1 · Slot 2');
+  assert.equal(summary.productLabel, 'Bambu Lab · PLA Basic · PLA');
 });
 
 test('validation rejects impossible weights and warns when measured filament exceeds nominal capacity', () => {
