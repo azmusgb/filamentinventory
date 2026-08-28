@@ -154,7 +154,7 @@ test('print intelligence dialog remains labelled and live-announced', async () =
   assert.match(client,/aria-labelledby','printReadinessTitle'/);
   assert.match(client,/id="printReadinessTitle"/);
   assert.match(client,/role="status" aria-live="polite" aria-atomic="true"/);
-  assert.match(client,/host\.dataset\.hasResult='1'/);
+  assert.match(client,/host\.dataset\.hasResult\s*=\s*'1'/);
   assert.match(client,/function hasRecheckableQuery\(\)/);
   assert.match(client,/if\(hasRecheckableQuery\(\)\)render\(\)/);
   assert.match(client,/dialog\.showModal\(\)/);
