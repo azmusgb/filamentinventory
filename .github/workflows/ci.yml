@@ -52,6 +52,7 @@ jobs:
           test -f dist/css/tokens.css
           test -f dist/css/components/v11.css
           test -f dist/css/components/v11-workflows.css
+          test -f dist/css/components/physical-workflow.css
           test -f dist/app-version.js
           test -f dist/build-meta.json
           test -f dist/user-isolation.js
@@ -77,6 +78,8 @@ jobs:
           test -f dist/personal-dashboard.js
           test -f dist/spool-contract-core.js
           test -f dist/spool-contract-client.js
+          test -f dist/physical-workflow-core.js
+          test -f dist/physical-workflow-client.js
           test -f dist/sw.js
           test ! -e dist/package.json
           test ! -e dist/netlify.toml
