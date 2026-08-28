@@ -7,6 +7,26 @@
   let observer = null;
   let scheduled = false;
 
+  function ensurePresentationAssets() {
+    const stylesheet = '/css/components/inventory-mobile.css';
+    if (!document.querySelector(`link[href="${stylesheet}"]`)) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = stylesheet;
+      link.dataset.fiPresentation = 'inventory-mobile';
+      document.head.appendChild(link);
+    }
+
+    const script = '/inventory-card-client.js';
+    if (!document.querySelector(`script[src="${script}"]`)) {
+      const node = document.createElement('script');
+      node.src = script;
+      node.defer = true;
+      node.dataset.fiPresentation = 'inventory-cards';
+      document.head.appendChild(node);
+    }
+  }
+
   function shellButton({view, action, icon, label}) {
     const route = view ? ` data-shell-view="${view}"` : '';
     const task = action ? ` data-shell-action="${action}"` : '';
@@ -204,6 +224,7 @@
   }
 
   function init() {
+    ensurePresentationAssets();
     scheduleApply();
     observe();
     document.addEventListener('fi:navigation', event => {
