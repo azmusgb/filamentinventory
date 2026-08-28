@@ -37,7 +37,9 @@ jobs:
         run: npm run lint
 
       - name: Tests
-        run: npm test
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test-output.txt
 
       - name: Production build
         run: npm run build
@@ -47,6 +49,9 @@ jobs:
           set -euo pipefail
           test -f dist/index.html
           test -f dist/ui-system.css
+          test -f dist/css/tokens.css
+          test -f dist/css/components/v11.css
+          test -f dist/css/components/v11-workflows.css
           test -f dist/app-version.js
           test -f dist/build-meta.json
           test -f dist/user-isolation.js
@@ -63,6 +68,7 @@ jobs:
           test -f dist/bulk-actions-core.js
           test -f dist/bulk-actions-client.js
           test -f dist/ui-v10-client.js
+          test -f dist/app-shell-client.js
           test -f dist/app.js
           test -f dist/audit-core.js
           test -f dist/audit-client.js
@@ -98,6 +104,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: filamentinventory-dist-${{ github.run_id }}
-          path: dist
+          path: |
+            dist
+            test-output.txt
           if-no-files-found: error
           retention-days: 7
