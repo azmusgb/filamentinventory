@@ -55,9 +55,12 @@ test('two-way cloud state merge preserves print jobs from both devices', () => {
 });
 
 test('three-way spool reconciliation does not strip the already merged print-job ledger', () => {
-  const base = {spools:[spool('S1',at(1),{notes:'base'})],printJobs:[job('J0','completed',at(1),{completedAt:at(1)})]};
-  const remote = {spools:[spool('S1',at(2),{notes:'remote'})],printJobs:[job('J1','planned',at(2))]};
-  const incoming = {spools:[spool('S1',at(3),{location:'AMS'})],printJobs:[job('J2','planned',at(3))]};
+  const baseSpool = spool('S1',at(1),{notes:'base',location:'Rack'});
+  const remoteSpool = {...baseSpool,updatedAt:at(2),notes:'remote'};
+  const incomingSpool = {...baseSpool,updatedAt:at(3),location:'AMS'};
+  const base = {spools:[baseSpool],printJobs:[job('J0','completed',at(1),{completedAt:at(1)})]};
+  const remote = {spools:[remoteSpool],printJobs:[job('J1','planned',at(2))]};
+  const incoming = {spools:[incomingSpool],printJobs:[job('J2','planned',at(3))]};
   const merged = mergeStates(remote,incoming).state;
   const reconciled = reconcileConcurrentState(base,remote,incoming,merged);
   assert.deepEqual(reconciled.state.printJobs.map(row => row.id),['J1','J2']);
