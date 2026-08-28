@@ -1,6 +1,11 @@
+import { createHash } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 
 const FIXED_TIME = Date.parse('2026-08-28T15:00:00.000Z');
+const APPROVED_VISUAL_HASHES = Object.freeze({
+  home:'e693aea7b3cc1e0e6efdefd5da8aed242f3330e4c9aa18dd31c91ce9622e92d3',
+  inventory:'74b8cdb1555dd4ae2dc8b50dd5a9827710f1e89ba9a6c322484cc4e6a6e715a3',
+});
 
 const prefs = (owner, displayName, initials, accent) => ({
   version: 2,
@@ -67,6 +72,12 @@ async function boot(page) {
 async function navigate(page, view) {
   await page.evaluate(target => globalThis.FilamentInventoryNavigation.navigate(target,{historyMode:'push',focus:false}), view);
   await expect(page.locator(`#${view}View`)).toHaveClass(/active/);
+}
+
+async function screenshotHash(page,testInfo,name){
+  const png=await page.screenshot({fullPage:true,animations:'disabled'});
+  await testInfo.attach(`${name}.png`,{body:png,contentType:'image/png'});
+  return createHash('sha256').update(png).digest('hex');
 }
 
 test.beforeEach(async ({ page }) => { await boot(page); });
@@ -195,7 +206,7 @@ test('mobile scanner unknown-spool recovery opens Add spool with the scanned ID'
 
 test('mobile Home and Inventory preserve approved visual hierarchy', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-webkit','Visual baselines are iPhone WebKit only.');
-  await expect(page).toHaveScreenshot('mobile-home.png');
+  expect(await screenshotHash(page,testInfo,'mobile-home')).toBe(APPROVED_VISUAL_HASHES.home);
   await navigate(page,'inventory');
-  await expect(page).toHaveScreenshot('mobile-inventory.png');
+  expect(await screenshotHash(page,testInfo,'mobile-inventory')).toBe(APPROVED_VISUAL_HASHES.inventory);
 });
