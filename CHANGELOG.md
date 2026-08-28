@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — Physical spool command workflow
+
+- Added one canonical **Identify → Verify → Place → Use** workflow for a spool in hand.
+- QR/scan-opened spool controls now surface canonical product identity, lifecycle, physical placement, remaining-filament evidence, and a recommended next step.
+- Added compact product/spool details for product line, diameter, manufacturer SKU, lot/batch, spool format, and owner without crowding the primary action surface.
+- Added **Mark used now** for measured, loaded spools; the resulting `lastUsedAt` change flows through the existing inventory audit/activity system.
+- Added visible **Measured / Estimated / Unknown** evidence in the physical spool sheet, Smart Weigh selection, and Printer/AMS loaded-slot views.
+- Fixed canonical reorder semantics so a low spool remains reorder-needed even while its lifecycle is `Loaded`.
+- Added a separate canonical stock state so physical lifecycle and inventory attention no longer overwrite each other.
+- Routed Printer/AMS, physical spool actions, and Smart Weigh remaining-filament logic back through the canonical spool contract instead of maintaining independent calculations.
+- Smart Weigh now prioritizes loaded unknown/estimated spools for verification and includes usage-derived estimates in known-remaining logic.
+- Added workflow, guardrail, publication, offline-cache, and responsive UI regression coverage.
+
 ## Unreleased — Canonical spool contract
 
 - Added a canonical spool domain contract shared across the current local-first application layers.
