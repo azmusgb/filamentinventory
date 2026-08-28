@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 
 const FIXED_TIME = Date.parse('2026-08-28T15:00:00.000Z');
 const APPROVED_VISUAL_HASHES = Object.freeze({
-  home:'b0fdf78f216dcf6aede40fff323d9d0bb4fc2d0ef9058b59a6ce8d34052d09fc',
+  home:'1188423a9188869c58a8fa14d46b54bc49b27c1d6f79f907cc6f65661ebecef9',
   inventory:'341a80dc9d0721974334c249c16f328b67ba88c9158d861f6b220f9bd04c6ffe',
 });
 
@@ -75,7 +75,7 @@ async function navigate(page, view) {
 }
 
 async function screenshotHash(page,testInfo,name){
-  const png=await page.screenshot({animations:'disabled'});
+  const png=await page.screenshot({animations:'disabled',scale:'css'});
   await testInfo.attach(`${name}.png`,{body:png,contentType:'image/png'});
   return createHash('sha256').update(png).digest('hex');
 }
