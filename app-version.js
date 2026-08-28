@@ -17,7 +17,7 @@
       link.rel = 'stylesheet';
       link.href = href;
       link.dataset.fiComponent = 'printer';
-      root.document.head.appendChild(link);
+      root.document.head.append(link);
     };
     const loadRuntimeScript = src => new Promise((resolve, reject) => {
       if (!root.document) return resolve();
@@ -37,7 +37,7 @@
         resolve();
       }, {once:true});
       script.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), {once:true});
-      root.document.head.appendChild(script);
+      root.document.head.append(script);
     });
     const ensureSpoolContractRuntime = () => {
       if (!root.document || root.FilamentInventorySpoolContractUI) return;
@@ -56,7 +56,7 @@
       script.src = src;
       script.defer = true;
       script.dataset.fiPwaRuntime = '1';
-      root.document.head.appendChild(script);
+      root.document.head.append(script);
     };
     ensureComponentStyles();
     ensureSpoolContractRuntime();
