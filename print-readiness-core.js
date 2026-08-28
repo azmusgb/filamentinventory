@@ -7,6 +7,7 @@
   const finite = value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value));
   const text = value => String(value || '').trim().toLowerCase();
   const normalizeColor = value => text(value).replace(/\b(matte|silk|basic|sparkle|glossy|translucent)\b/g, '').replace(/\s+/g, ' ').trim();
+  const normalizeMaterial = value => text(value).replace(/\s+/g, ' ').trim();
   const active = spool => spool && !spool.archivedAt;
   function remaining(spool) {
     if (finite(spool?.gross) && finite(spool?.tare) && Number(spool.gross) >= Number(spool.tare)) return Math.max(0, Number(spool.gross) - Number(spool.tare));
@@ -19,9 +20,13 @@
     return Math.max(0, Math.floor((now - stamp) / 86400000));
   }
   function matches(spool, query) {
-    const material = text(query.material);
+    const material = normalizeMaterial(query.material);
     const color = normalizeColor(query.color);
-    return active(spool) && (!material || text(spool.material).includes(material) || material.includes(text(spool.material))) && (!color || normalizeColor(spool.colorName).includes(color) || color.includes(normalizeColor(spool.colorName)));
+    const spoolMaterial = normalizeMaterial(spool?.material);
+    const spoolColor = normalizeColor(spool?.colorName);
+    return active(spool)
+      && (!material || spoolMaterial === material)
+      && (!color || spoolColor.includes(color) || color.includes(spoolColor));
   }
   function evaluate(spools = [], query = {}, now = Date.now()) {
     const needed = Math.max(0, Number(query.grams) || 0);
@@ -48,7 +53,8 @@
     const unknown = candidates.find(row => !row.known) || null;
     const bestKnown = candidates.find(row => row.known) || null;
     const status = ready ? 'ready' : unknown ? 'measurement-needed' : candidates.length ? 'not-enough' : 'no-match';
-    return Object.freeze({status, needed, safetyMargin:margin, required, recommended:ready || unknown || bestKnown, alternatives:candidates.filter(row => row !== (ready || unknown || bestKnown)), candidates});
+    const recommended = ready || unknown || bestKnown;
+    return Object.freeze({status, needed, safetyMargin:margin, required, recommended, alternatives:candidates.filter(row => row !== recommended), candidates});
   }
   return Object.freeze({evaluate, remaining, matches, freshness});
 });
