@@ -14,6 +14,7 @@ const RUNTIME_STYLE_FILES = [
   'printer-dashboard.js',
   'labels-client.js',
   'sync-client.js',
+  'ux-cohesion-client.js',
 ];
 
 test('V11 keeps presentation in shared stylesheets instead of runtime style islands', async () => {
