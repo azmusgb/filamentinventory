@@ -22,8 +22,25 @@ test('guided spool intake supports fast repeat entry without copying quantity or
   for (const unsafe of ['visualPercent','gross','tare','placementV8','printerV8','feederV8','slotV8']) {
     assert.ok(!source.match(new RegExp(`TEMPLATE_FIELDS[^;]*${unsafe}`)), `duplicate template must not copy ${unsafe}`);
   }
+  assert.match(source, /recentTemplates\(\)/);
+  assert.match(source, /data-spool-template/);
+  assert.match(source, /Product details only — never quantity or printer placement/);
   assert.match(source, /reopenAfterSave/);
   assert.match(source, /form\.requestSubmit\(submit\)/);
+});
+
+test('guided spool intake exposes profile defaults, next-required guidance and a post-save continuation path', async () => {
+  const source = await read('spool-intake-client.js');
+  assert.match(source, /profilePreferences\(\)/);
+  assert.match(source, /defaultStartWeight/);
+  assert.match(source, /defaultReorderGrams/);
+  assert.match(source, /Next: \$\{GUIDED\[next\]\.shortLabel\}/);
+  assert.match(source, /What next\?/);
+  assert.match(source, /Weigh now/);
+  assert.match(source, /Open spool/);
+  assert.match(source, /Add another/);
+  assert.match(source, /FilamentInventorySpoolActions\?\.open/);
+  assert.match(source, /FilamentInventoryNavigation\?\.navigate\?\.\('weigh'/);
 });
 
 test('guided spool intake exposes quick quantity, color and size choices with responsive mobile controls', async () => {
@@ -37,6 +54,8 @@ test('guided spool intake exposes quick quantity, color and size choices with re
   assert.match(source, /Common filament colors/);
   assert.match(css, /\.spool-number-choices/);
   assert.match(css, /\.spool-color-presets/);
+  assert.match(css, /\.spool-template-strip/);
+  assert.match(css, /\.spool-next-dialog/);
   assert.match(css, /@media \(max-width:640px\)/);
   assert.ok(assets.includes("'spool-intake-client.js'"));
   assert.ok(assets.includes("'css/components/spool-intake.css'"));
