@@ -82,7 +82,6 @@
       const details = qs('.spool-card-more', card);
       if (details && details.dataset.cohesionLabel !== '1') {
         details.dataset.cohesionLabel = '1';
-        details.textContent = 'Details';
         details.title = 'Open spool details';
         details.classList.add('fi-spool-details-action');
       }
@@ -104,39 +103,6 @@
     if (filterTitle) filterTitle.textContent = 'Filters & sort';
     enhanceInventoryCards();
     updateFilterBadge();
-  }
-
-  function createDataList(id, values) {
-    let list = $(id);
-    if (!list) {
-      list = document.createElement('datalist');
-      list.id = id;
-      document.body.appendChild(list);
-    }
-    const normalized = [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))]
-      .sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
-    list.replaceChildren(...normalized.slice(0, 120).map(value => {
-      const option = document.createElement('option');
-      option.value = value;
-      return option;
-    }));
-  }
-
-  function enhanceSpoolAutocomplete() {
-    const rows = safeState().spools || [];
-    const definitions = [
-      ['brand','fiBrandSuggestions',rows.map(row => row.brand)],
-      ['material','fiMaterialSuggestions',rows.map(row => row.material)],
-      ['colorName','fiColorSuggestions',rows.map(row => row.colorName)],
-      ['location','fiLocationSuggestions',rows.map(row => row.location)],
-    ];
-    definitions.forEach(([fieldId,listId,values]) => {
-      const input = $(fieldId);
-      if (!input) return;
-      input.setAttribute('list', listId);
-      input.setAttribute('autocomplete','off');
-      createDataList(listId, values);
-    });
   }
 
   function moveFieldToAdvanced(id, advancedGrid) {
@@ -163,7 +129,6 @@
       help.textContent = 'Estimate only. A measured gross − tare value takes precedence.';
       visual.appendChild(help);
     }
-    enhanceSpoolAutocomplete();
   }
 
   function enhanceWeigh() {
