@@ -11,13 +11,18 @@
     };
     const ensureComponentStyles = () => {
       if (!root.document) return;
-      const href = '/css/components/printer.css';
-      if (root.document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) return;
-      const link = root.document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = href;
-      link.dataset.fiComponent = 'printer';
-      root.document.head.append(link);
+      const styles = [
+        ['/css/components/printer.css','printer'],
+        ['/css/components/printer-ams.css','printer-ams'],
+      ];
+      styles.forEach(([href,name]) => {
+        if (root.document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) return;
+        const link = root.document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        link.dataset.fiComponent = name;
+        root.document.head.append(link);
+      });
     };
     const loadRuntimeScript = src => new Promise((resolve, reject) => {
       if (!root.document) return resolve();
@@ -68,17 +73,26 @@
       script.dataset.fiPwaRuntime = '1';
       root.document.head.append(script);
     };
+    const ensureAmsPrinterRuntime = () => {
+      if (!root.document || root.FilamentInventoryAMSUI) return;
+      loadRuntimeScript('/printer-ams-ui.js')
+        .catch(error => console.error('AMS-first Printer UI failed to initialize.', error));
+    };
+    const afterDocumentReady = () => {
+      applyLabels();
+      ensureAmsPrinterRuntime();
+    };
     ensureComponentStyles();
     ensureSpoolContractRuntime();
     ensurePhysicalWorkflowRuntime();
     ensurePwaRuntime();
-    if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', applyLabels, {once:true});
-    else applyLabels();
+    if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', afterDocumentReady, {once:true});
+    else afterDocumentReady();
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function() {
   'use strict';
 
-  const APP_VERSION = '10.2.0';
+  const APP_VERSION = '10.3.0';
   const DATA_SCHEMA_VERSION = 10;
   const DISPLAY_VERSION = `v${APP_VERSION}`;
 
