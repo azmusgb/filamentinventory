@@ -39,6 +39,8 @@ test('guided Add spool standardizes common choices, supports custom values and l
   const dialog=page.locator('#spoolDialog[open]');
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('.spool-intake-summary')).toBeVisible();
+  await expect(dialog.locator('#intakeBanner')).toBeHidden();
+  await expect(dialog.locator('.spool-intake-placement-field')).toBeHidden();
   await expect(dialog.locator('#startWeight')).toHaveValue('750');
   await expect(dialog.locator('#reorderThreshold')).toHaveValue('200');
   await expect(dialog.locator('[data-intake-next]')).toContainText('Next: brand');
@@ -81,6 +83,8 @@ test('guided Add spool standardizes common choices, supports custom values and l
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('#spoolId')).not.toHaveValue('S900');
   await expect(dialog.locator('#startWeight')).toHaveValue('750');
+  await page.waitForTimeout(180);
+  await expect(page.locator('#intakeNextDialog')).not.toHaveAttribute('open','');
   const learnedOptions=await dialog.locator('#brandChoice option').allTextContents();
   expect(learnedOptions).toContain('Atomic Filament');
 
@@ -88,7 +92,7 @@ test('guided Add spool standardizes common choices, supports custom values and l
   expect(aimeeCount).toBe(0);
 });
 
-test('recent spool template copies safe product identity and post-save flow can jump directly to weighing', async ({page}) => {
+test('recent spool template copies safe product identity and normal save reuses the existing physical next-action flow', async ({page}) => {
   await page.locator('#inventoryAddBtn:visible').click();
   const dialog=page.locator('#spoolDialog[open]');
   await expect(dialog).toBeVisible();
@@ -108,10 +112,14 @@ test('recent spool template copies safe product identity and post-save flow can 
 
   await dialog.locator('#spoolId').fill('S901');
   await dialog.locator('.dialog-actions button[type="submit"]').click();
-  const next=page.locator('#spoolNextDialog[open]');
+  const next=page.locator('#intakeNextDialog[open]');
   await expect(next).toBeVisible();
-  await expect(next.locator('[data-spool-next-copy]')).toContainText('S901 is in inventory');
-  await next.locator('[data-spool-next="weigh"]').click();
+  await expect(next.locator('#intakeNextTitle')).toHaveText('S901 added');
+  await expect(next.locator('[data-intake-next="weigh"]')).toBeVisible();
+  await expect(next.locator('[data-intake-next="labels"]')).toBeVisible();
+  await expect(next.locator('[data-intake-next="printer"]')).toBeVisible();
+  await expect(next.locator('[data-intake-next="another"]')).toBeVisible();
+  await next.locator('[data-intake-next="weigh"]').click();
   await expect(page.locator('#weighView')).toHaveClass(/active/);
   await expect(page.locator('#weighSpool')).toHaveValue('S901');
 });
