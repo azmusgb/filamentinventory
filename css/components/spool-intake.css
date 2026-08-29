@@ -10,6 +10,12 @@ html.fi-v11 .spool-intake-dialog .dialog-body {
   gap:var(--space-4);
 }
 
+html.fi-v11 .spool-intake-dialog .intake-banner,
+html.fi-v11 .spool-intake-dialog .intake-suggestions,
+html.fi-v11 .spool-intake-dialog .spool-intake-placement-field {
+  display:none;
+}
+
 html.fi-v11 .spool-intake-summary {
   display:grid;
   grid-template-columns:42px minmax(0,1fr) auto;
@@ -53,6 +59,12 @@ html.fi-v11 .spool-intake-copy small {
   font-size:10.5px;
 }
 
+html.fi-v11 .spool-intake-progress {
+  display:grid;
+  justify-items:end;
+  gap:6px;
+}
+
 html.fi-v11 .spool-intake-state {
   padding:5px 8px;
   border-radius:var(--radius-pill);
@@ -67,6 +79,112 @@ html.fi-v11 .spool-intake-state {
 html.fi-v11 .spool-intake-state[data-state="ready"] {
   background:var(--color-success-soft);
   color:var(--color-success);
+}
+
+html.fi-v11 .spool-intake-next {
+  min-height:28px;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:var(--color-accent);
+  font-size:10.5px;
+  font-weight:800;
+  cursor:pointer;
+}
+
+html.fi-v11 .spool-intake-next:hover {
+  text-decoration:underline;
+}
+
+html.fi-v11 .spool-quick-start {
+  display:grid;
+  gap:10px;
+  padding:12px 14px;
+  border:1px solid var(--color-border);
+  border-radius:var(--radius-md);
+  background:var(--color-surface);
+}
+
+html.fi-v11 .spool-quick-start[hidden] {
+  display:none;
+}
+
+html.fi-v11 .spool-quick-start-head {
+  display:flex;
+  align-items:end;
+  justify-content:space-between;
+  gap:12px;
+}
+
+html.fi-v11 .spool-quick-start-head strong {
+  display:block;
+  margin-top:2px;
+  color:var(--color-text);
+  font-size:12px;
+}
+
+html.fi-v11 .spool-quick-start-head small {
+  max-width:260px;
+  color:var(--color-text-subtle);
+  font-size:9.5px;
+  line-height:1.4;
+  text-align:right;
+}
+
+html.fi-v11 .spool-template-strip {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+}
+
+html.fi-v11 .spool-template {
+  display:grid;
+  grid-template-columns:28px minmax(0,1fr);
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  min-height:48px;
+  padding:8px 10px;
+  border:1px solid var(--color-border);
+  border-radius:var(--radius-sm);
+  background:var(--color-surface-raised);
+  color:var(--color-text);
+  text-align:left;
+  cursor:pointer;
+}
+
+html.fi-v11 .spool-template:hover {
+  border-color:color-mix(in srgb,var(--color-accent) 38%,var(--color-border));
+  background:var(--color-accent-soft);
+}
+
+html.fi-v11 .spool-template-swatch {
+  width:28px;
+  height:28px;
+  border:1px solid color-mix(in srgb,white 18%,var(--color-border));
+  border-radius:9px;
+}
+
+html.fi-v11 .spool-template span {
+  min-width:0;
+}
+
+html.fi-v11 .spool-template strong,
+html.fi-v11 .spool-template small {
+  display:block;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+html.fi-v11 .spool-template strong {
+  font-size:10.5px;
+}
+
+html.fi-v11 .spool-template small {
+  margin-top:2px;
+  color:var(--color-text-muted);
+  font-size:9.5px;
 }
 
 html.fi-v11 .spool-guided-field {
@@ -195,9 +313,35 @@ html.fi-v11 .spool-intake-dialog .spool-save-another[hidden] {
     height:34px;
   }
 
-  html.fi-v11 .spool-intake-state {
+  html.fi-v11 .spool-intake-progress {
     grid-column:2;
-    justify-self:start;
+    grid-template-columns:auto auto;
+    justify-content:start;
+    align-items:center;
+  }
+
+  html.fi-v11 .spool-quick-start-head {
+    align-items:start;
+    flex-direction:column;
+    gap:4px;
+  }
+
+  html.fi-v11 .spool-quick-start-head small {
+    max-width:none;
+    text-align:left;
+  }
+
+  html.fi-v11 .spool-template-strip {
+    display:flex;
+    gap:8px;
+    overflow-x:auto;
+    padding-bottom:2px;
+    scroll-snap-type:x proximity;
+  }
+
+  html.fi-v11 .spool-template {
+    flex:0 0 210px;
+    scroll-snap-align:start;
   }
 
   html.fi-v11 .spool-intake-dialog .v10-essential-grid,

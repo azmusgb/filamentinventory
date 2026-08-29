@@ -22,8 +22,41 @@ test('guided spool intake supports fast repeat entry without copying quantity or
   for (const unsafe of ['visualPercent','gross','tare','placementV8','printerV8','feederV8','slotV8']) {
     assert.ok(!source.match(new RegExp(`TEMPLATE_FIELDS[^;]*${unsafe}`)), `duplicate template must not copy ${unsafe}`);
   }
+  assert.match(source, /recentTemplates\(\)/);
+  assert.match(source, /data-spool-template/);
+  assert.match(source, /Product details only — never quantity or printer placement/);
   assert.match(source, /reopenAfterSave/);
   assert.match(source, /form\.requestSubmit\(submit\)/);
+});
+
+test('guided spool intake applies profile defaults and makes the next required choice explicit', async () => {
+  const source = await read('spool-intake-client.js');
+  assert.match(source, /profilePreferences\(\)/);
+  assert.match(source, /defaultStartWeight/);
+  assert.match(source, /defaultReorderGrams/);
+  assert.match(source, /Next: \$\{GUIDED\[next\]\.shortLabel\}/);
+  assert.match(source, /Assigned automatically\. Change it only when matching a physical label ID/);
+});
+
+test('guided spool intake consolidates legacy chrome while reusing its existing physical next-action workflow', async () => {
+  const [source,legacy,css] = await Promise.all([
+    read('spool-intake-client.js'),
+    read('intake-client.js'),
+    read('css/components/spool-intake.css'),
+  ]);
+  assert.match(source, /ownsFlow:true/);
+  assert.match(source, /LEGACY_PLACEMENT_FIELDS/);
+  assert.match(source, /intakeNextDialog/);
+  assert.match(source, /suppressLegacyNextUntil/);
+  assert.match(css, /\.intake-banner/);
+  assert.match(css, /\.intake-suggestions/);
+  assert.match(css, /\.spool-intake-placement-field/);
+  assert.match(legacy, /id = 'intakeNextDialog'/);
+  assert.match(legacy, /What next\?/);
+  assert.match(legacy, /data-intake-next="weigh"/);
+  assert.match(legacy, /data-intake-next="labels"/);
+  assert.match(legacy, /data-intake-next="printer"/);
+  assert.match(legacy, /data-intake-next="another"/);
 });
 
 test('guided spool intake exposes quick quantity, color and size choices with responsive mobile controls', async () => {
@@ -37,6 +70,7 @@ test('guided spool intake exposes quick quantity, color and size choices with re
   assert.match(source, /Common filament colors/);
   assert.match(css, /\.spool-number-choices/);
   assert.match(css, /\.spool-color-presets/);
+  assert.match(css, /\.spool-template-strip/);
   assert.match(css, /@media \(max-width:640px\)/);
   assert.ok(assets.includes("'spool-intake-client.js'"));
   assert.ok(assets.includes("'css/components/spool-intake.css'"));

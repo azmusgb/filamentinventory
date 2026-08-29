@@ -37,17 +37,22 @@
   ]);
 
   const GUIDED = Object.freeze({
-    brand:Object.freeze({label:'Brand',placeholder:'Choose a brand…',base:BASE.brand}),
-    material:Object.freeze({label:'Material / type',placeholder:'Choose a material…',base:BASE.material}),
-    colorName:Object.freeze({label:'Color / finish',placeholder:'Choose a color…',base:COLORS.map(item => item.name)}),
-    location:Object.freeze({label:'Storage location',placeholder:'Choose a location…',base:BASE.location}),
-    purchaseSource:Object.freeze({label:'Purchase source',placeholder:'Choose a source…',base:BASE.purchaseSource}),
+    brand:Object.freeze({label:'Brand',shortLabel:'brand',placeholder:'Choose a brand…',base:BASE.brand}),
+    material:Object.freeze({label:'Material / type',shortLabel:'material',placeholder:'Choose a material…',base:BASE.material}),
+    colorName:Object.freeze({label:'Color / finish',shortLabel:'color',placeholder:'Choose a color…',base:COLORS.map(item => item.name)}),
+    location:Object.freeze({label:'Storage location',shortLabel:'location',placeholder:'Choose a location…',base:BASE.location}),
+    purchaseSource:Object.freeze({label:'Purchase source',shortLabel:'purchase source',placeholder:'Choose a source…',base:BASE.purchaseSource}),
   });
 
   const TEMPLATE_FIELDS = Object.freeze(['brand','material','colorName','colorHex','spoolType','startWeight','confidence','reorderThreshold']);
+  const REQUIRED_GUIDED = Object.freeze(['brand','material','colorName']);
+  const LEGACY_PLACEMENT_FIELDS = Object.freeze(['placementV8','printerV8','feederV8','slotV8']);
   let enhanced = false;
   let reopenAfterSave = false;
   let enhancementAttempts = 0;
+  let wasOpen = false;
+  let suppressLegacyNextUntil = 0;
+  let legacyNextBound = false;
 
   function state() {
     try {
@@ -55,6 +60,24 @@
       return parsed && Array.isArray(parsed.spools) ? parsed : {spools:[]};
     } catch {
       return {spools:[]};
+    }
+  }
+
+  function currentOwner() {
+    return globalThis.FilamentInventoryUsers?.currentUser?.() || localStorage.getItem('filament-current-user-v1') || 'Bill';
+  }
+
+  function profilePreferences() {
+    const owner = currentOwner();
+    const users = globalThis.FilamentInventoryUsers;
+    const prefix = users?.USER_PREFIX || 'filament-user-v1';
+    const key = `${prefix}:${String(owner).toLocaleLowerCase()}:preferences`;
+    const core = globalThis.FilamentInventoryProfilePreferences;
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || '{}');
+      return core?.normalize ? core.normalize(parsed, owner) : parsed;
+    } catch {
+      return core?.defaults ? core.defaults(owner) : {printing:{defaultStartWeight:1000,defaultReorderGrams:250}};
     }
   }
 
@@ -83,6 +106,21 @@
       result.push(clean);
     }
     return result;
+  }
+
+  function recentTemplates() {
+    const seen = new Set();
+    return state().spools
+      .filter(spool => spool && !spool.archivedAt && text(spool.brand) && text(spool.material) && text(spool.colorName))
+      .slice()
+      .sort((a,b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))
+      .filter(spool => {
+        const key = [spool.brand,spool.material,spool.colorName,spool.spoolType,spool.startWeight].map(text).join('|').toLocaleLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0,3);
   }
 
   function colorHexForName(name) {
@@ -289,9 +327,77 @@
     const summary = document.createElement('section');
     summary.className = 'spool-intake-summary';
     summary.setAttribute('aria-live','polite');
-    summary.innerHTML = `<div class="spool-intake-swatch" data-intake-swatch aria-hidden="true"></div><div class="spool-intake-copy"><span class="eyebrow">Guided spool entry</span><strong data-intake-title>New spool</strong><small data-intake-detail>Choose brand, material and color for a clean inventory card.</small></div><span class="spool-intake-state" data-intake-state>3 suggested</span>`;
+    summary.innerHTML = `<div class="spool-intake-swatch" data-intake-swatch aria-hidden="true"></div><div class="spool-intake-copy"><span class="eyebrow">Quick spool entry</span><strong data-intake-title>New spool</strong><small data-intake-detail>Choose brand, material and color. Everything else can wait.</small></div><div class="spool-intake-progress"><span class="spool-intake-state" data-intake-state>3 to go</span><button class="spool-intake-next" data-intake-next type="button">Next: brand</button></div>`;
     const root = body.querySelector('.v10-form-root') || body.querySelector('.form-grid');
     body.insertBefore(summary,root || body.firstChild);
+    summary.querySelector('[data-intake-next]')?.addEventListener('click',focusNextField);
+  }
+
+  function ensureQuickStart() {
+    const body = document.querySelector('#spoolDialog .dialog-body');
+    const root = body?.querySelector('.v10-form-root');
+    if (!body || !root || body.querySelector('.spool-quick-start')) return;
+    const section = document.createElement('section');
+    section.className = 'spool-quick-start';
+    section.setAttribute('aria-label','Recent spool templates');
+    section.innerHTML = `<div class="spool-quick-start-head"><div><span class="eyebrow">Fast repeat</span><strong>Start from a recent spool</strong></div><small>Product details only — never quantity or printer placement.</small></div><div class="spool-template-strip" data-spool-template-strip></div>`;
+    body.insertBefore(section,root);
+    section.addEventListener('click',event => {
+      const button = event.target.closest('[data-spool-template]');
+      if (!button) return;
+      const spool = state().spools.find(item => String(item?.id) === button.dataset.spoolTemplate);
+      if (spool) applyTemplate(spool);
+    });
+    refreshQuickStart();
+  }
+
+  function refreshQuickStart() {
+    const section = document.querySelector('.spool-quick-start');
+    const strip = section?.querySelector('[data-spool-template-strip]');
+    if (!section || !strip) return;
+    const templates = recentTemplates();
+    section.hidden = !templates.length || Boolean(text($('editOriginalId')?.value));
+    strip.replaceChildren(...templates.map(spool => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'spool-template';
+      button.dataset.spoolTemplate = spool.id;
+      button.setAttribute('aria-label',`Use ${spool.brand} ${spool.material} ${spool.colorName} as a starting point`);
+      const swatch = document.createElement('i');
+      swatch.className = 'spool-template-swatch';
+      swatch.setAttribute('aria-hidden','true');
+      swatch.style.backgroundColor = /^#[0-9a-f]{6}$/i.test(spool.colorHex || '') ? spool.colorHex : '#64748b';
+      const copy = document.createElement('span');
+      copy.innerHTML = `<strong>${esc(spool.brand)} · ${esc(spool.material)}</strong><small>${esc(spool.colorName)} · ${Math.round(Number(spool.startWeight) || 1000)} g</small>`;
+      button.append(swatch,copy);
+      return button;
+    }));
+  }
+
+  function applyTemplate(spool) {
+    for (const field of TEMPLATE_FIELDS) if ($(field)) $(field).value = spool?.[field] ?? '';
+    for (const field of ['visualPercent','grossEdit','tareEdit']) if ($(field)) $(field).value = '';
+    refreshGuidedControls();
+    updateSummary();
+    const next = firstMissingField();
+    if (next) focusField(next);
+  }
+
+  function firstMissingField() {
+    return REQUIRED_GUIDED.find(field => !text($(field)?.value)) || null;
+  }
+
+  function focusField(field) {
+    const control = $(`${field}Choice`) || $(field);
+    if (!control) return;
+    control.scrollIntoView({block:'center',behavior:'smooth'});
+    setTimeout(() => control.focus({preventScroll:true}),120);
+  }
+
+  function focusNextField() {
+    const field = firstMissingField();
+    if (field) focusField(field);
+    else document.querySelector('#spoolDialog .dialog-actions button[type="submit"]')?.focus({preventScroll:true});
   }
 
   function updateSummary() {
@@ -301,18 +407,63 @@
     const material = text($('material')?.value);
     const color = text($('colorName')?.value);
     const id = text($('spoolId')?.value) || 'New spool';
-    const missing = [brand,material,color].filter(value => !value).length;
+    const missingFields = REQUIRED_GUIDED.filter(field => !text($(field)?.value));
     const title = summary.querySelector('[data-intake-title]');
     const detail = summary.querySelector('[data-intake-detail]');
     const stateNode = summary.querySelector('[data-intake-state]');
+    const nextNode = summary.querySelector('[data-intake-next]');
     const swatch = summary.querySelector('[data-intake-swatch]');
     if (title) title.textContent = `${id}${color ? ` · ${color}` : ''}`;
-    if (detail) detail.textContent = [brand,material].filter(Boolean).join(' · ') || 'Choose brand, material and color for a clean inventory card.';
+    if (detail) detail.textContent = [brand,material].filter(Boolean).join(' · ') || 'Choose brand, material and color. Everything else can wait.';
     if (stateNode) {
-      stateNode.textContent = missing ? `${missing} suggested` : 'Ready';
-      stateNode.dataset.state = missing ? 'incomplete' : 'ready';
+      stateNode.textContent = missingFields.length ? `${missingFields.length} to go` : 'Ready';
+      stateNode.dataset.state = missingFields.length ? 'incomplete' : 'ready';
+    }
+    if (nextNode) {
+      const next = missingFields[0];
+      nextNode.hidden = !next;
+      nextNode.textContent = next ? `Next: ${GUIDED[next].shortLabel}` : 'Ready to add';
     }
     if (swatch) swatch.style.backgroundColor = /^#[0-9a-f]{6}$/i.test($('colorHex')?.value || '') ? $('colorHex').value : '#64748b';
+  }
+
+  function applyProfileDefaults() {
+    if (text($('editOriginalId')?.value)) return;
+    const printing = profilePreferences()?.printing || {};
+    const startWeight = Number(printing.defaultStartWeight);
+    const reorder = Number(printing.defaultReorderGrams);
+    if (Number.isFinite(startWeight) && startWeight > 0 && $('startWeight')) $('startWeight').value = String(startWeight);
+    if (Number.isFinite(reorder) && reorder >= 0 && $('reorderThreshold')) $('reorderThreshold').value = String(reorder);
+  }
+
+  function markLegacyPlacementFields() {
+    for (const id of LEGACY_PLACEMENT_FIELDS) $(id)?.closest('.form-field')?.classList.add('spool-intake-placement-field');
+  }
+
+  function suppressLegacyChrome() {
+    markLegacyPlacementFields();
+    const banner = $('intakeBanner');
+    if (banner) banner.hidden = true;
+    document.querySelectorAll('#spoolDialog .intake-suggestions').forEach(node => { node.hidden = true; });
+  }
+
+  function bindLegacyNextSuppression() {
+    const dialog = $('intakeNextDialog');
+    if (dialog && !dialog.dataset.guidedSuppressionBound) {
+      dialog.dataset.guidedSuppressionBound = '1';
+      new MutationObserver(() => {
+        if (dialog.open && Date.now() < suppressLegacyNextUntil) dialog.close();
+      }).observe(dialog,{attributes:true,attributeFilter:['open']});
+      legacyNextBound = true;
+    }
+    if (legacyNextBound || !document.body) return;
+    const observer = new MutationObserver(() => {
+      if ($('intakeNextDialog')) {
+        observer.disconnect();
+        bindLegacyNextSuppression();
+      }
+    });
+    observer.observe(document.body,{childList:true,subtree:true});
   }
 
   function launchAdd() {
@@ -326,8 +477,14 @@
     const submit = form?.querySelector('button[type="submit"]');
     if (!form || !dialog || !submit) return;
     reopenAfterSave = true;
+    suppressLegacyNextUntil = Date.now() + 1500;
     form.requestSubmit(submit);
-    setTimeout(() => { if (dialog.open) reopenAfterSave = false; },120);
+    setTimeout(() => {
+      if (dialog.open) {
+        reopenAfterSave = false;
+        suppressLegacyNextUntil = 0;
+      }
+    },180);
   }
 
   function duplicateAsNew() {
@@ -341,8 +498,8 @@
         for (const [field,value] of Object.entries(template)) if ($(field)) $(field).value = value;
         refreshGuidedControls();
         updateSummary();
-        $('brandChoice')?.focus();
-      },20);
+        focusNextField();
+      },40);
     },0);
   }
 
@@ -373,9 +530,13 @@
     const primary = dialog?.querySelector('.dialog-actions button[type="submit"]');
     const another = dialog?.querySelector('[data-spool-save-another]');
     const duplicate = dialog?.querySelector('[data-spool-duplicate]');
+    const quickStart = dialog?.querySelector('.spool-quick-start');
+    const title = $('dialogTitle');
+    if (title) title.textContent = editing ? `Edit ${text($('editOriginalId')?.value)}` : 'Add spool';
     if (primary) primary.textContent = editing ? 'Save changes' : 'Add spool';
     if (another) another.hidden = editing;
     if (duplicate) duplicate.hidden = !editing;
+    if (quickStart) quickStart.hidden = editing || !recentTemplates().length;
     const advanced = dialog?.querySelector('.spool-form-advanced');
     if (advanced && !editing) advanced.open = false;
   }
@@ -386,8 +547,19 @@
     syncNumberChoices('reorderThreshold');
     syncPercentChoices();
     syncColorSwatches();
+    suppressLegacyChrome();
     syncMode();
     updateSummary();
+  }
+
+  function prepareDialogSession() {
+    const editing = Boolean(text($('editOriginalId')?.value));
+    if (!editing) applyProfileDefaults();
+    suppressLegacyChrome();
+    refreshQuickStart();
+    refreshGuidedControls();
+    document.querySelector('#spoolDialog .dialog-body')?.scrollTo({top:0,behavior:'auto'});
+    setTimeout(refreshGuidedControls,60);
   }
 
   function enhance() {
@@ -402,28 +574,43 @@
     enhanced = true;
     dialog.classList.add('spool-intake-dialog');
     ensureSummary();
+    ensureQuickStart();
     for (const field of Object.keys(GUIDED)) createChoice(field);
+    helper('spoolId','Assigned automatically. Change it only when matching a physical label ID.');
     helper('brand','Choose a common brand or use Other / custom.');
     helper('material','Common materials are standardized; custom specialty types stay supported.');
-    helper('location','For stored filament. Use the Printer page for loaded AMS / feeder placement.');
+    helper('location','Optional for stored filament. Use the Printer page for loaded AMS / feeder placement.');
     ensureNumberChoices('startWeight',[250,500,750,1000,2000,3000],value => value >= 1000 ? `${value/1000} kg` : `${value} g`,'Starting filament quick choices');
     ensureNumberChoices('reorderThreshold',[100,200,250,500],value => `${value} g`,'Reorder threshold quick choices');
     ensurePercentChoices();
     ensureColorSwatches();
     ensureActions();
+    suppressLegacyChrome();
+    bindLegacyNextSuppression();
     form.addEventListener('input',updateSummary);
-    form.addEventListener('change',updateSummary);
+    form.addEventListener('change',() => {
+      suppressLegacyChrome();
+      updateSummary();
+    });
     new MutationObserver(() => {
-      if (dialog.open) refreshGuidedControls();
-      else if (reopenAfterSave) {
+      if (dialog.open && !wasOpen) prepareDialogSession();
+      if (!dialog.open && wasOpen && reopenAfterSave) {
         reopenAfterSave = false;
-        setTimeout(launchAdd,20);
+        setTimeout(launchAdd,30);
       }
+      wasOpen = dialog.open;
     }).observe(dialog,{attributes:true,attributeFilter:['open']});
+    wasOpen = dialog.open;
     refreshGuidedControls();
   }
 
-  globalThis.FilamentInventorySpoolIntakeUI = Object.freeze({refresh:refreshGuidedControls,enhance});
+  globalThis.FilamentInventorySpoolIntakeUI = Object.freeze({
+    ownsFlow:true,
+    refresh:refreshGuidedControls,
+    enhance,
+    recentTemplates,
+    focusNext:focusNextField,
+  });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',() => setTimeout(enhance,40),{once:true});
   else setTimeout(enhance,40);
 })();
