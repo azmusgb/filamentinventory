@@ -10,6 +10,12 @@ html.fi-v11 .spool-intake-dialog .dialog-body {
   gap:var(--space-4);
 }
 
+html.fi-v11 .spool-intake-dialog #intakeBanner,
+html.fi-v11 .spool-intake-dialog .intake-suggestions,
+html.fi-v11 .spool-intake-dialog .spool-intake-placement-field {
+  display:none;
+}
+
 html.fi-v11 .spool-intake-summary {
   display:grid;
   grid-template-columns:42px minmax(0,1fr) auto;
@@ -288,28 +294,6 @@ html.fi-v11 .spool-intake-dialog .spool-save-another[hidden] {
   display:none;
 }
 
-html.fi-v11 .spool-next-dialog {
-  width:min(92vw,440px);
-}
-
-html.fi-v11 .spool-next-copy {
-  margin:0;
-  color:var(--color-text-muted);
-  font-size:12px;
-  line-height:1.55;
-}
-
-html.fi-v11 .spool-next-actions {
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:8px;
-  margin-top:var(--space-4);
-}
-
-html.fi-v11 .spool-next-actions .btn-primary {
-  grid-column:1 / -1;
-}
-
 @media (max-width:640px) {
   html.fi-v11 .spool-intake-dialog {
     width:100vw;
@@ -390,12 +374,5 @@ html.fi-v11 .spool-next-actions .btn-primary {
 
   html.fi-v11 .spool-intake-dialog .spool-save-another {
     margin-left:0;
-  }
-
-  html.fi-v11 .spool-next-dialog {
-    width:100vw;
-    max-width:none;
-    margin:auto 0 0;
-    border-radius:22px 22px 0 0;
   }
 }
