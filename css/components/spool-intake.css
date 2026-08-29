@@ -10,7 +10,7 @@ html.fi-v11 .spool-intake-dialog .dialog-body {
   gap:var(--space-4);
 }
 
-html.fi-v11 .spool-intake-dialog #intakeBanner,
+html.fi-v11 .spool-intake-dialog .intake-banner,
 html.fi-v11 .spool-intake-dialog .intake-suggestions,
 html.fi-v11 .spool-intake-dialog .spool-intake-placement-field {
   display:none;
