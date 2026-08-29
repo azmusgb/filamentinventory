@@ -113,7 +113,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function() {
   'use strict';
 
-  const APP_VERSION = '10.3.0';
+  const APP_VERSION = '10.2.0';
   const DATA_SCHEMA_VERSION = 10;
   const DISPLAY_VERSION = `v${APP_VERSION}`;
 
