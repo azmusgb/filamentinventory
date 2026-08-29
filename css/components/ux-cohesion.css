@@ -1,0 +1,188 @@
+/* Cohesion release ---------------------------------------------------------
+   Deliberately presentation-only. This layer narrows hierarchy and interaction
+   semantics across mature feature modules without owning domain state.
+*/
+
+html.fi-v11.fi-cohesion-release .fi-home-section-head {
+  justify-content: flex-start;
+}
+
+html.fi-v11.fi-cohesion-release .fi-home-section-head .fi-section-count {
+  margin-left: auto;
+}
+
+html.fi-v11.fi-cohesion-release .fi-cohesion-inline-action {
+  min-height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+html.fi-v11.fi-cohesion-release .fi-cohesion-inline-action:hover {
+  background: var(--color-accent-soft);
+}
+
+html.fi-v11.fi-cohesion-release .spool-card[data-cohesion-open="1"] {
+  cursor: pointer;
+}
+
+html.fi-v11.fi-cohesion-release .fi-spool-details-action {
+  width: auto;
+  min-width: 62px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+html.fi-v11.fi-cohesion-release .fi-field-help {
+  display: block;
+  margin-top: 5px;
+  color: var(--color-text-subtle);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+html.fi-v11.fi-cohesion-release .weigh-optional,
+html.fi-v11.fi-cohesion-release .activity-insights,
+html.fi-v11.fi-cohesion-release .printer-details-disclosure {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+html.fi-v11.fi-cohesion-release .weigh-optional > summary,
+html.fi-v11.fi-cohesion-release .activity-insights > summary,
+html.fi-v11.fi-cohesion-release .printer-details-disclosure > summary {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 11px;
+  cursor: pointer;
+  list-style: none;
+}
+
+html.fi-v11.fi-cohesion-release .weigh-optional > summary::-webkit-details-marker,
+html.fi-v11.fi-cohesion-release .activity-insights > summary::-webkit-details-marker,
+html.fi-v11.fi-cohesion-release .printer-details-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+html.fi-v11.fi-cohesion-release :is(.weigh-optional,.activity-insights,.printer-details-disclosure) > summary span:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+html.fi-v11.fi-cohesion-release :is(.weigh-optional,.activity-insights,.printer-details-disclosure) > summary strong {
+  color: var(--color-text);
+  font-size: 12px;
+}
+
+html.fi-v11.fi-cohesion-release :is(.weigh-optional,.activity-insights,.printer-details-disclosure) > summary small {
+  color: var(--color-text-subtle);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+html.fi-v11.fi-cohesion-release :is(.weigh-optional,.activity-insights,.printer-details-disclosure)[open] > summary > span:last-child {
+  transform: rotate(45deg);
+}
+
+html.fi-v11.fi-cohesion-release .weigh-optional-grid {
+  display: grid;
+  gap: 10px;
+  padding: 0 11px 11px;
+}
+
+html.fi-v11.fi-cohesion-release .activity-insights {
+  margin-bottom: 12px;
+}
+
+html.fi-v11.fi-cohesion-release .activity-insights-body {
+  padding: 0 11px 11px;
+}
+
+html.fi-v11.fi-cohesion-release .printer-details-disclosure {
+  margin-top: 10px;
+}
+
+html.fi-v11.fi-cohesion-release .printer-details-disclosure .printer-spec-grid {
+  margin: 0;
+  padding: 0 11px 11px;
+}
+
+html.fi-v11.fi-cohesion-release .fi-label-output-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+html.fi-v11.fi-cohesion-release .fi-label-output-control .select {
+  min-height: 36px;
+}
+
+html.fi-v11.fi-cohesion-release .fi-technical-sync-detail {
+  margin: 0 0 14px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+html.fi-v11.fi-cohesion-release .profile-section-index[hidden] {
+  display: none;
+}
+
+html.fi-v11.fi-cohesion-release .profile-save-rail {
+  min-height: 62px;
+}
+
+html.fi-v11.fi-cohesion-release .profile-save-cluster {
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  html.fi-v11.fi-cohesion-release .fi-home-section-head {
+    flex-wrap: wrap;
+  }
+
+  html.fi-v11.fi-cohesion-release .fi-cohesion-inline-action {
+    min-height: 36px;
+  }
+
+  html.fi-v11.fi-cohesion-release .labels-print-bar {
+    align-items: stretch;
+  }
+
+  html.fi-v11.fi-cohesion-release .fi-label-output-control {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  html.fi-v11.fi-cohesion-release .fi-label-output-control .select {
+    min-width: 150px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.fi-v11.fi-cohesion-release :is(.weigh-optional,.activity-insights,.printer-details-disclosure) > summary > span:last-child {
+    transition: none;
+  }
+}
