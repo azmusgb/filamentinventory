@@ -122,15 +122,17 @@
     return {
       version:VERSION,
       spools:Array.isArray(local.spools) ? local.spools : [],
+      printers:Array.isArray(local.printers) ? local.printers : [],
       weighLog:Array.isArray(local.weighLog) ? local.weighLog : [],
       auditLog:Array.isArray(local.auditLog) ? local.auditLog : [],
+      printJobs:Array.isArray(local.printJobs) ? local.printJobs : [],
       tombstones:normalizeTombstones(local.tombstones),
     };
   }
 
   function fingerprint(state) {
     if (!state) return '';
-    return JSON.stringify({spools:state.spools || [],weighLog:state.weighLog || [],auditLog:state.auditLog || [],tombstones:state.tombstones || {}});
+    return JSON.stringify({spools:state.spools || [],printers:state.printers || [],weighLog:state.weighLog || [],auditLog:state.auditLog || [],printJobs:state.printJobs || [],tombstones:state.tombstones || {}});
   }
 
   function applyRemoteState(remote) {
@@ -142,8 +144,10 @@
       version:Math.max(Number(current.version) || 0,VERSION),
       savedAt:nowIso(),
       spools:remote.spools,
+      printers:Array.isArray(remote.printers) ? remote.printers : [],
       weighLog:Array.isArray(remote.weighLog) ? remote.weighLog : [],
       auditLog:Array.isArray(remote.auditLog) ? remote.auditLog : [],
+      printJobs:Array.isArray(remote.printJobs) ? remote.printJobs : [],
       tombstones:normalizeTombstones(remote.tombstones),
     };
     applyingRemote = true;
@@ -205,7 +209,7 @@
     const el = document.getElementById('snapshotList');
     if (!el) return;
     if (!snapshotRows.length) { el.innerHTML='<div class="sync-empty">Load recovery snapshots when you need to undo a cloud change.</div>'; return; }
-    el.innerHTML = snapshotRows.map(row => `<div class="snapshot-row"><div><strong>${esc(formatWhen(row.createdAt))}</strong><span>Revision ${esc(row.revision || 'unknown')} · ${Number(row.spoolCount || 0)} spools</span></div><button class="btn" data-restore-revision="${esc(row.revision || '')}" type="button">Restore</button></div>`).join('');
+    el.innerHTML = snapshotRows.map(row => `<div class="snapshot-row"><div><strong>${esc(formatWhen(row.createdAt))}</strong><span>Revision ${esc(row.revision || 'unknown')} · ${Number(row.spoolCount || 0)} spools · ${Number(row.printerCount || 0)} printers</span></div><button class="btn" data-restore-revision="${esc(row.revision || '')}" type="button">Restore</button></div>`).join('');
   }
 
   function renderSync() {
