@@ -77,9 +77,23 @@
       script.dataset.fiPwaRuntime = '1';
       root.document.head.append(script);
     };
+    const bindAmsStorageReconcile = () => {
+      if (!root.Storage || root.__fiAmsStorageReconcile) return;
+      const priorSetItem = root.Storage.prototype.setItem;
+      root.Storage.prototype.setItem = function(key, value) {
+        const result = priorSetItem.call(this, key, value);
+        if (this === root.localStorage && String(key || '').includes('inventory')) root.FilamentInventoryAMSUI?.refresh?.();
+        return result;
+      };
+      root.__fiAmsStorageReconcile = true;
+    };
     const ensureAmsPrinterRuntime = () => {
-      if (!root.document || root.FilamentInventoryAMSUI) return;
-      loadRuntimeScript('/printer-ams-ui.js')
+      if (!root.document) return;
+      const ready = root.FilamentInventoryAMSUI
+        ? Promise.resolve()
+        : loadRuntimeScript('/printer-ams-ui.js');
+      ready
+        .then(bindAmsStorageReconcile)
         .catch(error => console.error('AMS-first Printer UI failed to initialize.', error));
     };
     const afterDocumentReady = () => {
