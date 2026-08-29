@@ -45,7 +45,8 @@ async function boot(page) {
 test.beforeEach(async ({page}) => boot(page));
 
 test('renders configured AMS as four physical slots with an actionable exception', async ({page}) => {
-  const feeder = page.locator('.ams-feeder').filter({hasText:'AMS 1'}).first();
+  const feeder = page.locator('.ams-feeder[data-feeder-id="feeder-ams-1"]');
+  await expect(feeder).toHaveCount(1);
   await expect(feeder.locator('.ams-slot-card')).toHaveCount(4);
   await expect(feeder.locator('.ams-slot-empty')).toHaveCount(1);
   await expect(feeder).toContainText('3 / 4 loaded');
@@ -69,7 +70,7 @@ test('empty AMS slot opens placement dialog preselected to that physical slot', 
 });
 
 test('slot overflow opens the authoritative physical spool sheet', async ({page}) => {
-  await page.locator('[data-spool-actions-open="C01"]').click();
+  await page.getByRole('button',{name:'Open C01 actions'}).click();
   await expect(page.locator('#spoolActionDialog[open]')).toBeVisible();
   await expect(page.locator('#spoolActionTitle')).toContainText('C01');
 });
