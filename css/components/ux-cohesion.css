@@ -31,9 +31,12 @@ html.fi-v11.fi-cohesion-release .spool-card[data-cohesion-open="1"] {
 }
 
 html.fi-v11.fi-cohesion-release .fi-spool-details-action {
+  display: inline-flex;
   width: auto;
   min-width: 62px;
   min-height: 30px;
+  align-items: center;
+  justify-content: center;
   padding: 0 9px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
@@ -165,6 +168,24 @@ html.fi-v11.fi-cohesion-release .profile-save-cluster {
 
   html.fi-v11.fi-cohesion-release .fi-cohesion-inline-action {
     min-height: 36px;
+  }
+
+  html.fi-v11.fi-cohesion-release .fi-page-inventory .fi-spool-details-action {
+    display: inline-grid;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
+    place-items: center;
+    padding: 0;
+    border-radius: 9px;
+    font-size: 0;
+  }
+
+  html.fi-v11.fi-cohesion-release .fi-page-inventory .fi-spool-details-action::after {
+    content: '•••';
+    font-size: 12px;
+    line-height: 1;
   }
 
   html.fi-v11.fi-cohesion-release .labels-print-bar {
