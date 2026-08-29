@@ -54,6 +54,7 @@ jobs:
           test -f dist/css/components/v11-workflows.css
           test -f dist/css/components/physical-workflow.css
           test -f dist/css/components/print-job.css
+          test -f dist/css/components/printer-ams.css
           test -f dist/app-version.js
           test -f dist/build-meta.json
           test -f dist/user-isolation.js
@@ -64,6 +65,7 @@ jobs:
           test -f dist/scan-client.js
           test -f dist/printer-core.js
           test -f dist/printer-dashboard.js
+          test -f dist/printer-ams-client.js
           test -f dist/inventory-command-core.js
           test -f dist/inventory-command-client.js
           test -f dist/spool-actions-core.js
