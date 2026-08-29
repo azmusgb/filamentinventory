@@ -1,0 +1,234 @@
+@import url("../tokens.css");
+
+html.fi-v11 .spool-intake-dialog {
+  width:min(96vw,760px);
+  max-height:min(92dvh,940px);
+}
+
+html.fi-v11 .spool-intake-dialog .dialog-body {
+  display:grid;
+  gap:var(--space-4);
+}
+
+html.fi-v11 .spool-intake-summary {
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr) auto;
+  align-items:center;
+  gap:12px;
+  padding:13px 14px;
+  border:1px solid color-mix(in srgb,var(--color-accent) 22%,var(--color-border));
+  border-radius:var(--radius-md);
+  background:color-mix(in srgb,var(--color-accent) 7%,var(--color-surface-raised));
+}
+
+html.fi-v11 .spool-intake-swatch {
+  width:38px;
+  height:38px;
+  border:1px solid color-mix(in srgb,white 18%,var(--color-border));
+  border-radius:12px;
+  box-shadow:inset 0 0 0 4px color-mix(in srgb,var(--color-bg) 28%,transparent);
+}
+
+html.fi-v11 .spool-intake-copy {
+  min-width:0;
+}
+
+html.fi-v11 .spool-intake-copy strong,
+html.fi-v11 .spool-intake-copy small {
+  display:block;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+html.fi-v11 .spool-intake-copy strong {
+  margin-top:2px;
+  color:var(--color-text);
+  font-size:13px;
+}
+
+html.fi-v11 .spool-intake-copy small {
+  margin-top:3px;
+  color:var(--color-text-muted);
+  font-size:10.5px;
+}
+
+html.fi-v11 .spool-intake-state {
+  padding:5px 8px;
+  border-radius:var(--radius-pill);
+  background:var(--color-warning-soft);
+  color:var(--color-warning);
+  font-family:var(--font-mono);
+  font-size:9.5px;
+  font-weight:800;
+  white-space:nowrap;
+}
+
+html.fi-v11 .spool-intake-state[data-state="ready"] {
+  background:var(--color-success-soft);
+  color:var(--color-success);
+}
+
+html.fi-v11 .spool-guided-field {
+  display:grid;
+  gap:7px;
+}
+
+html.fi-v11 .spool-guided-select,
+html.fi-v11 .spool-guided-custom {
+  width:100%;
+}
+
+html.fi-v11 .spool-guided-custom[hidden] {
+  display:none;
+}
+
+html.fi-v11 .spool-field-help {
+  display:block;
+  margin-top:6px;
+  color:var(--color-text-subtle);
+  font-size:10px;
+  line-height:1.45;
+}
+
+html.fi-v11 .spool-number-choices {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-top:8px;
+}
+
+html.fi-v11 .spool-choice-chip {
+  min-height:32px;
+  padding:0 10px;
+  border:1px solid var(--color-border);
+  border-radius:var(--radius-pill);
+  background:var(--color-surface);
+  color:var(--color-text-muted);
+  font-size:10.5px;
+  font-weight:700;
+}
+
+html.fi-v11 .spool-choice-chip:hover {
+  border-color:var(--color-border-strong);
+  color:var(--color-text);
+}
+
+html.fi-v11 .spool-choice-chip[aria-pressed="true"] {
+  border-color:color-mix(in srgb,var(--color-accent) 40%,var(--color-border));
+  background:var(--color-accent-soft);
+  color:var(--color-accent);
+}
+
+html.fi-v11 .spool-color-presets {
+  display:flex;
+  max-width:100%;
+  gap:7px;
+  margin-top:8px;
+  padding:3px 1px;
+  overflow-x:auto;
+  overscroll-behavior-inline:contain;
+  scrollbar-width:thin;
+}
+
+html.fi-v11 .spool-color-preset {
+  display:grid;
+  width:34px;
+  min-width:34px;
+  height:34px;
+  place-items:center;
+  padding:0;
+  border:1px solid var(--color-border);
+  border-radius:50%;
+  background:var(--color-surface);
+}
+
+html.fi-v11 .spool-color-preset span {
+  width:22px;
+  height:22px;
+  border:1px solid color-mix(in srgb,black 18%,transparent);
+  border-radius:50%;
+}
+
+html.fi-v11 .spool-color-preset[aria-pressed="true"] {
+  border-color:var(--color-accent);
+  box-shadow:0 0 0 3px var(--color-accent-soft);
+}
+
+html.fi-v11 .spool-intake-dialog .dialog-actions {
+  position:sticky;
+  bottom:0;
+  z-index:4;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background:color-mix(in srgb,var(--color-surface) 94%,transparent);
+  -webkit-backdrop-filter:blur(14px);
+  backdrop-filter:blur(14px);
+}
+
+html.fi-v11 .spool-intake-dialog .spool-save-another {
+  margin-left:auto;
+}
+
+html.fi-v11 .spool-intake-dialog .spool-duplicate-action[hidden],
+html.fi-v11 .spool-intake-dialog .spool-save-another[hidden] {
+  display:none;
+}
+
+@media (max-width:640px) {
+  html.fi-v11 .spool-intake-dialog {
+    width:100vw;
+    max-width:none;
+    max-height:94dvh;
+    margin:auto 0 0;
+    border-radius:22px 22px 0 0;
+  }
+
+  html.fi-v11 .spool-intake-summary {
+    grid-template-columns:36px minmax(0,1fr);
+    padding:12px;
+  }
+
+  html.fi-v11 .spool-intake-swatch {
+    width:34px;
+    height:34px;
+  }
+
+  html.fi-v11 .spool-intake-state {
+    grid-column:2;
+    justify-self:start;
+  }
+
+  html.fi-v11 .spool-intake-dialog .v10-essential-grid,
+  html.fi-v11 .spool-intake-dialog .v10-advanced-grid {
+    grid-template-columns:1fr;
+  }
+
+  html.fi-v11 .spool-number-choices {
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    padding-bottom:2px;
+  }
+
+  html.fi-v11 .spool-choice-chip {
+    min-width:max-content;
+    min-height:36px;
+  }
+
+  html.fi-v11 .spool-intake-dialog .dialog-actions {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    padding-bottom:calc(var(--space-4) + env(safe-area-inset-bottom));
+  }
+
+  html.fi-v11 .spool-intake-dialog .dialog-actions .btn-primary {
+    grid-column:1 / -1;
+    grid-row:1;
+    width:100%;
+  }
+
+  html.fi-v11 .spool-intake-dialog .spool-save-another {
+    margin-left:0;
+  }
+}

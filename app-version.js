@@ -11,20 +11,17 @@
     };
     const ensureComponentStyles = () => {
       if (!root.document) return;
-      const href = '/css/components/printer.css';
-      if (!root.document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) {
+      const styles = [
+        ['/css/components/printer.css','printer'],
+        ['/css/components/printer-ams.css','printer-ams'],
+        ['/css/components/spool-intake.css','spool-intake'],
+      ];
+      for (const [href,name] of styles) {
+        if (root.document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) continue;
         const link = root.document.createElement('link');
         link.rel = 'stylesheet';
         link.href = href;
-        link.dataset.fiComponent = 'printer';
-        root.document.head.append(link);
-      }
-      const amsHref = '/css/components/printer-ams.css';
-      if (!root.document.querySelector(`link[rel="stylesheet"][href="${amsHref}"]`)) {
-        const link = root.document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = amsHref;
-        link.dataset.fiComponent = 'printer-ams';
+        link.dataset.fiComponent = name;
         root.document.head.append(link);
       }
     };
@@ -67,6 +64,11 @@
         .then(() => root.FilamentInventoryPhysicalWorkflowUI ? undefined : loadRuntimeScript('/physical-workflow-client.js'))
         .catch(error => console.error('Physical spool workflow failed to initialize.', error));
     };
+    const ensureSpoolIntakeRuntime = () => {
+      if (!root.document || root.FilamentInventorySpoolIntakeUI) return;
+      loadRuntimeScript('/spool-intake-client.js')
+        .catch(error => console.error('Guided spool intake failed to initialize.', error));
+    };
     const ensurePwaRuntime = () => {
       if (!root.document || root.FilamentInventoryPWA) return;
       const src = '/pwa-client.js';
@@ -75,7 +77,7 @@
       script.src = src;
       script.defer = true;
       script.dataset.fiPwaRuntime = '1';
-      root.document.head.append(script);
+      root.document.head.appendChild(script);
     };
     const bindAmsStorageReconcile = () => {
       if (!root.Storage || root.__fiAmsStorageReconcile) return;
@@ -103,6 +105,7 @@
     ensureComponentStyles();
     ensureSpoolContractRuntime();
     ensurePhysicalWorkflowRuntime();
+    ensureSpoolIntakeRuntime();
     ensurePwaRuntime();
     if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', afterDocumentReady, {once:true});
     else afterDocumentReady();

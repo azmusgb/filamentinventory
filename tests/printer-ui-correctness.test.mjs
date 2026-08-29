@@ -19,8 +19,11 @@ test('Printer AMS component has explicit print simplification', async () => {
 
 test('Printer AMS component is published and activated', async () => {
   const [assets, bootstrap] = await Promise.all([read('scripts/public-assets.mjs'), read('app-version.js')]);
-  assert.match(assets,/'css\/components\/printer\.css'/);
-  assert.match(bootstrap,/const href = '\/css\/components\/printer\.css'/);
+  for (const asset of ['css/components/printer.css','css/components/printer-ams.css']) {
+    assert.ok(assets.includes(`'${asset}'`), `${asset} must be published`);
+    assert.ok(bootstrap.includes(`'/${asset}'`), `${asset} must be registered by the component style loader`);
+  }
+  assert.match(bootstrap,/function|ensureComponentStyles/);
   assert.match(bootstrap,/link\.rel = 'stylesheet'/);
   assert.match(bootstrap,/root\.document\.head\.append\(link\)/);
 });
