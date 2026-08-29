@@ -16,7 +16,7 @@ test('mobile Printer keeps one actionable printer card and compresses empty stat
   assert.match(css, /\.printer-registry-actions \{[\s\S]*?grid-template-columns:1fr 1fr;/);
   assert.match(css, /\.printer-registry-main p \{ display:none; \}/);
   assert.match(css, /\.printer-board \.printer-empty > \.btn \{ display:none; \}/);
-  assert.match(css, /\.printer-panel:has\(#printerAttention \.printer-empty\) \{ display:none; \}/);
+  assert.match(css, /\.printer-panel:has\(\.printer-attention \.printer-empty\) \{ display:none; \}/);
 });
 
 test('small phones retain a two-column printer spec summary rather than returning to a tall list', async () => {
