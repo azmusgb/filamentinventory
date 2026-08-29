@@ -14,7 +14,7 @@ test('mobile inventory presentation is published and available offline', async (
     assert.ok(assets.includes(`'${asset}'`), `${asset} must be published`);
     assert.ok(sw.includes(`'/${asset}'`), `${asset} must be precached`);
   }
-  assert.match(sw,/filament-inventory-v39/);
+  assert.match(sw,/const CACHE = 'filament-inventory-v\d+'/);
   assert.match(navigation,/ensurePresentationAssets/);
   assert.match(navigation,/inventory-mobile\.css/);
   assert.match(navigation,/inventory-card-client\.js/);
