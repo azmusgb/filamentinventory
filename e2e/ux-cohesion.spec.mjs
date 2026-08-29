@@ -64,7 +64,7 @@ test('inventory and intake expose a calmer primary path', async ({page}) => {
   await navigate(page,'inventory');
   await expect(page.locator('#inventoryGrid .spool-card')).toHaveCount(2);
   await expect(page.locator('#inventoryGrid .spool-card .fi-spool-details-action')).toHaveCount(2);
-  await expect(page.locator('#inventoryGrid .spool-card .fi-spool-details-action').first()).toHaveText('Details');
+  await expect(page.locator('#inventoryGrid .spool-card .fi-spool-details-action').first()).toHaveAttribute('title','Open spool details');
 
   await page.locator('[data-filter-open]').click();
   await expect(page.locator('[data-filter-apply]')).toHaveText('Done');
@@ -73,12 +73,13 @@ test('inventory and intake expose a calmer primary path', async ({page}) => {
 
   await page.locator('#inventoryAddBtn').click();
   await expect(page.locator('#spoolDialog[open]')).toBeVisible();
-  await expect(page.locator('.spool-form-essentials #brand')).toBeVisible();
-  await expect(page.locator('.spool-form-essentials #material')).toBeVisible();
-  await expect(page.locator('.spool-form-essentials #location')).toBeVisible();
+  await expect(page.locator('.spool-form-essentials #brandChoice')).toBeVisible();
+  await expect(page.locator('.spool-form-essentials #materialChoice')).toBeVisible();
+  await expect(page.locator('.spool-form-essentials #locationChoice')).toBeVisible();
+  await expect(page.locator('#brand')).toBeHidden();
+  await expect(page.locator('#locationChoice option')).toContainText(['Choose a location…','Dry Box','Rack A','Shelf','Storage bin','Other / custom…']);
   await expect(page.locator('.spool-form-essentials #placementV8')).toHaveCount(0);
   await expect(page.locator('.v10-advanced-grid #placementV8')).toHaveCount(1);
-  await expect(page.locator('#brand')).toHaveAttribute('list','fiBrandSuggestions');
   await expect(page.locator('label[for="startWeight"]')).toHaveText('Nominal full filament (g)');
   await expect(page.locator('#visualPercent').locator('..')).toContainText('measured gross − tare');
 });
