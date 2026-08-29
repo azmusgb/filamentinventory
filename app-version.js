@@ -11,18 +11,22 @@
     };
     const ensureComponentStyles = () => {
       if (!root.document) return;
-      const styles = [
-        ['/css/components/printer.css','printer'],
-        ['/css/components/printer-ams.css','printer-ams'],
-      ];
-      styles.forEach(([href,name]) => {
-        if (root.document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) return;
+      const href = '/css/components/printer.css';
+      if (!root.document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) {
         const link = root.document.createElement('link');
         link.rel = 'stylesheet';
         link.href = href;
-        link.dataset.fiComponent = name;
+        link.dataset.fiComponent = 'printer';
         root.document.head.append(link);
-      });
+      }
+      const amsHref = '/css/components/printer-ams.css';
+      if (!root.document.querySelector(`link[rel="stylesheet"][href="${amsHref}"]`)) {
+        const link = root.document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = amsHref;
+        link.dataset.fiComponent = 'printer-ams';
+        root.document.head.append(link);
+      }
     };
     const loadRuntimeScript = src => new Promise((resolve, reject) => {
       if (!root.document) return resolve();
@@ -92,7 +96,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function() {
   'use strict';
 
-  const APP_VERSION = '10.3.0';
+  const APP_VERSION = '10.2.0';
   const DATA_SCHEMA_VERSION = 10;
   const DISPLAY_VERSION = `v${APP_VERSION}`;
 
