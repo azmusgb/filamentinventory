@@ -198,7 +198,7 @@
   .printer-slot-actions .btn { width:100%; min-height:38px; padding-inline:.45rem; }
 
   /* Do not spend a full screen section telling the user that nothing needs attention. */
-  .printer-panel:has(#printerAttention .printer-empty) { display:none; }
+  .printer-panel:has(.printer-attention .printer-empty) { display:none; }
   .printer-attention-row,.printer-candidate { gap:var(--space-2); padding-block:.45rem; }
 
   .printer-feeder-editor-head { display:grid; }
