@@ -20,6 +20,7 @@ test('navigation loader publishes the AMS-first printer presentation', async () 
 test('AMS board renders physical configured slots and progressive spool actions', async () => {
   const client = await read('printer-ams-client.js');
   assert.match(client, /core\.slotsForFeeder\(feeder\)/);
+  assert.match(client, /data-feeder-id=/);
   assert.match(client, /data-ams-empty-slot/);
   assert.match(client, /data-spool-actions-open/);
   assert.match(client, /Not measured/);
