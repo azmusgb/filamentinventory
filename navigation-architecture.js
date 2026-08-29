@@ -8,21 +8,29 @@
   let scheduled = false;
 
   function ensurePresentationAssets() {
-    const stylesheet = '/css/components/inventory-mobile.css';
-    if (!document.querySelector(`link[href="${stylesheet}"]`)) {
+    const stylesheets = [
+      ['/css/components/inventory-mobile.css', 'inventory-mobile'],
+      ['/css/components/printer-ams.css', 'printer-ams'],
+    ];
+    for (const [stylesheet, key] of stylesheets) {
+      if (document.querySelector(`link[href="${stylesheet}"]`)) continue;
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = stylesheet;
-      link.dataset.fiPresentation = 'inventory-mobile';
+      link.dataset.fiPresentation = key;
       document.head.appendChild(link);
     }
 
-    const script = '/inventory-card-client.js';
-    if (!document.querySelector(`script[src="${script}"]`)) {
+    const scripts = [
+      ['/inventory-card-client.js', 'inventory-cards'],
+      ['/printer-ams-client.js', 'printer-ams'],
+    ];
+    for (const [script, key] of scripts) {
+      if (document.querySelector(`script[src="${script}"]`)) continue;
       const node = document.createElement('script');
       node.src = script;
       node.defer = true;
-      node.dataset.fiPresentation = 'inventory-cards';
+      node.dataset.fiPresentation = key;
       document.head.appendChild(node);
     }
   }
@@ -105,8 +113,6 @@
     const nav = qs('.mobile-bottom-nav');
     if (!nav) return;
     nav.dataset.navigationArchitecture = '1';
-    // The V11 shell owns mobile navigation. Preserve its durable controller
-    // attributes and visual hierarchy: Home / Inventory / Scan / Printer / More.
     const required = [
       '[data-bottom-view="dashboard"]',
       '[data-bottom-view="inventory"]',
