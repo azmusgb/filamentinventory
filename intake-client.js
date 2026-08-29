@@ -317,8 +317,16 @@
     applyTemplate(template, {preservePurchaseDate:false});
   }
 
+  function navigate(view) {
+    if (globalThis.FilamentInventoryNavigation?.navigate?.(view,{historyMode:'push',focus:true})) return true;
+    const tab = document.querySelector(`.tab[data-view="${view}"]`);
+    if (!tab) return false;
+    tab.click();
+    return true;
+  }
+
   function navigateToWeigh(id) {
-    document.querySelector('.tab[data-view="weigh"]')?.click();
+    if (!navigate('weigh')) return;
     setTimeout(() => {
       const select = $('weighSpool');
       if (select) {
@@ -330,7 +338,7 @@
   }
 
   function navigateToLabels(id) {
-    document.querySelector('.tab[data-view="labels"]')?.click();
+    if (!navigate('labels')) return;
     setTimeout(() => {
       $('clearLabelsBtn')?.click();
       const search = $('labelSearch');
@@ -350,7 +358,7 @@
   }
 
   function navigateToPrinter(id) {
-    document.querySelector('.tab[data-view="household"]')?.click();
+    if (!navigate('household')) return;
     setTimeout(() => {
       const select = $('moveSpoolV8');
       if (!select) return;
