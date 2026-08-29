@@ -48,7 +48,7 @@ test('guided spool intake consolidates legacy chrome while reusing its existing 
   assert.match(source, /LEGACY_PLACEMENT_FIELDS/);
   assert.match(source, /intakeNextDialog/);
   assert.match(source, /suppressLegacyNextUntil/);
-  assert.match(css, /#intakeBanner/);
+  assert.match(css, /\.intake-banner/);
   assert.match(css, /\.intake-suggestions/);
   assert.match(css, /\.spool-intake-placement-field/);
   assert.match(legacy, /id = 'intakeNextDialog'/);
