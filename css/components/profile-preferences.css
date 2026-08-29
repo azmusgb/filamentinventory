@@ -1,22 +1,117 @@
 @import url("../tokens.css");
 
-.fi-ui .profile-preferences-view { padding-bottom:var(--space-8); }
-.fi-ui .profile-preferences-grid { display:grid; grid-template-columns:minmax(240px,.68fr) minmax(0,1.6fr); gap:var(--space-5); align-items:start; }
-.fi-ui .profile-identity-card { position:sticky; top:84px; padding:var(--space-6); }
-.fi-ui .profile-identity-preview { display:flex; align-items:center; gap:var(--space-4); margin-bottom:var(--space-4); }
-.fi-ui .profile-avatar-lg { width:58px; height:58px; display:grid; place-items:center; border-radius:var(--radius-lg); background:color-mix(in srgb,var(--color-accent) 18%,var(--color-surface-raised)); border:1px solid color-mix(in srgb,var(--color-accent) 42%,var(--color-border)); color:var(--color-text); font-size:var(--text-xl); font-weight:800; letter-spacing:-.03em; }
-.fi-ui .profile-identity-preview h3 { margin:4px 0 2px; font-size:var(--text-2xl); letter-spacing:-.035em; }
-.fi-ui .profile-identity-preview p { margin:0; color:var(--color-text-muted); }
-.fi-ui .profile-preferences-form { padding:0; overflow:hidden; }
-.fi-ui .profile-settings-section { padding:var(--space-6); border-bottom:1px solid var(--color-border); }
-.fi-ui .profile-settings-section:last-of-type { border-bottom:0; }
-.fi-ui .profile-settings-head { display:flex; justify-content:space-between; gap:var(--space-4); margin-bottom:var(--space-5); }
-.fi-ui .profile-settings-head h3 { margin:0; font-size:var(--text-xl); }
-.fi-ui .profile-settings-head p { margin:4px 0 0; color:var(--color-text-muted); font-size:var(--text-sm); }
-.fi-ui .profile-settings-actions { display:flex; align-items:center; justify-content:space-between; gap:var(--space-3); padding:var(--space-5) var(--space-6); background:color-mix(in srgb,var(--color-surface) 72%,transparent); }
+.fi-ui .profile-preferences-view { padding-bottom:var(--space-8); scroll-behavior:smooth; }
+.fi-ui .profile-experience-grid { display:grid; grid-template-columns:minmax(248px,.7fr) minmax(0,1.75fr); gap:var(--space-5); align-items:start; }
+.fi-ui .profile-settings-stack { display:grid; gap:var(--space-4); min-width:0; }
+
+.fi-ui .profile-summary-card { position:sticky; top:84px; padding:var(--space-5); overflow:hidden; }
+.fi-ui .profile-summary-card::before { content:""; position:absolute; inset:0 0 auto; height:3px; background:linear-gradient(90deg,var(--color-accent),var(--color-accent-secondary)); }
+.fi-ui .profile-summary-identity { display:flex; align-items:center; gap:var(--space-4); }
+.fi-ui .profile-summary-identity h3 { margin:4px 0 2px; font-size:var(--text-2xl); letter-spacing:-.035em; }
+.fi-ui .profile-summary-identity p { margin:0; color:var(--color-text-muted); font-size:var(--text-sm); line-height:1.45; }
+.fi-ui .profile-avatar-xl { width:68px; height:68px; display:grid; place-items:center; flex:0 0 auto; border-radius:22px; background:linear-gradient(145deg,color-mix(in srgb,var(--color-accent) 32%,var(--color-surface-raised)),color-mix(in srgb,var(--color-accent-secondary) 22%,var(--color-surface))); border:1px solid color-mix(in srgb,var(--color-accent) 42%,var(--color-border)); color:var(--color-text); box-shadow:inset 0 1px 0 color-mix(in srgb,white 8%,transparent); font-size:var(--text-xl); font-weight:800; letter-spacing:-.03em; }
+.fi-ui .profile-avatar-lg { width:44px; height:44px; font-size:12px; }
+.fi-ui .profile-privacy-note { display:grid; grid-template-columns:auto 1fr; gap:10px; margin-top:var(--space-5); padding:12px; border:1px solid color-mix(in srgb,var(--color-accent) 18%,var(--color-border)); border-radius:var(--radius-md); background:color-mix(in srgb,var(--color-accent) 7%,var(--color-surface-raised)); }
+.fi-ui .profile-privacy-note > span { color:var(--color-accent); font-size:12px; }
+.fi-ui .profile-privacy-note p { margin:0; color:var(--color-text-muted); font-size:11px; line-height:1.55; }
+.fi-ui .profile-privacy-note strong { color:var(--color-text); }
+.fi-ui .profile-summary-appearance { display:flex; align-items:center; gap:9px; margin-top:var(--space-4); padding:0 2px; color:var(--color-text-muted); font-size:11px; }
+.fi-ui .profile-accent-dot { width:10px; height:10px; flex:0 0 auto; border-radius:50%; background:var(--color-accent); box-shadow:0 0 0 3px color-mix(in srgb,var(--color-accent) 17%,transparent); }
+.fi-ui .profile-section-nav { display:grid; gap:4px; margin-top:var(--space-5); padding-top:var(--space-4); border-top:1px solid var(--color-border); }
+.fi-ui .profile-section-nav a { display:flex; align-items:center; min-height:38px; padding:0 10px; border-radius:10px; color:var(--color-text-muted); font-size:12px; font-weight:650; text-decoration:none; }
+.fi-ui .profile-section-nav a:hover { background:var(--color-surface-raised); color:var(--color-text); }
+.fi-ui .profile-switch-cta { width:100%; margin-top:var(--space-4); }
+
+.fi-ui .profile-save-rail { position:sticky; top:78px; z-index:6; display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); padding:13px 16px; background:color-mix(in srgb,var(--color-surface) 88%,var(--color-bg)); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); }
+.fi-ui .profile-save-rail > div:first-child { min-width:0; }
+.fi-ui .profile-save-rail strong { display:block; color:var(--color-text); font-size:13px; }
+.fi-ui .profile-save-rail > div:first-child span { display:block; margin-top:2px; color:var(--color-text-muted); font-size:10.5px; }
 .fi-ui .profile-save-cluster { display:flex; align-items:center; justify-content:flex-end; gap:var(--space-3); min-width:0; }
-.fi-ui .profile-save-status { color:var(--color-text-subtle); font-size:var(--text-xs); white-space:nowrap; }
+.fi-ui .profile-save-status { display:inline-flex; align-items:center; gap:6px; color:var(--color-text-subtle); font-size:10.5px; white-space:nowrap; }
+.fi-ui .profile-save-status::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--color-success); }
 .fi-ui .profile-save-status[data-state="saving"] { color:var(--color-accent); }
+.fi-ui .profile-save-status[data-state="saving"]::before { background:var(--color-accent); box-shadow:0 0 0 4px color-mix(in srgb,var(--color-accent) 12%,transparent); }
+
+.fi-ui .profile-settings-section { padding:var(--space-6); scroll-margin-top:148px; }
+.fi-ui .profile-settings-head { display:flex; justify-content:space-between; gap:var(--space-4); margin-bottom:var(--space-5); }
+.fi-ui .profile-settings-head > div { display:grid; grid-template-columns:auto 1fr; column-gap:10px; align-items:center; }
+.fi-ui .profile-settings-head h3 { margin:0; font-size:var(--text-xl); letter-spacing:-.02em; }
+.fi-ui .profile-settings-head p { grid-column:2; max-width:68ch; margin:4px 0 0; color:var(--color-text-muted); font-size:var(--text-sm); line-height:1.5; }
+.fi-ui .profile-section-index { grid-row:1 / span 2; align-self:start; padding-top:3px; color:var(--color-accent); font-family:var(--font-mono); font-size:10px; font-weight:800; letter-spacing:.08em; }
+
+.fi-ui .profile-identity-editor { display:grid; grid-template-columns:150px minmax(0,1fr); gap:var(--space-5); align-items:start; }
+.fi-ui .profile-avatar-editor { display:grid; justify-items:center; gap:10px; padding:18px 10px; border:1px dashed var(--color-border); border-radius:var(--radius-lg); background:color-mix(in srgb,var(--color-surface-raised) 70%,transparent); color:var(--color-text-subtle); font-size:10px; text-align:center; }
+.fi-ui .profile-identity-fields { align-items:start; }
+.fi-ui .profile-identity-fields .form-field small { display:block; margin-top:6px; color:var(--color-text-subtle); font-size:10px; line-height:1.45; }
+.fi-ui .profile-inline-field { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+.fi-ui .profile-inline-field .btn { min-width:64px; }
+
+.fi-ui .profile-control-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.fi-ui .profile-control-grid-two { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.fi-ui .profile-control-card { display:grid; align-content:start; gap:14px; min-height:168px; padding:16px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-surface-raised); }
+.fi-ui .profile-control-card:focus-within { border-color:color-mix(in srgb,var(--color-accent) 44%,var(--color-border)); box-shadow:0 0 0 3px color-mix(in srgb,var(--color-accent) 8%,transparent); }
+.fi-ui .profile-control-copy { display:grid; grid-template-columns:32px minmax(0,1fr); gap:10px; align-items:start; }
+.fi-ui .profile-control-icon { display:grid; width:30px; height:30px; place-items:center; border-radius:9px; background:color-mix(in srgb,var(--color-accent) 10%,var(--color-surface)); color:var(--color-accent); font-size:14px; }
+.fi-ui .profile-control-copy label { display:block; color:var(--color-text); font-size:12px; font-weight:750; }
+.fi-ui .profile-control-copy p { margin:4px 0 0; color:var(--color-text-muted); font-size:10.5px; line-height:1.45; }
+.fi-ui .profile-control-card .select { width:100%; margin-top:auto; }
+.fi-ui .profile-accent-control { grid-row:span 1; }
+.fi-ui .profile-accent-swatches { display:flex; flex-wrap:wrap; gap:8px; }
+.fi-ui .profile-accent-swatch { width:30px; height:30px; display:grid; place-items:center; padding:0; border:1px solid transparent; border-radius:50%; background:transparent; cursor:pointer; }
+.fi-ui .profile-accent-swatch span { width:20px; height:20px; border-radius:50%; background:currentColor; box-shadow:inset 0 0 0 1px color-mix(in srgb,black 16%,transparent); }
+.fi-ui .profile-accent-swatch:hover { background:color-mix(in srgb,currentColor 12%,transparent); }
+.fi-ui .profile-accent-swatch.is-selected { border-color:currentColor; box-shadow:0 0 0 3px color-mix(in srgb,currentColor 13%,transparent); }
+.fi-ui [data-profile-accent-choice="violet"] { color:#9b87f5; }
+.fi-ui [data-profile-accent-choice="teal"] { color:#49d3c4; }
+.fi-ui [data-profile-accent-choice="blue"] { color:#78aaf8; }
+.fi-ui [data-profile-accent-choice="green"] { color:#78d9a2; }
+.fi-ui [data-profile-accent-choice="orange"] { color:#f5c95e; }
+
+.fi-ui .profile-number-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.fi-ui .profile-number-card { display:grid; gap:10px; padding:16px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-surface-raised); color:var(--color-text); cursor:text; }
+.fi-ui .profile-number-card > span { font-size:11px; font-weight:750; }
+.fi-ui .profile-number-card > div { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; }
+.fi-ui .profile-number-card .field { width:100%; min-width:0; font-family:var(--font-mono); font-size:18px; font-weight:750; }
+.fi-ui .profile-number-card b { color:var(--color-text-subtle); font-family:var(--font-mono); font-size:11px; }
+.fi-ui .profile-number-card small { color:var(--color-text-muted); font-size:10.5px; line-height:1.5; }
+
+.fi-ui .profile-reset-panel { overflow:hidden; }
+.fi-ui .profile-reset-panel > summary { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:64px; padding:0 var(--space-5); cursor:pointer; list-style:none; }
+.fi-ui .profile-reset-panel > summary::-webkit-details-marker { display:none; }
+.fi-ui .profile-reset-panel > summary span:first-child { display:grid; gap:2px; }
+.fi-ui .profile-reset-panel > summary strong { font-size:12px; }
+.fi-ui .profile-reset-panel > summary small { color:var(--color-text-muted); font-size:10px; }
+.fi-ui .profile-reset-panel[open] summary span:last-child { transform:rotate(45deg); }
+.fi-ui .profile-reset-body { display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); padding:16px var(--space-5) var(--space-5); border-top:1px solid var(--color-border); }
+.fi-ui .profile-reset-body p { max-width:64ch; margin:0; color:var(--color-text-muted); font-size:11px; line-height:1.55; }
+
+/* Profile switcher becomes the profile hub rather than a bare account list. */
+.fi-ui .profile-switch-dialog-v2 { width:min(94vw,520px); }
+.fi-ui .profile-switch-head { align-items:flex-start; }
+.fi-ui .profile-switch-head p { max-width:38ch; margin:5px 0 0; color:var(--color-text-muted); font-size:11px; line-height:1.45; }
+.fi-ui .profile-switch-body { display:grid; gap:14px; }
+.fi-ui .profile-switch-current { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:12px; padding:13px; border:1px solid color-mix(in srgb,var(--color-accent) 24%,var(--color-border)); border-radius:var(--radius-md); background:color-mix(in srgb,var(--color-accent) 7%,var(--color-surface-raised)); }
+.fi-ui .profile-switch-current > div { display:grid; gap:2px; }
+.fi-ui .profile-switch-current > div span { color:var(--color-text-subtle); font-size:9.5px; text-transform:uppercase; letter-spacing:.08em; }
+.fi-ui .profile-switch-current > div strong { font-size:13px; }
+.fi-ui .profile-current-badge { padding:5px 8px; border-radius:var(--radius-pill); background:color-mix(in srgb,var(--color-accent) 12%,transparent); color:var(--color-accent); font-size:9.5px; font-weight:750; }
+.fi-ui .profile-options-v2 { display:grid; gap:8px; }
+.fi-ui .profile-option-v2 { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:12px; width:100%; min-height:66px; padding:10px 12px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-surface); color:var(--color-text); text-align:left; cursor:pointer; }
+.fi-ui .profile-option-v2:hover { border-color:var(--color-border-strong); background:var(--color-surface-raised); }
+.fi-ui .profile-option-v2[aria-current="true"] { border-color:color-mix(in srgb,var(--color-accent) 34%,var(--color-border)); }
+.fi-ui .profile-option-copy { display:grid; gap:3px; min-width:0; }
+.fi-ui .profile-option-copy strong { overflow:hidden; font-size:12.5px; text-overflow:ellipsis; white-space:nowrap; }
+.fi-ui .profile-option-copy small { color:var(--color-text-muted); font-size:10px; }
+.fi-ui .profile-option-state { color:var(--color-text-subtle); font-size:16px; }
+.fi-ui .profile-switch-footer { display:grid; gap:9px; padding-top:2px; }
+.fi-ui .profile-switch-footer .btn { width:100%; min-height:46px; }
+.fi-ui .profile-switch-footer p { margin:0; color:var(--color-text-subtle); font-size:9.5px; line-height:1.5; text-align:center; }
+.fi-ui [data-profile-option-accent="violet"] { background:linear-gradient(145deg,#7d6ad0,#5645a8); border-color:#9b87f5; color:var(--color-text); }
+.fi-ui [data-profile-option-accent="teal"] { background:linear-gradient(145deg,#319f95,#176d67); border-color:#49d3c4; color:var(--color-text); }
+.fi-ui [data-profile-option-accent="blue"] { background:linear-gradient(145deg,#527fbf,#345c9e); border-color:#78aaf8; color:var(--color-text); }
+.fi-ui [data-profile-option-accent="green"] { background:linear-gradient(145deg,#4ca873,#28764c); border-color:#78d9a2; color:var(--color-text); }
+.fi-ui [data-profile-option-accent="orange"] { background:linear-gradient(145deg,#bd8b36,#8b5f17); border-color:#f5c95e; color:var(--color-text); }
+
 .fi-ui[data-profile-density="compact"] .panel,
 .fi-ui[data-profile-density="compact"] .hero-card { border-radius:var(--radius-md); }
 .fi-ui[data-profile-density="compact"] .inventory-grid { gap:var(--space-2); }
@@ -25,14 +120,43 @@
 .fi-ui[data-profile-dashboard="focused"] .dashboard-secondary { display:none; }
 .fi-ui[data-profile-dashboard="balanced"] .dashboard-secondary { display:grid; }
 
-@media (max-width:860px) {
-  .fi-ui .profile-preferences-grid { grid-template-columns:1fr; }
-  .fi-ui .profile-identity-card { position:static; }
+@media (max-width:980px) {
+  .fi-ui .profile-experience-grid { grid-template-columns:1fr; }
+  .fi-ui .profile-summary-card { position:static; display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:var(--space-4); align-items:start; }
+  .fi-ui .profile-privacy-note,.fi-ui .profile-summary-appearance,.fi-ui .profile-section-nav { grid-column:1 / -1; }
+  .fi-ui .profile-section-nav { display:flex; overflow:auto; gap:6px; padding-bottom:2px; scrollbar-width:none; }
+  .fi-ui .profile-section-nav::-webkit-scrollbar { display:none; }
+  .fi-ui .profile-section-nav a { flex:0 0 auto; border:1px solid var(--color-border); background:var(--color-surface-raised); }
+  .fi-ui .profile-switch-cta { width:auto; margin-top:0; }
+  .fi-ui .profile-save-rail { top:76px; }
 }
+
+@media (max-width:760px) {
+  .fi-ui .profile-control-grid,.fi-ui .profile-control-grid-two,.fi-ui .profile-number-grid { grid-template-columns:1fr; }
+  .fi-ui .profile-control-card { min-height:0; }
+  .fi-ui .profile-identity-editor { grid-template-columns:1fr; }
+  .fi-ui .profile-avatar-editor { grid-template-columns:auto 1fr; justify-items:start; align-items:center; text-align:left; }
+}
+
 @media (max-width:640px) {
-  .fi-ui .profile-settings-section { padding:var(--space-5); }
-  .fi-ui .profile-settings-actions { display:grid; grid-template-columns:1fr; padding:var(--space-5); }
-  .fi-ui .profile-save-cluster { display:grid; grid-template-columns:1fr; justify-items:stretch; }
-  .fi-ui .profile-save-status { text-align:center; }
-  .fi-ui .profile-save-cluster .btn-primary { grid-row:1; width:100%; }
+  .fi-ui .profile-preferences-view .fi-page-header { margin-bottom:14px; }
+  .fi-ui .profile-experience-grid { gap:12px; }
+  .fi-ui .profile-summary-card { grid-template-columns:1fr; padding:16px; }
+  .fi-ui .profile-summary-identity { gap:12px; }
+  .fi-ui .profile-avatar-xl { width:58px; height:58px; border-radius:18px; }
+  .fi-ui .profile-switch-cta { width:100%; margin-top:14px; }
+  .fi-ui .profile-save-rail { top:68px; display:grid; grid-template-columns:1fr; gap:10px; padding:12px 14px; }
+  .fi-ui .profile-save-cluster { justify-content:space-between; }
+  .fi-ui .profile-settings-section { padding:18px 16px; scroll-margin-top:154px; }
+  .fi-ui .profile-settings-head { margin-bottom:16px; }
+  .fi-ui .profile-settings-head p { font-size:11px; }
+  .fi-ui .profile-identity-fields { grid-template-columns:1fr; }
+  .fi-ui .profile-control-card,.fi-ui .profile-number-card { padding:14px; }
+  .fi-ui .profile-reset-body { display:grid; }
+  .fi-ui .profile-reset-body .btn { width:100%; }
+  .fi-ui .profile-switch-dialog-v2 { width:calc(100vw - 20px); max-height:min(82dvh,720px); margin:auto 10px 10px; border-radius:20px; }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  .fi-ui .profile-reset-panel summary span:last-child { transition:none; }
 }
