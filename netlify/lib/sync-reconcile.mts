@@ -1,4 +1,4 @@
-const PLACEMENT_FIELDS = ['placementState', 'printerName', 'feederName', 'feederSlot', 'loadedAt'] as const;
+const PLACEMENT_FIELDS = ['placementState', 'printerId', 'printerName', 'feederId', 'feederName', 'feederSlot', 'loadedAt'] as const;
 const META_FIELDS = new Set(['id', 'createdAt', 'updatedAt', ...PLACEMENT_FIELDS]);
 
 type JsonRecord = Record<string, any>;
