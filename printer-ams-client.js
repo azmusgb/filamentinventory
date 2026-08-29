@@ -54,6 +54,13 @@
     return measurement.source === 'Measured' ? 'measured' : 'estimated';
   }
 
+  function slotLabel(spool) {
+    const feeder = text(spool.feederName);
+    const slot = text(spool.feederSlot);
+    if (!feeder) return 'Direct / external spool';
+    return [feeder, slot ? `Slot ${slot}` : ''].filter(Boolean).join(' · ');
+  }
+
   function attentionRows(state) {
     const summary = core.summary(state);
     const rows = [];
@@ -67,13 +74,6 @@
       rows.push({kind:'low', spool, title:`${spool.id} is low`, detail:`${Math.round(measurement.grams)} g remaining · ${slotLabel(spool)}`});
     });
     return rows;
-  }
-
-  function slotLabel(spool) {
-    const feeder = text(spool.feederName);
-    const slot = text(spool.feederSlot);
-    if (!feeder) return 'Direct / external spool';
-    return [feeder, slot ? `Slot ${slot}` : ''].filter(Boolean).join(' · ');
   }
 
   function renderMetrics(state) {
@@ -146,7 +146,7 @@
     </button>`;
   }
 
-  function feederBoard(state, printer, feeder, loaded) {
+  function feederBoard(printer, feeder, loaded) {
     const slots = core.slotsForFeeder(feeder);
     const occupied = loaded.filter(spool => isLoadedOnPrinter(spool, printer) && isLoadedInFeeder(spool, feeder));
     const cards = slots.map(slot => {
@@ -159,7 +159,7 @@
     </section>`;
   }
 
-  function directBoard(printer, rows) {
+  function directBoard(rows) {
     if (!rows.length) return '';
     return `<section class="ams-feeder"><header class="ams-feeder-head"><div><span class="eyebrow">External</span><h4>Direct / external spool</h4></div><span>${rows.length} loaded</span></header><div class="ams-slot-grid ams-direct-grid">${rows.map((spool,index) => spoolCard(spool,index + 1)).join('')}</div></section>`;
   }
@@ -192,7 +192,7 @@
       const slotTotal = printer.feeders.reduce((sum,feeder) => sum + core.slotsForFeeder(feeder).length,0);
       return `<article class="ams-printer-board" data-printer-id="${esc(printer.id)}">
         <header class="ams-printer-head"><div><span class="eyebrow">Printer</span><h3>${esc(printer.name)}</h3></div><span>${onPrinter.length}${slotTotal ? ` / ${slotTotal} slots` : ' loaded'}</span></header>
-        ${printer.feeders.map(feeder => feederBoard(state, printer, feeder, loaded)).join('')}${directBoard(printer,direct)}
+        ${printer.feeders.map(feeder => feederBoard(printer, feeder, loaded)).join('')}${directBoard(direct)}
       </article>`;
     }).join('')}`;
   }
@@ -216,11 +216,16 @@
     }
   }
 
+  function observeNow() {
+    observer?.observe(document.body,{childList:true,subtree:true});
+  }
+
   function apply() {
     scheduled = false;
     if (applying) return;
     if (document.getElementById('householdView')?.dataset.printerCommand !== '3') return;
     applying = true;
+    observer?.disconnect();
     try {
       const state = readState();
       document.documentElement.classList.add('ams-first-printer-ui');
@@ -231,6 +236,7 @@
       refineSectionChrome();
     } finally {
       applying = false;
+      observeNow();
     }
   }
 
@@ -278,7 +284,7 @@
       const relevant = records.some(record => record.target.closest?.('#householdView') || [...record.addedNodes].some(node => node.nodeType === Node.ELEMENT_NODE && (node.id === 'householdView' || node.querySelector?.('#householdView'))));
       if (relevant) schedule();
     });
-    observer.observe(document.body,{childList:true,subtree:true});
+    observeNow();
   }
 
   function init() {
