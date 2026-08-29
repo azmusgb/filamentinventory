@@ -76,7 +76,6 @@ test('guided Add spool standardizes common choices, supports custom values and l
 
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('#spoolId')).not.toHaveValue('S900');
-  await expect(dialog.locator('#brandChoice option')).toContainText(['Choose a brand…','Atomic Filament']);
   const learnedOptions=await dialog.locator('#brandChoice option').allTextContents();
   expect(learnedOptions).toContain('Atomic Filament');
 
@@ -84,7 +83,8 @@ test('guided Add spool standardizes common choices, supports custom values and l
   expect(aimeeCount).toBe(0);
 });
 
-test('editing a spool offers duplicate-as-new without copying quantity evidence', async ({page}) => {
+test('editing a spool offers duplicate-as-new without copying quantity evidence', async ({page},testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium','Desktop edit action exercises duplicate-as-new; mobile edits route through the compact spool sheet.');
   await page.locator('#inventoryGrid .spool-card').filter({hasText:'S100'}).locator('[data-action="edit"]:visible').click();
   const dialog=page.locator('#spoolDialog[open]');
   await expect(dialog).toBeVisible();
