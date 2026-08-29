@@ -163,18 +163,22 @@ test('service worker activates the current PWA shell cache with V11 assets', asy
       printJob:Boolean(await cache?.match('/css/components/print-job.css')),
       inventoryMobile:Boolean(await cache?.match('/css/components/inventory-mobile.css')),
       inventoryCards:Boolean(await cache?.match('/inventory-card-client.js')),
+      printerAms:Boolean(await cache?.match('/css/components/printer-ams.css')),
+      printerAmsClient:Boolean(await cache?.match('/printer-ams-client.js')),
       appShell:Boolean(await cache?.match('/app-shell-client.js')),
       pwaRuntime:Boolean(await cache?.match('/pwa-client.js')),
     };
   });
   expect(result).not.toBeNull();
   expect(result.script).toContain('/sw.js');
-  expect(result.cacheName).toBe('filament-inventory-v39');
+  expect(result.cacheName).toBe('filament-inventory-v40');
   expect(result.shell).toBe(true);
   expect(result.workflows).toBe(true);
   expect(result.printJob).toBe(true);
   expect(result.inventoryMobile).toBe(true);
   expect(result.inventoryCards).toBe(true);
+  expect(result.printerAms).toBe(true);
+  expect(result.printerAmsClient).toBe(true);
   expect(result.appShell).toBe(true);
   expect(result.pwaRuntime).toBe(true);
 });
