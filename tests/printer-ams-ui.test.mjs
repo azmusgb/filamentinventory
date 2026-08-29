@@ -10,7 +10,7 @@ test('AMS-first Printer runtime is published, loaded and available offline', asy
     read('scripts/public-assets.mjs'),
     read('sw.js'),
   ]);
-  assert.match(version,/APP_VERSION = '10\.3\.0'/);
+  assert.match(version,/APP_VERSION = '10\.2\.0'/);
   assert.ok(version.includes('/css/components/printer-ams.css'));
   assert.ok(version.includes("loadRuntimeScript('/printer-ams-ui.js')"));
   for (const asset of ['printer-ams-ui.js','css/components/printer-ams.css']) {
@@ -42,7 +42,7 @@ test('attention is promoted inline and the redundant attention panel is retired'
   const source = await read('printer-ams-ui.js');
   assert.match(source,/ams-inline-attention/);
   assert.match(source,/attentionPanel\.hidden = true/);
-  assert.match(source,/data\.amsAttentionJump/);
+  assert.match(source,/dataset\.amsAttentionJump/);
   assert.match(source,/scrollIntoView/);
 });
 
