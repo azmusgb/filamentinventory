@@ -166,8 +166,8 @@ html.fi-v11.fi-cohesion-release .profile-save-cluster {
     flex-wrap: wrap;
   }
 
-  html.fi-v11.fi-cohesion-release .fi-cohesion-inline-action {
-    min-height: 36px;
+  html.fi-v11.fi-cohesion-release .fi-home-drilldown {
+    display: none;
   }
 
   html.fi-v11.fi-cohesion-release .fi-page-inventory .fi-spool-details-action {
@@ -178,13 +178,19 @@ html.fi-v11.fi-cohesion-release .profile-save-cluster {
     min-height: 30px;
     place-items: center;
     padding: 0;
+    border: 1px solid var(--color-border-subtle);
     border-radius: 9px;
+    background: var(--color-surface-raised);
+    color: var(--color-text-muted);
     font-size: 0;
+    font-weight: 400;
   }
 
   html.fi-v11.fi-cohesion-release .fi-page-inventory .fi-spool-details-action::after {
     content: '•••';
+    font-family: var(--font-body);
     font-size: 12px;
+    font-weight: 400;
     line-height: 1;
   }
 
