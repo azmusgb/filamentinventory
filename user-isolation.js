@@ -55,7 +55,7 @@
   }
 
   function splitLegacyState(input,{schemaVersion=10,at=nowIso()}={}){
-    const legacy=input&&Array.isArray(input.spools)?input:{spools:[],weighLog:[],auditLog:[],printJobs:[],tombstones:{},meta:{}};
+    const legacy=input&&Array.isArray(input.spools)?input:{spools:[],printers:[],weighLog:[],auditLog:[],printJobs:[],tombstones:{},meta:{}};
     const states={};
     const spoolOwners=new Map();
     const deletedOwners=new Map();
@@ -63,13 +63,14 @@
     for(const row of legacy.auditLog||[]){const id=lowerId(row?.spoolId);const owner=strictOwner(row?.owner)||strictOwner(row?.actor)||spoolOwners.get(id)||null;if(id&&owner)deletedOwners.set(id,owner);}
     for(const owner of OWNERS){
       const spools=(legacy.spools||[]).filter(spool=>(strictOwner(spool?.owner)||'Bill')===owner).map(spool=>({...spool,owner}));
+      const printers=(Array.isArray(legacy.printers)?legacy.printers:[]).filter(printer=>(strictOwner(printer?.owner)||'Bill')===owner).map(printer=>({...printer,owner}));
       const ids=new Set(spools.map(spool=>lowerId(spool.id)).filter(Boolean));
       const weighLog=(legacy.weighLog||[]).filter(row=>{const id=lowerId(row?.id);return (spoolOwners.get(id)||deletedOwners.get(id)||'Bill')===owner;});
       const auditLog=(legacy.auditLog||[]).filter(row=>(ownerForAudit(row,spoolOwners)||'Bill')===owner).map(row=>({...row,owner:strictOwner(row?.owner)||owner}));
       const printJobs=(legacy.printJobs||[]).filter(row=>ids.has(lowerId(row?.spoolId)));
       const tombstones={};
       for(const [idRaw,when] of Object.entries(legacy.tombstones||{})){const id=lowerId(idRaw);const tombOwner=spoolOwners.get(id)||deletedOwners.get(id)||'Bill';if(id&&tombOwner===owner)tombstones[id]=when;}
-      states[owner]={...legacy,version:Math.max(Number(legacy.version)||0,schemaVersion),profile:owner,savedAt:at,meta:{...(legacy.meta||{}),userIsolationMigratedAt:at},spools,weighLog,auditLog,printJobs,tombstones};
+      states[owner]={...legacy,version:Math.max(Number(legacy.version)||0,schemaVersion),profile:owner,savedAt:at,meta:{...(legacy.meta||{}),userIsolationMigratedAt:at},spools,printers,weighLog,auditLog,printJobs,tombstones};
     }
     return states;
   }
@@ -78,14 +79,15 @@
     if(!input||!Array.isArray(input.spools))return input;
     const current=normalizeOwner(owner);
     const allowedSpools=input.spools.filter(spool=>{const declared=strictOwner(spool?.owner);return !declared||declared===current;}).map(spool=>({...spool,owner:current}));
+    const printers=(Array.isArray(input.printers)?input.printers:[]).filter(printer=>{const declared=strictOwner(printer?.owner);return !declared||declared===current;}).map(printer=>({...printer,owner:current}));
     const ids=new Set(allowedSpools.map(spool=>lowerId(spool.id)).filter(Boolean));
     const auditLog=(Array.isArray(input.auditLog)?input.auditLog:[]).filter(row=>{const declared=strictOwner(row?.owner);if(declared)return declared===current;const id=lowerId(row?.spoolId);return !id||ids.has(id)||strictOwner(row?.actor)===current;}).map(row=>({...row,owner:strictOwner(row?.owner)||current}));
     const weighLog=(Array.isArray(input.weighLog)?input.weighLog:[]).filter(row=>ids.has(lowerId(row?.id)));
     const printJobs=(Array.isArray(input.printJobs)?input.printJobs:[]).filter(row=>ids.has(lowerId(row?.spoolId)));
-    return {...input,version:Math.max(Number(input.version)||0,schemaVersion),profile:current,spools:allowedSpools,weighLog,auditLog,printJobs};
+    return {...input,version:Math.max(Number(input.version)||0,schemaVersion),profile:current,spools:allowedSpools,printers,weighLog,auditLog,printJobs};
   }
 
-  function emptyState(owner,schemaVersion=10,{at=nowIso(),meta={}}={}){return {version:schemaVersion,profile:normalizeOwner(owner),savedAt:at,meta,spools:[],weighLog:[],auditLog:[],printJobs:[],tombstones:{}};}
+  function emptyState(owner,schemaVersion=10,{at=nowIso(),meta={}}={}){return {version:schemaVersion,profile:normalizeOwner(owner),savedAt:at,meta,spools:[],printers:[],weighLog:[],auditLog:[],printJobs:[],tombstones:{}};}
 
   function starterState(owner='Bill',schemaVersion=10,{at=nowIso()}={}){
     const current=normalizeOwner(owner);

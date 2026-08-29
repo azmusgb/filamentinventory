@@ -8,14 +8,15 @@
 
   const MAX_AUDIT_ENTRIES = 1500;
   const MAX_PRINT_JOBS = 250;
+  const MAX_PRINTERS = 50;
 
   function timestamp(value) {
     const parsed = Date.parse(String(value || ''));
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
-  function recordTime(spool) {
-    return Math.max(timestamp(spool?.updatedAt), timestamp(spool?.createdAt));
+  function recordTime(record) {
+    return Math.max(timestamp(record?.updatedAt), timestamp(record?.createdAt));
   }
 
   function printJobTime(job) {
@@ -80,6 +81,23 @@
       .slice(-Math.max(1, Number(limit) || MAX_PRINT_JOBS));
   }
 
+  function mergePrinters(currentValue, incomingValue, limit = MAX_PRINTERS) {
+    const map = new Map();
+    for (const row of [
+      ...(Array.isArray(currentValue) ? currentValue : []),
+      ...(Array.isArray(incomingValue) ? incomingValue : []),
+    ]) {
+      const id = String(row?.id || '').trim();
+      const name = String(row?.name || '').trim();
+      if (!id || !name) continue;
+      const old = map.get(id.toLowerCase());
+      if (!old || recordTime(row) >= recordTime(old)) map.set(id.toLowerCase(), row);
+    }
+    return [...map.values()]
+      .sort((a,b) => String(a.name).localeCompare(String(b.name), undefined, {numeric:true}))
+      .slice(0, Math.max(1, Number(limit) || MAX_PRINTERS));
+  }
+
   function mergeBackupStates(currentRaw, incomingRaw) {
     const current = currentRaw && typeof currentRaw === 'object' ? currentRaw : {};
     const incoming = incomingRaw && typeof incomingRaw === 'object' ? incomingRaw : {};
@@ -122,6 +140,7 @@
     const weighLog = [...logs.values()].sort((a, b) => timestamp(a?.at) - timestamp(b?.at));
     const auditLog = mergeAuditLogs(current.auditLog, incoming.auditLog);
     const printJobs = mergePrintJobs(current.printJobs, incoming.printJobs);
+    const printers = mergePrinters(current.printers, incoming.printers);
     const version = Math.max(Number(current.version) || 0, Number(incoming.version) || 0);
 
     return {
@@ -129,6 +148,7 @@
       ...incoming,
       version,
       spools,
+      printers,
       weighLog,
       auditLog,
       printJobs,
@@ -139,8 +159,10 @@
 
   return Object.freeze({
     MAX_PRINT_JOBS,
+    MAX_PRINTERS,
     mergeAuditLogs,
     mergePrintJobs,
+    mergePrinters,
     mergeBackupStates,
     mergeTombstones,
     normalizeTombstones,

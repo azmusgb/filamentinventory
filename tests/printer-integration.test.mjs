@@ -11,11 +11,19 @@ test('browser loads printer planning before private Printer UI and app mutations
   assert.deepEqual(order, [...order].sort((a,b) => a-b));
 });
 
-test('V11 Printer is loaded-first and preserves authoritative placement controls', async () => {
+test('V11 Printer is registry-first while preserving authoritative placement controls', async () => {
   const client = await read('printer-dashboard.js');
-  assert.match(client, /<h2 id="householdTitle">Loaded filament<\/h2>/);
+  assert.match(client, /<h2 id="householdTitle">Printers & loaded filament<\/h2>/);
+  assert.match(client, /Configure each printer once/);
+  assert.match(client, /<h3>My printers<\/h3>/);
+  assert.match(client, /data-printer-add/);
+  assert.match(client, /id="printerConfigManufacturer"/);
+  assert.match(client, /id="printerFeederRows"/);
   assert.match(client, /Current printer, feeder and slot occupancy/);
   assert.match(client, /id="moveSpoolV8"/);
+  assert.match(client, /id="movePrinterV8"/);
+  assert.match(client, /id="moveFeederV8"/);
+  assert.match(client, /id="moveSlotV8"/);
   assert.match(client, /Load \/ move spool/);
   assert.match(client, /Needs attention/);
   assert.match(client, /data-printer-scan/);
@@ -27,11 +35,13 @@ test('placement writes continue through one local state boundary for audit and s
   const client = await read('printer-dashboard.js');
   const writes = client.match(/localStorage\.setItem\(STORAGE_KEY/g) || [];
   assert.equal(writes.length,1,'Printer should centralize persistence in writeState');
-  assert.match(client, /function writeState\(value\).*localStorage\.setItem\(STORAGE_KEY,JSON\.stringify\(value\)\)/s);
-  assert.match(client, /function setPlacement\(id,placement\)/);
+  assert.match(client, /function writeState\(value\).*localStorage\.setItem\(STORAGE_KEY,\s*JSON\.stringify\(value\)\)/s);
+  assert.match(client, /function setPlacement\(id, placement\)/);
   assert.match(client, /updatedAt:nowIso\(\)/);
   assert.match(client, /placementState:'Stored'/);
   assert.match(client, /placementState:'Loaded'/);
+  assert.match(client, /printerId/);
+  assert.match(client, /feederId/);
   assert.doesNotMatch(client, /fetch\(/);
 });
 

@@ -36,13 +36,16 @@ test('sync client sends, fingerprints and applies the shared audit ledger', asyn
   assert.match(source, /auditLog:Array\.isArray\(remote\.auditLog\) \? remote\.auditLog : \[\]/);
 });
 
-test('sync function normalizes and merges audit events alongside the print-job ledger', async () => {
+test('sync function normalizes and merges audit events alongside printer and print-job ledgers', async () => {
   const source = await readFile(new URL('../netlify/functions/sync.mts', import.meta.url), 'utf8');
   assert.match(source, /const MAX_AUDIT = 1500;/);
+  assert.match(source, /const MAX_PRINTERS = 50;/);
   assert.match(source, /const MAX_PRINT_JOBS = 250;/);
+  assert.match(source, /printers:normalizePrinters\(value\?\.printers\)/);
   assert.match(source, /auditLog:normalizeAuditLog\(value\?\.auditLog\)/);
   assert.match(source, /printJobs:normalizePrintJobs\(value\?\.printJobs\)/);
+  assert.match(source, /const printers = mergePrinters\(remote\.printers, incoming\.printers\);/);
   assert.match(source, /const auditLog = normalizeAuditLog\(\[\.\.\.remote\.auditLog, \.\.\.incoming\.auditLog\]\);/);
   assert.match(source, /const printJobs = mergePrintJobs\(remote\.printJobs, incoming\.printJobs\);/);
-  assert.match(source, /state:\{ version, spools, weighLog, auditLog, printJobs, tombstones \}/);
+  assert.match(source, /state:\{ version, spools, printers, weighLog, auditLog, printJobs, tombstones \}/);
 });

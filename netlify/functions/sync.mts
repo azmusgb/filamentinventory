@@ -7,6 +7,7 @@ declare const Netlify: any;
 
 const STORE_NAME = 'filament-inventory-sync';
 const MAX_SPOOLS = 5000;
+const MAX_PRINTERS = 50;
 const MAX_LOGS = 5000;
 const MAX_AUDIT = 1500;
 const MAX_PRINT_JOBS = 250;
@@ -75,8 +76,8 @@ function timestamp(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function recordTime(spool: any): number {
-  return Math.max(timestamp(spool?.updatedAt), timestamp(spool?.createdAt));
+function recordTime(record: any): number {
+  return Math.max(timestamp(record?.updatedAt), timestamp(record?.createdAt));
 }
 
 function printJobTime(job: any): number {
@@ -160,12 +161,68 @@ export function mergePrintJobs(remoteValue: unknown, incomingValue: unknown): an
   ]);
 }
 
+function normalizeFeeder(raw: any, index: number) {
+  const name = String(raw?.name || `Feeder ${index + 1}`).trim().slice(0,80);
+  const type = String(raw?.type || (/\bams\b/i.test(name) ? 'AMS' : 'Feeder')).trim().slice(0,40);
+  const requested = Number(raw?.slotCount);
+  const slotCount = Math.max(1, Math.min(16, Number.isFinite(requested) ? Math.round(requested) : (/\bams\b/i.test(`${type} ${name}`) ? 4 : 1)));
+  return {
+    ...raw,
+    id:String(raw?.id || `feeder-${index + 1}`).trim().slice(0,80),
+    name,
+    type,
+    slotCount,
+  };
+}
+
+export function normalizePrinters(value: unknown): any[] {
+  const map = new Map<string,any>();
+  for (const [index, raw] of (Array.isArray(value) ? value : []).entries()) {
+    if (!raw || typeof raw !== 'object') continue;
+    const id = String(raw?.id || '').trim().slice(0,80);
+    const name = String(raw?.name || '').trim().slice(0,80);
+    if (!id || !name) continue;
+    const normalized = {
+      ...raw,
+      id,
+      name,
+      manufacturer:String(raw?.manufacturer || '').trim().slice(0,80),
+      model:String(raw?.model || '').trim().slice(0,80),
+      location:String(raw?.location || '').trim().slice(0,100),
+      nozzleSize:String(raw?.nozzleSize || '').trim().slice(0,24),
+      nozzleMaterial:String(raw?.nozzleMaterial || '').trim().slice(0,60),
+      buildPlate:String(raw?.buildPlate || '').trim().slice(0,100),
+      serialNumber:String(raw?.serialNumber || '').trim().slice(0,100),
+      firmware:String(raw?.firmware || '').trim().slice(0,80),
+      notes:String(raw?.notes || '').trim().slice(0,1000),
+      owner:String(raw?.owner || '').trim().slice(0,40),
+      feeders:(Array.isArray(raw?.feeders) ? raw.feeders : []).slice(0,16).map(normalizeFeeder),
+      createdAt:String(raw?.createdAt || ''),
+      updatedAt:String(raw?.updatedAt || raw?.createdAt || ''),
+      archivedAt:raw?.archivedAt ? String(raw.archivedAt) : null,
+    };
+    const old = map.get(id.toLowerCase());
+    if (!old || recordTime(normalized) >= recordTime(old)) map.set(id.toLowerCase(), normalized);
+  }
+  return [...map.values()]
+    .sort((a,b) => String(a.name).localeCompare(String(b.name), undefined, {numeric:true}))
+    .slice(0, MAX_PRINTERS);
+}
+
+export function mergePrinters(remoteValue: unknown, incomingValue: unknown): any[] {
+  return normalizePrinters([
+    ...(Array.isArray(remoteValue) ? remoteValue : []),
+    ...(Array.isArray(incomingValue) ? incomingValue : []),
+  ]);
+}
+
 export function normalizeState(value: any) {
   const spools = Array.isArray(value?.spools) ? value.spools.filter((s:any) => s && String(s.id || '').trim()).slice(0, MAX_SPOOLS) : [];
   const weighLog = Array.isArray(value?.weighLog) ? value.weighLog.filter((x:any) => x && String(x.id || '').trim()).slice(-MAX_LOGS) : [];
   return {
     version:Math.max(Number(value?.version) || 0, 5),
     spools,
+    printers:normalizePrinters(value?.printers),
     weighLog,
     auditLog:normalizeAuditLog(value?.auditLog),
     printJobs:normalizePrintJobs(value?.printJobs),
@@ -269,10 +326,11 @@ export function mergeStates(remoteRaw: any, incomingRaw: any) {
   const weighLog = [...logMap.values()].sort((a,b) => timestamp(a.at) - timestamp(b.at)).slice(-MAX_LOGS);
   const auditLog = normalizeAuditLog([...remote.auditLog, ...incoming.auditLog]);
   const printJobs = mergePrintJobs(remote.printJobs, incoming.printJobs);
+  const printers = mergePrinters(remote.printers, incoming.printers);
   const version = Math.max(Number(remote.version) || 0, Number(incoming.version) || 0, 5);
 
   return {
-    state:{ version, spools, weighLog, auditLog, printJobs, tombstones },
+    state:{ version, spools, printers, weighLog, auditLog, printJobs, tombstones },
     stats:{ incomingWins, remoteWins, deletedApplied }
   };
 }
@@ -306,6 +364,7 @@ async function listSnapshots(store: ReturnType<typeof getStore>, hash: string) {
       revision:item.revision,
       createdAt:item.updatedAt,
       spoolCount:item.state.spools.length,
+      printerCount:item.state.printers.length,
       logCount:item.state.weighLog.length,
       printJobCount:item.state.printJobs.length,
     });
@@ -414,7 +473,7 @@ export default async (req: Request) => {
       updatedAt:at,
       state:merged.state,
       devices:updateDevices(current?.devices || [], device, 'sync', at),
-      activity:addActivity(current?.activity || [], device, 'sync', `${merged.state.spools.length} spools · ${merged.state.weighLog.length} measurements · ${merged.state.printJobs.length} print jobs`, at),
+      activity:addActivity(current?.activity || [], device, 'sync', `${merged.state.spools.length} spools · ${merged.state.printers.length} printers · ${merged.state.weighLog.length} measurements · ${merged.state.printJobs.length} print jobs`, at),
     };
     await store.setJSON(blobKey, next);
     return json({ ok:true, state:next.state, meta:publicMeta(next), merge:{...merged.stats, concurrent, changed:true} });
