@@ -20,7 +20,7 @@ async function boot(page) {
     localStorage.setItem('filament-user-isolation-v1',JSON.stringify({at:'2026-08-28T20:00:00.000Z',schemaVersion:10,cloudIsolation:'profile-scoped'}));
     localStorage.setItem('filament-user-v1:bill:inventory',JSON.stringify(bill));
     localStorage.setItem('filament-user-v1:aimee:inventory',JSON.stringify(aimee));
-    localStorage.setItem('filament-user-v1:bill:preferences',JSON.stringify({version:2,identity:{displayName:'Bill',initials:'BR'},appearance:{theme:'dark',accent:'teal',density:'comfortable'},workspace:{startView:'inventory',dashboardDetail:'balanced'},printing:{safetyMargin:10,defaultReorderGrams:250,defaultStartWeight:1000}}));
+    localStorage.setItem('filament-user-v1:bill:preferences',JSON.stringify({version:2,identity:{displayName:'Bill',initials:'BR'},appearance:{theme:'dark',accent:'teal',density:'comfortable'},workspace:{startView:'inventory',dashboardDetail:'balanced'},printing:{safetyMargin:10,defaultReorderGrams:200,defaultStartWeight:750}}));
   },{
     bill:state('Bill',[spool(),spool({id:'S101',brand:'Bambu Lab',material:'PETG HF',colorName:'Black',colorHex:'#111827',location:'Dry box',purchaseSource:'Bambu Lab'})]),
     aimee:state('Aimee',[]),
@@ -39,6 +39,10 @@ test('guided Add spool standardizes common choices, supports custom values and l
   const dialog=page.locator('#spoolDialog[open]');
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('.spool-intake-summary')).toBeVisible();
+  await expect(dialog.locator('#startWeight')).toHaveValue('750');
+  await expect(dialog.locator('#reorderThreshold')).toHaveValue('200');
+  await expect(dialog.locator('[data-intake-next]')).toContainText('Next: brand');
+  await expect(dialog.locator('.spool-quick-start')).toBeVisible();
 
   const brand=dialog.locator('#brandChoice');
   await expect(brand).toBeVisible();
@@ -76,11 +80,40 @@ test('guided Add spool standardizes common choices, supports custom values and l
 
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('#spoolId')).not.toHaveValue('S900');
+  await expect(dialog.locator('#startWeight')).toHaveValue('750');
   const learnedOptions=await dialog.locator('#brandChoice option').allTextContents();
   expect(learnedOptions).toContain('Atomic Filament');
 
   const aimeeCount=await page.evaluate(() => (JSON.parse(localStorage.getItem('filament-user-v1:aimee:inventory')||'{}').spools||[]).length);
   expect(aimeeCount).toBe(0);
+});
+
+test('recent spool template copies safe product identity and post-save flow can jump directly to weighing', async ({page}) => {
+  await page.locator('#inventoryAddBtn:visible').click();
+  const dialog=page.locator('#spoolDialog[open]');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('#startWeight')).toHaveValue('750');
+  await expect(dialog.locator('#reorderThreshold')).toHaveValue('200');
+
+  const template=dialog.locator('[data-spool-template="S101"]');
+  await expect(template).toBeVisible();
+  await template.click();
+  await expect(dialog.locator('#brand')).toHaveValue('Bambu Lab');
+  await expect(dialog.locator('#material')).toHaveValue('PETG HF');
+  await expect(dialog.locator('#colorName')).toHaveValue('Black');
+  await expect(dialog.locator('#startWeight')).toHaveValue('1000');
+  await expect(dialog.locator('#visualPercent')).toHaveValue('');
+  await expect(dialog.locator('#grossEdit')).toHaveValue('');
+  await expect(dialog.locator('#tareEdit')).toHaveValue('');
+
+  await dialog.locator('#spoolId').fill('S901');
+  await dialog.locator('.dialog-actions button[type="submit"]').click();
+  const next=page.locator('#spoolNextDialog[open]');
+  await expect(next).toBeVisible();
+  await expect(next.locator('[data-spool-next-copy]')).toContainText('S901 is in inventory');
+  await next.locator('[data-spool-next="weigh"]').click();
+  await expect(page.locator('#weighView')).toHaveClass(/active/);
+  await expect(page.locator('#weighSpool')).toHaveValue('S901');
 });
 
 test('editing a spool offers duplicate-as-new without copying quantity evidence', async ({page}) => {
@@ -95,6 +128,7 @@ test('editing a spool offers duplicate-as-new without copying quantity evidence'
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('[data-spool-duplicate]')).toBeVisible();
   await expect(dialog.locator('[data-spool-save-another]')).toBeHidden();
+  await expect(dialog.locator('.spool-quick-start')).toBeHidden();
   await dialog.locator('[data-spool-duplicate]').click();
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('#spoolId')).not.toHaveValue('S100');
