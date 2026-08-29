@@ -53,6 +53,15 @@
     if (progress) progress.hidden = evidence.tone === 'unknown';
   }
 
+  function openSpool(id) {
+    const actions = globalThis.FilamentInventorySpoolActions;
+    if (actions?.openPhysical) return actions.openPhysical(id,{source:'inventory'}) !== false;
+    if (actions?.open) return actions.open(id,{source:'inventory'}) !== false;
+    const fallback = document.querySelector(`[data-spool-actions-open="${CSS.escape(id)}"]`);
+    if (fallback) { fallback.click(); return true; }
+    return false;
+  }
+
   function ensureDetailsAction(card) {
     const head = card.querySelector('.spool-head');
     const id = String(card.dataset.id || '').trim();
@@ -67,12 +76,30 @@
     head.appendChild(button);
   }
 
+  function ensureIdentityAction(card) {
+    const id = String(card.dataset.id || '').trim();
+    const target = card.querySelector('.spool-title');
+    if (!id || !target || target.dataset.inventoryOpenBound === '1') return;
+    target.dataset.inventoryOpenBound = '1';
+    target.tabIndex = 0;
+    target.setAttribute('role','button');
+    target.setAttribute('aria-label',`Open ${id} spool details`);
+    target.title = 'Open spool details';
+    target.addEventListener('click',() => openSpool(id));
+    target.addEventListener('keydown',event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      openSpool(id);
+    });
+  }
+
   function enhanceCard(card) {
     if (!(card instanceof HTMLElement)) return;
     card.classList.add('inventory-card-compact');
     normalizeConfidence(card);
     compactEvidence(card);
     ensureDetailsAction(card);
+    ensureIdentityAction(card);
   }
 
   function enhance() {
