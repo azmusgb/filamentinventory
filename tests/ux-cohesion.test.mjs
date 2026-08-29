@@ -4,13 +4,19 @@ import test from 'node:test';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('cohesion release assets are bootstrapped and included in the production build', async () => {
-  const [bridge, assets] = await Promise.all([read('ui-v10-client.js'), read('scripts/public-assets.mjs')]);
+test('cohesion release assets are bootstrapped, built and available offline', async () => {
+  const [bridge, assets, serviceWorker] = await Promise.all([
+    read('ui-v10-client.js'),
+    read('scripts/public-assets.mjs'),
+    read('sw.js'),
+  ]);
   assert.match(bridge, /ensureCohesionAssets/);
   assert.match(bridge, /css\/components\/ux-cohesion\.css/);
   assert.match(bridge, /ux-cohesion-client\.js/);
   assert.match(assets, /css\/components\/ux-cohesion\.css/);
   assert.match(assets, /ux-cohesion-client\.js/);
+  assert.match(serviceWorker, /css\/components\/ux-cohesion\.css/);
+  assert.match(serviceWorker, /ux-cohesion-client\.js/);
 });
 
 test('cohesion client implements the cross-page UX contracts', async () => {
