@@ -46,12 +46,13 @@
 
   const TEMPLATE_FIELDS = Object.freeze(['brand','material','colorName','colorHex','spoolType','startWeight','confidence','reorderThreshold']);
   const REQUIRED_GUIDED = Object.freeze(['brand','material','colorName']);
+  const LEGACY_PLACEMENT_FIELDS = Object.freeze(['placementV8','printerV8','feederV8','slotV8']);
   let enhanced = false;
   let reopenAfterSave = false;
   let enhancementAttempts = 0;
   let wasOpen = false;
-  let pendingSave = null;
-  let postSaveId = '';
+  let suppressLegacyNextUntil = 0;
+  let legacyNextBound = false;
 
   function state() {
     try {
@@ -435,6 +436,36 @@
     if (Number.isFinite(reorder) && reorder >= 0 && $('reorderThreshold')) $('reorderThreshold').value = String(reorder);
   }
 
+  function markLegacyPlacementFields() {
+    for (const id of LEGACY_PLACEMENT_FIELDS) $(id)?.closest('.form-field')?.classList.add('spool-intake-placement-field');
+  }
+
+  function suppressLegacyChrome() {
+    markLegacyPlacementFields();
+    const banner = $('intakeBanner');
+    if (banner) banner.hidden = true;
+    document.querySelectorAll('#spoolDialog .intake-suggestions').forEach(node => { node.hidden = true; });
+  }
+
+  function bindLegacyNextSuppression() {
+    const dialog = $('intakeNextDialog');
+    if (dialog && !dialog.dataset.guidedSuppressionBound) {
+      dialog.dataset.guidedSuppressionBound = '1';
+      new MutationObserver(() => {
+        if (dialog.open && Date.now() < suppressLegacyNextUntil) dialog.close();
+      }).observe(dialog,{attributes:true,attributeFilter:['open']});
+      legacyNextBound = true;
+    }
+    if (legacyNextBound || !document.body) return;
+    const observer = new MutationObserver(() => {
+      if ($('intakeNextDialog')) {
+        observer.disconnect();
+        bindLegacyNextSuppression();
+      }
+    });
+    observer.observe(document.body,{childList:true,subtree:true});
+  }
+
   function launchAdd() {
     const button = $('inventoryAddBtn') || $('heroAddBtn') || $('addTopBtn');
     button?.click();
@@ -446,8 +477,14 @@
     const submit = form?.querySelector('button[type="submit"]');
     if (!form || !dialog || !submit) return;
     reopenAfterSave = true;
+    suppressLegacyNextUntil = Date.now() + 1500;
     form.requestSubmit(submit);
-    setTimeout(() => { if (dialog.open) reopenAfterSave = false; },160);
+    setTimeout(() => {
+      if (dialog.open) {
+        reopenAfterSave = false;
+        suppressLegacyNextUntil = 0;
+      }
+    },180);
   }
 
   function duplicateAsNew() {
@@ -487,85 +524,6 @@
     if (primary) primary.insertAdjacentElement('beforebegin',another);
   }
 
-  function ensureNextDialog() {
-    let dialog = $('spoolNextDialog');
-    if (dialog) return dialog;
-    dialog = document.createElement('dialog');
-    dialog.id = 'spoolNextDialog';
-    dialog.className = 'spool-next-dialog';
-    dialog.setAttribute('aria-labelledby','spoolNextTitle');
-    dialog.innerHTML = `<div class="dialog-head"><div><span class="eyebrow">Spool added</span><h3 id="spoolNextTitle">What next?</h3></div><button class="btn icon-btn" data-spool-next="done" type="button" aria-label="Close">×</button></div><div class="dialog-body"><p class="spool-next-copy" data-spool-next-copy>The spool is safely in inventory.</p><div class="spool-next-actions"><button class="btn btn-primary" data-spool-next="weigh" type="button">Weigh now</button><button class="btn" data-spool-next="open" type="button">Open spool</button><button class="btn" data-spool-next="another" type="button">Add another</button><button class="btn btn-ghost" data-spool-next="done" type="button">Done</button></div></div>`;
-    dialog.addEventListener('click',event => {
-      const action = event.target.closest('[data-spool-next]')?.dataset.spoolNext;
-      if (action) runNextAction(action);
-    });
-    document.body.appendChild(dialog);
-    return dialog;
-  }
-
-  function openNextDialog(id) {
-    const dialog = ensureNextDialog();
-    postSaveId = id;
-    const copy = dialog.querySelector('[data-spool-next-copy]');
-    if (copy) copy.textContent = `${id} is in inventory. You can verify its weight now or keep going.`;
-    if (!dialog.open) dialog.showModal();
-  }
-
-  function runNextAction(action) {
-    const dialog = $('spoolNextDialog');
-    const id = postSaveId;
-    dialog?.close();
-    if (action === 'another') {
-      setTimeout(launchAdd,20);
-      return;
-    }
-    if (action === 'open') {
-      setTimeout(() => globalThis.FilamentInventorySpoolActions?.open?.(id),20);
-      return;
-    }
-    if (action === 'weigh') {
-      globalThis.FilamentInventoryNavigation?.navigate?.('weigh',{historyMode:'push',focus:false});
-      setTimeout(() => {
-        const select = $('weighSpool');
-        if (select && [...select.options].some(option => option.value === id)) {
-          select.value = id;
-          dispatch(select);
-        }
-        $('grossWeight')?.focus({preventScroll:false});
-      },80);
-    }
-  }
-
-  function captureSubmit() {
-    if (text($('editOriginalId')?.value)) {
-      pendingSave = null;
-      return;
-    }
-    const id = text($('spoolId')?.value);
-    pendingSave = id ? {
-      id,
-      existedBefore:state().spools.some(spool => text(spool?.id).toLocaleLowerCase() === id.toLocaleLowerCase()),
-      addAnother:reopenAfterSave,
-    } : null;
-  }
-
-  function handleDialogClosed() {
-    const saved = pendingSave && !pendingSave.existedBefore && state().spools.some(spool => text(spool?.id).toLocaleLowerCase() === pendingSave.id.toLocaleLowerCase());
-    if (!saved) {
-      if (!wasOpen) {
-        pendingSave = null;
-        reopenAfterSave = false;
-      }
-      return;
-    }
-    const completed = pendingSave;
-    pendingSave = null;
-    reopenAfterSave = false;
-    refreshQuickStart();
-    if (completed.addAnother) setTimeout(launchAdd,30);
-    else setTimeout(() => openNextDialog(completed.id),40);
-  }
-
   function syncMode() {
     const editing = Boolean(text($('editOriginalId')?.value));
     const dialog = $('spoolDialog');
@@ -573,10 +531,14 @@
     const another = dialog?.querySelector('[data-spool-save-another]');
     const duplicate = dialog?.querySelector('[data-spool-duplicate]');
     const quickStart = dialog?.querySelector('.spool-quick-start');
+    const title = $('dialogTitle');
+    if (title) title.textContent = editing ? `Edit ${text($('editOriginalId')?.value)}` : 'Add spool';
     if (primary) primary.textContent = editing ? 'Save changes' : 'Add spool';
     if (another) another.hidden = editing;
     if (duplicate) duplicate.hidden = !editing;
     if (quickStart) quickStart.hidden = editing || !recentTemplates().length;
+    const advanced = dialog?.querySelector('.spool-form-advanced');
+    if (advanced && !editing) advanced.open = false;
   }
 
   function refreshGuidedControls() {
@@ -585,6 +547,7 @@
     syncNumberChoices('reorderThreshold');
     syncPercentChoices();
     syncColorSwatches();
+    suppressLegacyChrome();
     syncMode();
     updateSummary();
   }
@@ -592,11 +555,11 @@
   function prepareDialogSession() {
     const editing = Boolean(text($('editOriginalId')?.value));
     if (!editing) applyProfileDefaults();
-    const advanced = document.querySelector('#spoolDialog .spool-form-advanced');
-    if (advanced) advanced.open = false;
+    suppressLegacyChrome();
     refreshQuickStart();
     refreshGuidedControls();
     document.querySelector('#spoolDialog .dialog-body')?.scrollTo({top:0,behavior:'auto'});
+    setTimeout(refreshGuidedControls,60);
   }
 
   function enhance() {
@@ -622,13 +585,19 @@
     ensurePercentChoices();
     ensureColorSwatches();
     ensureActions();
-    ensureNextDialog();
-    form.addEventListener('submit',captureSubmit,true);
+    suppressLegacyChrome();
+    bindLegacyNextSuppression();
     form.addEventListener('input',updateSummary);
-    form.addEventListener('change',updateSummary);
+    form.addEventListener('change',() => {
+      suppressLegacyChrome();
+      updateSummary();
+    });
     new MutationObserver(() => {
       if (dialog.open && !wasOpen) prepareDialogSession();
-      if (!dialog.open && wasOpen) handleDialogClosed();
+      if (!dialog.open && wasOpen && reopenAfterSave) {
+        reopenAfterSave = false;
+        setTimeout(launchAdd,30);
+      }
       wasOpen = dialog.open;
     }).observe(dialog,{attributes:true,attributeFilter:['open']});
     wasOpen = dialog.open;
@@ -636,6 +605,7 @@
   }
 
   globalThis.FilamentInventorySpoolIntakeUI = Object.freeze({
+    ownsFlow:true,
     refresh:refreshGuidedControls,
     enhance,
     recentTemplates,
