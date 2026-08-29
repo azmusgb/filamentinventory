@@ -65,8 +65,14 @@ test('mobile user can add a printer, configure AMS and load a spool into a slot'
   await load.locator('#moveSlotV8').selectOption('1');
   await load.locator('[data-printer-load-save]').click();
 
-  await expect(page.locator('#printerBoard')).toContainText('T001');
-  await expect(page.locator('#printerBoard')).toContainText('AMS 1 · Slot 1');
+  const board = page.locator('#printerBoard .ams-printer-board');
+  await expect(board).toContainText('P1S');
+  await expect(board).toContainText('AMS 1');
+  await expect(board).toContainText('1 / 4 loaded');
+  await expect(board.locator('.ams-feeder .ams-slot-card')).toHaveCount(4);
+  await expect(board.locator('.ams-feeder .ams-slot-card').first()).toContainText('T001 · White');
+  await expect(board.locator('.ams-feeder .ams-slot-card').first()).toContainText('700 g · 70%');
+
   stored = await page.evaluate(() => JSON.parse(localStorage.getItem('filament-user-v1:bill:inventory') || '{}'));
   const spool = stored.spools.find(row => row.id === 'T001');
   expect(spool.printerName).toBe('P1S');
