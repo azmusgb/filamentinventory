@@ -83,9 +83,14 @@ test('guided Add spool standardizes common choices, supports custom values and l
   expect(aimeeCount).toBe(0);
 });
 
-test('editing a spool offers duplicate-as-new without copying quantity evidence', async ({page},testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium','Desktop edit action exercises duplicate-as-new; mobile edits route through the compact spool sheet.');
-  await page.locator('#inventoryGrid .spool-card').filter({hasText:'S100'}).locator('[data-action="edit"]:visible').click();
+test('editing a spool offers duplicate-as-new without copying quantity evidence', async ({page}) => {
+  const openSpool=page.locator('[data-spool-actions-open="S100"]:visible').first();
+  await expect(openSpool).toBeVisible();
+  await openSpool.click();
+  const actions=page.locator('#spoolActionDialog[open]');
+  await expect(actions).toBeVisible();
+  await actions.locator('[data-spool-sheet-action="edit"]').click();
+
   const dialog=page.locator('#spoolDialog[open]');
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('[data-spool-duplicate]')).toBeVisible();
