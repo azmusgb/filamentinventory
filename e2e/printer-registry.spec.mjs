@@ -24,7 +24,7 @@ async function seed(page) {
   },baseState);
 }
 
-test('mobile user can add a printer, configure AMS and load a spool into a slot', async ({ page }, testInfo) => {
+test('mobile user can add a printer, configure AMS and manage a true four-slot board', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-webkit','Printer setup is exercised in the iPhone/WebKit contract.');
   await seed(page);
   await page.goto('/');
@@ -44,6 +44,7 @@ test('mobile user can add a printer, configure AMS and load a spool into a slot'
   await config.locator('#printerConfigBuildPlate').fill('Textured PEI');
   await config.locator('button[type="submit"]').click();
 
+  await expect.poll(() => page.evaluate(() => Boolean(globalThis.FilamentInventoryAMSUI))).toBe(true);
   const registry = page.locator('#printerRegistry .printer-registry-card');
   await expect(registry).toHaveCount(1);
   await expect(registry).toContainText('P1S');
@@ -65,8 +66,22 @@ test('mobile user can add a printer, configure AMS and load a spool into a slot'
   await load.locator('#moveSlotV8').selectOption('1');
   await load.locator('[data-printer-load-save]').click();
 
-  await expect(page.locator('#printerBoard')).toContainText('T001');
-  await expect(page.locator('#printerBoard')).toContainText('AMS 1 · Slot 1');
+  const feeder = page.locator('#printerBoard .ams-feeder').first();
+  await expect(feeder).toContainText('AMS 1');
+  await expect(feeder).toContainText('1 of 4 loaded');
+  await expect(feeder.locator('.ams-slot')).toHaveCount(4);
+  await expect(feeder.locator('.ams-slot-empty')).toHaveCount(3);
+  await expect(feeder.locator('.ams-slot[data-ams-slot="1"]')).toContainText('T001 · White');
+  await expect(feeder.locator('.ams-slot[data-ams-slot="1"]')).toContainText('700 g · 70%');
+  await expect(feeder.locator('.ams-slot[data-ams-slot="1"]')).toContainText('Visual estimate');
+
+  const menu = feeder.locator('.ams-slot[data-ams-slot="1"] .ams-slot-actions');
+  await menu.locator('summary').click();
+  await expect(menu).toContainText('Weigh');
+  await expect(menu).toContainText('Move');
+  await expect(menu).toContainText('Unload');
+  await expect(menu).toContainText('Open spool');
+
   stored = await page.evaluate(() => JSON.parse(localStorage.getItem('filament-user-v1:bill:inventory') || '{}'));
   const spool = stored.spools.find(row => row.id === 'T001');
   expect(spool.printerName).toBe('P1S');
@@ -74,4 +89,20 @@ test('mobile user can add a printer, configure AMS and load a spool into a slot'
   expect(spool.feederName).toBe('AMS 1');
   expect(spool.feederId).toBe(stored.printers[0].feeders[0].id);
   expect(spool.feederSlot).toBe('1');
+
+  await page.evaluate(() => {
+    const value=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}');
+    const row=value.spools.find(spool=>spool.id==='T001');
+    row.visualPercent=null;
+    row.gross=null;
+    row.tare=null;
+    row.estimatedRemainingGrams=null;
+    row.updatedAt=new Date().toISOString();
+    localStorage.setItem('filament-inventory-v1',JSON.stringify(value));
+  });
+  await expect(page.locator('.ams-inline-attention')).toBeVisible();
+  await expect(page.locator('.ams-inline-attention')).toContainText('T001 needs weighing');
+  await expect(page.locator('#printerAttention').locator('..')).toBeHidden();
+  await expect(feeder.locator('.ams-slot[data-ams-slot="1"]')).toContainText('Not measured');
+  await expect(feeder.locator('.ams-slot[data-ams-slot="1"]')).toContainText('Weigh required');
 });

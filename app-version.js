@@ -12,12 +12,21 @@
     const ensureComponentStyles = () => {
       if (!root.document) return;
       const href = '/css/components/printer.css';
-      if (root.document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) return;
-      const link = root.document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = href;
-      link.dataset.fiComponent = 'printer';
-      root.document.head.append(link);
+      if (!root.document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) {
+        const link = root.document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        link.dataset.fiComponent = 'printer';
+        root.document.head.append(link);
+      }
+      const amsHref = '/css/components/printer-ams.css';
+      if (!root.document.querySelector(`link[rel="stylesheet"][href="${amsHref}"]`)) {
+        const link = root.document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = amsHref;
+        link.dataset.fiComponent = 'printer-ams';
+        root.document.head.append(link);
+      }
     };
     const loadRuntimeScript = src => new Promise((resolve, reject) => {
       if (!root.document) return resolve();
@@ -68,12 +77,35 @@
       script.dataset.fiPwaRuntime = '1';
       root.document.head.append(script);
     };
+    const bindAmsStorageReconcile = () => {
+      if (!root.Storage || root.__fiAmsStorageReconcile) return;
+      const priorSetItem = root.Storage.prototype.setItem;
+      root.Storage.prototype.setItem = function(key, value) {
+        const result = priorSetItem.call(this, key, value);
+        if (this === root.localStorage && String(key || '').includes('inventory')) root.FilamentInventoryAMSUI?.refresh?.();
+        return result;
+      };
+      root.__fiAmsStorageReconcile = true;
+    };
+    const ensureAmsPrinterRuntime = () => {
+      if (!root.document) return;
+      const ready = root.FilamentInventoryAMSUI
+        ? Promise.resolve()
+        : loadRuntimeScript('/printer-ams-ui.js');
+      ready
+        .then(bindAmsStorageReconcile)
+        .catch(error => console.error('AMS-first Printer UI failed to initialize.', error));
+    };
+    const afterDocumentReady = () => {
+      applyLabels();
+      ensureAmsPrinterRuntime();
+    };
     ensureComponentStyles();
     ensureSpoolContractRuntime();
     ensurePhysicalWorkflowRuntime();
     ensurePwaRuntime();
-    if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', applyLabels, {once:true});
-    else applyLabels();
+    if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', afterDocumentReady, {once:true});
+    else afterDocumentReady();
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function() {
   'use strict';
