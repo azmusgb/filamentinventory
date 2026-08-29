@@ -82,11 +82,125 @@
   .printer-form-actions { grid-template-columns:minmax(0,1fr) auto; }
 }
 
+/* Mobile Printer is a command center, not a stack of nested dashboard cards. */
 @media (max-width:620px) {
-  .printer-hero { display:grid; }
-  .printer-hero-actions { justify-content:flex-start; }
+  .printer-command { gap:var(--space-3); }
+
+  /* The app shell already provides the Printer title and explanation. */
+  .printer-hero { display:none; }
+
+  /* One compact health strip replaces four tall metric cards. */
+  .printer-metrics {
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:0;
+    overflow:hidden;
+    border:1px solid var(--color-border);
+    border-radius:var(--radius-lg);
+    background:var(--color-surface);
+  }
+  .printer-metric {
+    display:grid;
+    align-content:center;
+    min-height:66px;
+    padding:.6rem .3rem;
+    border:0;
+    border-right:1px solid var(--color-border);
+    border-radius:0;
+    background:transparent;
+    text-align:center;
+  }
+  .printer-metric:last-child { border-right:0; }
+  .printer-metric span { font-size:10px; line-height:1.15; }
+  .printer-metric strong { margin-top:.2rem; font-size:19px; letter-spacing:-.02em; }
+  .printer-metric small { display:none; }
+
+  .printer-panel { padding:var(--space-4); }
+  .printer-panel .panel-head {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    align-items:center;
+    gap:.45rem var(--space-2);
+    margin-bottom:var(--space-3);
+  }
+  .printer-panel .panel-head h3 { margin:0; font-size:var(--text-base); }
+  .printer-panel .panel-head p {
+    grid-column:1 / -1;
+    margin:.15rem 0 0;
+    max-width:46ch;
+    font-size:var(--text-xs);
+    line-height:1.35;
+  }
+  .printer-panel .panel-head > .btn {
+    width:auto;
+    min-height:38px;
+    padding:.55rem .8rem;
+    justify-self:end;
+  }
+  .printer-panel-actions {
+    grid-column:1 / -1;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    width:100%;
+    gap:var(--space-2);
+    margin-top:.2rem;
+  }
+  .printer-panel-actions .btn { width:100%; min-height:40px; }
+
+  /* The printer record becomes the primary object, with hardware summarized tightly. */
+  .printer-registry { gap:var(--space-2); }
+  .printer-registry-card {
+    gap:var(--space-3);
+    padding:var(--space-3);
+    border-radius:calc(var(--radius-lg) - 2px);
+    background:color-mix(in srgb,var(--color-surface-raised) 74%,transparent);
+  }
   .printer-registry-main { align-items:center; }
-  .printer-spec-grid { grid-template-columns:1fr 1fr; }
+  .printer-registry-main .eyebrow { font-size:9px; }
+  .printer-registry-main h4 { margin:.1rem 0 0; font-size:1.2rem; line-height:1.1; }
+  .printer-registry-main p { display:none; }
+  .printer-loaded-count { padding:.25rem .45rem; font-size:10px; }
+  .printer-spec-grid {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:.65rem var(--space-3);
+    padding-top:.7rem;
+    border-top:1px solid var(--color-border);
+  }
+  .printer-spec-grid dt { font-size:9px; line-height:1.15; }
+  .printer-spec-grid dd {
+    margin:.12rem 0 0;
+    overflow:hidden;
+    font-size:.82rem;
+    line-height:1.25;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .printer-registry-actions {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:var(--space-2);
+  }
+  .printer-registry-actions .btn { width:100%; min-height:42px; }
+
+  /* Empty loaded state is supporting copy; the real actions already sit in the section header. */
+  .printer-board { gap:var(--space-3); }
+  .printer-board .printer-empty {
+    gap:.35rem;
+    padding:.5rem 0 .1rem;
+    border:0;
+    background:transparent;
+  }
+  .printer-board .printer-empty strong { font-size:var(--text-sm); }
+  .printer-board .printer-empty span { color:var(--color-text-muted); font-size:var(--text-xs); }
+  .printer-board .printer-empty > .btn { display:none; }
+
+  .printer-slot { min-height:0; gap:var(--space-2); padding:var(--space-3); }
+  .printer-slot-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.4rem; }
+  .printer-slot-actions .btn { width:100%; min-height:38px; padding-inline:.45rem; }
+
+  /* Do not spend a full screen section telling the user that nothing needs attention. */
+  .printer-panel:has(.printer-attention .printer-empty) { display:none; }
+  .printer-attention-row,.printer-candidate { gap:var(--space-2); padding-block:.45rem; }
+
   .printer-feeder-editor-head { display:grid; }
   .printer-feeder-editor-head .btn { justify-self:start; }
   .printer-feeder-row { grid-template-columns:1fr 1fr; }
@@ -96,7 +210,10 @@
 
 @media (max-width:420px) {
   .printer-slots { grid-template-columns:1fr; }
-  .printer-spec-grid { grid-template-columns:1fr; }
+  .printer-spec-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .printer-panel { padding:.85rem; }
+  .printer-metric strong { font-size:18px; }
+  .printer-metric span { font-size:9px; }
 }
 
 @media print {
