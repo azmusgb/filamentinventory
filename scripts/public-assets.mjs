@@ -18,6 +18,7 @@ export const PUBLIC_ASSETS = Object.freeze([
   'css/components/print-job.css',
   'css/components/profile-preferences.css',
   'css/components/spool-intake.css',
+  'css/components/scan.css',
   'css/foundation.css',
   'app-version.js',
   'events.js',
