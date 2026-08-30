@@ -4,6 +4,7 @@
   const CONFIDENCE_LABELS = Object.freeze({Confirmed:'Confirmed',High:'ID high',Medium:'ID medium',Low:'ID low',Unknown:'ID unknown'});
   let observer = null;
   let queued = false;
+  let interactionBound = false;
   const $ = id => document.getElementById(id);
 
   function evidenceFromCard(card) {
@@ -56,15 +57,63 @@
   function ensureDetailsAction(card) {
     const head = card.querySelector('.spool-head');
     const id = String(card.dataset.id || '').trim();
-    if (!head || !id || head.querySelector('.spool-card-more')) return;
-    const button = document.createElement('button');
-    button.className = 'spool-card-more';
-    button.type = 'button';
-    button.dataset.spoolActionsOpen = id;
-    button.setAttribute('aria-label',`Open ${id} spool details`);
-    button.title = 'Open spool details';
-    button.textContent = '•••';
-    head.appendChild(button);
+    if (!head || !id) return;
+    let button = head.querySelector('.spool-card-more');
+    if (!button) {
+      button = document.createElement('button');
+      button.className = 'spool-card-more';
+      button.type = 'button';
+      button.dataset.spoolActionsOpen = id;
+      button.textContent = '•••';
+      head.appendChild(button);
+    }
+    button.setAttribute('aria-label',`More actions for ${id}`);
+    button.title = 'More spool actions';
+  }
+
+  function ensurePrimaryOpenSemantics(card) {
+    const id = String(card.dataset.id || '').trim();
+    if (!id) return;
+    card.setAttribute('tabindex','0');
+    card.setAttribute('role','button');
+    card.setAttribute('aria-label',`Open details for spool ${id}`);
+    card.dataset.primarySpoolOpen = id;
+    // Prevent the older cohesion layer from attaching a second card-open handler.
+    card.dataset.cohesionOpen = '1';
+  }
+
+  function isInteractiveTarget(target, card) {
+    if (!(target instanceof Element)) return false;
+    const interactive = target.closest('button, a, input, select, textarea, label, summary, [role="button"]');
+    return Boolean(interactive && interactive !== card);
+  }
+
+  function openCard(card) {
+    const id = String(card?.dataset.primarySpoolOpen || card?.dataset.id || '').trim();
+    if (!id) return false;
+    return globalThis.FilamentInventoryWorkflows?.open?.(id,{source:'inventory-card'}) ?? false;
+  }
+
+  function bindPrimaryInteraction() {
+    if (interactionBound) return;
+    interactionBound = true;
+
+    document.addEventListener('click', event => {
+      const card = event.target instanceof Element ? event.target.closest('#inventoryGrid .spool-card[data-primary-spool-open]') : null;
+      if (!card || isInteractiveTarget(event.target, card)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      openCard(card);
+    }, true);
+
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const card = event.target instanceof Element ? event.target.closest('#inventoryGrid .spool-card[data-primary-spool-open]') : null;
+      if (!card || event.target !== card) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      openCard(card);
+    }, true);
   }
 
   function enhanceCard(card) {
@@ -73,6 +122,7 @@
     normalizeConfidence(card);
     compactEvidence(card);
     ensureDetailsAction(card);
+    ensurePrimaryOpenSemantics(card);
   }
 
   function enhance() {
@@ -98,6 +148,7 @@
   }
 
   function init() {
+    bindPrimaryInteraction();
     watch();
     queueEnhance();
     globalThis.FilamentInventoryCardPresentation = Object.freeze({refresh:queueEnhance});
