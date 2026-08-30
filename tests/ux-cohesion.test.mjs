@@ -43,6 +43,14 @@ test('cohesion client implements the cross-page UX contracts', async () => {
   assert.match(client, /Storage, printer placement, purchase details, identification and notes/);
 });
 
+test('quantity mode remains stable while the spool dialog is open', async () => {
+  const client = await read('ux-cohesion-client.js');
+  assert.match(client, /const activeMode = dialog\.open && \['full', 'estimate', 'measured'\]\.includes\(dialog\.dataset\.quantityMode\)/);
+  assert.match(client, /\? dialog\.dataset\.quantityMode\s*:\s*quantityModeFromValues\(\)/);
+  assert.match(client, /setQuantityMode\(activeMode\)/);
+  assert.match(client, /requestAnimationFrame\(\(\) => setQuantityMode\(quantityModeFromValues\(\)\)\)/);
+});
+
 test('cohesion stylesheet preserves shared presentation rules', async () => {
   const css = await read('css/components/ux-cohesion.css');
   for (const contract of [
