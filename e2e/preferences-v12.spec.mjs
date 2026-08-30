@@ -59,5 +59,5 @@ test('moved operational controls still use the authoritative preferences autosav
     return value?.appearance?.density;
   })).toBe('compact');
 
-  await expect(page.locator('html')).toHaveAttribute('data-density','compact');
+  await expect(page.locator('html')).toHaveAttribute('data-profile-density','compact');
 });
