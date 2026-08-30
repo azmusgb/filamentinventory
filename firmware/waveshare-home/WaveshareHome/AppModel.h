@@ -11,7 +11,8 @@ inline time_t waveshareTimegm(struct tm *tmv) {
   y -= m <= 2;
   const int era = (y >= 0 ? y : y - 399) / 400;
   const unsigned yoe = static_cast<unsigned>(y - era * 400);
-  const unsigned doy = (153 * (m + (m > 2 ? static_cast<unsigned>(-3) : 9)) + 2) / 5 + d - 1;
+  const unsigned mp = m > 2 ? m - 3 : m + 9;
+  const unsigned doy = (153 * mp + 2) / 5 + d - 1;
   const unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
   const int64_t days = static_cast<int64_t>(era) * 146097 + static_cast<int64_t>(doe) - 719468;
   return static_cast<time_t>(days * 86400LL + tmv->tm_hour * 3600LL + tmv->tm_min * 60LL + tmv->tm_sec);
