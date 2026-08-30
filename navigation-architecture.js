@@ -89,7 +89,7 @@
         ${shellButton({action:'add', icon:'＋', label:'Add spool', className:'fi-sidebar-primary-action'})}
       </nav>
       <nav class="fi-secondary-nav fi-sidebar-more" aria-label="More tools">
-        <button type="button" data-v12-more data-bottom-more aria-haspopup="dialog" aria-controls="fiMoreSheet"><span class="fi-nav-icon" aria-hidden="true">•••</span><span>Tools & settings</span></button>
+        <button type="button" data-v12-more aria-haspopup="dialog" aria-controls="fiMoreSheet"><span class="fi-nav-icon" aria-hidden="true">•••</span><span>Tools & settings</span></button>
       </nav>`;
   }
 

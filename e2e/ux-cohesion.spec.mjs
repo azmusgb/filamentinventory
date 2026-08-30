@@ -97,12 +97,12 @@ test('inventory and intake expose the V12 calmer primary path', async ({page}) =
   await expect(page.locator('label[for="startWeight"]')).toHaveText('Full spool filament (g)');
   await expect(page.locator('.spool-form-advanced summary strong')).toHaveText('Advanced details');
 
-  await page.locator('input[name="fiQuantityMode"][value="estimate"]').check();
+  await page.locator('.fi-quantity-choice label').filter({hasText:'Estimate'}).click();
   await expect(page.locator('#visualPercent')).toBeVisible();
   await expect(page.locator('label[for="visualPercent"]')).toHaveText('Estimated remaining (%)');
   await expect(page.locator('#visualPercent').locator('..')).toContainText('rough visual estimate');
 
-  await page.locator('input[name="fiQuantityMode"][value="measured"]').check();
+  await page.locator('.fi-quantity-choice label').filter({hasText:'Measured'}).click();
   await expect(page.locator('#grossEdit')).toBeVisible();
   await expect(page.locator('#tareEdit')).toBeVisible();
   await expect(page.locator('#visualPercent')).toBeHidden();

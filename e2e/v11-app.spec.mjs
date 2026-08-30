@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 
 const FIXED_TIME = Date.parse('2026-08-28T15:00:00.000Z');
 const APPROVED_VISUAL_HASHES = Object.freeze({
-  home:'1188423a9188869c58a8fa14d46b54bc49b27c1d6f79f907cc6f65661ebecef9',
+  home:'79c7c021fd4cd65dc054d810cd5538e61713cce27bfb3844b107864a21cfdca4',
   inventory:'7aa3b52353f57c531f72169742575ef30df35a66f8ee7f2ff1a7c9e7ab07159d',
 });
 
@@ -274,7 +274,7 @@ test('mobile Inventory keeps evidence compact and separates quick actions from f
   await expect(card.locator('.inventory-quantity-amount')).toHaveText('≈800 g');
   await expect(card.locator('.spool-action-bar')).toBeHidden();
   await card.locator('.spool-card-more').click();
-  const quick=page.locator('#inventoryCardQuickActionsDialog[open]');
+  const quick=page.locator('#inventoryCardQuickActionsDialog');
   await expect(quick).toBeVisible();
   await expect(page.locator('#spoolActionDialog')).not.toHaveAttribute('open','');
   await quick.getByRole('button',{name:'Open details',exact:true}).click();

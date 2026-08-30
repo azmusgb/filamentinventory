@@ -56,6 +56,8 @@ test('guided Add spool standardizes common choices, supports custom values and l
   expect(brandOptions).toContain('ELEGOO');
   expect(brandOptions).toContain('Other / custom…');
 
+  const advanced=dialog.locator('.spool-form-advanced');
+  await advanced.locator('summary').click();
   await dialog.locator('#spoolId').fill('S900');
   await brand.selectOption('__custom__');
   await dialog.locator('#brand').fill('Atomic Filament');
@@ -67,8 +69,8 @@ test('guided Add spool standardizes common choices, supports custom values and l
   await dialog.locator('[data-number-choices="startWeight"] [data-value="2000"]').click();
   await expect(dialog.locator('#startWeight')).toHaveValue('2000');
 
-  const advanced=dialog.locator('.spool-form-advanced');
-  await advanced.locator('summary').click();
+  await dialog.locator('.fi-quantity-choice label').filter({hasText:'Estimate'}).click();
+  await expect(dialog.locator('#visualPercent')).toBeVisible();
   await dialog.locator('[data-percent-choices] [data-value="75"]').click();
   await dialog.locator('#confidence').selectOption('Confirmed');
   await expect(dialog.locator('[data-intake-title]')).toContainText('S900 · Blue');
@@ -112,6 +114,7 @@ test('recent spool template copies safe product identity and normal save reuses 
   await expect(dialog.locator('#grossEdit')).toHaveValue('');
   await expect(dialog.locator('#tareEdit')).toHaveValue('');
 
+  await dialog.locator('.spool-form-advanced summary').click();
   await dialog.locator('#spoolId').fill('S901');
   await dialog.locator('.dialog-actions button[type="submit"]').click();
   const next=page.locator('#intakeNextDialog[open]');
@@ -127,7 +130,7 @@ test('recent spool template copies safe product identity and normal save reuses 
 });
 
 test('editing a spool offers duplicate-as-new without copying quantity evidence', async ({page}) => {
-  const openSpool=page.locator('[data-spool-actions-open="S100"]:visible').first();
+  const openSpool=page.locator('#inventoryGrid .spool-card[data-id="S100"] .spool-card-primary').first();
   await expect(openSpool).toBeVisible();
   await openSpool.click();
   const actions=page.locator('#spoolActionDialog[open]');
