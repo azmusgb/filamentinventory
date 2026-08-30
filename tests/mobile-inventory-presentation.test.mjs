@@ -28,27 +28,37 @@ test('compact cards distinguish quantity evidence from identification confidence
   assert.match(source,/progress\.hidden = evidence\.tone === 'unknown'/);
 });
 
-test('card body opens details while ellipsis owns a separate quick-action menu', async () => {
+test('card body opens details while title and ellipsis remain distinct accessible controls', async () => {
   const source = await read('inventory-card-client.js');
   assert.match(source,/button\.dataset\.inventoryCardMenu = id/);
   assert.match(source,/delete button\.dataset\.spoolActionsOpen/);
-  assert.match(source,/card\.dataset\.primarySpoolOpen = id/);
-  assert.match(source,/FilamentInventoryWorkflows\?\.open\?\.\(id,\{source:'inventory-card'\}\)/);
+  assert.match(source,/title\.dataset\.spoolPrimaryOpen = id/);
+  assert.match(source,/title instanceof HTMLButtonElement/);
+  assert.match(source,/card\.removeAttribute\('role'\)/);
+  assert.match(source,/card\.dataset\.cohesionOpen = '1'/);
+  assert.match(source,/openSpool\(primary\.dataset\.spoolPrimaryOpen,'inventory-card-title'\)/);
+  assert.match(source,/openSpool\(card\.dataset\.primarySpoolOpen,'inventory-card'\)/);
   assert.match(source,/inventoryCardQuickActionsDialog/);
   for (const action of ['Open details','Weigh','Printer / AMS','QR label','Edit','Archive']) {
     assert.ok(source.includes(action), `missing quick action: ${action}`);
   }
 });
 
-test('mobile inventory CSS reduces control and card density without hiding trust state', async () => {
-  const css = await read('css/components/inventory-mobile.css');
-  assert.match(css,/@media \(max-width: 640px\)/);
-  assert.match(css,/\.inventory-command-hint\s*\{\s*display: none/);
-  assert.match(css,/\.fi-page-header-actions\s*\{[^}]*width: auto/s);
-  assert.match(css,/\.spool-action-bar\s*\{\s*display: none/);
-  assert.match(css,/\.bulk-selection-mode[^}]*\.spool-card-more\s*\{\s*display: none/);
-  assert.doesNotMatch(css,/!important/);
-  assert.match(css,/\.inventory-evidence-chip\[data-evidence="measured"\]/);
-  assert.match(css,/\.inventory-evidence-chip\[data-evidence="estimated"\]/);
-  assert.match(css,/\.inventory-evidence-chip\[data-evidence="unknown"\]/);
+test('inventory presentation CSS reduces density while preserving visible focus and trust state', async () => {
+  const [mobile,physical] = await Promise.all([
+    read('css/components/inventory-mobile.css'),
+    read('css/components/physical-spool.css'),
+  ]);
+  assert.match(mobile,/@media \(max-width: 640px\)/);
+  assert.match(mobile,/\.inventory-command-hint\s*\{\s*display: none/);
+  assert.match(mobile,/\.fi-page-header-actions\s*\{[^}]*width: auto/s);
+  assert.match(mobile,/\.spool-action-bar\s*\{\s*display: none/);
+  assert.match(mobile,/\.bulk-selection-mode[^}]*\.spool-card-more\s*\{\s*display: none/);
+  assert.match(mobile,/\.inventory-evidence-chip\[data-evidence="measured"\]/);
+  assert.match(mobile,/\.inventory-evidence-chip\[data-evidence="estimated"\]/);
+  assert.match(mobile,/\.inventory-evidence-chip\[data-evidence="unknown"\]/);
+  assert.match(physical,/\.spool-card-primary:focus-visible/);
+  assert.match(physical,/\.inventory-card-menu-dialog/);
+  assert.doesNotMatch(mobile,/!important/);
+  assert.doesNotMatch(physical,/!important/);
 });
