@@ -502,14 +502,14 @@ void BambuPlugin::parseDiscoveryPacket(const String &packet, const IPAddress &re
     out.trim();
     return out;
   };
-  String serial = value("DevSerial");
+  String serial = value("USN");
   String host = value("Location");
   if (!host.length()) host = remoteIp.toString();
   host.replace("http://", ""); host.replace("https://", "");
   int slash = host.indexOf('/'); if (slash >= 0) host = host.substring(0, slash);
   int colon = host.indexOf(':'); if (colon >= 0) host = host.substring(0, colon);
   String nt = value("NT");
-  if (!serial.length() && nt.indexOf("bambulab") < 0 && packet.indexOf("Bambu") < 0 && packet.indexOf("DevModel") < 0) return;
+  if (!serial.length() && nt.indexOf("bambulab") < 0 && packet.indexOf("Bambu") < 0 && packet.indexOf("DevModel.bambu.com") < 0) return;
   int index = findDiscovered(serial.c_str(), host.c_str());
   if (index < 0) {
     if (discoveredCount_ >= 6) return;
@@ -519,10 +519,20 @@ void BambuPlugin::parseDiscoveryPacket(const String &packet, const IPAddress &re
   d.valid = true;
   copyText(d.host, sizeof(d.host), host);
   copyText(d.serial, sizeof(d.serial), serial);
-  copyText(d.name, sizeof(d.name), value("DevName"));
-  copyText(d.model, sizeof(d.model), value("DevModel"));
-  copyText(d.version, sizeof(d.version), value("DevVersion"));
-  d.signal = value("DevSignal").toInt();
+  copyText(d.name, sizeof(d.name), value("DevName.bambu.com"));
+  String modelCode = value("DevModel.bambu.com");
+  String modelName = modelCode;
+  if (modelCode == "C12") modelName = "P1S";
+  else if (modelCode == "C11") modelName = "P1P";
+  else if (modelCode == "N1") modelName = "A1 mini";
+  else if (modelCode == "N2S") modelName = "A1";
+  else if (modelCode == "BL-P001" || modelCode == "3DPrinter-X1-Carbon") modelName = "X1 Carbon";
+  else if (modelCode == "BL-P002" || modelCode == "3DPrinter-X1") modelName = "X1";
+  else if (modelCode == "C13") modelName = "X1E";
+  else if (modelCode == "O1D") modelName = "H2D";
+  copyText(d.model, sizeof(d.model), modelName);
+  copyText(d.version, sizeof(d.version), value("DevVersion.bambu.com"));
+  d.signal = value("DevSignal.bambu.com").toInt();
   d.lastSeenMs = millis();
 }
 
