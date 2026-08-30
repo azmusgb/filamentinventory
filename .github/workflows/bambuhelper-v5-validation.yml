@@ -1,0 +1,162 @@
+name: BambuHelper ws_lcd_350 commissioning v5 validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/bambuhelper-v5-validation.yml'
+      - '.bambuhelper-validation/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Patch, commission, and build WS350 v5
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout validation harness
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned BambuHelper source
+        uses: actions/checkout@v4
+        with:
+          repository: Keralots/BambuHelper
+          ref: 8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4
+          path: upstream
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Rehydrate evolution patchers
+        shell: bash
+        run: |
+          set -euo pipefail
+          v1=https://raw.githubusercontent.com/azmusgb/filamentinventory/741a6f0651fb4e20d8e2674f2c0ce726b0d7bdf9/.bambuhelper-validation
+          v3=https://raw.githubusercontent.com/azmusgb/filamentinventory/07ce909fa7dd485abfc556eaf9addfbbd82e3cb3/.bambuhelper-validation
+          curl -fsSL "$v1/installer.zlib.b64" -o /tmp/installer.b64
+          for n in 0 1 2 3; do curl -fsSL "$v1/device.part$n" -o "/tmp/device.part$n"; done
+          cat /tmp/device.part{0,1,2,3} > /tmp/device.b64
+          curl -fsSL "$v3/v2.zlib.b64" -o /tmp/v2.b64
+          curl -fsSL "$v3/v3.zlib.b64" -o /tmp/v3.b64
+          python - <<'PY'
+          from pathlib import Path
+          import base64, zlib
+          pairs=[
+            ('/tmp/installer.b64','apply_installer_evolution.py'),
+            ('/tmp/device.b64','apply_device_onboarding_evolution.py'),
+            ('/tmp/v2.b64','apply_resilience_evolution_v2.py'),
+            ('/tmp/v3.b64','apply_smart_profiles_evolution_v3.py'),
+            ('.bambuhelper-validation/v4.zlib.b64','apply_ws350_remote_dashboard_v4.py'),
+            ('.bambuhelper-validation/v5.zlib.b64','apply_commissioning_evolution_v5.py'),
+          ]
+          for src,dst in pairs:
+            raw=zlib.decompress(base64.b64decode(Path(src).read_text().strip()))
+            Path(dst).write_bytes(raw)
+            print(dst, len(raw))
+          PY
+
+      - name: Repair v3 duplicate-anchor patcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('apply_smart_profiles_evolution_v3.py')
+          text=p.read_text(encoding='utf-8')
+          needle='"app/profile-account-selection",'
+          pos=text.find(needle)
+          if pos >= 0:
+            start=text.rfind('    text = replace_once(',0,pos)
+            end=text.find('\n    )',pos)
+            if min(start,end) < 0:
+              raise SystemExit('v3 repair anchor malformed')
+            end += len('\n    )')
+            replacement="""    profile_refresh_anchor = '''  updatePrinterOnboarding();\n  refreshPrinterHealth(false);'''\n    profile_refresh_count = text.count(profile_refresh_anchor)\n    if profile_refresh_count < 1:\n        raise PatchError(\n            \"app/profile-context-refresh: expected at least one v2 refresh anchor\"\n        )\n    text = text.replace(\n        profile_refresh_anchor,\n        '''  updatePrinterOnboarding();\n  refreshGaugeProfileUi();\n  refreshPrinterHealth(false);''',\n    )"""
+            text=text[:start]+replacement+text[end:]
+            p.write_text(text,encoding='utf-8')
+          PY
+          python -m py_compile apply_*evolution*.py
+
+      - name: Apply evolution stack v1-v5
+        shell: bash
+        run: |
+          set -euo pipefail
+          python apply_installer_evolution.py --repo upstream --apply
+          python apply_device_onboarding_evolution.py --repo upstream --apply
+          python apply_resilience_evolution_v2.py --repo upstream --apply
+          python apply_smart_profiles_evolution_v3.py --repo upstream --apply
+          python apply_ws350_remote_dashboard_v4.py --repo upstream --apply
+          python apply_commissioning_evolution_v5.py --repo upstream --apply
+
+      - name: Static integration checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check upstream/docs/flasher.js
+          node --check upstream/web/app.js
+          grep -Fq 'BOARD_IS_WS350=1' upstream/boards/ws_lcd_350.ini
+          grep -Fq 'DISPLAY_320x480=1' upstream/boards/ws_lcd_350.ini
+          grep -Fq 'USE_FT6336=1' upstream/boards/ws_lcd_350.ini
+          grep -Fq 'BambuHelper WS350 remote dashboard evolution v4' upstream/include/layout_320x480.h
+          grep -Fq 'BambuHelper commissioning evolution v5' upstream/include/web_pages.h
+          grep -Fq 'handleHardwareHealth' upstream/src/web_server.cpp
+          grep -Fq 'server.on("/hardware/health"' upstream/src/web_server.cpp
+          grep -Fq 'buttonPressCount' upstream/src/button.cpp
+          grep -Fq 'startTouchValidation' upstream/web/app.js
+          grep -Fq 'commissioning-card' upstream/web/app.css
+
+      - name: Install PlatformIO
+        run: python -m pip install --upgrade platformio
+
+      - name: Build WS350
+        working-directory: upstream
+        run: pio run -e ws_lcd_350
+
+      - name: Build shared 320x480 regression target
+        working-directory: upstream
+        run: pio run -e jc3248w535
+
+      - name: Merge fresh-install image
+        working-directory: upstream
+        run: python merge_bins.py --board ws_lcd_350 --full
+
+      - name: Produce report
+        shell: bash
+        run: |
+          set -euo pipefail
+          FULL="$(find upstream/firmware -type f -name 'BambuHelper-ws_lcd_350-*-Full.bin' | sort | tail -1)"
+          APP="upstream/.pio/build/ws_lcd_350/firmware.bin"
+          test -n "$FULL"
+          test -f "$FULL"
+          test -f "$APP"
+          {
+            echo 'BambuHelper ws_lcd_350 Commissioning v5 validation'
+            echo '=================================================='
+            echo 'upstream_commit=8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4'
+            echo 'board=ws_lcd_350'
+            echo 'panel=ST7796_320x480_FT6336'
+            echo 'layers=v1,v1-device,v2,v3,v4,v5'
+            echo 'hardware_health_api=PASS'
+            echo 'touch_press_counter=PASS'
+            echo 'commissioning_ui_contract=PASS'
+            echo 'shared_layout_regression=jc3248w535_passed'
+            echo "full_image=$FULL"
+            echo 'SHA256:'
+            sha256sum "$FULL"
+            sha256sum "$APP"
+          } | tee validation-report-v5.txt
+
+      - name: Upload validated firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: bambuhelper-ws_lcd_350-commissioning-v5
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            upstream/.pio/build/ws_lcd_350/firmware.bin
+            upstream/firmware/*/BambuHelper-ws_lcd_350-*-Full.bin
+            validation-report-v5.txt
