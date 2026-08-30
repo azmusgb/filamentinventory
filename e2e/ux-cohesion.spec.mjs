@@ -63,11 +63,16 @@ test.beforeEach(async ({page}) => boot(page));
 
 test('inventory and intake expose the V12 calmer primary path', async ({page}) => {
   await navigate(page,'inventory');
-  await expect(page.locator('#inventoryGrid .spool-card')).toHaveCount(2);
-  await expect(page.locator('#inventoryGrid .spool-card .fi-spool-details-action')).toHaveCount(2);
-  await expect(page.locator('#inventoryGrid .spool-card .fi-spool-details-action').first()).toHaveAttribute('title','More spool actions');
-  await expect(page.locator('#inventoryGrid .spool-card').first()).toHaveAttribute('role','button');
-  await expect(page.locator('#inventoryGrid .spool-card').first()).toHaveAttribute('tabindex','0');
+  const cards = page.locator('#inventoryGrid .spool-card');
+  await expect(cards).toHaveCount(2);
+  await expect(cards.locator('.fi-spool-details-action')).toHaveCount(2);
+  await expect(cards.locator('.fi-spool-details-action').first()).toHaveAttribute('title','More spool actions');
+
+  const firstCard = cards.first();
+  await expect(firstCard).not.toHaveAttribute('role','button');
+  await expect(firstCard).not.toHaveAttribute('tabindex','0');
+  await expect(firstCard.locator('.spool-card-primary')).toHaveAttribute('aria-label','Open details for spool C001');
+  await expect(firstCard.locator('.spool-card-more')).toHaveAttribute('aria-label','More actions for C001');
 
   await page.locator('[data-filter-open]').click();
   await expect(page.locator('[data-filter-apply]')).toHaveText('Done');
