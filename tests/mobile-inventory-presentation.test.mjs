@@ -24,9 +24,20 @@ test('compact cards distinguish quantity evidence from identification confidence
   const source = await read('inventory-card-client.js');
   for (const evidence of ['Measured','Visual estimate','Unknown']) assert.ok(source.includes(`'${evidence}'`), `missing evidence label ${evidence}`);
   assert.match(source,/Identification confidence:/);
-  assert.match(source,/button\.dataset\.spoolActionsOpen = id/);
   assert.match(source,/Not measured/);
   assert.match(source,/progress\.hidden = evidence\.tone === 'unknown'/);
+});
+
+test('card body opens details while ellipsis owns a separate quick-action menu', async () => {
+  const source = await read('inventory-card-client.js');
+  assert.match(source,/button\.dataset\.inventoryCardMenu = id/);
+  assert.match(source,/delete button\.dataset\.spoolActionsOpen/);
+  assert.match(source,/card\.dataset\.primarySpoolOpen = id/);
+  assert.match(source,/FilamentInventoryWorkflows\?\.open\?\.\(id,\{source:'inventory-card'\}\)/);
+  assert.match(source,/inventoryCardQuickActionsDialog/);
+  for (const action of ['Open details','Weigh','Printer / AMS','QR label','Edit','Archive']) {
+    assert.ok(source.includes(action), `missing quick action: ${action}`);
+  }
 });
 
 test('mobile inventory CSS reduces control and card density without hiding trust state', async () => {
