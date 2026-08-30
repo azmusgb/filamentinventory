@@ -1,0 +1,133 @@
+name: BambuHelper ws_lcd_350 resilience v2 validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/bambuhelper-resilience-v2-validation.yml'
+      - '.bambuhelper-validation/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Patch, harden, and build ws_lcd_350 v2
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout validation harness
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned BambuHelper source
+        uses: actions/checkout@v4
+        with:
+          repository: Keralots/BambuHelper
+          ref: 8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4
+          path: upstream
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Rehydrate v1 and v2 patchers
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/azmusgb/filamentinventory/741a6f0651fb4e20d8e2674f2c0ce726b0d7bdf9/.bambuhelper-validation/installer.zlib.b64 -o /tmp/installer.b64
+          curl -fsSL https://raw.githubusercontent.com/azmusgb/filamentinventory/741a6f0651fb4e20d8e2674f2c0ce726b0d7bdf9/.bambuhelper-validation/device.zlib.b64 -o /tmp/device.b64
+          python - <<'PY'
+          from pathlib import Path
+          import base64, zlib
+          pairs = [
+              ('/tmp/installer.b64', 'apply_installer_evolution.py'),
+              ('/tmp/device.b64', 'apply_device_onboarding_evolution.py'),
+              ('.bambuhelper-validation/v2.zlib.b64', 'apply_resilience_evolution_v2.py'),
+          ]
+          for source, target in pairs:
+              payload = Path(source).read_text(encoding='utf-8').strip()
+              raw = zlib.decompress(base64.b64decode(payload))
+              Path(target).write_bytes(raw)
+              print(f'rehydrated {target}: {len(raw)} bytes')
+          PY
+          python -m py_compile apply_installer_evolution.py apply_device_onboarding_evolution.py apply_resilience_evolution_v2.py
+
+      - name: Apply Web Flasher evolution
+        run: python apply_installer_evolution.py --repo upstream --apply
+
+      - name: Apply device onboarding evolution v1
+        run: python apply_device_onboarding_evolution.py --repo upstream --apply
+
+      - name: Apply resilience evolution v2
+        run: python apply_resilience_evolution_v2.py --repo upstream --apply
+
+      - name: Static integration checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check upstream/docs/flasher.js
+          node --check upstream/web/app.js
+          grep -Fq 'BOARD_VARIANT=\"ws_lcd_350\"' upstream/boards/ws_lcd_350.ini
+          grep -Fq 'DISPLAY_320x480=1' upstream/boards/ws_lcd_350.ini
+          grep -Fq 'USE_FT6336=1' upstream/boards/ws_lcd_350.ini
+          grep -Fq 'Aux Fan Right (X2D)' upstream/web/app.js
+          grep -Fq 'Setup health' upstream/include/web_pages.h
+          grep -Fq 'Export Support Report' upstream/include/web_pages.h
+          grep -Fq 'BambuHelper resilience evolution v2' upstream/web/app.js
+          grep -Fq 'X2D:</strong> Bambu Cloud is the supported path' upstream/web/app.js
+          grep -Fq 'credentials redacted' upstream/web/app.js
+          grep -Fq 'Never on this browser' upstream/include/web_pages.h
+          grep -Fq 'Email code is recommended.' upstream/include/web_pages.h
+          grep -Fq 'Save &amp; Verify' upstream/include/web_pages.h
+          grep -Fq 'Export diagnostics' upstream/docs/index.html
+
+      - name: Install PlatformIO
+        run: python -m pip install --upgrade platformio
+
+      - name: Build Waveshare 3.5 firmware
+        working-directory: upstream
+        run: pio run -e ws_lcd_350
+
+      - name: Build merged fresh-install binary
+        working-directory: upstream
+        run: python merge_bins.py --board ws_lcd_350 --full
+
+      - name: Produce validation report
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo 'BambuHelper ws_lcd_350 resilience v2 validation'
+            echo '================================================'
+            echo 'upstream_commit=8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4'
+            echo 'board=ws_lcd_350'
+            echo 'panel=ST7796_320x480_FT6336'
+            echo 'layers=web-flasher-v1,device-onboarding-v1,resilience-v2'
+            echo 'x2d_cloud_advisory=present'
+            echo 'support_report_redaction=present'
+            echo 'background_health_refresh=10s'
+            echo
+            echo 'Build artifacts:'
+            find upstream/.pio/build/ws_lcd_350 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+            echo
+            echo 'Merged full binaries:'
+            find upstream/firmware -type f -name 'BambuHelper-ws_lcd_350-*-Full.bin' -printf '%p %s bytes\n' | sort
+            echo
+            echo 'SHA256:'
+            find upstream/.pio/build/ws_lcd_350 upstream/firmware -type f \( -name 'firmware.bin' -o -name 'BambuHelper-ws_lcd_350-*-Full.bin' \) -print0 | sort -z | xargs -0 sha256sum
+          } | tee validation-report-v2.txt
+
+      - name: Upload v2 validated firmware and report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bambuhelper-ws_lcd_350-resilience-v2
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            upstream/.pio/build/ws_lcd_350/firmware.bin
+            upstream/firmware/*/BambuHelper-ws_lcd_350-*-Full.bin
+            validation-report-v2.txt
