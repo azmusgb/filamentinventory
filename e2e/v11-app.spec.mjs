@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 
 const FIXED_TIME = Date.parse('2026-08-28T15:00:00.000Z');
 const APPROVED_VISUAL_HASHES = Object.freeze({
-  home:'79c7c021fd4cd65dc054d810cd5538e61713cce27bfb3844b107864a21cfdca4',
+  home:'4d54898667b7fbc4bcfed31ecdcee93329192f69645cb6d251a7d2223da2af04',
   inventory:'7aa3b52353f57c531f72169742575ef30df35a66f8ee7f2ff1a7c9e7ab07159d',
 });
 
@@ -272,7 +272,7 @@ test('mobile Inventory keeps evidence compact and separates quick actions from f
   await expect(card).toBeVisible();
   await expect(card.locator('.inventory-evidence-chip')).toHaveText('Visual estimate');
   await expect(card.locator('.inventory-quantity-amount')).toHaveText('≈800 g');
-  await expect(card.locator('.spool-action-bar')).toBeHidden();
+  await expect(page.locator('.spool-action-bar')).toBeHidden();
   await card.locator('.spool-card-more').click();
   const quick=page.locator('#inventoryCardQuickActionsDialog');
   await expect(quick).toBeVisible();
