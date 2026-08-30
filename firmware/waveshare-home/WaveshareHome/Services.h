@@ -236,7 +236,7 @@ public:
   uint32_t discoveryPackets() const { return discoveryPackets_; }
   uint32_t discoveryMatchedPackets() const { return discoveryMatchedPackets_; }
   const char *discoveryStatus() const { return discoveryStatus_; }
-  int mqttState() const { return mqtt_.state(); }
+  int mqttState() { return mqtt_.state(); }
 private:
   WiFiClientSecure tls_;
   PubSubClient mqtt_;
