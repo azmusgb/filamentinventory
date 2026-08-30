@@ -69,6 +69,8 @@ test('guided Add spool standardizes common choices, supports custom values and l
   await dialog.locator('[data-number-choices="startWeight"] [data-value="2000"]').click();
   await expect(dialog.locator('#startWeight')).toHaveValue('2000');
 
+  await dialog.locator('.fi-quantity-choice label').filter({hasText:'Estimate'}).click();
+  await expect(dialog.locator('#visualPercent')).toBeVisible();
   await dialog.locator('[data-percent-choices] [data-value="75"]').click();
   await dialog.locator('#confidence').selectOption('Confirmed');
   await expect(dialog.locator('[data-intake-title]')).toContainText('S900 · Blue');
