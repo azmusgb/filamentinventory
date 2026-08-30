@@ -1,0 +1,425 @@
+name: Workshop Platform Upgrade
+
+on:
+  push:
+    paths:
+      - '.github/workflows/workshop-platform-upgrade.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply workshop platform expansion
+        shell: python {0}
+        run: |
+          from pathlib import Path
+
+          def replace(path, old, new, count=1):
+              p=Path(path); s=p.read_text()
+              if old not in s: raise SystemExit(f'Expected block not found in {path}: {old[:80]!r}')
+              p.write_text(s.replace(old,new,count))
+
+          app='firmware/waveshare-home/WaveshareHome/AppModel.h'
+          replace(app, 'static constexpr uint32_t CONFIG_SCHEMA_VERSION = 3;\nstatic constexpr char FW_VERSION[] = "1.0.0-rc2";', 'static constexpr uint32_t CONFIG_SCHEMA_VERSION = 4;\nstatic constexpr char FW_VERSION[] = "1.0.0-rc4";')
+          replace(app, 'enum class AlertSeverity : uint8_t { Info = 0, Attention = 1, Urgent = 2 };', '''enum class AlertSeverity : uint8_t { Info = 0, Attention = 1, Urgent = 2 };
+enum class AmbientDisplayMode : uint8_t { Auto = 0, Clock = 1, Printer = 2, Workshop = 3, Minimal = 4 };
+enum class AirMode : uint8_t { Off = 0, Manual = 1, Auto = 2, PostPrint = 3 };''')
+          replace(app, '''  bool audioEnabled = true;
+  uint8_t audioVolume = 55;
+};''', '''  bool audioEnabled = true;
+  uint8_t audioVolume = 55;
+
+  bool workshopEnabled = true;
+  bool workshopSensorEnabled = false;
+  bool presenceEnabled = false;
+  int8_t presenceGpio = -1;
+  bool dryerEnabled = true;
+  AirMode airMode = AirMode::Auto;
+  AmbientDisplayMode ambientMode = AmbientDisplayMode::Auto;
+  uint8_t postPrintFilterMinutes = 15;
+  float pm25Alert = 20.0f;
+  float vocAlert = 250.0f;
+  float humidityAlert = 45.0f;
+};''')
+          replace(app, '''struct PrinterState {
+  bool configured = false;''', '''struct AmsSlotState {
+  bool loaded = false;
+  bool active = false;
+  char material[24] = "";
+  char color[12] = "";
+  char name[32] = "";
+  int remainingPercent = -1;
+};
+
+struct PrinterState {
+  bool configured = false;''')
+          replace(app, '''  int amsHumidity = -1;
+  uint32_t errorCode = 0;''', '''  int amsHumidity = -1;
+  AmsSlotState amsSlots[4];
+  uint32_t errorCode = 0;''')
+          replace(app, '''struct SystemState {''', '''struct EnvironmentState {
+  bool online = false;
+  bool stale = true;
+  bool presence = false;
+  float temperatureC = 0;
+  float humidity = 0;
+  float pm25 = 0;
+  float voc = 0;
+  float co2 = 0;
+  char source[32] = "Not connected";
+  uint32_t updatedMs = 0;
+};
+
+struct DryerState {
+  bool running = false;
+  bool completed = false;
+  char material[32] = "";
+  uint16_t targetC = 0;
+  uint32_t durationSec = 0;
+  uint32_t remainingSec = 0;
+  uint32_t startedMs = 0;
+};
+
+struct WorkshopState {
+  bool enabled = true;
+  bool sensorConfigured = false;
+  bool presenceConfigured = false;
+  bool dryerConfigured = true;
+  bool filterRequested = false;
+  AirMode airMode = AirMode::Auto;
+  uint32_t postFilterUntilMs = 0;
+  char filterReason[64] = "";
+  EnvironmentState environment;
+  DryerState dryer;
+};
+
+struct ActivityItem {
+  bool valid = false;
+  time_t epoch = 0;
+  uint32_t ms = 0;
+  char source[24] = "";
+  char title[64] = "";
+  char detail[96] = "";
+};
+
+struct VoiceState {
+  bool microphoneAvailable = false;
+  bool listening = false;
+  char lastCommand[64] = "";
+  char status[48] = "Microphone not configured";
+};
+
+struct SystemState {''')
+          replace(app, '''  TimerState timers[4];
+  AlertItem alerts[10];''', '''  TimerState timers[4];
+  WorkshopState workshop;
+  VoiceState voice;
+  ActivityItem activity[12];
+  uint8_t activityCount = 0;
+  AlertItem alerts[10];''')
+
+          svc='firmware/waveshare-home/WaveshareHome/Services.h'
+          replace(svc, '''  bool useDiscovered(AppConfig &config, AppState &state, uint8_t index);
+private:''', '''  bool useDiscovered(AppConfig &config, AppState &state, uint8_t index);
+  bool pausePrint();
+  bool resumePrint();
+  bool stopPrint();
+private:''')
+          replace(svc, '''  void requestPushAll();
+  void pollDiscovery();''', '''  void requestPushAll();
+  bool sendPrintCommand(const char *command);
+  void pollDiscovery();''')
+
+          cpp='firmware/waveshare-home/WaveshareHome/Services.cpp'
+          replace(cpp, '''  config.audioEnabled = doc["audio"]["enabled"] | true;
+  config.audioVolume = constrain((int)(doc["audio"]["volume"] | 55), 0, 100);
+''', '''  config.audioEnabled = doc["audio"]["enabled"] | true;
+  config.audioVolume = constrain((int)(doc["audio"]["volume"] | 55), 0, 100);
+  config.workshopEnabled = doc["workshop"]["enabled"] | true;
+  config.workshopSensorEnabled = doc["workshop"]["sensorEnabled"] | false;
+  config.presenceEnabled = doc["workshop"]["presenceEnabled"] | false;
+  config.presenceGpio = doc["workshop"]["presenceGpio"] | -1;
+  config.dryerEnabled = doc["workshop"]["dryerEnabled"] | true;
+  config.airMode = static_cast<AirMode>(constrain((int)(doc["workshop"]["airMode"] | 2), 0, 3));
+  config.ambientMode = static_cast<AmbientDisplayMode>(constrain((int)(doc["workshop"]["ambientMode"] | 0), 0, 4));
+  config.postPrintFilterMinutes = constrain((int)(doc["workshop"]["postFilterMinutes"] | 15), 0, 120);
+  config.pm25Alert = doc["workshop"]["pm25Alert"] | 20.0f;
+  config.vocAlert = doc["workshop"]["vocAlert"] | 250.0f;
+  config.humidityAlert = doc["workshop"]["humidityAlert"] | 45.0f;
+''')
+          replace(cpp, '''  doc["audio"]["enabled"] = config.audioEnabled;
+  doc["audio"]["volume"] = config.audioVolume;
+''', '''  doc["audio"]["enabled"] = config.audioEnabled;
+  doc["audio"]["volume"] = config.audioVolume;
+  doc["workshop"]["enabled"] = config.workshopEnabled;
+  doc["workshop"]["sensorEnabled"] = config.workshopSensorEnabled;
+  doc["workshop"]["presenceEnabled"] = config.presenceEnabled;
+  doc["workshop"]["presenceGpio"] = config.presenceGpio;
+  doc["workshop"]["dryerEnabled"] = config.dryerEnabled;
+  doc["workshop"]["airMode"] = static_cast<uint8_t>(config.airMode);
+  doc["workshop"]["ambientMode"] = static_cast<uint8_t>(config.ambientMode);
+  doc["workshop"]["postFilterMinutes"] = config.postPrintFilterMinutes;
+  doc["workshop"]["pm25Alert"] = config.pm25Alert;
+  doc["workshop"]["vocAlert"] = config.vocAlert;
+  doc["workshop"]["humidityAlert"] = config.humidityAlert;
+''')
+
+          replace(cpp, '''  JsonObject ams = print["ams"].as<JsonObject>();
+  if (!ams.isNull()) {
+    p.amsLoadedSlots = 0;
+    JsonArray units = ams["ams"].as<JsonArray>();
+    for (JsonObject unit : units) {
+      JsonArray trays = unit["tray"].as<JsonArray>();
+      for (JsonObject tray : trays) {
+        const char *type = tray["tray_type"] | "";
+        const char *color = tray["tray_color"] | "";
+        if (strlen(type) || strlen(color)) p.amsLoadedSlots++;
+      }
+      if (unit.containsKey("humidity")) p.amsHumidity = unit["humidity"] | p.amsHumidity;
+    }
+    String active = ams["tray_now"] | "-1";
+    p.activeTray = active.toInt();
+  }''', '''  JsonObject ams = print["ams"].as<JsonObject>();
+  if (!ams.isNull()) {
+    p.amsLoadedSlots = 0;
+    for (auto &slot : p.amsSlots) slot = AmsSlotState{};
+    JsonArray units = ams["ams"].as<JsonArray>();
+    int slotIndex = 0;
+    for (JsonObject unit : units) {
+      JsonArray trays = unit["tray"].as<JsonArray>();
+      for (JsonObject tray : trays) {
+        const char *type = tray["tray_type"] | "";
+        const char *color = tray["tray_color"] | "";
+        if (slotIndex < 4) {
+          auto &slot = p.amsSlots[slotIndex];
+          slot.loaded = strlen(type) || strlen(color);
+          copyText(slot.material, sizeof(slot.material), type);
+          copyText(slot.color, sizeof(slot.color), color);
+          copyText(slot.name, sizeof(slot.name), tray["tray_sub_brands"] | "");
+          if (!tray["remain"].isNull()) slot.remainingPercent = tray["remain"] | -1;
+        }
+        if (strlen(type) || strlen(color)) p.amsLoadedSlots++;
+        slotIndex++;
+      }
+      if (unit.containsKey("humidity")) p.amsHumidity = unit["humidity"] | p.amsHumidity;
+    }
+    String active = ams["tray_now"] | "-1";
+    p.activeTray = active.toInt();
+    if (p.activeTray >= 0 && p.activeTray < 4) p.amsSlots[p.activeTray].active = true;
+  }''')
+          replace(cpp, '''void BambuPlugin::requestPushAll() {
+  if (!config_ || !mqtt_.connected()) return;
+  String requestTopic = String("device/") + config_->bambuSerial + "/request";
+  const char *payload = "{\\"pushing\\":{\\"sequence_id\\":\\"0\\",\\"command\\":\\"pushall\\"}}";
+  mqtt_.publish(requestTopic.c_str(), payload);
+}
+''', '''void BambuPlugin::requestPushAll() {
+  if (!config_ || !mqtt_.connected()) return;
+  String requestTopic = String("device/") + config_->bambuSerial + "/request";
+  const char *payload = "{\\"pushing\\":{\\"sequence_id\\":\\"0\\",\\"command\\":\\"pushall\\"}}";
+  mqtt_.publish(requestTopic.c_str(), payload);
+}
+
+bool BambuPlugin::sendPrintCommand(const char *command) {
+  if (!config_ || !mqtt_.connected() || !command || !*command) return false;
+  String topic = String("device/") + config_->bambuSerial + "/request";
+  String payload = String("{\\"print\\":{\\"sequence_id\\":\\"0\\",\\"command\\":\\"") + command + "\\"}}";
+  return mqtt_.publish(topic.c_str(), payload.c_str());
+}
+
+bool BambuPlugin::pausePrint() { return sendPrintCommand("pause"); }
+bool BambuPlugin::resumePrint() { return sendPrintCommand("resume"); }
+bool BambuPlugin::stopPrint() { return sendPrintCommand("stop"); }
+''')
+
+          replace(cpp, '''  server_.on("/bambu/use", HTTP_POST, [this]() {
+    int index = server_.arg("index").toInt();
+    if (!bambu_.useDiscovered(*config_, *state_, index)) { server_.send(404, "text/plain", "Discovered printer not found"); return; }
+    store_.save(*config_); configChanged_ = true;
+    server_.sendHeader("Location", "/#bambu", true);
+    server_.send(303, "text/plain", "Printer selected");
+  });''', '''  server_.on("/bambu/use", HTTP_POST, [this]() {
+    int index = server_.arg("index").toInt();
+    if (!bambu_.useDiscovered(*config_, *state_, index)) { server_.send(404, "text/plain", "Discovered printer not found"); return; }
+    store_.save(*config_); configChanged_ = true;
+    server_.sendHeader("Location", "/#bambu", true);
+    server_.send(303, "text/plain", "Printer selected");
+  });
+  server_.on("/bambu/pause", HTTP_POST, [this]() { server_.send(bambu_.pausePrint()?200:409, "text/plain", bambu_.pausePrint()?"Pause requested":"Printer unavailable"); });
+  server_.on("/bambu/resume", HTTP_POST, [this]() { bool ok=bambu_.resumePrint(); server_.send(ok?200:409, "text/plain", ok?"Resume requested":"Printer unavailable"); });
+  server_.on("/bambu/stop", HTTP_POST, [this]() { if(server_.arg("confirm")!="STOP"){server_.send(400,"text/plain","Type STOP to confirm");return;} bool ok=bambu_.stopPrint(); server_.send(ok?200:409,"text/plain",ok?"Stop requested":"Printer unavailable"); });
+  server_.on("/api/sensor", HTTP_POST, [this]() {
+    auto &e=state_->workshop.environment;
+    copyText(e.source,sizeof(e.source),server_.arg("source").length()?server_.arg("source"):"External sensor");
+    e.temperatureC=server_.arg("temperatureC").toFloat(); e.humidity=server_.arg("humidity").toFloat();
+    e.pm25=server_.arg("pm25").toFloat(); e.voc=server_.arg("voc").toFloat(); e.co2=server_.arg("co2").toFloat();
+    e.presence=server_.arg("presence")=="1"||server_.arg("presence")=="true"; e.online=true; e.stale=false; e.updatedMs=millis();
+    server_.send(200,"application/json","{\\"ok\\":true}");
+  });
+  server_.on("/dryer/start", HTTP_POST, [this]() {
+    auto &d=state_->workshop.dryer; copyText(d.material,sizeof(d.material),server_.arg("material").length()?server_.arg("material"):"Filament");
+    d.targetC=constrain(server_.arg("temperatureC").toInt(),30,90); d.durationSec=constrain(server_.arg("minutes").toInt(),1,1440)*60UL; d.remainingSec=d.durationSec; d.startedMs=millis(); d.running=true; d.completed=false;
+    server_.sendHeader("Location","/#workshop",true); server_.send(303,"text/plain","Dryer timer started");
+  });
+  server_.on("/dryer/stop", HTTP_POST, [this]() { state_->workshop.dryer.running=false; state_->workshop.dryer.remainingSec=0; server_.sendHeader("Location","/#workshop",true); server_.send(303,"text/plain","Dryer stopped"); });''')
+          # fix double pause invocation introduced by ternary
+          p=Path(cpp); s=p.read_text(); s=s.replace('server_.send(bambu_.pausePrint()?200:409, "text/plain", bambu_.pausePrint()?"Pause requested":"Printer unavailable");','bool ok=bambu_.pausePrint(); server_.send(ok?200:409, "text/plain", ok?"Pause requested":"Printer unavailable");'); p.write_text(s)
+
+          replace(cpp, '''  s += F("</div><form method='post' action='/bambu/scan'><button class='muted'>Scan local network for Bambu printers</button></form>");''', '''  if (state_->printer.online) {
+    s += F("<h4>AMS</h4><div class='grid'>");
+    for(int i=0;i<4;i++){ auto &slot=state_->printer.amsSlots[i]; s += F("<div class='card' style='margin:4px'><strong>A"); s += i+1; s += slot.active?" • ACTIVE":""; s += F("</strong><p>"); if(slot.loaded){s += htmlEscape(slot.material); if(strlen(slot.name)){s += F("<br>");s += htmlEscape(slot.name);} if(slot.remainingPercent>=0){s += F("<br>");s += slot.remainingPercent;s += F("% remaining");}}else s += F("Empty"); s += F("</p></div>"); }
+    s += F("</div><div class='row'><form method='post' action='/bambu/pause'><button class='muted'>Pause</button></form><form method='post' action='/bambu/resume'><button class='muted'>Resume</button></form></div><form method='post' action='/bambu/stop'><label>Stop confirmation</label><div class='row'><input name='confirm' placeholder='Type STOP'><button class='danger'>Stop print</button></div></form>");
+  }
+  s += F("</div><form method='post' action='/bambu/scan'><button class='muted'>Scan local network for Bambu printers</button></form>");''')
+
+          replace(cpp, '''  s += F("<h3>Calendar</h3><label><input type='checkbox' name='calendarEnabled'");''', '''  s += F("<h3 id='workshop'>Workshop</h3><label><input type='checkbox' name='workshopEnabled'"); s += checked(config_->workshopEnabled); s += F(">Enable Workshop command center</label><label><input type='checkbox' name='workshopSensorEnabled'"); s += checked(config_->workshopSensorEnabled); s += F(">Accept external environment sensors</label><label><input type='checkbox' name='presenceEnabled'"); s += checked(config_->presenceEnabled); s += F(">Use presence state for wake/ambient behavior</label>");
+  s += F("<div class='row'><div><label>Air management</label><select name='airMode'>"); for(int i=0;i<4;i++){s += F("<option value='");s+=i;s+=F("'");s+=selected((int)config_->airMode==i);s+=F(">");s+=i==0?"Off":i==1?"Manual":i==2?"Auto":"Post-print";s+=F("</option>");} s += F("</select></div><div><label>Post-print filter minutes</label><input type='number' min='0' max='120' name='postFilterMinutes' value='");s+=config_->postPrintFilterMinutes;s+=F("'></div></div>");
+  s += F("<div class='row'><div><label>Ambient layout</label><select name='ambientMode'>"); for(int i=0;i<5;i++){s+=F("<option value='");s+=i;s+=F("'");s+=selected((int)config_->ambientMode==i);s+=F(">");s+=i==0?"Auto":i==1?"Clock":i==2?"Printer":i==3?"Workshop":"Minimal";s+=F("</option>");}s+=F("</select></div><div><label>Filament storage humidity alert %</label><input type='number' min='20' max='90' step='1' name='humidityAlert' value='");s+=String(config_->humidityAlert,0);s+=F("'></div></div>");
+  s += F("<div class='row'><div><label>PM2.5 alert µg/m³</label><input type='number' min='1' max='500' name='pm25Alert' value='");s+=String(config_->pm25Alert,0);s+=F("'></div><div><label>VOC alert</label><input type='number' min='1' max='5000' name='vocAlert' value='");s+=String(config_->vocAlert,0);s+=F("'></div></div>");
+  s += F("<div class='card' style='margin:8px 0'><strong>Environment</strong><p>"); if(state_->workshop.environment.online){s+=String(state_->workshop.environment.temperatureC,1);s+=F("°C • ");s+=String(state_->workshop.environment.humidity,0);s+=F("% RH • PM2.5 ");s+=String(state_->workshop.environment.pm25,1);s+=F(" • VOC ");s+=String(state_->workshop.environment.voc,0);s+=F(" • CO₂ ");s+=String(state_->workshop.environment.co2,0);s+=F(" ppm");}else s+=F("No external sensor reporting yet");s+=F("</p><p>Filter request: ");s+=state_->workshop.filterRequested?"ON":"off";if(strlen(state_->workshop.filterReason)){s+=F(" • ");s+=htmlEscape(state_->workshop.filterReason);}s+=F("</p></div>");
+  s += F("<div class='row'><form method='post' action='/dryer/start'><input name='material' placeholder='PETG'><div class='row'><input type='number' name='temperatureC' value='55' min='30' max='90'><input type='number' name='minutes' value='360' min='1' max='1440'></div><button class='muted'>Start dryer timer</button></form><form method='post' action='/dryer/stop'><button class='muted'>Stop dryer</button></form></div><hr>");
+
+  s += F("<h3>Calendar</h3><label><input type='checkbox' name='calendarEnabled'");''')
+
+          replace(cpp, '''  config_->audioEnabled = server_.hasArg("audioEnabled");
+  config_->audioVolume = constrain(server_.arg("audioVolume").toInt(), 0, 100);''', '''  config_->audioEnabled = server_.hasArg("audioEnabled");
+  config_->audioVolume = constrain(server_.arg("audioVolume").toInt(), 0, 100);
+  config_->workshopEnabled = server_.hasArg("workshopEnabled");
+  config_->workshopSensorEnabled = server_.hasArg("workshopSensorEnabled");
+  config_->presenceEnabled = server_.hasArg("presenceEnabled");
+  config_->airMode = static_cast<AirMode>(constrain(server_.arg("airMode").toInt(),0,3));
+  config_->ambientMode = static_cast<AmbientDisplayMode>(constrain(server_.arg("ambientMode").toInt(),0,4));
+  config_->postPrintFilterMinutes = constrain(server_.arg("postFilterMinutes").toInt(),0,120);
+  config_->pm25Alert = constrain(server_.arg("pm25Alert").toFloat(),1.0f,500.0f);
+  config_->vocAlert = constrain(server_.arg("vocAlert").toFloat(),1.0f,5000.0f);
+  config_->humidityAlert = constrain(server_.arg("humidityAlert").toFloat(),20.0f,90.0f);''')
+
+          replace(cpp, '''  doc["printer"]["errorCode"] = state_->printer.errorCode;
+  doc["printer"]["updatedMs"] = state_->printer.updatedMs;''', '''  doc["printer"]["errorCode"] = state_->printer.errorCode;
+  doc["printer"]["updatedMs"] = state_->printer.updatedMs;
+  for(int i=0;i<4;i++){doc["printer"]["ams"][i]["loaded"]=state_->printer.amsSlots[i].loaded;doc["printer"]["ams"][i]["active"]=state_->printer.amsSlots[i].active;doc["printer"]["ams"][i]["material"]=state_->printer.amsSlots[i].material;doc["printer"]["ams"][i]["name"]=state_->printer.amsSlots[i].name;doc["printer"]["ams"][i]["color"]=state_->printer.amsSlots[i].color;doc["printer"]["ams"][i]["remainingPercent"]=state_->printer.amsSlots[i].remainingPercent;}''')
+          replace(cpp, '''  doc["calendar"]["next"] = state_->calendar.nextTitle;
+  doc["alerts"] = state_->alertCount;''', '''  doc["calendar"]["next"] = state_->calendar.nextTitle;
+  doc["workshop"]["enabled"] = state_->workshop.enabled;
+  doc["workshop"]["filterRequested"] = state_->workshop.filterRequested;
+  doc["workshop"]["filterReason"] = state_->workshop.filterReason;
+  doc["workshop"]["environment"]["online"] = state_->workshop.environment.online;
+  doc["workshop"]["environment"]["stale"] = state_->workshop.environment.stale;
+  doc["workshop"]["environment"]["temperatureC"] = state_->workshop.environment.temperatureC;
+  doc["workshop"]["environment"]["humidity"] = state_->workshop.environment.humidity;
+  doc["workshop"]["environment"]["pm25"] = state_->workshop.environment.pm25;
+  doc["workshop"]["environment"]["voc"] = state_->workshop.environment.voc;
+  doc["workshop"]["environment"]["co2"] = state_->workshop.environment.co2;
+  doc["workshop"]["environment"]["presence"] = state_->workshop.environment.presence;
+  doc["workshop"]["dryer"]["running"] = state_->workshop.dryer.running;
+  doc["workshop"]["dryer"]["material"] = state_->workshop.dryer.material;
+  doc["workshop"]["dryer"]["targetC"] = state_->workshop.dryer.targetC;
+  doc["workshop"]["dryer"]["remainingSec"] = state_->workshop.dryer.remainingSec;
+  JsonArray activity=doc["activity"].to<JsonArray>(); for(uint8_t i=0;i<state_->activityCount;i++){JsonObject a=activity.add<JsonObject>();a["source"]=state_->activity[i].source;a["title"]=state_->activity[i].title;a["detail"]=state_->activity[i].detail;a["epoch"]=state_->activity[i].epoch;}
+  doc["alerts"] = state_->alertCount;''')
+
+          ino='firmware/waveshare-home/WaveshareHome/WaveshareHome.ino'
+          replace(ino, '#include "Services.h"', '#include "Services.h"\n#include "Workshop.h"')
+          replace(ino, '''AttentionEngine attentionEngine;
+WebDashboard webDashboard''', '''AttentionEngine attentionEngine;
+WorkshopService workshopService;
+ActivityEngine activityEngine;
+WebDashboard webDashboard''')
+          replace(ino, '''static lv_obj_t *screenSystem = nullptr;
+static lv_obj_t *screenRecovery = nullptr;''', '''static lv_obj_t *screenSystem = nullptr;
+static lv_obj_t *screenWorkshop = nullptr;
+static lv_obj_t *screenActivity = nullptr;
+static lv_obj_t *screenRecovery = nullptr;''')
+          replace(ino, '''static lv_obj_t *systemBody = nullptr;
+static lv_obj_t *settingsBody = nullptr;''', '''static lv_obj_t *systemBody = nullptr;
+static lv_obj_t *workshopBody = nullptr;
+static lv_obj_t *activityBody = nullptr;
+static lv_obj_t *settingsBody = nullptr;''')
+          replace(ino, '''  Timers, Printer, Filament, System, Recovery, Ambient
+};''', '''  Timers, Printer, Filament, System, Workshop, Activity, Recovery, Ambient
+};''')
+          # add create screens before recovery
+          replace(ino, '''static void createRecovery() {''', '''static void createWorkshop() {
+  screenWorkshop=lv_obj_create(nullptr);styleScreen(screenWorkshop);addStatusBar(screenWorkshop,"WORKSHOP");
+  workshopBody=wrapLabel(screenWorkshop,"Workshop starting",&lv_font_montserrat_14,C_TEXT,14,58,292);lv_obj_set_style_text_line_space(workshopBody,7,0);
+  button(screenWorkshop,"Printer",12,350,92,50,navEvent,reinterpret_cast<void*>(static_cast<intptr_t>(ScreenId::Printer)),C_GREEN);
+  button(screenWorkshop,"Filament",114,350,92,50,navEvent,reinterpret_cast<void*>(static_cast<intptr_t>(ScreenId::Filament)),C_BLUE);
+  button(screenWorkshop,"Activity",216,350,92,50,navEvent,reinterpret_cast<void*>(static_cast<intptr_t>(ScreenId::Activity)),C_PURPLE);
+  addBottomNav(screenWorkshop,ScreenId::Apps);
+}
+
+static void createActivity() {
+  screenActivity=lv_obj_create(nullptr);styleScreen(screenActivity);addStatusBar(screenActivity,"ACTIVITY");
+  activityBody=wrapLabel(screenActivity,"No activity yet",&lv_font_montserrat_12,C_TEXT,14,58,292);lv_obj_set_style_text_line_space(activityBody,6,0);
+  button(screenActivity,"Home",12,388,296,34,navEvent,reinterpret_cast<void*>(static_cast<intptr_t>(ScreenId::Home)));
+}
+
+static void createRecovery() {''')
+          replace(ino, '''  createSystem(); createRecovery(); createAmbient();''', '''  createSystem(); createWorkshop(); createActivity(); createRecovery(); createAmbient();''')
+          # if createUi line differs, try alternate
+          p=Path(ino); s=p.read_text();
+          if 'createSystem(); createWorkshop();' not in s:
+              s=s.replace('createSystem();\n  createRecovery(); createAmbient();','createSystem();\n  createWorkshop(); createActivity(); createRecovery(); createAmbient();')
+          p.write_text(s)
+          replace(ino, '''    {"Quick", ScreenId::Quick, C_BLUE}, {"Settings", ScreenId::Settings, C_PURPLE}, {"System", ScreenId::System, C_GREEN}
+  };''', '''    {"Workshop", ScreenId::Workshop, C_ORANGE}, {"Activity", ScreenId::Activity, C_PURPLE}, {"System", ScreenId::System, C_GREEN}
+  };''')
+          replace(ino, '''static void refreshSystem() {''', '''static void refreshWorkshop() {
+  if(!workshopBody)return; char b[700]; auto &w=state.workshop; auto &e=w.environment; auto &d=w.dryer;
+  char dryer[96]; if(d.running)snprintf(dryer,sizeof(dryer),"%s • %u°C • %luh %02lum remaining",d.material,d.targetC,(unsigned long)(d.remainingSec/3600UL),(unsigned long)((d.remainingSec/60UL)%60UL)); else snprintf(dryer,sizeof(dryer),"%s",d.completed?"Complete":"Idle");
+  if(e.online&&!e.stale) snprintf(b,sizeof(b),"PRINTER  %s%s\nFILAMENT %d spools • %d low\nDRYER    %s\nAIR      %.0f°F • %.0f%% RH\nPM2.5    %.1f • VOC %.0f • CO₂ %.0f ppm\nFILTER   %s%s%s\nPRESENCE %s",state.printer.online?state.printer.status:"Offline",state.printer.printing?" • active":"",state.filament.totalSpools,state.filament.lowSpools,dryer,e.temperatureC*9.0f/5.0f+32.0f,e.humidity,e.pm25,e.voc,e.co2,w.filterRequested?"ON":"off",strlen(w.filterReason)?" • ":"",w.filterReason,e.presence?"Detected":"Clear");
+  else snprintf(b,sizeof(b),"PRINTER  %s\nFILAMENT %d spools • %d low\nDRYER    %s\nAIR      No sensor connected\nFILTER   %s%s%s\n\nExternal ESP32/sensor nodes can POST to /api/sensor.",state.printer.online?state.printer.status:"Offline",state.filament.totalSpools,state.filament.lowSpools,dryer,w.filterRequested?"ON":"off",strlen(w.filterReason)?" • ":"",w.filterReason);
+  lv_label_set_text(workshopBody,b);
+}
+
+static void refreshActivity() {
+  if(!activityBody)return; String b; for(uint8_t i=0;i<state.activityCount&&i<8;i++){auto &a=state.activity[i];b+=String(a.source)+" • "+a.title;if(strlen(a.detail)){b+="\n";b+=a.detail;}b+="\n\n";} if(!b.length())b="No activity yet.";lv_label_set_text(activityBody,b.c_str());
+}
+
+static void refreshSystem() {''')
+          replace(ino, '''  refreshStatusBars(); refreshHome(); refreshToday(); refreshControls(); refreshAttention(); refreshSettings(); refreshWifi(); refreshTimers(); refreshPrinter(); refreshFilament(); refreshSystem(); refreshAmbient();''', '''  refreshStatusBars(); refreshHome(); refreshToday(); refreshControls(); refreshAttention(); refreshSettings(); refreshWifi(); refreshTimers(); refreshPrinter(); refreshFilament(); refreshWorkshop(); refreshActivity(); refreshSystem(); refreshAmbient();''')
+          replace(ino, '''  serviceManager.add(&weatherPlugin);serviceManager.add(&bambuPlugin);serviceManager.add(&filamentPlugin);serviceManager.add(&homeAssistantPlugin);serviceManager.add(&calendarPlugin);serviceManager.add(&timerPlugin);
+  if(!state.system.recoveryMode)serviceManager.begin(config,state);
+  attentionEngine.update(config,state);refreshUi();''', '''  serviceManager.add(&weatherPlugin);serviceManager.add(&bambuPlugin);serviceManager.add(&filamentPlugin);serviceManager.add(&homeAssistantPlugin);serviceManager.add(&calendarPlugin);serviceManager.add(&timerPlugin);
+  workshopService.begin(config,state);
+  if(!state.system.recoveryMode)serviceManager.begin(config,state);
+  attentionEngine.update(config,state);activityEngine.begin(state);refreshUi();''')
+          replace(ino, '''  if(!state.system.recoveryMode)serviceManager.loop(config,state);
+  if(webDashboard.configChanged())''', '''  if(!state.system.recoveryMode)serviceManager.loop(config,state);
+  workshopService.loop(config,state); activityEngine.loop(state);
+  if(config.presenceEnabled && state.workshop.environment.presence){lastInteractionMs=millis(); if(ambientMode)wakeFromAmbient();}
+  if(webDashboard.configChanged())''')
+          replace(ino, '''if(!state.system.recoveryMode)serviceManager.configChanged(config,state);lastUiRefreshMs=0;''', '''if(!state.system.recoveryMode)serviceManager.configChanged(config,state);workshopService.begin(config,state);lastUiRefreshMs=0;''')
+
+          # printer screen richer
+          replace(ino, '''else snprintf(b,sizeof(b),"P1S • %s\\n\\nJob       %s\\nProgress  %u%%\\nRemaining %s\\nLayer     %d / %d\\nNozzle    %.0f°C\\nBed       %.0f°C\\nAMS       %d loaded slots\\nHumidity  %d\\nError     %lu",state.printer.status,strlen(state.printer.jobName)?state.printer.jobName:"—",state.printer.progress,formatMinutes(state.printer.remainingMinutes).c_str(),state.printer.currentLayer,state.printer.totalLayers,state.printer.nozzleC,state.printer.bedC,state.printer.amsLoadedSlots,state.printer.amsHumidity,(unsigned long)state.printer.errorCode);''', '''else { String ams; for(int i=0;i<4;i++){auto &sl=state.printer.amsSlots[i];ams+=String("A")+(i+1)+(sl.active?"* ":"  ");ams+=sl.loaded?(strlen(sl.material)?sl.material:"Loaded"):"Empty";if(sl.remainingPercent>=0)ams+=String(" • ")+sl.remainingPercent+"%";ams+="\\n";} snprintf(b,sizeof(b),"%s • %s\\n\\n%s\\n%u%% • %s remaining\\nFinish in ~%d min\\nLayer %d / %d\\n\\nNozzle %.0f/%.0f°C • Bed %.0f/%.0f°C\\nChamber %.0f°C • Speed %d%%\\nFans P%d A%d C%d\\n\\nAMS\\n%sHumidity %d\\nError 0x%lX",strlen(state.printer.displayName)?state.printer.displayName:"P1S",state.printer.status,strlen(state.printer.jobName)?state.printer.jobName:"No active job",state.printer.progress,formatMinutes(state.printer.remainingMinutes).c_str(),state.printer.remainingMinutes,state.printer.currentLayer,state.printer.totalLayers,state.printer.nozzleC,state.printer.nozzleTargetC,state.printer.bedC,state.printer.bedTargetC,state.printer.chamberC,state.printer.speedPercent,state.printer.partFan,state.printer.auxFan,state.printer.chamberFan,ams.c_str(),state.printer.amsHumidity,(unsigned long)state.printer.errorCode); }''')
+
+          # ambient contextual layouts
+          replace(ino, '''  String s;if(state.alertCount&&state.alerts[0].severity!=AlertSeverity::Info)s=String(state.alerts[0].title)+"\\n"+state.alerts[0].detail;else if(state.printer.printing)s=String("P1S • ")+state.printer.progress+"%\\n"+formatMinutes(state.printer.remainingMinutes)+" remaining";else if(state.calendar.hasNext)s=String(state.calendar.nextTitle)+"\\n"+state.calendar.nextWhen;else if(state.weather.online)s=String((int)round(state.weather.temperatureC*9/5+32))+"°F • "+state.weather.condition+"\\nTouch to wake";else s="Everything looks good\\nTouch to wake"; lv_label_set_text(ambientSummary,s.c_str());''', '''  String s; AmbientDisplayMode mode=config.ambientMode; if(mode==AmbientDisplayMode::Auto){if(state.alertCount&&state.alerts[0].severity!=AlertSeverity::Info)mode=AmbientDisplayMode::Workshop;else if(state.printer.printing)mode=AmbientDisplayMode::Printer;else mode=AmbientDisplayMode::Workshop;}
+  if(mode==AmbientDisplayMode::Minimal)s=""; else if(mode==AmbientDisplayMode::Clock)s=state.weather.online?String((int)round(state.weather.temperatureC*9/5+32))+"°F • "+state.weather.condition:"Touch to wake"; else if(mode==AmbientDisplayMode::Printer)s=state.printer.online?String("P1S • ")+state.printer.progress+"%\\n"+formatMinutes(state.printer.remainingMinutes)+" remaining":"Printer offline"; else {s=String("P1S ")+(state.printer.printing?String(state.printer.progress)+"%":state.printer.online?state.printer.status:"offline")+"\\n"; if(state.workshop.environment.online&&!state.workshop.environment.stale)s+=String("Air ")+((state.workshop.environment.pm25<config.pm25Alert&&state.workshop.environment.voc<config.vocAlert)?"Good":"Attention")+" • "+(int)state.workshop.environment.humidity+"% RH\\n"; s+=String("Dryer ")+(state.workshop.dryer.running?String(state.workshop.dryer.remainingSec/60)+" min":"idle")+" • Alerts "+state.alertCount;} lv_label_set_text(ambientSummary,s.c_str());''')
+
+          # ensure createUi contains workshop/activity; locate function and patch if needed
+          p=Path(ino); s=p.read_text()
+          if 'createWorkshop();' not in s[s.find('static void createUi'):s.find('static void createUi')+1200]:
+              s=s.replace('createPrinter(); createFilament(); createSystem();', 'createPrinter(); createFilament(); createSystem(); createWorkshop(); createActivity();')
+          p.write_text(s)
+
+      - name: Validate transformed sources
+        run: |
+          git diff --check
+          grep -q '1.0.0-rc4' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -q 'createWorkshop' firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+          grep -q '/api/sensor' firmware/waveshare-home/WaveshareHome/Services.cpp
+      - name: Commit upgrade
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add firmware/waveshare-home/WaveshareHome .github/workflows/workshop-platform-upgrade.yml
+          git commit -m "Expand Waveshare Home into workshop command center"
+          git push
