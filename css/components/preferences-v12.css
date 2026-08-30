@@ -1,6 +1,9 @@
-.profile-preferences-v12 #profileSectionAppearance .profile-control-grid,
-.profile-preferences-v12 #profileSectionWorkspace .profile-control-grid {
+.profile-preferences-v12 #profileSectionAppearance .profile-control-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.profile-preferences-v12 #profileSectionWorkspace .profile-control-grid {
+  grid-template-columns: minmax(0, 620px);
 }
 
 .profile-operational-defaults {
