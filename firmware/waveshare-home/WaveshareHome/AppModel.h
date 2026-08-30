@@ -22,7 +22,7 @@ inline time_t waveshareTimegm(struct tm *tmv) {
 #endif
 
 static constexpr uint32_t CONFIG_SCHEMA_VERSION = 4;
-static constexpr char FW_VERSION[] = "1.0.0-rc4";
+static constexpr char FW_VERSION[] = "1.0.0-rc5";
 static constexpr char DEFAULT_DEVICE_NAME[] = "Waveshare Home";
 static constexpr char SETUP_AP_NAME[] = "WaveshareHome-Setup";
 
@@ -295,7 +295,10 @@ struct SystemState {
   bool setupApActive = false;
   bool webReady = false;
   bool otaInProgress = false;
+  bool otaReadyToReboot = false;
   bool audioReady = false;
+  char otaStatus[32] = "Idle";
+  char otaError[96] = "";
   uint32_t bootAttempts = 0;
   uint32_t bootCount = 0;
   char resetReason[32] = "Unknown";

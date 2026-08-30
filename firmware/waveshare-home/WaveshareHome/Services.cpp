@@ -1247,7 +1247,20 @@ void WebDashboard::sendRoot() {
 
   s += F("<div class='card'><h2>Actions</h2><div class='grid'><form method='post' action='/audio/test'><button class='muted'>Test speaker</button></form><form method='post' action='/timer/start'><input type='hidden' name='seconds' value='300'><input type='hidden' name='label' value='5 minute timer'><button class='muted'>Start 5 min timer</button></form><form method='post' action='/ha/scene'><button class='muted'>Run configured scene</button></form><form method='post' action='/ha/automation'><button class='muted'>Trigger automation</button></form></div></div>");
 
-  s += F("<div class='card' id='ota'><h2>OTA firmware update</h2><p>Upload the compiled <code>WaveshareHome-firmware.bin</code>. OTA writes the inactive app partition and restarts only after validation.</p><form method='POST' action='/update' enctype='multipart/form-data'><input type='file' name='firmware' accept='.bin' required><button type='submit'>Install firmware</button></form></div>");
+  {
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    const esp_partition_t *next = esp_ota_get_next_update_partition(nullptr);
+    s += F("<div class='card' id='ota'><h2>OTA firmware update</h2>");
+    s += F("<p>Current firmware <strong>"); s += FW_VERSION; s += F("</strong><br>Running slot <strong>"); s += running ? running->label : "unknown"; s += F("</strong> • Next slot <strong>"); s += next ? next->label : "unavailable"; s += F("</strong>");
+    if (next) { s += F(" • capacity "); s += next->size / 1024UL; s += F(" KB"); }
+    s += F("</p>");
+    if (!next) s += F("<p class='warn'>OTA partition unavailable. Install the merged firmware once over USB to provision the dual-slot partition table.</p>");
+    s += F("<p>Choose only <code>WaveshareHome-firmware.bin</code>. Do not upload the merged, bootloader, or partition binary here.</p>");
+    s += F("<form id='otaForm' method='POST' action='/update' enctype='multipart/form-data'><input id='otaFile' type='file' name='firmware' accept='.bin' required><button id='otaButton' type='submit'>Install firmware</button></form><progress id='otaProgress' max='100' value='0' style='width:100%;margin-top:12px'></progress><p id='otaMessage'>");
+    s += htmlEscape(state_->system.otaStatus);
+    if (strlen(state_->system.otaError)) { s += F(" • "); s += htmlEscape(state_->system.otaError); }
+    s += F("</p><script>(()=>{const f=document.getElementById('otaForm'),p=document.getElementById('otaProgress'),m=document.getElementById('otaMessage'),b=document.getElementById('otaButton');f.addEventListener('submit',e=>{e.preventDefault();const file=document.getElementById('otaFile').files[0];if(!file)return;if(file.name.indexOf('firmware.bin')<0){m.textContent='Use WaveshareHome-firmware.bin, not the merged image.';return;}b.disabled=true;m.textContent='Uploading '+file.name+'...';const x=new XMLHttpRequest();x.open('POST','/update');x.upload.onprogress=v=>{if(v.lengthComputable){const n=Math.round(v.loaded*100/v.total);p.value=n;m.textContent='Uploading '+n+'%';}};x.onload=()=>{m.textContent=x.responseText||('HTTP '+x.status);if(x.status>=200&&x.status<300){p.value=100;m.textContent+=' Reconnecting after restart...';setTimeout(()=>location.reload(),7000);}else b.disabled=false;};x.onerror=()=>{m.textContent='Upload connection failed. Device may still be reachable; refresh and check OTA status.';b.disabled=false;};x.send(new FormData(f));});})()</script></div>");
+  }
 
   s += F("<div class='card'><h2>Recovery & reset</h2><p>Reset reason: <strong>"); s += state_->system.resetReason; s += F("</strong> • Boot attempts: "); s += state_->system.bootAttempts; s += F("</p><div class='row'><form method='post' action='/restart'><button class='muted'>Restart device</button></form><form method='post' action='/factory'><input type='hidden' name='confirm' value='ERASE'><button class='danger'>Factory reset settings</button></form></div></div>");
   s += pageFooter();
@@ -1270,6 +1283,19 @@ void WebDashboard::sendStatusJson() {
   doc["system"]["freeHeap"] = state_->system.freeHeap;
   doc["system"]["freePsram"] = state_->system.freePsram;
   doc["system"]["audioReady"] = state_->system.audioReady;
+  {
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    const esp_partition_t *next = esp_ota_get_next_update_partition(nullptr);
+    doc["ota"]["capable"] = next != nullptr;
+    doc["ota"]["runningPartition"] = running ? running->label : "unknown";
+    doc["ota"]["nextPartition"] = next ? next->label : "unavailable";
+    doc["ota"]["nextCapacity"] = next ? next->size : 0;
+    doc["ota"]["inProgress"] = state_->system.otaInProgress;
+    doc["ota"]["readyToReboot"] = state_->system.otaReadyToReboot;
+    doc["ota"]["bytes"] = state_->system.otaBytes;
+    doc["ota"]["status"] = state_->system.otaStatus;
+    doc["ota"]["error"] = state_->system.otaError;
+  }
   doc["weather"]["online"] = state_->weather.online;
   doc["weather"]["temperatureC"] = state_->weather.temperatureC;
   doc["weather"]["condition"] = state_->weather.condition;
@@ -1398,27 +1424,84 @@ void WebDashboard::handleSettingsSave() {
 
 void WebDashboard::handleUpdateUpload() {
   HTTPUpload &upload = server_.upload();
+  auto failOta = [this](const char *message) {
+    state_->system.otaInProgress = false;
+    state_->system.otaReadyToReboot = false;
+    otaUploadSucceeded_ = false;
+    copyText(state_->system.otaStatus, sizeof(state_->system.otaStatus), "Failed");
+    copyText(state_->system.otaError, sizeof(state_->system.otaError), message);
+    Serial.printf("OTA failed: %s\n", message);
+  };
+
   if (upload.status == UPLOAD_FILE_START) {
+    otaUploadStarted_ = false;
+    otaUploadSucceeded_ = false;
     state_->system.otaInProgress = true;
+    state_->system.otaReadyToReboot = false;
     state_->system.otaBytes = 0;
-    state_->system.otaTotal = upload.totalSize;
-    if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) Update.printError(Serial);
+    state_->system.otaTotal = 0;
+    state_->system.otaError[0] = '\0';
+    copyText(state_->system.otaStatus, sizeof(state_->system.otaStatus), "Preparing");
+
+    if (!upload.filename.endsWith(".bin")) { failOta("Selected file is not a .bin firmware image"); return; }
+    const esp_partition_t *next = esp_ota_get_next_update_partition(nullptr);
+    if (!next) { failOta("No inactive OTA partition. Install the merged image over USB once."); return; }
+
+    if (Update.isRunning()) Update.abort();
+    Update.clearError();
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+      String err = String("Update.begin: ") + Update.errorString();
+      failOta(err.c_str());
+      return;
+    }
+    otaUploadStarted_ = true;
+    copyText(state_->system.otaStatus, sizeof(state_->system.otaStatus), "Uploading");
+    Serial.printf("OTA start: %s -> %s (%u bytes capacity)\n", upload.filename.c_str(), next->label, (unsigned)next->size);
   } else if (upload.status == UPLOAD_FILE_WRITE) {
-    if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) Update.printError(Serial);
-    state_->system.otaBytes += upload.currentSize;
+    if (!otaUploadStarted_ || Update.hasError()) return;
+    const size_t written = Update.write(upload.buf, upload.currentSize);
+    state_->system.otaBytes += written;
+    if (written != upload.currentSize) {
+      String err = String("Flash write: ") + Update.errorString();
+      Update.abort();
+      otaUploadStarted_ = false;
+      failOta(err.c_str());
+    }
   } else if (upload.status == UPLOAD_FILE_END) {
-    if (!Update.end(true)) Update.printError(Serial);
+    if (!otaUploadStarted_) {
+      if (!strlen(state_->system.otaError)) failOta("OTA upload never started");
+      return;
+    }
+    state_->system.otaTotal = state_->system.otaBytes;
+    copyText(state_->system.otaStatus, sizeof(state_->system.otaStatus), "Validating");
+    if (!state_->system.otaBytes) { Update.abort(); failOta("Firmware upload contained zero bytes"); return; }
+    if (!Update.end(true)) {
+      String err = String("Validation: ") + Update.errorString();
+      failOta(err.c_str());
+      return;
+    }
+    otaUploadStarted_ = false;
+    otaUploadSucceeded_ = true;
     state_->system.otaInProgress = false;
+    state_->system.otaReadyToReboot = true;
+    copyText(state_->system.otaStatus, sizeof(state_->system.otaStatus), "Installed");
+    Serial.printf("OTA validated: %u bytes. Restart pending.\n", (unsigned)state_->system.otaBytes);
   } else if (upload.status == UPLOAD_FILE_ABORTED) {
-    Update.abort();
-    state_->system.otaInProgress = false;
+    if (Update.isRunning()) Update.abort();
+    otaUploadStarted_ = false;
+    failOta("Upload aborted by browser or connection");
   }
 }
 
 void WebDashboard::handleUpdateFinished() {
-  bool ok = !Update.hasError();
-  server_.send(ok ? 200 : 500, "text/html", ok ? "<html><body style='font-family:sans-serif;background:#05090d;color:white;padding:24px'><h2>Update installed</h2><p>Restarting into the new firmware...</p></body></html>" : "OTA update failed");
-  if (ok) scheduleRestart(1200);
+  const bool ok = otaUploadSucceeded_ && state_->system.otaReadyToReboot && !Update.hasError();
+  if (ok) {
+    server_.send(200, "text/plain", String("Update installed successfully (firmware ") + FW_VERSION + "). Restarting in 2 seconds.");
+    scheduleRestart(2000);
+    return;
+  }
+  String error = strlen(state_->system.otaError) ? state_->system.otaError : Update.errorString();
+  server_.send(500, "text/plain", String("OTA update failed: ") + error);
 }
 
 void WebDashboard::handleNotFound() {

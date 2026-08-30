@@ -345,6 +345,8 @@ private:
   bool configChanged_ = false;
   bool rebootAfterResponse_ = false;
   uint32_t rebootAtMs_ = 0;
+  bool otaUploadStarted_ = false;
+  bool otaUploadSucceeded_ = false;
 
   void installRoutes();
   void sendRoot();
