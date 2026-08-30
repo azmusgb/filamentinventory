@@ -1,0 +1,72 @@
+/* V12 Home decision surface ------------------------------------------------
+   Home answers the next operational question before presenting inventory
+   totals. Domain state remains owned by personal-core/personal-dashboard.
+*/
+
+html.fi-v11.fi-ux-v12 .fi-home-decision-label {
+  margin: 18px 0 5px;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-intro .lead.fi-home-decision {
+  max-width: 48ch;
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(18px, 2.2vw, 22px);
+  font-weight: 620;
+  line-height: 1.3;
+  letter-spacing: -.015em;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-summary {
+  max-width: 74ch;
+  margin: 7px 0 0;
+  color: var(--color-text-muted);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-actions {
+  margin-top: 16px;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-actions [data-home-next-action][hidden] {
+  display: none;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-section {
+  padding-top: 3px;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-attention {
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: 20px;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-row .fi-status-chip[data-state="danger"],
+html.fi-v11.fi-ux-v12 .fi-home-row .fi-status-chip[data-state="warning"] {
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  html.fi-v11.fi-ux-v12 .fi-home-decision-label {
+    margin-top: 15px;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-intro .lead.fi-home-decision {
+    font-size: 18px;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-summary {
+    font-size: 11px;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-attention {
+    padding-top: 16px;
+  }
+}
