@@ -6,7 +6,6 @@
   const qs = selector => document.querySelector(selector);
   let observer = null;
   let scheduled = false;
-  let bound = false;
 
   function ensurePresentationAssets() {
     const stylesheet = '/css/components/inventory-mobile.css';
@@ -90,7 +89,7 @@
         ${shellButton({action:'add', icon:'＋', label:'Add spool', className:'fi-sidebar-primary-action'})}
       </nav>
       <nav class="fi-secondary-nav fi-sidebar-more" aria-label="More tools">
-        <button type="button" data-v12-more aria-haspopup="dialog" aria-controls="fiMoreSheet"><span class="fi-nav-icon" aria-hidden="true">•••</span><span>Tools & settings</span></button>
+        <button type="button" data-v12-more data-bottom-more aria-haspopup="dialog" aria-controls="fiMoreSheet"><span class="fi-nav-icon" aria-hidden="true">•••</span><span>Tools & settings</span></button>
       </nav>`;
   }
 
@@ -184,22 +183,6 @@
     if (copy) copy.textContent = 'Filament workspace';
   }
 
-  function openMore() {
-    const dialog = qs('.fi-more-sheet');
-    if (dialog && !dialog.open) dialog.showModal();
-  }
-
-  function bind() {
-    if (bound) return;
-    bound = true;
-    document.addEventListener('click', event => {
-      if (event.target.closest('[data-v12-more]')) {
-        event.preventDefault();
-        openMore();
-      }
-    });
-  }
-
   function apply() {
     scheduled = false;
     refineSidebar();
@@ -231,7 +214,6 @@
 
   function init() {
     ensurePresentationAssets();
-    bind();
     scheduleApply();
     observe();
     document.addEventListener('fi:navigation', event => {
