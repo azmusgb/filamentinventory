@@ -28,9 +28,9 @@ html.fi-v11.fi-cohesion-release .fi-cohesion-inline-action:hover {
 
 /* Navigation --------------------------------------------------------------- */
 html.fi-v11.fi-ux-v12 .fi-sidebar-primary-action {
-  border: 1px solid color-mix(in srgb, var(--color-accent) 28%, var(--color-border)) !important;
-  background: var(--color-accent-soft) !important;
-  color: var(--color-text) !important;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 28%, var(--color-border));
+  background: var(--color-accent-soft);
+  color: var(--color-text);
   font-weight: 700;
 }
 
@@ -186,7 +186,7 @@ html.fi-v11.fi-ux-v12 .v12-quantity-grid {
 }
 
 html.fi-v11.fi-ux-v12 [data-quantity-field][hidden] {
-  display: none !important;
+  display: none;
 }
 
 html.fi-v11.fi-ux-v12 .spool-form-advanced {
