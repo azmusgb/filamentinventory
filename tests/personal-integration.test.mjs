@@ -48,6 +48,7 @@ test('V12 Home promotes the next decision while demoting aggregate counts to con
   ]);
   assert.match(source, /recommendedActions/);
   assert.match(source, /data-home-decision-label/);
+  assert.match(source, /data-home-decision-detail/);
   assert.match(source, /data-home-next-action/);
   assert.match(source, /Review low spool/);
   assert.match(source, /Measure next spool/);
@@ -55,6 +56,8 @@ test('V12 Home promotes the next decision while demoting aggregate counts to con
   assert.match(source, /active · .*kg known · .*loaded/);
   assert.match(css, /\.fi-home-decision-label/);
   assert.match(css, /\.fi-home-intro \.lead\.fi-home-decision/);
+  assert.match(css, /\.fi-home-decision-detail/);
+  assert.match(css, /\.fi-home-summary/);
   assert.doesNotMatch(css, /!important/);
   for (const content of [bootstrap,assets,sw]) assert.ok(content.includes('home-v12.css'),'V12 Home stylesheet must ship through bootstrap/build/offline surfaces');
 });
