@@ -58,7 +58,7 @@ test('ellipsis opens compact quick actions without opening full details', async 
   await expect(menuButton).toHaveAttribute('aria-label','More actions for CARD01');
   await menuButton.click();
 
-  const menu = page.locator('#inventoryCardQuickActionsDialog[open]');
+  const menu = page.locator('#inventoryCardQuickActionsDialog');
   await expect(menu).toBeVisible();
   await expect(page.locator('#spoolActionDialog')).not.toHaveAttribute('open','');
   for (const label of ['Open details','Weigh','Printer / AMS','QR label','Edit','Archive']) {
