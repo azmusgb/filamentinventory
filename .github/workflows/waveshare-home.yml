@@ -66,19 +66,16 @@ jobs:
           cp build/WaveshareHome.ino.bootloader.bin build/WaveshareHome-bootloader.bin
           cp build/WaveshareHome.ino.partitions.bin build/WaveshareHome-partitions.bin
 
-          # Arduino-ESP32 already emits the authoritative full-flash image. Use it
-          # instead of rebuilding a partial image that omits OTA initialization data.
           test -f build/WaveshareHome.ino.merged.bin
           cp build/WaveshareHome.ino.merged.bin build/WaveshareHome-merged.bin
 
-          # A true 16 MB merged image should be 0x1000000 bytes. Reject partial images.
           test "$(stat -c%s build/WaveshareHome-merged.bin)" -eq 16777216
           ls -lh build/WaveshareHome-firmware.bin build/WaveshareHome-merged.bin
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v7
         with:
-          name: WaveshareHome-ESP32S3-rc6-fullflash
+          name: WaveshareHome-ESP32S3-rc7-fullflash
           path: |
             build/WaveshareHome-firmware.bin
             build/WaveshareHome-bootloader.bin
