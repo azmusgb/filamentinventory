@@ -66,17 +66,14 @@ jobs:
           from pathlib import Path
           p = Path('apply_smart_profiles_evolution_v3.py')
           text = p.read_text(encoding='utf-8')
-          old = """    text = replace_once(
-              text,
-              '''  updatePrinterOnboarding();
-            refreshPrinterHealth(false);''',
-              '''  updatePrinterOnboarding();
-            refreshGaugeProfileUi();
-            refreshPrinterHealth(false);''',
-              "app/profile-account-selection",
-          )
-          """
-          new = """    profile_refresh_anchor = '''  updatePrinterOnboarding();
+          needle = '"app/profile-account-selection",'
+          pos = text.find(needle)
+          start = text.rfind('    text = replace_once(', 0, pos)
+          end = text.find('\n    )', pos)
+          if pos < 0 or start < 0 or end < 0:
+              raise SystemExit('v3 hotfix block not found')
+          end += len('\n    )')
+          replacement = """    profile_refresh_anchor = '''  updatePrinterOnboarding();
             refreshPrinterHealth(false);'''
               profile_refresh_count = text.count(profile_refresh_anchor)
               if profile_refresh_count < 1:
@@ -88,11 +85,8 @@ jobs:
                   '''  updatePrinterOnboarding();
             refreshGaugeProfileUi();
             refreshPrinterHealth(false);''',
-              )
-          """
-          if old not in text:
-              raise SystemExit('v3 hotfix anchor not found')
-          p.write_text(text.replace(old, new, 1), encoding='utf-8')
+              )"""
+          p.write_text(text[:start] + replacement + text[end:], encoding='utf-8')
           PY
           python -m py_compile \
             apply_installer_evolution.py \
