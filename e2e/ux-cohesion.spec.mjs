@@ -51,6 +51,7 @@ async function boot(page) {
   await expect.poll(() => page.evaluate(() => Boolean(globalThis.FilamentInventoryNavigation))).toBe(true);
   await expect.poll(() => page.evaluate(() => Boolean(globalThis.FilamentInventoryCohesion))).toBe(true);
   await expect(page.locator('html')).toHaveClass(/fi-cohesion-release/);
+  await expect(page.locator('html')).toHaveClass(/fi-ux-v12/);
 }
 
 async function navigate(page, view) {
@@ -60,19 +61,23 @@ async function navigate(page, view) {
 
 test.beforeEach(async ({page}) => boot(page));
 
-test('inventory and intake expose a calmer primary path', async ({page}) => {
+test('inventory and intake expose the V12 calmer primary path', async ({page}) => {
   await navigate(page,'inventory');
   await expect(page.locator('#inventoryGrid .spool-card')).toHaveCount(2);
   await expect(page.locator('#inventoryGrid .spool-card .fi-spool-details-action')).toHaveCount(2);
-  await expect(page.locator('#inventoryGrid .spool-card .fi-spool-details-action').first()).toHaveAttribute('title','Open spool details');
+  await expect(page.locator('#inventoryGrid .spool-card .fi-spool-details-action').first()).toHaveAttribute('title','More spool actions');
+  await expect(page.locator('#inventoryGrid .spool-card').first()).toHaveAttribute('role','button');
+  await expect(page.locator('#inventoryGrid .spool-card').first()).toHaveAttribute('tabindex','0');
 
   await page.locator('[data-filter-open]').click();
   await expect(page.locator('[data-filter-apply]')).toHaveText('Done');
   await expect(page.locator('#clearFiltersBtn')).toHaveText('Reset filters');
+  await expect(page.locator('#fiInventoryFilterTitle')).toHaveText('Filters & sort');
   await page.locator('.inventory-filter-dialog [data-dialog-close]').click();
 
   await page.locator('#inventoryAddBtn').click();
   await expect(page.locator('#spoolDialog[open]')).toBeVisible();
+  await expect(page.locator('.fi-spool-form-guidance')).toContainText('Brand, material, color and location');
   await expect(page.locator('.spool-form-essentials #brandChoice')).toBeVisible();
   await expect(page.locator('.spool-form-essentials #materialChoice')).toBeVisible();
   await expect(page.locator('.spool-form-essentials #locationChoice')).toBeVisible();
@@ -80,8 +85,22 @@ test('inventory and intake expose a calmer primary path', async ({page}) => {
   await expect(page.locator('#locationChoice option')).toContainText(['Choose a location…','Dry Box','Rack A','Shelf','Storage bin','Other / custom…']);
   await expect(page.locator('.spool-form-essentials #placementV8')).toHaveCount(0);
   await expect(page.locator('.v10-advanced-grid #placementV8')).toHaveCount(1);
-  await expect(page.locator('label[for="startWeight"]')).toHaveText('Nominal full filament (g)');
-  await expect(page.locator('#visualPercent').locator('..')).toContainText('measured gross − tare');
+
+  await expect(page.locator('.spool-form-quantity')).toBeVisible();
+  await expect(page.locator('.spool-form-quantity')).toContainText('How much filament is on it?');
+  await expect(page.locator('input[name="fiQuantityMode"]')).toHaveCount(3);
+  await expect(page.locator('label[for="startWeight"]')).toHaveText('Full spool filament (g)');
+  await expect(page.locator('.spool-form-advanced summary strong')).toHaveText('Advanced details');
+
+  await page.locator('input[name="fiQuantityMode"][value="estimate"]').check();
+  await expect(page.locator('#visualPercent')).toBeVisible();
+  await expect(page.locator('label[for="visualPercent"]')).toHaveText('Estimated remaining (%)');
+  await expect(page.locator('#visualPercent').locator('..')).toContainText('rough visual estimate');
+
+  await page.locator('input[name="fiQuantityMode"][value="measured"]').check();
+  await expect(page.locator('#grossEdit')).toBeVisible();
+  await expect(page.locator('#tareEdit')).toBeVisible();
+  await expect(page.locator('#visualPercent')).toBeHidden();
 });
 
 test('weigh, preferences and labels use progressive disclosure and explicit outcomes', async ({page}) => {
@@ -98,6 +117,7 @@ test('weigh, preferences and labels use progressive disclosure and explicit outc
   await expect(page.locator('.profile-save-rail')).toContainText('Preferences save automatically');
   await expect(page.locator('#profilePreferencesForm button[type="submit"]')).toHaveCount(0);
   await expect(page.locator('.profile-section-index:visible')).toHaveCount(0);
+  await expect(page.locator('.profile-summary-identity .eyebrow')).toHaveText('Workspace');
 
   await navigate(page,'labels');
   await expect(page.locator('.labels-print-bar .fi-label-output-control #labelSize')).toHaveCount(1);
