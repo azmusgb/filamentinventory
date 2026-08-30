@@ -23,12 +23,25 @@ html.fi-v11.fi-ux-v12 .fi-home-intro .lead.fi-home-decision {
   letter-spacing: -.015em;
 }
 
+html.fi-v11.fi-ux-v12 .fi-home-decision-detail {
+  max-width: 64ch;
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
 html.fi-v11.fi-ux-v12 .fi-home-summary {
   max-width: 74ch;
-  margin: 7px 0 0;
-  color: var(--color-text-muted);
-  font-size: 11.5px;
-  line-height: 1.55;
+  margin: 9px 0 0;
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-summary[hidden] {
+  display: none;
 }
 
 html.fi-v11.fi-ux-v12 .fi-home-actions {
@@ -62,8 +75,12 @@ html.fi-v11.fi-ux-v12 .fi-home-row .fi-status-chip[data-state="warning"] {
     font-size: 18px;
   }
 
+  html.fi-v11.fi-ux-v12 .fi-home-decision-detail {
+    font-size: 12px;
+  }
+
   html.fi-v11.fi-ux-v12 .fi-home-summary {
-    font-size: 11px;
+    font-size: 10px;
   }
 
   html.fi-v11.fi-ux-v12 .fi-home-attention {
