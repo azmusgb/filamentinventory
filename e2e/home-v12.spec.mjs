@@ -55,7 +55,7 @@ test('Home prioritizes low stock over summary metrics', async ({page}) => {
 
   await expect(page.locator('[data-home-decision-label]')).toHaveText('Next decision');
   await expect(page.locator('[data-home-decision]')).toHaveText('1 spool at reorder level');
-  await expect(page.locator('[data-home-summary]')).toContainText('Review the lowest spool before the next print');
+  await expect(page.locator('[data-home-decision-detail]')).toContainText('Review the lowest spool before the next print');
   await expect(page.locator('[data-home-summary]')).toContainText('3 active');
   await expect(page.locator('[data-home-summary]')).toContainText('0.80 kg known');
   await expect(page.locator('[data-home-summary]')).toContainText('1 loaded');
@@ -75,7 +75,8 @@ test('Home turns unknown quantity into a measurement task', async ({page}) => {
   await boot(page,[spool({id:'H010',material:'PETG',colorName:'Orange',visualPercent:null,location:'Shelf'})]);
 
   await expect(page.locator('[data-home-decision]')).toHaveText('Measure 1 unknown spool');
-  await expect(page.locator('[data-home-summary]')).toContainText('measured evidence');
+  await expect(page.locator('[data-home-decision-detail]')).toContainText('measured evidence');
+  await expect(page.locator('[data-home-summary]')).toHaveText('1 active · 0.00 kg known · 0 loaded');
   const next = page.locator('[data-home-next-action]');
   await expect(next).toBeVisible();
   await expect(next).toHaveText('Measure next spool');
