@@ -69,6 +69,8 @@
     }
     delete button.dataset.spoolActionsOpen;
     button.dataset.inventoryCardMenu = id;
+    button.dataset.cohesionLabel = '1';
+    button.classList.add('fi-spool-details-action');
     button.setAttribute('aria-label',`More actions for ${id}`);
     button.setAttribute('aria-haspopup','dialog');
     button.setAttribute('aria-controls','inventoryCardQuickActionsDialog');
