@@ -49,6 +49,7 @@
         <h2 id="dashboardTitle">Filament Inventory</h2>
         <p class="fi-home-decision-label" data-home-decision-label>Next decision</p>
         <p class="lead fi-home-decision" data-home-decision></p>
+        <p class="fi-home-decision-detail" data-home-decision-detail></p>
         <p class="fi-home-summary" data-home-summary></p>
         <div class="fi-home-actions">
           <button class="btn btn-primary" type="button" data-home-next-action hidden></button>
@@ -140,6 +141,7 @@
       const title = $('dashboardTitle');
       const decisionLabel = view.querySelector('[data-home-decision-label]');
       const decisionCopy = view.querySelector('[data-home-decision]');
+      const decisionDetail = view.querySelector('[data-home-decision-detail]');
       const summaryCopy = view.querySelector('[data-home-summary]');
       const nextAction = view.querySelector('[data-home-next-action]');
       const add = $('heroAddBtn');
@@ -149,16 +151,23 @@
       if (title) title.textContent = empty ? `${name}'s Inventory` : greeting(name);
       if (decisionLabel) decisionLabel.textContent = decision.label;
       if (decisionCopy) decisionCopy.textContent = decision.title;
-      if (summaryCopy) summaryCopy.textContent = empty
-        ? decision.detail
-        : `${decision.detail} · ${summary.activeCount} active · ${(summary.knownGrams/1000).toFixed(2)} kg known · ${summary.loadedCount} loaded`;
+      if (decisionDetail) decisionDetail.textContent = decision.detail;
+      if (summaryCopy) {
+        summaryCopy.hidden = empty;
+        summaryCopy.textContent = empty ? '' : `${summary.activeCount} active · ${(summary.knownGrams/1000).toFixed(2)} kg known · ${summary.loadedCount} loaded`;
+      }
 
       const hasNextAction = !empty && Boolean(decision.action && decision.actionLabel);
       if (nextAction) {
         nextAction.hidden = !hasNextAction;
         nextAction.textContent = decision.actionLabel;
-        nextAction.dataset.homeAction = decision.action;
-        nextAction.dataset.spool = decision.spoolId;
+        if (hasNextAction) {
+          nextAction.dataset.homeAction = decision.action;
+          nextAction.dataset.spool = decision.spoolId;
+        } else {
+          delete nextAction.dataset.homeAction;
+          delete nextAction.dataset.spool;
+        }
       }
       if (print) {
         print.hidden = empty;
