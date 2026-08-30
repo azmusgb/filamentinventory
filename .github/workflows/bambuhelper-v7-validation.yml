@@ -51,6 +51,7 @@ jobs:
           curl -fsSL "$v6/v4.zlib.b64" -o /tmp/v4.b64
           curl -fsSL "$v6/v5.zlib.b64" -o /tmp/v5.b64
           curl -fsSL "$v6/v6.zlib.b64" -o /tmp/v6.b64
+          cat .bambuhelper-validation/v7.chunk{0,1,2,3,4} > /tmp/v7.b64
 
           python - <<'PY'
           from pathlib import Path
@@ -64,7 +65,7 @@ jobs:
               ('/tmp/v4.b64', 'apply_ws350_remote_dashboard_v4.py'),
               ('/tmp/v5.b64', 'apply_commissioning_evolution_v5.py'),
               ('/tmp/v6.b64', 'apply_smart_display_platform_v6.py'),
-              ('.bambuhelper-validation/v7.zlib.b64', 'apply_smart_workshop_v7.py'),
+              ('/tmp/v7.b64', 'apply_smart_workshop_v7.py'),
           ]
           for src, dst in pairs:
               raw = zlib.decompress(base64.b64decode(Path(src).read_text().strip()))
@@ -122,8 +123,12 @@ jobs:
           grep -Fq 'dwellSeconds' upstream/src/smart_hub.cpp
           grep -Fq 'pageOrder' upstream/src/smart_hub.cpp
           grep -Fq 'sourceStale' upstream/src/smart_hub.cpp
-          grep -Fq 'last valid' upstream/src/smart_hub.cpp || grep -Fq 'last-known' upstream/src/smart_hub.cpp || true
+          grep -Fq 'x-filament-sync-key' upstream/src/smart_hub.cpp
+          grep -Fq 'x-filament-profile' upstream/src/smart_hub.cpp
+          grep -Fq 'inventorySyncKey' upstream/src/smart_hub.h
+          grep -Fq 'hasInventorySyncKey' upstream/src/web_server.cpp
           grep -Fq 'Smart Workshop Display' upstream/include/web_pages.h
+          grep -Fq 'hubSyncKey' upstream/include/web_pages.h
           grep -Fq 'useInventoryFeed' upstream/web/app.js
           grep -Fq 'BH_INVENTORY_FEED' upstream/web/app.js
           grep -Fq 'hub-v7-card' upstream/web/app.css
@@ -165,6 +170,8 @@ jobs:
             echo 'layers=v1,v1-device,v2,v3,v4,v5,v6,v7'
             echo 'context_aware_home=PASS'
             echo 'filament_inventory_feed_contract=PASS'
+            echo 'private_inventory_auth_headers=PASS'
+            echo 'write_only_inventory_sync_key=PASS'
             echo 'idle_auto_rotation=PASS'
             echo 'configurable_page_order=PASS'
             echo 'configurable_dwell=PASS'
