@@ -42,7 +42,7 @@ CalendarPlugin calendarPlugin;
 TimerPlugin timerPlugin(audio);
 ServiceManager serviceManager;
 AttentionEngine attentionEngine;
-WebDashboard webDashboard(configStore, connectivity, audio, timerPlugin, homeAssistantPlugin);
+WebDashboard webDashboard(configStore, connectivity, audio, timerPlugin, homeAssistantPlugin, bambuPlugin);
 
 static lv_disp_draw_buf_t drawBuf;
 static lv_color_t *drawBuf1 = nullptr;

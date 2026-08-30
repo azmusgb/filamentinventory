@@ -12,6 +12,9 @@ constexpr uint32_t FILAMENT_INTERVAL_MS = 3UL * 60UL * 1000UL;
 constexpr uint32_t HA_INTERVAL_MS = 30UL * 1000UL;
 constexpr uint32_t CALENDAR_INTERVAL_MS = 5UL * 60UL * 1000UL;
 constexpr uint32_t AUDIO_SAMPLE_RATE = 44100;
+constexpr uint16_t BAMBU_DISCOVERY_PORT = 2021;
+constexpr uint32_t BAMBU_DISCOVERY_MS = 9000UL;
+const IPAddress BAMBU_DISCOVERY_GROUP(239, 255, 255, 250);
 constexpr int I2S_MCLK = 12;
 constexpr int I2S_BCLK = 13;
 constexpr int I2S_LRCK = 15;
@@ -462,6 +465,98 @@ BambuPlugin::BambuPlugin() : mqtt_(tls_) {
   mqtt_.setKeepAlive(30);
 }
 
+
+bool BambuPlugin::startDiscovery() {
+  if (WiFi.status() != WL_CONNECTED) return false;
+  discoveryUdp_.stop();
+  discoveredCount_ = 0;
+  for (auto &item : discovered_) item = BambuDiscoveredPrinter{};
+  if (!discoveryUdp_.beginMulticast(BAMBU_DISCOVERY_GROUP, BAMBU_DISCOVERY_PORT)) return false;
+  discoveryRunning_ = true;
+  discoveryStartedMs_ = millis();
+  const char *probe = "M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:2021\r\nMAN: \"ssdp:discover\"\r\nST: urn:bambulab-com:device:3dprinter:1\r\nMX: 3\r\n\r\n";
+  discoveryUdp_.beginPacketMulticast(BAMBU_DISCOVERY_GROUP, BAMBU_DISCOVERY_PORT, WiFi.localIP());
+  discoveryUdp_.write(reinterpret_cast<const uint8_t *>(probe), strlen(probe));
+  discoveryUdp_.endPacket();
+  return true;
+}
+
+int BambuPlugin::findDiscovered(const char *serial, const char *host) const {
+  for (uint8_t i = 0; i < discoveredCount_; ++i) {
+    if (serial && *serial && !strcmp(discovered_[i].serial, serial)) return i;
+    if (host && *host && !strcmp(discovered_[i].host, host)) return i;
+  }
+  return -1;
+}
+
+void BambuPlugin::parseDiscoveryPacket(const String &packet, const IPAddress &remoteIp) {
+  auto value = [&](const char *key) -> String {
+    String needle = String(key) + ":";
+    int start = packet.indexOf(needle);
+    if (start < 0) return String();
+    start += needle.length();
+    while (start < packet.length() && (packet[start] == ' ' || packet[start] == '\t')) start++;
+    int end = packet.indexOf('\n', start);
+    if (end < 0) end = packet.length();
+    String out = packet.substring(start, end);
+    out.trim();
+    return out;
+  };
+  String serial = value("DevSerial");
+  String host = value("Location");
+  if (!host.length()) host = remoteIp.toString();
+  host.replace("http://", ""); host.replace("https://", "");
+  int slash = host.indexOf('/'); if (slash >= 0) host = host.substring(0, slash);
+  int colon = host.indexOf(':'); if (colon >= 0) host = host.substring(0, colon);
+  String nt = value("NT");
+  if (!serial.length() && nt.indexOf("bambulab") < 0 && packet.indexOf("Bambu") < 0 && packet.indexOf("DevModel") < 0) return;
+  int index = findDiscovered(serial.c_str(), host.c_str());
+  if (index < 0) {
+    if (discoveredCount_ >= 6) return;
+    index = discoveredCount_++;
+  }
+  auto &d = discovered_[index];
+  d.valid = true;
+  copyText(d.host, sizeof(d.host), host);
+  copyText(d.serial, sizeof(d.serial), serial);
+  copyText(d.name, sizeof(d.name), value("DevName"));
+  copyText(d.model, sizeof(d.model), value("DevModel"));
+  copyText(d.version, sizeof(d.version), value("DevVersion"));
+  d.signal = value("DevSignal").toInt();
+  d.lastSeenMs = millis();
+}
+
+void BambuPlugin::pollDiscovery() {
+  if (!discoveryRunning_) return;
+  int size = discoveryUdp_.parsePacket();
+  while (size > 0) {
+    String packet;
+    packet.reserve(size + 1);
+    while (discoveryUdp_.available()) packet += static_cast<char>(discoveryUdp_.read());
+    parseDiscoveryPacket(packet, discoveryUdp_.remoteIP());
+    size = discoveryUdp_.parsePacket();
+  }
+  if (millis() - discoveryStartedMs_ >= BAMBU_DISCOVERY_MS) {
+    discoveryRunning_ = false;
+    discoveryUdp_.stop();
+  }
+}
+
+bool BambuPlugin::useDiscovered(AppConfig &config, AppState &state, uint8_t index) {
+  const BambuDiscoveredPrinter *d = discovered(index);
+  if (!d || !d->valid) return false;
+  copyText(config.bambuHost, sizeof(config.bambuHost), d->host);
+  copyText(config.bambuSerial, sizeof(config.bambuSerial), d->serial);
+  config.bambuEnabled = true;
+  copyText(state.printer.displayName, sizeof(state.printer.displayName), d->name);
+  copyText(state.printer.model, sizeof(state.printer.model), d->model);
+  copyText(state.printer.firmware, sizeof(state.printer.firmware), d->version);
+  copyText(state.printer.host, sizeof(state.printer.host), d->host);
+  copyText(state.printer.serial, sizeof(state.printer.serial), d->serial);
+  begin(config, state);
+  return true;
+}
+
 void BambuPlugin::begin(AppConfig &config, AppState &state) {
   config_ = &config;
   state_ = &state;
@@ -481,7 +576,8 @@ void BambuPlugin::onConfigChanged(AppConfig &config, AppState &state) {
 }
 
 void BambuPlugin::loop(AppConfig &config, AppState &state) {
-  if (!enabled(config) || !state.printer.configured || WiFi.status() != WL_CONNECTED) return;
+  if (WiFi.status() == WL_CONNECTED) pollDiscovery();
+  if (!config.bambuEnabled || !state.printer.configured || WiFi.status() != WL_CONNECTED) return;
   if (!mqtt_.connected()) {
     state.printer.online = false;
     if (lastConnectAttemptMs_ == 0 || millis() - lastConnectAttemptMs_ >= reconnectBackoffMs_) {
@@ -515,7 +611,18 @@ void BambuPlugin::callback(char *, byte *payload, unsigned int length) {
   p.progress = constrain((int)(print["mc_percent"] | p.progress), 0, 100);
   p.remainingMinutes = print["mc_remaining_time"] | p.remainingMinutes;
   p.nozzleC = print["nozzle_temper"] | p.nozzleC;
+  p.nozzleTargetC = print["nozzle_target_temper"] | p.nozzleTargetC;
   p.bedC = print["bed_temper"] | p.bedC;
+  p.bedTargetC = print["bed_target_temper"] | p.bedTargetC;
+  p.chamberC = print["chamber_temper"] | p.chamberC;
+  p.speedLevel = print["spd_lvl"] | p.speedLevel;
+  p.speedPercent = print["spd_mag"] | p.speedPercent;
+  p.partFan = String(print["cooling_fan_speed"] | String(p.partFan)).toInt();
+  p.auxFan = String(print["big_fan1_speed"] | String(p.auxFan)).toInt();
+  p.chamberFan = String(print["big_fan2_speed"] | String(p.chamberFan)).toInt();
+  p.wifiSignal = print["wifi_signal"] | p.wifiSignal;
+  String stage = print["mc_print_stage"] | p.stage;
+  if (stage.length()) copyText(p.stage, sizeof(p.stage), stage);
   p.currentLayer = print["layer_num"] | p.currentLayer;
   p.totalLayers = print["total_layer_num"] | p.totalLayers;
   String job = print["subtask_name"] | p.jobName;
@@ -539,6 +646,7 @@ void BambuPlugin::callback(char *, byte *payload, unsigned int length) {
     String active = ams["tray_now"] | "-1";
     p.activeTray = active.toInt();
   }
+  if (p.connectedMs == 0) p.connectedMs = millis();
   p.updatedMs = millis();
 }
 
@@ -551,6 +659,9 @@ bool BambuPlugin::connectMqtt() {
   String reportTopic = String("device/") + config_->bambuSerial + "/report";
   mqtt_.subscribe(reportTopic.c_str());
   state_->printer.online = true;
+  state_->printer.connectedMs = millis();
+  copyText(state_->printer.host, sizeof(state_->printer.host), config_->bambuHost);
+  copyText(state_->printer.serial, sizeof(state_->printer.serial), config_->bambuSerial);
   requestPushAll();
   return true;
 }
@@ -896,8 +1007,8 @@ void AttentionEngine::update(const AppConfig &config, AppState &state) {
 // ---------- Web dashboard ----------
 
 WebDashboard::WebDashboard(ConfigStore &store, ConnectivityService &connectivity, AudioService &audio,
-                           TimerPlugin &timers, HomeAssistantPlugin &homeAssistant)
-  : server_(80), store_(store), connectivity_(connectivity), audio_(audio), timers_(timers), homeAssistant_(homeAssistant) {}
+                           TimerPlugin &timers, HomeAssistantPlugin &homeAssistant, BambuPlugin &bambu)
+  : server_(80), store_(store), connectivity_(connectivity), audio_(audio), timers_(timers), homeAssistant_(homeAssistant), bambu_(bambu) {}
 
 String WebDashboard::htmlEscape(const String &value) {
   String out = value;
@@ -945,6 +1056,18 @@ void WebDashboard::installRoutes() {
   server_.on("/api/status", HTTP_GET, [this]() { sendStatusJson(); });
   server_.on("/wifi", HTTP_POST, [this]() { handleWifiSave(); });
   server_.on("/settings", HTTP_POST, [this]() { handleSettingsSave(); });
+  server_.on("/bambu/scan", HTTP_POST, [this]() {
+    if (!bambu_.startDiscovery()) { server_.send(409, "text/plain", "Wi-Fi must be online to scan"); return; }
+    server_.sendHeader("Location", "/#bambu", true);
+    server_.send(303, "text/plain", "Scanning");
+  });
+  server_.on("/bambu/use", HTTP_POST, [this]() {
+    int index = server_.arg("index").toInt();
+    if (!bambu_.useDiscovered(*config_, *state_, index)) { server_.send(404, "text/plain", "Discovered printer not found"); return; }
+    store_.save(*config_); configChanged_ = true;
+    server_.sendHeader("Location", "/#bambu", true);
+    server_.send(303, "text/plain", "Printer selected");
+  });
   server_.on("/wifi/reconnect", HTTP_POST, [this]() { connectivity_.reconnect(); server_.send(200, "text/plain", "Reconnect requested"); });
   server_.on("/wifi/forget", HTTP_POST, [this]() { connectivity_.forget(); server_.send(200, "text/plain", "Wi-Fi forgotten. Join WaveshareHome-Setup."); });
   server_.on("/restart", HTTP_POST, [this]() { server_.send(200, "text/plain", "Restarting"); scheduleRestart(); });
@@ -1006,7 +1129,18 @@ void WebDashboard::sendRoot() {
 
   s += F("<div class='card' id='integrations'><h2>Integrations</h2><h3>Weather</h3><label><input type='checkbox' name='weatherEnabled'"); s += checked(config_->weatherEnabled); s += F(">Enable weather</label><div class='row'><input name='weatherLocation' placeholder='Location label' value='"); s += htmlEscape(config_->weatherLocation); s += F("'><input name='weatherLat' placeholder='Latitude' value='"); s += String(config_->weatherLatitude, 5); s += F("'></div><div class='row'><input name='weatherLon' placeholder='Longitude' value='"); s += String(config_->weatherLongitude, 5); s += F("'><label><input type='checkbox' name='weatherAlerts'"); s += checked(config_->severeWeatherEnabled); s += F(">NWS severe alerts</label></div><hr>");
 
-  s += F("<h3>Bambu Lab</h3><label><input type='checkbox' name='bambuEnabled'"); s += checked(config_->bambuEnabled); s += F(">Enable local MQTT</label><div class='row'><input name='bambuHost' placeholder='Printer IP / host' value='"); s += htmlEscape(config_->bambuHost); s += F("'><input name='bambuSerial' placeholder='Printer serial' value='"); s += htmlEscape(config_->bambuSerial); s += F("'></div><label>Access code</label><input type='password' name='bambuAccessCode' placeholder='Leave blank to keep saved code'><hr>");
+  s += F("<h3 id='bambu'>Bambu Lab</h3>");
+  s += F("<div class='card' style='margin:8px 0;background:#071015'><div class='top'><div><strong>");
+  s += strlen(state_->printer.displayName) ? htmlEscape(state_->printer.displayName) : (strlen(config_->bambuHost) ? htmlEscape(config_->bambuHost) : String("No printer selected"));
+  s += F("</strong><p>"); s += state_->printer.online ? "Connected via local MQTT" : (state_->printer.configured ? "Configured • waiting for MQTT" : "Not configured"); s += F("</p></div><span class='badge'>"); s += state_->printer.online ? "ONLINE" : "OFFLINE"; s += F("</span></div>");
+  if (state_->printer.online) {
+    s += F("<div class='grid'><div><h3>Status</h3><div class='metric'>"); s += htmlEscape(state_->printer.status); s += F("</div><p>"); s += htmlEscape(state_->printer.jobName); s += F("</p></div><div><h3>Progress</h3><div class='metric'>"); s += state_->printer.progress; s += F("%</div><p>"); s += state_->printer.remainingMinutes; s += F(" min remaining</p></div></div>");
+    s += F("<p>Nozzle "); s += String(state_->printer.nozzleC,1); s += F(" / "); s += String(state_->printer.nozzleTargetC,1); s += F(" C • Bed "); s += String(state_->printer.bedC,1); s += F(" / "); s += String(state_->printer.bedTargetC,1); s += F(" C • Chamber "); s += String(state_->printer.chamberC,1); s += F(" C<br>Layer "); s += state_->printer.currentLayer; s += F(" / "); s += state_->printer.totalLayers; s += F(" • Speed "); s += state_->printer.speedPercent; s += F("% • AMS slots "); s += state_->printer.amsLoadedSlots; s += F(" • Active tray "); s += state_->printer.activeTray; s += F(" • AMS humidity "); s += state_->printer.amsHumidity; s += F("<br>Fans: part "); s += state_->printer.partFan; s += F(" • aux "); s += state_->printer.auxFan; s += F(" • chamber "); s += state_->printer.chamberFan; s += F(" • Error 0x"); s += String(state_->printer.errorCode, HEX); s += F("</p>");
+  }
+  s += F("</div><form method='post' action='/bambu/scan'><button class='muted'>Scan local network for Bambu printers</button></form>");
+  if (bambu_.discoveryRunning()) s += F("<p class='warn'>Scanning for Bambu SSDP announcements… refresh this page in a few seconds.</p>");
+  if (bambu_.discoveredCount()) { s += F("<label>Discovered printers</label>"); for (uint8_t i=0;i<bambu_.discoveredCount();++i) { const auto *d=bambu_.discovered(i); if(!d) continue; s += F("<form method='post' action='/bambu/use' class='card' style='margin:6px 0'><input type='hidden' name='index' value='"); s += i; s += F("'><strong>"); s += htmlEscape(strlen(d->name)?d->name:d->model); s += F("</strong><p>"); s += htmlEscape(d->model); s += F(" • "); s += htmlEscape(d->host); s += F("<br>Serial "); s += htmlEscape(d->serial); if(strlen(d->version)){s += F(" • FW "); s += htmlEscape(d->version);} s += F("</p><button type='submit'>Use this printer</button></form>"); } }
+  s += F("<label><input type='checkbox' name='bambuEnabled'"); s += checked(config_->bambuEnabled); s += F(">Enable local MQTT monitoring</label><div class='row'><div><label>Printer IP / host</label><input name='bambuHost' value='"); s += htmlEscape(config_->bambuHost); s += F("'></div><div><label>Printer serial</label><input name='bambuSerial' value='"); s += htmlEscape(config_->bambuSerial); s += F("'></div></div><label>LAN access code</label><input type='password' name='bambuAccessCode' placeholder='Leave blank to keep saved code'><p><small>Discovery fills IP and serial automatically. The printer's LAN access code is still required for MQTT telemetry.</small></p><hr>");
 
   s += F("<h3>Filament Inventory</h3><label><input type='checkbox' name='filamentEnabled'"); s += checked(config_->filamentEnabled); s += F(">Enable cloud inventory</label><label>Sync endpoint</label><input name='filamentEndpoint' value='"); s += htmlEscape(config_->filamentEndpoint); s += F("'><div class='row'><select name='filamentProfile'><option"); s += selected(!strcmp(config_->filamentProfile, "Bill")); s += F(">Bill</option><option"); s += selected(!strcmp(config_->filamentProfile, "Aimee")); s += F(">Aimee</option></select><input type='password' name='filamentSyncKey' placeholder='Private sync key; blank keeps saved'></div><hr>");
 
@@ -1045,10 +1179,35 @@ void WebDashboard::sendStatusJson() {
   doc["weather"]["temperatureC"] = state_->weather.temperatureC;
   doc["weather"]["condition"] = state_->weather.condition;
   doc["weather"]["alert"] = state_->weather.severeAlert ? state_->weather.alertHeadline : "";
+  doc["printer"]["configured"] = state_->printer.configured;
   doc["printer"]["online"] = state_->printer.online;
+  doc["printer"]["name"] = state_->printer.displayName;
+  doc["printer"]["model"] = state_->printer.model;
+  doc["printer"]["host"] = config_->bambuHost;
+  doc["printer"]["serial"] = config_->bambuSerial;
   doc["printer"]["status"] = state_->printer.status;
+  doc["printer"]["stage"] = state_->printer.stage;
+  doc["printer"]["job"] = state_->printer.jobName;
   doc["printer"]["progress"] = state_->printer.progress;
   doc["printer"]["remainingMinutes"] = state_->printer.remainingMinutes;
+  doc["printer"]["nozzleC"] = state_->printer.nozzleC;
+  doc["printer"]["nozzleTargetC"] = state_->printer.nozzleTargetC;
+  doc["printer"]["bedC"] = state_->printer.bedC;
+  doc["printer"]["bedTargetC"] = state_->printer.bedTargetC;
+  doc["printer"]["chamberC"] = state_->printer.chamberC;
+  doc["printer"]["layer"] = state_->printer.currentLayer;
+  doc["printer"]["totalLayers"] = state_->printer.totalLayers;
+  doc["printer"]["speedPercent"] = state_->printer.speedPercent;
+  doc["printer"]["partFan"] = state_->printer.partFan;
+  doc["printer"]["auxFan"] = state_->printer.auxFan;
+  doc["printer"]["chamberFan"] = state_->printer.chamberFan;
+  doc["printer"]["amsLoadedSlots"] = state_->printer.amsLoadedSlots;
+  doc["printer"]["activeTray"] = state_->printer.activeTray;
+  doc["printer"]["amsHumidity"] = state_->printer.amsHumidity;
+  doc["printer"]["errorCode"] = state_->printer.errorCode;
+  doc["printer"]["updatedMs"] = state_->printer.updatedMs;
+  doc["printerDiscovery"]["running"] = bambu_.discoveryRunning();
+  doc["printerDiscovery"]["count"] = bambu_.discoveredCount();
   doc["filament"]["online"] = state_->filament.online;
   doc["filament"]["total"] = state_->filament.totalSpools;
   doc["filament"]["loaded"] = state_->filament.loadedSpools;

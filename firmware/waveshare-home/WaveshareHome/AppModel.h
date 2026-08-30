@@ -22,7 +22,7 @@ inline time_t waveshareTimegm(struct tm *tmv) {
 #endif
 
 static constexpr uint32_t CONFIG_SCHEMA_VERSION = 3;
-static constexpr char FW_VERSION[] = "1.0.0-rc1";
+static constexpr char FW_VERSION[] = "1.0.0-rc2";
 static constexpr char DEFAULT_DEVICE_NAME[] = "Waveshare Home";
 static constexpr char SETUP_AP_NAME[] = "WaveshareHome-Setup";
 
@@ -113,24 +113,51 @@ struct WeatherState {
   uint32_t updatedMs = 0;
 };
 
+struct BambuDiscoveredPrinter {
+  bool valid = false;
+  char name[48] = "";
+  char model[32] = "";
+  char host[24] = "";
+  char serial[40] = "";
+  char version[32] = "";
+  int signal = 0;
+  uint32_t lastSeenMs = 0;
+};
+
 struct PrinterState {
   bool configured = false;
   bool online = false;
   bool printing = false;
   bool error = false;
   char status[28] = "Not configured";
+  char stage[40] = "";
   char jobName[80] = "";
+  char displayName[48] = "";
+  char model[32] = "";
+  char firmware[32] = "";
+  char host[24] = "";
+  char serial[40] = "";
   uint8_t progress = 0;
   int remainingMinutes = 0;
   float nozzleC = 0;
+  float nozzleTargetC = 0;
   float bedC = 0;
+  float bedTargetC = 0;
+  float chamberC = 0;
   int currentLayer = 0;
   int totalLayers = 0;
+  int speedLevel = 0;
+  int speedPercent = 100;
+  int partFan = 0;
+  int auxFan = 0;
+  int chamberFan = 0;
+  int wifiSignal = 0;
   int amsLoadedSlots = 0;
   int activeTray = -1;
   int amsHumidity = -1;
   uint32_t errorCode = 0;
   uint32_t updatedMs = 0;
+  uint32_t connectedMs = 0;
 };
 
 struct FilamentState {

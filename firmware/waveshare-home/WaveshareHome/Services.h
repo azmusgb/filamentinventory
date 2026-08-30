@@ -11,6 +11,7 @@
 #include <WebServer.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <WiFiUdp.h>
 #include <esp_ota_ops.h>
 #include <esp_system.h>
 #include <esp_task_wdt.h>
@@ -219,22 +220,35 @@ class BambuPlugin : public ServicePlugin {
 public:
   BambuPlugin();
   const char *name() const override { return "Bambu"; }
-  bool enabled(const AppConfig &config) const override { return config.bambuEnabled; }
+  bool enabled(const AppConfig &config) const override { return config.bambuEnabled || discoveryRunning_; }
   void begin(AppConfig &config, AppState &state) override;
   void loop(AppConfig &config, AppState &state) override;
   void onConfigChanged(AppConfig &config, AppState &state) override;
+  bool startDiscovery();
+  bool discoveryRunning() const { return discoveryRunning_; }
+  uint8_t discoveredCount() const { return discoveredCount_; }
+  const BambuDiscoveredPrinter *discovered(uint8_t index) const { return index < discoveredCount_ ? &discovered_[index] : nullptr; }
+  bool useDiscovered(AppConfig &config, AppState &state, uint8_t index);
 private:
   WiFiClientSecure tls_;
   PubSubClient mqtt_;
+  WiFiUDP discoveryUdp_;
   AppConfig *config_ = nullptr;
   AppState *state_ = nullptr;
   uint32_t lastConnectAttemptMs_ = 0;
   uint32_t reconnectBackoffMs_ = 5000;
+  bool discoveryRunning_ = false;
+  uint32_t discoveryStartedMs_ = 0;
+  BambuDiscoveredPrinter discovered_[6];
+  uint8_t discoveredCount_ = 0;
   static BambuPlugin *instance_;
   static void callbackStatic(char *topic, byte *payload, unsigned int length);
   void callback(char *topic, byte *payload, unsigned int length);
   bool connectMqtt();
   void requestPushAll();
+  void pollDiscovery();
+  void parseDiscoveryPacket(const String &packet, const IPAddress &remoteIp);
+  int findDiscovered(const char *serial, const char *host) const;
 };
 
 class FilamentPlugin : public ServicePlugin {
@@ -308,7 +322,7 @@ private:
 class WebDashboard {
 public:
   WebDashboard(ConfigStore &store, ConnectivityService &connectivity, AudioService &audio,
-               TimerPlugin &timers, HomeAssistantPlugin &homeAssistant);
+               TimerPlugin &timers, HomeAssistantPlugin &homeAssistant, BambuPlugin &bambu);
   void begin(AppConfig &config, AppState &state);
   void loop(AppConfig &config, AppState &state);
   bool configChanged() const { return configChanged_; }
@@ -320,6 +334,7 @@ private:
   AudioService &audio_;
   TimerPlugin &timers_;
   HomeAssistantPlugin &homeAssistant_;
+  BambuPlugin &bambu_;
   AppConfig *config_ = nullptr;
   AppState *state_ = nullptr;
   bool started_ = false;
