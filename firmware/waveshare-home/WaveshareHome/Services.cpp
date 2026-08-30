@@ -475,7 +475,7 @@ bool BambuPlugin::startDiscovery() {
   discoveryRunning_ = true;
   discoveryStartedMs_ = millis();
   const char *probe = "M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:2021\r\nMAN: \"ssdp:discover\"\r\nST: urn:bambulab-com:device:3dprinter:1\r\nMX: 3\r\n\r\n";
-  discoveryUdp_.beginPacketMulticast(BAMBU_DISCOVERY_GROUP, BAMBU_DISCOVERY_PORT, WiFi.localIP());
+  discoveryUdp_.beginPacket(BAMBU_DISCOVERY_GROUP, BAMBU_DISCOVERY_PORT);
   discoveryUdp_.write(reinterpret_cast<const uint8_t *>(probe), strlen(probe));
   discoveryUdp_.endPacket();
   return true;
