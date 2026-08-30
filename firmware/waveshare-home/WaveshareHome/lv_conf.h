@@ -28,6 +28,10 @@
 #define LV_FONT_MONTSERRAT_32 0
 #define LV_FONT_MONTSERRAT_34 0
 #define LV_FONT_MONTSERRAT_36 1
+/* The UI uses compact semantic sizes. LVGL's bundled Montserrat set has no 11/13 px assets,
+   so map those semantic sizes to the nearest compiled fonts. */
+#define lv_font_montserrat_11 lv_font_montserrat_12
+#define lv_font_montserrat_13 lv_font_montserrat_14
 #define LV_FONT_DEFAULT &lv_font_montserrat_14
 #define LV_USE_ANIMIMG 1
 #define LV_USE_ARC 1
