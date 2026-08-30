@@ -1,0 +1,188 @@
+name: BambuHelper ws_lcd_350 remote dashboard v4 validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/bambuhelper-ws350-remote-dashboard-v4-validation.yml'
+      - '.bambuhelper-validation/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Patch, optimize, and build WS350 v4
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout validation harness
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned BambuHelper source
+        uses: actions/checkout@v4
+        with:
+          repository: Keralots/BambuHelper
+          ref: 8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4
+          path: upstream
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Rehydrate evolution patchers
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_v1=https://raw.githubusercontent.com/azmusgb/filamentinventory/741a6f0651fb4e20d8e2674f2c0ce726b0d7bdf9/.bambuhelper-validation
+          base_v3=https://raw.githubusercontent.com/azmusgb/filamentinventory/07ce909fa7dd485abfc556eaf9addfbbd82e3cb3/.bambuhelper-validation
+
+          curl -fsSL "$base_v1/installer.zlib.b64" -o /tmp/installer.b64
+          for n in 0 1 2 3; do curl -fsSL "$base_v1/device.part$n" -o "/tmp/device.part$n"; done
+          cat /tmp/device.part0 /tmp/device.part1 /tmp/device.part2 /tmp/device.part3 > /tmp/device.b64
+          curl -fsSL "$base_v3/v2.zlib.b64" -o /tmp/v2.b64
+          curl -fsSL "$base_v3/v3.zlib.b64" -o /tmp/v3.b64
+
+          python - <<'PY'
+          from pathlib import Path
+          import base64, zlib
+
+          pairs = [
+              ('/tmp/installer.b64', 'apply_installer_evolution.py'),
+              ('/tmp/device.b64', 'apply_device_onboarding_evolution.py'),
+              ('/tmp/v2.b64', 'apply_resilience_evolution_v2.py'),
+              ('/tmp/v3.b64', 'apply_smart_profiles_evolution_v3.py'),
+              ('.bambuhelper-validation/v4.zlib.b64', 'apply_ws350_remote_dashboard_v4.py'),
+          ]
+          for source, target in pairs:
+              payload = Path(source).read_text(encoding='utf-8').strip()
+              raw = zlib.decompress(base64.b64decode(payload))
+              Path(target).write_bytes(raw)
+              print(f'rehydrated {target}: {len(raw)} bytes')
+          PY
+
+          python -m py_compile \
+            apply_installer_evolution.py \
+            apply_device_onboarding_evolution.py \
+            apply_resilience_evolution_v2.py \
+            apply_smart_profiles_evolution_v3.py \
+            apply_ws350_remote_dashboard_v4.py
+
+      - name: Apply Web Flasher evolution v1
+        run: python apply_installer_evolution.py --repo upstream --apply
+
+      - name: Apply device onboarding evolution v1
+        run: python apply_device_onboarding_evolution.py --repo upstream --apply
+
+      - name: Apply resilience evolution v2
+        run: python apply_resilience_evolution_v2.py --repo upstream --apply
+
+      - name: Apply Smart Remote Profiles evolution v3
+        run: python apply_smart_profiles_evolution_v3.py --repo upstream --apply
+
+      - name: Apply WS350 on-device dashboard evolution v4
+        run: python apply_ws350_remote_dashboard_v4.py --repo upstream --apply
+
+      - name: Static integration checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check upstream/docs/flasher.js
+          node --check upstream/web/app.js
+
+          # Exact board target and hardware path.
+          grep -Fq 'BOARD_IS_WS350=1' upstream/boards/ws_lcd_350.ini
+          grep -Fq 'DISPLAY_320x480=1' upstream/boards/ws_lcd_350.ini
+          grep -Fq 'USE_FT6336=1' upstream/boards/ws_lcd_350.ini
+
+          # v1-v3 integration remains present.
+          grep -Fq 'Email code is recommended.' upstream/include/web_pages.h
+          grep -Fq 'Setup health' upstream/include/web_pages.h
+          grep -Fq 'Remote monitor profile' upstream/include/web_pages.h
+          grep -Fq 'X2D dual-nozzle' upstream/include/web_pages.h
+          grep -Fq 'hasDualNozzle' upstream/web/app.js
+          grep -Fq 'saveGaugeLayout();' upstream/web/app.js
+          grep -Fq 'Export diagnostics' upstream/docs/index.html
+
+          # v4 source markers and WS350-specific geometry/defaults.
+          grep -Fq 'BambuHelper WS350 remote dashboard evolution v4' upstream/include/layout_320x480.h
+          grep -Fq '#define LY_GAUGE_R 50' upstream/include/layout_320x480.h
+          grep -Fq '#define LY_GAUGE_T 12' upstream/include/layout_320x480.h
+          grep -Fq '#define LY_TEMP_GAUGE_T 12' upstream/include/layout_320x480.h
+          grep -Fq '#define LY_AMS_BAR_H 46' upstream/include/layout_320x480.h
+          grep -Fq '#define LY_LAND_ETA_H 32' upstream/include/layout_320x480.h
+          grep -Fq 'ds.rotation = 1;' upstream/src/settings.cpp
+          grep -Fq 'ds.timeDisplayMode = 2;' upstream/src/settings.cpp
+          grep -Fq 'ds.amsTrayTypes = false;' upstream/src/settings.cpp
+          grep -Fq 'ds.hmsAlertMask = 0x09;' upstream/src/settings.cpp
+          grep -Fq 'ds.hmsAutoPresent = 1;' upstream/src/settings.cpp
+          grep -Fq 'slots[3] = GAUGE_LAYER;' upstream/src/settings.cpp
+          grep -Fq 'HMS_AUTO_PRESENT_MS = 12000' upstream/src/display_ui.h
+
+          # Shared 320x480 profile still preserves non-WS350 values.
+          grep -Fq '#define LY_GAUGE_R 48' upstream/include/layout_320x480.h
+          grep -Fq '#define LY_GAUGE_T 10' upstream/include/layout_320x480.h
+          grep -Fq '#define LY_LAND_ETA_H 28' upstream/include/layout_320x480.h
+
+      - name: Install PlatformIO
+        run: python -m pip install --upgrade platformio
+
+      - name: Build Waveshare 3.5 firmware
+        working-directory: upstream
+        run: pio run -e ws_lcd_350
+
+      - name: Build shared-layout regression target
+        working-directory: upstream
+        run: pio run -e jc3248w535
+
+      - name: Build merged WS350 fresh-install binary
+        working-directory: upstream
+        run: python merge_bins.py --board ws_lcd_350 --full
+
+      - name: Produce validation report
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo 'BambuHelper ws_lcd_350 WS350 Remote Dashboard v4 validation'
+            echo '============================================================'
+            echo 'upstream_commit=8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4'
+            echo 'board=ws_lcd_350'
+            echo 'panel=ST7796_320x480_FT6336'
+            echo 'layers=web-flasher-v1,device-onboarding-v1,resilience-v2,smart-profiles-v3,ws350-dashboard-v4'
+            echo 'default_orientation=landscape'
+            echo 'remote_time_mode=eta_plus_remaining'
+            echo 'ws350_gauge_radius=50'
+            echo 'ws350_gauge_thickness=12'
+            echo 'ws350_ams_bar_height=46'
+            echo 'visual_alerts=glow_plus_wake_no_audio'
+            echo 'hms_auto_present_ms=12000'
+            echo 'shared_layout_regression_target=jc3248w535'
+            echo
+            echo 'WS350 build artifacts:'
+            find upstream/.pio/build/ws_lcd_350 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+            echo
+            echo 'JC3248W535 regression artifacts:'
+            find upstream/.pio/build/jc3248w535 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+            echo
+            echo 'Merged WS350 full binaries:'
+            find upstream/firmware -type f -name 'BambuHelper-ws_lcd_350-*-Full.bin' -printf '%p %s bytes\n' | sort
+            echo
+            echo 'SHA256:'
+            find upstream/.pio/build/ws_lcd_350 upstream/firmware -type f \( -name 'firmware.bin' -o -name 'BambuHelper-ws_lcd_350-*-Full.bin' \) -print0 | sort -z | xargs -0 sha256sum
+          } | tee validation-report-v4.txt
+
+      - name: Upload v4 validated firmware and report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bambuhelper-ws_lcd_350-remote-dashboard-v4
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            upstream/.pio/build/ws_lcd_350/firmware.bin
+            upstream/firmware/*/BambuHelper-ws_lcd_350-*-Full.bin
+            validation-report-v4.txt
