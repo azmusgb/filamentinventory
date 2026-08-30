@@ -232,6 +232,11 @@ public:
   bool pausePrint();
   bool resumePrint();
   bool stopPrint();
+  bool testConnection();
+  uint32_t discoveryPackets() const { return discoveryPackets_; }
+  uint32_t discoveryMatchedPackets() const { return discoveryMatchedPackets_; }
+  const char *discoveryStatus() const { return discoveryStatus_; }
+  int mqttState() const { return mqtt_.state(); }
 private:
   WiFiClientSecure tls_;
   PubSubClient mqtt_;
@@ -242,6 +247,10 @@ private:
   uint32_t reconnectBackoffMs_ = 5000;
   bool discoveryRunning_ = false;
   uint32_t discoveryStartedMs_ = 0;
+  uint32_t lastDiscoveryProbeMs_ = 0;
+  uint32_t discoveryPackets_ = 0;
+  uint32_t discoveryMatchedPackets_ = 0;
+  char discoveryStatus_[96] = "Idle";
   BambuDiscoveredPrinter discovered_[6];
   uint8_t discoveredCount_ = 0;
   static BambuPlugin *instance_;
@@ -250,6 +259,7 @@ private:
   bool connectMqtt();
   void requestPushAll();
   bool sendPrintCommand(const char *command);
+  void sendDiscoveryProbe();
   void pollDiscovery();
   void parseDiscoveryPacket(const String &packet, const IPAddress &remoteIp);
   int findDiscovered(const char *serial, const char *host) const;
