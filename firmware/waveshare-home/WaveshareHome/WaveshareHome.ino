@@ -2,12 +2,12 @@
 #include <Wire.h>
 #include <WiFi.h>
 #include <time.h>
-#include <Preferences.h>
-#include <WiFiManager.h>
 #include <lvgl.h>
 #include <Arduino_GFX_Library.h>
 #include "TCA9554.h"
 #include "TouchDrvFT6X36.hpp"
+#include "AppModel.h"
+#include "Services.h"
 
 static constexpr int PIN_LCD_BL = 6;
 static constexpr int PIN_SPI_MISO = 2;
@@ -20,21 +20,29 @@ static constexpr int PIN_I2C_SDA = 8;
 static constexpr int PIN_I2C_SCL = 7;
 static constexpr uint16_t SCREEN_W = 320;
 static constexpr uint16_t SCREEN_H = 480;
-static constexpr uint8_t ES8311_ADDR = 0x18;
-static constexpr uint8_t DEFAULT_BRIGHTNESS = 82;
-static constexpr uint32_t AMBIENT_AFTER_MS = 120000UL;
-static constexpr uint32_t WIFI_CONNECT_GRACE_MS = 8000UL;
-static constexpr uint32_t BRIGHTNESS_SAVE_DELAY_MS = 900UL;
-static constexpr char FW_VERSION[] = "0.3.0";
-static constexpr char DEVICE_NAME[] = "Waveshare Home";
-static constexpr char SETUP_AP[] = "WaveshareHome-Setup";
+static constexpr uint32_t UI_REFRESH_MS = 1000UL;
+static constexpr uint32_t ATTENTION_REFRESH_MS = 1500UL;
 
 TCA9554 ioExpander(0x20);
 TouchDrvFT6X36 touch;
-Preferences prefs;
-WiFiManager wifiManager;
 Arduino_DataBus *bus = new Arduino_ESP32SPI(PIN_LCD_DC, PIN_LCD_CS, PIN_SPI_SCLK, PIN_SPI_MOSI, PIN_SPI_MISO);
 Arduino_GFX *gfx = new Arduino_ST7796(bus, PIN_LCD_RST, 0, true, SCREEN_W, SCREEN_H);
+
+AppConfig config;
+AppState state;
+ConfigStore configStore;
+BootGuard bootGuard;
+ConnectivityService connectivity;
+AudioService audio;
+WeatherPlugin weatherPlugin;
+BambuPlugin bambuPlugin;
+FilamentPlugin filamentPlugin;
+HomeAssistantPlugin homeAssistantPlugin;
+CalendarPlugin calendarPlugin;
+TimerPlugin timerPlugin(audio);
+ServiceManager serviceManager;
+AttentionEngine attentionEngine;
+WebDashboard webDashboard(configStore, connectivity, audio, timerPlugin, homeAssistantPlugin);
 
 static lv_disp_draw_buf_t drawBuf;
 static lv_color_t *drawBuf1 = nullptr;
@@ -48,69 +56,87 @@ static lv_obj_t *screenControls = nullptr;
 static lv_obj_t *screenApps = nullptr;
 static lv_obj_t *screenAttention = nullptr;
 static lv_obj_t *screenQuick = nullptr;
+static lv_obj_t *screenSettings = nullptr;
+static lv_obj_t *screenWifi = nullptr;
+static lv_obj_t *screenTimers = nullptr;
+static lv_obj_t *screenPrinter = nullptr;
+static lv_obj_t *screenFilament = nullptr;
 static lv_obj_t *screenSystem = nullptr;
+static lv_obj_t *screenRecovery = nullptr;
 static lv_obj_t *screenAmbient = nullptr;
 
 static lv_obj_t *homeClock = nullptr;
-static lv_obj_t *homeDate = nullptr;
 static lv_obj_t *homeGreeting = nullptr;
+static lv_obj_t *homeDate = nullptr;
 static lv_obj_t *homeStatus = nullptr;
-static lv_obj_t *homeNet = nullptr;
+static lv_obj_t *heroEyebrow = nullptr;
+static lv_obj_t *heroTitle = nullptr;
+static lv_obj_t *heroValue = nullptr;
+static lv_obj_t *heroDetail = nullptr;
+static lv_obj_t *homeCardTitle[3] = {nullptr};
+static lv_obj_t *homeCardDetail[3] = {nullptr};
+static lv_obj_t *homeCardState[3] = {nullptr};
+static lv_obj_t *todayWeather = nullptr;
+static lv_obj_t *todayAgenda = nullptr;
+static lv_obj_t *todayTimer = nullptr;
+static lv_obj_t *controlsBody = nullptr;
+static lv_obj_t *attentionBody = nullptr;
+static lv_obj_t *wifiBody = nullptr;
+static lv_obj_t *timerBody = nullptr;
+static lv_obj_t *printerBody = nullptr;
+static lv_obj_t *filamentBody = nullptr;
+static lv_obj_t *systemBody = nullptr;
+static lv_obj_t *settingsBody = nullptr;
 static lv_obj_t *ambientClock = nullptr;
 static lv_obj_t *ambientDate = nullptr;
-static lv_obj_t *ambientNet = nullptr;
-static lv_obj_t *systemBody = nullptr;
-static lv_obj_t *brightnessValue = nullptr;
-static lv_obj_t *controlsBody = nullptr;
-static lv_obj_t *controlsTabs[3] = {nullptr, nullptr, nullptr};
-static lv_obj_t *topStatusLabels[8] = {nullptr};
-static uint8_t topStatusCount = 0;
+static lv_obj_t *ambientSummary = nullptr;
+static lv_obj_t *recoveryBody = nullptr;
+static lv_obj_t *statusLabels[20] = {nullptr};
+static uint8_t statusLabelCount = 0;
 
-static const lv_color_t C_BG = lv_color_hex(0x020609);
-static const lv_color_t C_SURFACE = lv_color_hex(0x071015);
-static const lv_color_t C_SURFACE_2 = lv_color_hex(0x0B171E);
-static const lv_color_t C_SURFACE_3 = lv_color_hex(0x10212A);
-static const lv_color_t C_BORDER = lv_color_hex(0x18303A);
-static const lv_color_t C_TEXT = lv_color_hex(0xF6FAFC);
-static const lv_color_t C_MUTED = lv_color_hex(0x91A1AA);
-static const lv_color_t C_DIM = lv_color_hex(0x60717A);
-static const lv_color_t C_GREEN = lv_color_hex(0x4ADE80);
-static const lv_color_t C_BLUE = lv_color_hex(0x60A5FA);
-static const lv_color_t C_PURPLE = lv_color_hex(0xA78BFA);
-static const lv_color_t C_ORANGE = lv_color_hex(0xFDBA74);
-static const lv_color_t C_RED = lv_color_hex(0xFB7185);
+static lv_color_t C_BG;
+static lv_color_t C_SURFACE;
+static lv_color_t C_SURFACE_2;
+static lv_color_t C_BORDER;
+static lv_color_t C_TEXT;
+static lv_color_t C_MUTED;
+static lv_color_t C_DIM;
+static lv_color_t C_GREEN;
+static lv_color_t C_BLUE;
+static lv_color_t C_PURPLE;
+static lv_color_t C_ORANGE;
+static lv_color_t C_RED;
 
 static uint32_t lastInteractionMs = 0;
-static uint32_t lastClockRefreshMs = 0;
-static uint32_t lastSystemRefreshMs = 0;
-static uint32_t wifiStartMs = 0;
-static uint32_t brightnessChangedMs = 0;
-static uint8_t brightnessPct = DEFAULT_BRIGHTNESS;
-static uint8_t controlsTab = 0;
+static uint32_t lastUiRefreshMs = 0;
+static uint32_t lastAttentionMs = 0;
 static bool ambientMode = false;
-static bool audioCodecDetected = false;
-static bool portalRunning = false;
 static bool timeConfigured = false;
-static bool brightnessDirty = false;
-static wl_status_t previousWifiStatus = WL_NO_SHIELD;
+static char appliedTimezone[80] = "";
+
+enum class ScreenId : uint8_t {
+  Home, Today, Controls, Apps, Attention, Quick, Settings, Wifi,
+  Timers, Printer, Filament, System, Recovery, Ambient
+};
+
+static void applyThemeTokens() {
+  if (config.theme == ThemeMode::Oled) {
+    C_BG = lv_color_hex(0x000000); C_SURFACE = lv_color_hex(0x050607); C_SURFACE_2 = lv_color_hex(0x0A0C0E);
+    C_BORDER = lv_color_hex(0x25282A); C_TEXT = lv_color_hex(0xFFFFFF); C_MUTED = lv_color_hex(0xA8B0B5); C_DIM = lv_color_hex(0x687178);
+  } else if (config.theme == ThemeMode::HighContrast) {
+    C_BG = lv_color_hex(0x000000); C_SURFACE = lv_color_hex(0x101214); C_SURFACE_2 = lv_color_hex(0x171B1E);
+    C_BORDER = lv_color_hex(0x67757D); C_TEXT = lv_color_hex(0xFFFFFF); C_MUTED = lv_color_hex(0xD7E0E4); C_DIM = lv_color_hex(0xABB8BE);
+  } else {
+    C_BG = lv_color_hex(0x020609); C_SURFACE = lv_color_hex(0x071015); C_SURFACE_2 = lv_color_hex(0x0B171E);
+    C_BORDER = lv_color_hex(0x18303A); C_TEXT = lv_color_hex(0xF6FAFC); C_MUTED = lv_color_hex(0x91A1AA); C_DIM = lv_color_hex(0x60717A);
+  }
+  C_GREEN = lv_color_hex(0x4ADE80); C_BLUE = lv_color_hex(0x60A5FA); C_PURPLE = lv_color_hex(0xA78BFA);
+  C_ORANGE = lv_color_hex(0xFDBA74); C_RED = lv_color_hex(0xFB7185);
+}
 
 static void applyBacklight(uint8_t percent) {
-  brightnessPct = constrain(percent, 5, 100);
-  const uint32_t duty = map(brightnessPct, 0, 100, 0, 255);
-  ledcWrite(PIN_LCD_BL, duty);
-}
-
-static void markBrightnessForSave(uint8_t percent) {
-  applyBacklight(percent);
-  brightnessChangedMs = millis();
-  brightnessDirty = true;
-}
-
-static void serviceBrightnessPersistence() {
-  if (!brightnessDirty) return;
-  if (millis() - brightnessChangedMs < BRIGHTNESS_SAVE_DELAY_MS) return;
-  prefs.putUChar("brightness", brightnessPct);
-  brightnessDirty = false;
+  percent = constrain(percent, 5, 100);
+  ledcWrite(PIN_LCD_BL, map(percent, 0, 100, 0, 255));
 }
 
 static void lcdReset() {
@@ -119,14 +145,9 @@ static void lcdReset() {
   ioExpander.write1(1, 1); delay(200);
 }
 
-static bool i2cPresent(uint8_t address) {
-  Wire.beginTransmission(address);
-  return Wire.endTransmission() == 0;
-}
-
 static void displayFlush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *colorP) {
-  const uint32_t w = static_cast<uint32_t>(area->x2 - area->x1 + 1);
-  const uint32_t h = static_cast<uint32_t>(area->y2 - area->y1 + 1);
+  const uint32_t w = area->x2 - area->x1 + 1;
+  const uint32_t h = area->y2 - area->y1 + 1;
 #if (LV_COLOR_16_SWAP != 0)
   gfx->draw16bitBeRGBBitmap(area->x1, area->y1, reinterpret_cast<uint16_t *>(&colorP->full), w, h);
 #else
@@ -138,8 +159,7 @@ static void displayFlush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *
 static void wakeFromAmbient();
 
 static void touchRead(lv_indev_drv_t *, lv_indev_data_t *data) {
-  int16_t x[1] = {0};
-  int16_t y[1] = {0};
+  int16_t x[1] = {0}; int16_t y[1] = {0};
   const uint8_t count = touch.getPoint(x, y, 1);
   if (count > 0) {
     data->state = LV_INDEV_STATE_PR;
@@ -147,9 +167,7 @@ static void touchRead(lv_indev_drv_t *, lv_indev_data_t *data) {
     data->point.y = constrain(y[0], 0, SCREEN_H - 1);
     lastInteractionMs = millis();
     if (ambientMode) wakeFromAmbient();
-  } else {
-    data->state = LV_INDEV_STATE_REL;
-  }
+  } else data->state = LV_INDEV_STATE_REL;
 }
 
 static void styleScreen(lv_obj_t *screen) {
@@ -166,10 +184,7 @@ static lv_obj_t *label(lv_obj_t *parent, const char *text, const lv_font_t *font
   lv_obj_set_style_text_font(obj, font, 0);
   lv_obj_set_style_text_color(obj, color, 0);
   lv_obj_set_pos(obj, x, y);
-  if (w != LV_SIZE_CONTENT) {
-    lv_obj_set_width(obj, w);
-    lv_label_set_long_mode(obj, LV_LABEL_LONG_DOT);
-  }
+  if (w != LV_SIZE_CONTENT) { lv_obj_set_width(obj, w); lv_label_set_long_mode(obj, LV_LABEL_LONG_DOT); }
   return obj;
 }
 
@@ -180,529 +195,442 @@ static lv_obj_t *wrapLabel(lv_obj_t *parent, const char *text, const lv_font_t *
   return obj;
 }
 
-static lv_obj_t *panel(lv_obj_t *parent, int x, int y, int w, int h, lv_color_t bg = C_SURFACE) {
+static lv_obj_t *panel(lv_obj_t *parent, int x, int y, int w, int h, lv_color_t bg) {
   lv_obj_t *obj = lv_obj_create(parent);
-  lv_obj_set_pos(obj, x, y);
-  lv_obj_set_size(obj, w, h);
-  lv_obj_set_style_radius(obj, 16, 0);
-  lv_obj_set_style_bg_color(obj, bg, 0);
-  lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
-  lv_obj_set_style_border_width(obj, 1, 0);
-  lv_obj_set_style_border_color(obj, C_BORDER, 0);
-  lv_obj_set_style_pad_all(obj, 0, 0);
+  lv_obj_set_pos(obj, x, y); lv_obj_set_size(obj, w, h);
+  lv_obj_set_style_radius(obj, 15, 0); lv_obj_set_style_bg_color(obj, bg, 0); lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
+  lv_obj_set_style_border_width(obj, 1, 0); lv_obj_set_style_border_color(obj, C_BORDER, 0); lv_obj_set_style_pad_all(obj, 0, 0);
   lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
   return obj;
 }
 
 static lv_obj_t *button(lv_obj_t *parent, const char *text, int x, int y, int w, int h,
-                        lv_event_cb_t cb, void *userData = nullptr, lv_color_t accent = C_GREEN) {
+                        lv_event_cb_t cb, void *data = nullptr, lv_color_t accent = lv_color_hex(0x4ADE80)) {
   lv_obj_t *btn = lv_btn_create(parent);
-  lv_obj_set_pos(btn, x, y);
-  lv_obj_set_size(btn, w, h);
-  lv_obj_set_style_radius(btn, 13, 0);
-  lv_obj_set_style_bg_color(btn, C_SURFACE_2, 0);
-  lv_obj_set_style_bg_color(btn, accent, LV_STATE_PRESSED);
-  lv_obj_set_style_border_width(btn, 1, 0);
-  lv_obj_set_style_border_color(btn, C_BORDER, 0);
-  lv_obj_set_style_shadow_width(btn, 0, 0);
-  if (cb) lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, userData);
-  lv_obj_t *txt = lv_label_create(btn);
-  lv_label_set_text(txt, text);
-  lv_obj_set_style_text_font(txt, &lv_font_montserrat_14, 0);
-  lv_obj_set_style_text_color(txt, C_TEXT, 0);
-  lv_obj_center(txt);
+  lv_obj_set_pos(btn, x, y); lv_obj_set_size(btn, w, h); lv_obj_set_style_radius(btn, 12, 0);
+  lv_obj_set_style_bg_color(btn, C_SURFACE_2, 0); lv_obj_set_style_bg_color(btn, accent, LV_STATE_PRESSED);
+  lv_obj_set_style_border_width(btn, 1, 0); lv_obj_set_style_border_color(btn, C_BORDER, 0); lv_obj_set_style_shadow_width(btn, 0, 0);
+  if (cb) lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, data);
+  lv_obj_t *txt = lv_label_create(btn); lv_label_set_text(txt, text); lv_obj_set_style_text_font(txt, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_color(txt, C_TEXT, 0); lv_obj_center(txt);
   return btn;
 }
 
-static const char *networkStateText() {
-  if (WiFi.status() == WL_CONNECTED) return "ONLINE";
-  if (portalRunning) return "SETUP";
-  return "OFFLINE";
+static const char *networkText() {
+  if (WiFi.status() == WL_CONNECTED) return "WiFi";
+  if (state.system.setupApActive) return "SETUP";
+  return "OFF";
 }
 
-static lv_color_t networkStateColor() {
+static lv_color_t networkColor() {
   if (WiFi.status() == WL_CONNECTED) return C_GREEN;
-  if (portalRunning) return C_ORANGE;
+  if (state.system.setupApActive) return C_ORANGE;
   return C_DIM;
 }
 
-static void refreshNetworkLabels() {
-  const char *state = networkStateText();
-  const lv_color_t color = networkStateColor();
-  if (homeNet) {
-    lv_label_set_text(homeNet, state);
-    lv_obj_set_style_text_color(homeNet, color, 0);
-  }
-  if (ambientNet) {
-    lv_label_set_text(ambientNet, state);
-    lv_obj_set_style_text_color(ambientNet, color, 0);
-  }
-  for (uint8_t i = 0; i < topStatusCount; ++i) {
-    if (!topStatusLabels[i]) continue;
-    lv_label_set_text(topStatusLabels[i], state);
-    lv_obj_set_style_text_color(topStatusLabels[i], color, 0);
+static void addStatusBar(lv_obj_t *screen, const char *title) {
+  label(screen, title, &lv_font_montserrat_18, C_TEXT, 12, 13, 160);
+  lv_obj_t *right = label(screen, "", &lv_font_montserrat_12, C_MUTED, 174, 18, 134);
+  lv_obj_set_style_text_align(right, LV_TEXT_ALIGN_RIGHT, 0);
+  if (statusLabelCount < 20) statusLabels[statusLabelCount++] = right;
+}
+
+static void refreshStatusBars() {
+  char timeBuf[12] = "--:--";
+  struct tm info;
+  if (getLocalTime(&info, 5)) strftime(timeBuf, sizeof(timeBuf), "%l:%M", &info);
+  char buf[64]; snprintf(buf, sizeof(buf), "%s  %s  !%u", timeBuf, networkText(), state.alertCount);
+  for (uint8_t i = 0; i < statusLabelCount; ++i) {
+    if (!statusLabels[i]) continue;
+    lv_label_set_text(statusLabels[i], buf);
+    lv_obj_set_style_text_color(statusLabels[i], state.alertCount ? C_ORANGE : networkColor(), 0);
   }
 }
 
-static void load(lv_obj_t *screen) {
+static lv_obj_t *screenFor(ScreenId id) {
+  switch (id) {
+    case ScreenId::Home: return screenHome;
+    case ScreenId::Today: return screenToday;
+    case ScreenId::Controls: return screenControls;
+    case ScreenId::Apps: return screenApps;
+    case ScreenId::Attention: return screenAttention;
+    case ScreenId::Quick: return screenQuick;
+    case ScreenId::Settings: return screenSettings;
+    case ScreenId::Wifi: return screenWifi;
+    case ScreenId::Timers: return screenTimers;
+    case ScreenId::Printer: return screenPrinter;
+    case ScreenId::Filament: return screenFilament;
+    case ScreenId::System: return screenSystem;
+    case ScreenId::Recovery: return screenRecovery;
+    case ScreenId::Ambient: return screenAmbient;
+  }
+  return screenHome;
+}
+
+static void loadScreen(ScreenId id) {
   lastInteractionMs = millis();
-  if (screen) lv_scr_load_anim(screen, LV_SCR_LOAD_ANIM_FADE_ON, 120, 0, false);
+  lv_obj_t *target = screenFor(id);
+  if (target) lv_scr_load_anim(target, LV_SCR_LOAD_ANIM_FADE_ON, 110, 0, false);
 }
 
 static void navEvent(lv_event_t *e) {
-  const intptr_t target = reinterpret_cast<intptr_t>(lv_event_get_user_data(e));
-  switch (target) {
-    case 0: load(screenHome); break;
-    case 1: load(screenToday); break;
-    case 2: load(screenControls); break;
-    case 3: load(screenApps); break;
-    case 4: load(screenAttention); break;
-    case 5: load(screenQuick); break;
-    case 6: load(screenSystem); break;
-    default: load(screenHome); break;
+  ScreenId id = static_cast<ScreenId>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
+  loadScreen(id);
+}
+
+static void addBottomNav(lv_obj_t *screen, ScreenId active) {
+  lv_obj_t *bar = panel(screen, 8, 426, 304, 46, lv_color_hex(0x050B0F));
+  struct N { const char *name; ScreenId id; } items[] = {{"Home", ScreenId::Home}, {"Today", ScreenId::Today}, {"Apps", ScreenId::Apps}};
+  for (int i = 0; i < 3; ++i) {
+    lv_obj_t *btn = button(bar, items[i].name, 4 + i * 99, 5, 95, 36, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(items[i].id)));
+    if (active == items[i].id) { lv_obj_set_style_bg_color(btn, lv_color_hex(0x102A1B), 0); lv_obj_set_style_border_color(btn, lv_color_hex(0x1E5132), 0); }
   }
 }
 
-static void addTopBar(lv_obj_t *screen, const char *title) {
-  label(screen, title, &lv_font_montserrat_20, C_TEXT, 14, 18);
-  lv_obj_t *status = label(screen, networkStateText(), &lv_font_montserrat_12,
-                           networkStateColor(), 244, 22, 64);
-  lv_obj_set_style_text_align(status, LV_TEXT_ALIGN_RIGHT, 0);
-  if (topStatusCount < 8) topStatusLabels[topStatusCount++] = status;
+static String formatMinutes(int minutes) {
+  if (minutes <= 0) return "--";
+  if (minutes < 60) return String(minutes) + "m";
+  return String(minutes / 60) + "h " + String(minutes % 60) + "m";
 }
 
-static void addBottomNav(lv_obj_t *screen, int active) {
-  lv_obj_t *bar = panel(screen, 8, 425, 304, 47, lv_color_hex(0x050B0F));
-  const char *names[3] = {"Home", "Today", "Controls"};
-  for (int i = 0; i < 3; ++i) {
-    lv_obj_t *btn = button(bar, names[i], 4 + i * 99, 5, 95, 37, navEvent,
-                           reinterpret_cast<void *>(static_cast<intptr_t>(i)));
-    if (i == active) {
-      lv_obj_set_style_bg_color(btn, lv_color_hex(0x102A1B), 0);
-      lv_obj_set_style_border_color(btn, lv_color_hex(0x1E5132), 0);
-      lv_obj_t *txt = lv_obj_get_child(btn, 0);
-      if (txt) lv_obj_set_style_text_color(txt, C_GREEN, 0);
-    }
+static int activeTimerCount() {
+  int count = 0; for (auto &t : state.timers) if (t.active) count++; return count;
+}
+
+static String remainingTimerText() {
+  uint32_t best = UINT32_MAX;
+  const char *name = nullptr;
+  for (auto &t : state.timers) {
+    if (!t.active) continue;
+    uint32_t left = (int32_t)(t.endMs - millis()) > 0 ? (t.endMs - millis()) / 1000UL : 0;
+    if (left < best) { best = left; name = t.label; }
+  }
+  if (!name) return "No active timers";
+  char out[64]; snprintf(out, sizeof(out), "%s • %02lu:%02lu", name, best / 60UL, best % 60UL); return String(out);
+}
+
+static HeroMode resolvedHeroMode() {
+  if (config.heroMode != HeroMode::Auto) return config.heroMode;
+  for (uint8_t i = 0; i < state.alertCount; ++i) if (state.alerts[i].severity == AlertSeverity::Urgent) return HeroMode::System;
+  if (state.printer.online && state.printer.printing) return HeroMode::Printer;
+  if (state.calendar.online && state.calendar.hasNext && state.calendar.nextEpoch > 0 && state.calendar.nextEpoch - time(nullptr) < 7200) return HeroMode::Calendar;
+  if (state.filament.online && (state.filament.lowSpools + state.filament.emptySpools) > 0) return HeroMode::Filament;
+  if (state.weather.online) return HeroMode::Weather;
+  return HeroMode::System;
+}
+
+static void updateHero() {
+  if (!heroTitle || !heroValue || !heroDetail || !heroEyebrow) return;
+  HeroMode mode = resolvedHeroMode();
+  char value[64] = "Ready"; char detail[128] = "Everything looks good"; const char *eyebrow = "NOW"; const char *title = config.deviceName;
+  switch (mode) {
+    case HeroMode::Printer:
+      title = "Bambu P1S"; snprintf(value, sizeof(value), "%u%%", state.printer.progress);
+      snprintf(detail, sizeof(detail), "%s • %s remaining", strlen(state.printer.jobName) ? state.printer.jobName : state.printer.status, formatMinutes(state.printer.remainingMinutes).c_str()); break;
+    case HeroMode::Weather:
+      title = strlen(config.weatherLocation) ? config.weatherLocation : "Weather"; snprintf(value, sizeof(value), "%.0f°F", state.weather.temperatureC * 9.0f / 5.0f + 32.0f);
+      snprintf(detail, sizeof(detail), "%s • H %.0f° / L %.0f°", state.weather.condition, state.weather.highC * 9.0f/5.0f+32.0f, state.weather.lowC * 9.0f/5.0f+32.0f); break;
+    case HeroMode::Calendar:
+      title = "Next"; snprintf(value, sizeof(value), "%s", state.calendar.nextTitle); snprintf(detail, sizeof(detail), "%s", state.calendar.nextWhen); break;
+    case HeroMode::Filament:
+      title = "Filament"; snprintf(value, sizeof(value), "%d spools", state.filament.totalSpools);
+      snprintf(detail, sizeof(detail), "%d loaded • %d low • %d empty", state.filament.loadedSpools, state.filament.lowSpools, state.filament.emptySpools); break;
+    case HeroMode::System:
+    default:
+      if (state.alertCount && state.alerts[0].severity == AlertSeverity::Urgent) { title = "Attention"; snprintf(value, sizeof(value), "%s", state.alerts[0].title); snprintf(detail, sizeof(detail), "%s", state.alerts[0].detail); }
+      else { title = config.deviceName; snprintf(value, sizeof(value), "Ready"); snprintf(detail, sizeof(detail), "%s • %lu min uptime", WiFi.status() == WL_CONNECTED ? "Online" : "Local mode", state.system.uptimeSec / 60UL); }
+      break;
+  }
+  lv_label_set_text(heroEyebrow, eyebrow); lv_label_set_text(heroTitle, title); lv_label_set_text(heroValue, value); lv_label_set_text(heroDetail, detail);
+}
+
+static void homeCardContent(HomeCard card, String &title, String &detail, String &value) {
+  title = homeCardName(card);
+  switch (card) {
+    case HomeCard::Controls: detail = "Smart home"; value = state.homeAssistant.online ? "Live" : (config.homeAssistantEnabled ? "Offline" : "Setup"); break;
+    case HomeCard::Today: detail = "Agenda"; value = state.calendar.hasNext ? "Next" : "Open"; break;
+    case HomeCard::Printer: detail = "P1S"; value = state.printer.printing ? String(state.printer.progress) + "%" : (state.printer.online ? state.printer.status : "Setup"); break;
+    case HomeCard::Filament: detail = "Inventory"; value = state.filament.online ? String(state.filament.totalSpools) : "Setup"; break;
+    case HomeCard::Weather: detail = "Forecast"; value = state.weather.online ? String((int)round(state.weather.temperatureC*9.0/5.0+32)) + "°" : "Setup"; break;
+    case HomeCard::Timers: detail = "Local"; value = String(activeTimerCount()) + " active"; break;
+    case HomeCard::Attention: detail = "Alerts"; value = String(state.alertCount); break;
+    case HomeCard::System: default: detail = "Health"; value = state.system.recoveryMode ? "Recovery" : "Good"; break;
+  }
+}
+
+static ScreenId screenForCard(HomeCard card) {
+  switch (card) {
+    case HomeCard::Controls: return ScreenId::Controls; case HomeCard::Today: return ScreenId::Today;
+    case HomeCard::Printer: return ScreenId::Printer; case HomeCard::Filament: return ScreenId::Filament;
+    case HomeCard::Weather: return ScreenId::Today; case HomeCard::Timers: return ScreenId::Timers;
+    case HomeCard::Attention: return ScreenId::Attention; default: return ScreenId::System;
   }
 }
 
 static void createHome() {
   screenHome = lv_obj_create(nullptr); styleScreen(screenHome);
-  homeClock = label(screenHome, "--:--", &lv_font_montserrat_18, C_TEXT, 14, 13);
-  homeNet = label(screenHome, "STARTING", &lv_font_montserrat_12, C_ORANGE, 238, 17, 68);
-  lv_obj_set_style_text_align(homeNet, LV_TEXT_ALIGN_RIGHT, 0);
-  homeDate = label(screenHome, "Starting...", &lv_font_montserrat_13, C_MUTED, 14, 42);
-  homeGreeting = label(screenHome, "Hello", &lv_font_montserrat_20, C_TEXT, 14, 68);
-  homeStatus = label(screenHome, "Home Hub is starting", &lv_font_montserrat_12, C_MUTED, 14, 96, 292);
+  homeClock = label(screenHome, "--:--", &lv_font_montserrat_18, C_TEXT, 12, 10);
+  homeDate = label(screenHome, "Starting...", &lv_font_montserrat_12, C_MUTED, 12, 38, 200);
+  lv_obj_t *status = label(screenHome, "", &lv_font_montserrat_12, C_GREEN, 180, 14, 128); lv_obj_set_style_text_align(status, LV_TEXT_ALIGN_RIGHT, 0); statusLabels[statusLabelCount++] = status;
+  homeGreeting = label(screenHome, "Hello", &lv_font_montserrat_20, C_TEXT, 12, 64);
+  homeStatus = label(screenHome, "Home Hub starting", &lv_font_montserrat_12, C_MUTED, 12, 91, 292);
 
-  lv_obj_t *hero = panel(screenHome, 12, 120, 296, 128, C_SURFACE_2);
-  label(hero, "NOW", &lv_font_montserrat_12, C_GREEN, 14, 11);
-  label(hero, "Waveshare Home", &lv_font_montserrat_18, C_TEXT, 14, 35);
-  label(hero, "Ready", &lv_font_montserrat_36, C_TEXT, 14, 59);
-  label(hero, "Tap to open Apps", &lv_font_montserrat_12, C_MUTED, 14, 105);
-  lv_obj_add_flag(hero, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_add_event_cb(hero, navEvent, LV_EVENT_CLICKED, reinterpret_cast<void *>(3));
+  lv_obj_t *hero = panel(screenHome, 12, 116, 296, 132, C_SURFACE_2);
+  heroEyebrow = label(hero, "NOW", &lv_font_montserrat_12, C_GREEN, 14, 10);
+  heroTitle = label(hero, config.deviceName, &lv_font_montserrat_16, C_TEXT, 14, 32, 265);
+  heroValue = label(hero, "Ready", &lv_font_montserrat_28, C_TEXT, 14, 57, 265);
+  heroDetail = label(hero, "Everything looks good", &lv_font_montserrat_12, C_MUTED, 14, 102, 265);
+  lv_obj_add_flag(hero, LV_OBJ_FLAG_CLICKABLE); lv_obj_add_event_cb(hero, navEvent, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Apps)));
 
-  label(screenHome, "AT A GLANCE", &lv_font_montserrat_12, C_DIM, 14, 263);
-  const char *titles[] = {"Home", "Today", "System"};
-  const char *subs[] = {"Controls", "Agenda", "Health"};
-  const char *states[] = {"Ready", "Open", "Good"};
-  const lv_color_t colors[] = {C_GREEN, C_BLUE, C_GREEN};
-  const intptr_t targets[] = {2, 1, 6};
+  label(screenHome, "AT A GLANCE", &lv_font_montserrat_12, C_DIM, 12, 263);
   for (int i = 0; i < 3; ++i) {
-    lv_obj_t *card = panel(screenHome, 12 + i * 102, 282, 92, 112);
-    label(card, titles[i], &lv_font_montserrat_16, C_TEXT, 10, 13);
-    label(card, subs[i], &lv_font_montserrat_12, C_MUTED, 10, 42);
-    label(card, states[i], &lv_font_montserrat_14, colors[i], 10, 72);
-    lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(card, navEvent, LV_EVENT_CLICKED, reinterpret_cast<void *>(targets[i]));
+    lv_obj_t *card = panel(screenHome, 12 + i * 102, 282, 92, 112, C_SURFACE);
+    homeCardTitle[i] = label(card, "Card", &lv_font_montserrat_14, C_TEXT, 9, 12, 76);
+    homeCardDetail[i] = label(card, "Detail", &lv_font_montserrat_12, C_MUTED, 9, 40, 76);
+    homeCardState[i] = label(card, "Ready", &lv_font_montserrat_12, C_GREEN, 9, 72, 76);
+    lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE); lv_obj_add_event_cb(card, navEvent, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<intptr_t>(screenForCard(config.homeCards[i]))));
   }
-  addBottomNav(screenHome, 0);
+  addBottomNav(screenHome, ScreenId::Home);
 }
 
 static void createToday() {
-  screenToday = lv_obj_create(nullptr); styleScreen(screenToday); addTopBar(screenToday, "TODAY");
-  lv_obj_t *weather = panel(screenToday, 12, 62, 296, 106, C_SURFACE_2);
-  label(weather, "WEATHER", &lv_font_montserrat_12, C_BLUE, 14, 12);
-  label(weather, "Not configured", &lv_font_montserrat_20, C_TEXT, 14, 38);
-  wrapLabel(weather, "Add a location when weather integration is enabled.", &lv_font_montserrat_12, C_MUTED, 14, 69, 266);
-
-  lv_obj_t *agenda = panel(screenToday, 12, 180, 296, 164);
-  label(agenda, "AGENDA", &lv_font_montserrat_12, C_PURPLE, 14, 12);
-  label(agenda, "No calendar connected", &lv_font_montserrat_18, C_TEXT, 14, 40);
-  wrapLabel(agenda, "Calendar events will appear here without changing the Home layout.", &lv_font_montserrat_12, C_MUTED, 14, 72, 266);
-  label(agenda, "Clock", &lv_font_montserrat_12, C_DIM, 14, 126);
-  label(agenda, "Synced over Wi-Fi", &lv_font_montserrat_13, C_GREEN, 86, 123);
-
-  lv_obj_t *footer = panel(screenToday, 12, 356, 296, 56);
-  label(footer, "Today is ready for live services", &lv_font_montserrat_13, C_TEXT, 14, 11);
-  label(footer, "Weather  •  calendar  •  timers", &lv_font_montserrat_12, C_MUTED, 14, 32);
-  addBottomNav(screenToday, 1);
-}
-
-static void renderControlsBody() {
-  if (!controlsBody) return;
-  lv_obj_clean(controlsBody);
-  const char *tabNames[] = {"Rooms", "Scenes", "Devices"};
-  for (int i = 0; i < 3; ++i) {
-    if (!controlsTabs[i]) continue;
-    lv_obj_t *txt = lv_obj_get_child(controlsTabs[i], 0);
-    lv_obj_set_style_bg_color(controlsTabs[i], i == controlsTab ? lv_color_hex(0x102A1B) : C_SURFACE_2, 0);
-    lv_obj_set_style_border_color(controlsTabs[i], i == controlsTab ? lv_color_hex(0x1E5132) : C_BORDER, 0);
-    if (txt) lv_obj_set_style_text_color(txt, i == controlsTab ? C_GREEN : C_MUTED, 0);
-  }
-
-  if (controlsTab == 0) {
-    const char *names[] = {"Living Room", "Kitchen", "Workshop", "Bedroom"};
-    for (int i = 0; i < 4; ++i) {
-      lv_obj_t *row = panel(controlsBody, 0, i * 68, 296, 58, C_SURFACE_2);
-      label(row, names[i], &lv_font_montserrat_14, C_TEXT, 16, 10);
-      label(row, "Ready for smart-home integration", &lv_font_montserrat_11, C_MUTED, 16, 34, 260);
-    }
-  } else if (controlsTab == 1) {
-    label(controlsBody, "Scenes", &lv_font_montserrat_20, C_TEXT, 12, 18);
-    wrapLabel(controlsBody, "No scenes configured yet. Future scenes can combine lights, switches and maker-space actions.", &lv_font_montserrat_13, C_MUTED, 12, 56, 270);
-    label(controlsBody, "Examples", &lv_font_montserrat_12, C_DIM, 12, 132);
-    label(controlsBody, "Good night  •  Movie  •  Workshop", &lv_font_montserrat_13, C_BLUE, 12, 158, 270);
-  } else {
-    label(controlsBody, "Devices", &lv_font_montserrat_20, C_TEXT, 12, 18);
-    wrapLabel(controlsBody, "No smart-home provider is connected. Device discovery will live here once an integration is configured.", &lv_font_montserrat_13, C_MUTED, 12, 56, 270);
-    label(controlsBody, "Local UI remains available offline", &lv_font_montserrat_12, C_GREEN, 12, 142, 270);
-  }
-}
-
-static void controlsTabEvent(lv_event_t *e) {
-  controlsTab = static_cast<uint8_t>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
-  renderControlsBody();
+  screenToday = lv_obj_create(nullptr); styleScreen(screenToday); addStatusBar(screenToday, "TODAY");
+  lv_obj_t *weather = panel(screenToday, 12, 54, 296, 112, C_SURFACE_2); label(weather, "WEATHER", &lv_font_montserrat_12, C_BLUE, 14, 10); todayWeather = wrapLabel(weather, "Not configured", &lv_font_montserrat_16, C_TEXT, 14, 37, 266);
+  lv_obj_t *agenda = panel(screenToday, 12, 178, 296, 132, C_SURFACE_2); label(agenda, "NEXT", &lv_font_montserrat_12, C_PURPLE, 14, 10); todayAgenda = wrapLabel(agenda, "No calendar connected", &lv_font_montserrat_16, C_TEXT, 14, 37, 266);
+  lv_obj_t *timers = panel(screenToday, 12, 322, 296, 88, C_SURFACE); label(timers, "TIMERS", &lv_font_montserrat_12, C_ORANGE, 14, 10); todayTimer = label(timers, "No active timers", &lv_font_montserrat_14, C_TEXT, 14, 38, 266); lv_obj_add_flag(timers, LV_OBJ_FLAG_CLICKABLE); lv_obj_add_event_cb(timers, navEvent, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Timers)));
+  addBottomNav(screenToday, ScreenId::Today);
 }
 
 static void createControls() {
-  screenControls = lv_obj_create(nullptr); styleScreen(screenControls); addTopBar(screenControls, "CONTROLS");
-  const char *tabs[] = {"Rooms", "Scenes", "Devices"};
-  for (int i = 0; i < 3; ++i) {
-    controlsTabs[i] = button(screenControls, tabs[i], 12 + i * 100, 62, 96, 42,
-                             controlsTabEvent, reinterpret_cast<void *>(static_cast<intptr_t>(i)), C_GREEN);
-  }
-  controlsBody = lv_obj_create(screenControls);
-  lv_obj_set_pos(controlsBody, 12, 116);
-  lv_obj_set_size(controlsBody, 296, 296);
-  lv_obj_set_style_bg_opa(controlsBody, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_border_width(controlsBody, 0, 0);
-  lv_obj_set_style_pad_all(controlsBody, 0, 0);
-  lv_obj_clear_flag(controlsBody, LV_OBJ_FLAG_SCROLLABLE);
-  renderControlsBody();
-  addBottomNav(screenControls, 2);
+  screenControls = lv_obj_create(nullptr); styleScreen(screenControls); addStatusBar(screenControls, "CONTROLS");
+  controlsBody = wrapLabel(screenControls, "Home Assistant not configured", &lv_font_montserrat_14, C_TEXT, 14, 62, 292); lv_obj_set_style_text_line_space(controlsBody, 10, 0);
+  button(screenControls, "Scene", 12, 350, 142, 52, [](lv_event_t*) { homeAssistantPlugin.callScene(config); }, nullptr, C_BLUE);
+  button(screenControls, "Automation", 166, 350, 142, 52, [](lv_event_t*) { homeAssistantPlugin.callAutomation(config); }, nullptr, C_PURPLE);
+  addBottomNav(screenControls, ScreenId::Apps);
 }
 
 static void createApps() {
-  screenApps = lv_obj_create(nullptr); styleScreen(screenApps); addTopBar(screenApps, "APPS");
-  const char *apps[] = {"Home", "Today", "Controls", "Attention", "Quick", "System", "Printer", "Filament", "Weather"};
-  const intptr_t targets[] = {0, 1, 2, 4, 5, 6, 4, 4, 1};
-  const lv_color_t colors[] = {C_GREEN, C_BLUE, C_GREEN, C_RED, C_ORANGE, C_PURPLE, C_GREEN, C_BLUE, C_BLUE};
-  for (int i = 0; i < 9; ++i) {
-    const int col = i % 3;
-    const int row = i / 3;
-    lv_obj_t *btn = button(screenApps, apps[i], 12 + col * 102, 72 + row * 94, 92, 80,
-                           navEvent, reinterpret_cast<void *>(targets[i]), colors[i]);
-    lv_obj_set_style_border_color(btn, colors[i], 0);
-  }
-  label(screenApps, "Printer, Filament and Weather are integration-ready placeholders.", &lv_font_montserrat_11, C_MUTED, 12, 366, 296);
-  button(screenApps, "Back Home", 12, 390, 296, 32, navEvent, reinterpret_cast<void *>(0));
+  screenApps = lv_obj_create(nullptr); styleScreen(screenApps); addStatusBar(screenApps, "APPS");
+  struct App { const char *name; ScreenId id; lv_color_t color; } apps[] = {
+    {"Controls", ScreenId::Controls, C_GREEN}, {"Printer", ScreenId::Printer, C_GREEN}, {"Filament", ScreenId::Filament, C_BLUE},
+    {"Today", ScreenId::Today, C_PURPLE}, {"Timers", ScreenId::Timers, C_ORANGE}, {"Attention", ScreenId::Attention, C_RED},
+    {"Quick", ScreenId::Quick, C_BLUE}, {"Settings", ScreenId::Settings, C_PURPLE}, {"System", ScreenId::System, C_GREEN}
+  };
+  for (int i = 0; i < 9; ++i) button(screenApps, apps[i].name, 12 + (i%3)*102, 66 + (i/3)*104, 92, 88, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(apps[i].id)), apps[i].color);
+  button(screenApps, "Home", 12, 392, 296, 30, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)));
 }
 
 static void createAttention() {
-  screenAttention = lv_obj_create(nullptr); styleScreen(screenAttention); addTopBar(screenAttention, "ATTENTION");
-  lv_obj_t *ok = panel(screenAttention, 12, 72, 296, 116, C_SURFACE_2);
-  label(ok, "ALL CLEAR", &lv_font_montserrat_12, C_GREEN, 16, 14);
-  label(ok, "No active alerts", &lv_font_montserrat_20, C_TEXT, 16, 42);
-  wrapLabel(ok, "Important system and service events will be promoted here.", &lv_font_montserrat_12, C_MUTED, 16, 75, 260);
-
-  lv_obj_t *model = panel(screenAttention, 12, 202, 296, 154);
-  label(model, "PRIORITY", &lv_font_montserrat_12, C_DIM, 16, 14);
-  label(model, "Normal", &lv_font_montserrat_14, C_GREEN, 16, 44);
-  label(model, "Information", &lv_font_montserrat_14, C_BLUE, 16, 69);
-  label(model, "Attention", &lv_font_montserrat_14, C_ORANGE, 16, 94);
-  label(model, "Urgent", &lv_font_montserrat_14, C_RED, 16, 119);
-  button(screenAttention, "Back Home", 12, 372, 296, 42, navEvent, reinterpret_cast<void *>(0));
+  screenAttention = lv_obj_create(nullptr); styleScreen(screenAttention); addStatusBar(screenAttention, "ATTENTION");
+  attentionBody = wrapLabel(screenAttention, "All clear", &lv_font_montserrat_14, C_TEXT, 14, 64, 292); lv_obj_set_style_text_line_space(attentionBody, 8, 0);
+  button(screenAttention, "Home", 12, 374, 296, 42, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)));
 }
 
-static void brightnessEvent(lv_event_t *e) {
-  lv_obj_t *slider = lv_event_get_target(e);
-  const uint8_t value = static_cast<uint8_t>(lv_slider_get_value(slider));
-  markBrightnessForSave(value);
-  if (brightnessValue) {
-    char buf[16]; snprintf(buf, sizeof(buf), "%u%%", value);
-    lv_label_set_text(brightnessValue, buf);
-  }
-}
-
-static void resetWifiEvent(lv_event_t *) {
-  wifiManager.resetSettings();
-  WiFi.disconnect(true, true);
-  portalRunning = false;
-  timeConfigured = false;
-  wifiStartMs = millis() - WIFI_CONNECT_GRACE_MS;
-  refreshNetworkLabels();
+static void settingAction(lv_event_t *e) {
+  intptr_t action = reinterpret_cast<intptr_t>(lv_event_get_user_data(e));
+  if (action == 0) config.brightness = config.brightness >= 100 ? 20 : config.brightness + 10;
+  else if (action == 1) { int idx = 0; for (size_t i=0;i<TIMEZONE_COUNT;i++) if (!strcmp(config.timezoneId,TIMEZONES[i].id)) idx=i; idx=(idx+1)%TIMEZONE_COUNT; strlcpy(config.timezoneId,TIMEZONES[idx].id,sizeof(config.timezoneId)); strlcpy(config.timezonePosix,TIMEZONES[idx].posix,sizeof(config.timezonePosix)); timeConfigured=false; }
+  else if (action == 2) config.ambientTimeoutSec = config.ambientTimeoutSec >= 600 ? 60 : config.ambientTimeoutSec + 60;
+  else if (action == 3) config.ambientBrightness = config.ambientBrightness >= 50 ? 10 : config.ambientBrightness + 10;
+  else if (action == 4) { config.theme = static_cast<ThemeMode>((static_cast<int>(config.theme)+1)%3); }
+  else if (action == 5) { config.heroMode = static_cast<HeroMode>((static_cast<int>(config.heroMode)+1)%6); }
+  else if (action >= 10 && action <= 12) { int i=action-10; config.homeCards[i]=static_cast<HomeCard>((static_cast<int>(config.homeCards[i])+1)%8); }
+  configStore.save(config); applyBacklight(config.brightness); applyThemeTokens();
+  if (action == 4) { lv_obj_t *current = lv_scr_act(); (void)current; }
+  lastUiRefreshMs = 0;
 }
 
 static void createQuick() {
-  screenQuick = lv_obj_create(nullptr); styleScreen(screenQuick); addTopBar(screenQuick, "QUICK");
-  lv_obj_t *network = panel(screenQuick, 12, 68, 296, 92, C_SURFACE_2);
-  label(network, "NETWORK", &lv_font_montserrat_12, C_BLUE, 16, 12);
-  label(network, "Waveshare Home", &lv_font_montserrat_16, C_TEXT, 16, 36);
-  label(network, "Wi-Fi provisioning remains available when offline", &lv_font_montserrat_11, C_MUTED, 16, 64, 264);
-
-  lv_obj_t *brightness = panel(screenQuick, 12, 174, 296, 112);
-  label(brightness, "Brightness", &lv_font_montserrat_14, C_TEXT, 16, 14);
-  char pct[16]; snprintf(pct, sizeof(pct), "%u%%", brightnessPct);
-  brightnessValue = label(brightness, pct, &lv_font_montserrat_14, C_GREEN, 238, 14, 42);
-  lv_obj_set_style_text_align(brightnessValue, LV_TEXT_ALIGN_RIGHT, 0);
-  lv_obj_t *slider = lv_slider_create(brightness);
-  lv_obj_set_pos(slider, 16, 64); lv_obj_set_size(slider, 264, 10);
-  lv_slider_set_range(slider, 5, 100); lv_slider_set_value(slider, brightnessPct, LV_ANIM_OFF);
-  lv_obj_set_style_bg_color(slider, lv_color_hex(0x1A2930), LV_PART_MAIN);
-  lv_obj_set_style_bg_color(slider, C_GREEN, LV_PART_INDICATOR);
-  lv_obj_set_style_bg_color(slider, C_GREEN, LV_PART_KNOB);
-  lv_obj_add_event_cb(slider, brightnessEvent, LV_EVENT_VALUE_CHANGED, nullptr);
-
-  button(screenQuick, "Apps", 12, 302, 142, 48, navEvent, reinterpret_cast<void *>(3), C_BLUE);
-  button(screenQuick, "System", 166, 302, 142, 48, navEvent, reinterpret_cast<void *>(6), C_PURPLE);
-  button(screenQuick, "Reset Wi-Fi", 12, 362, 142, 46, resetWifiEvent, nullptr, C_ORANGE);
-  button(screenQuick, "Home", 166, 362, 142, 46, navEvent, reinterpret_cast<void *>(0), C_GREEN);
+  screenQuick = lv_obj_create(nullptr); styleScreen(screenQuick); addStatusBar(screenQuick, "QUICK");
+  button(screenQuick, "Settings", 12, 72, 142, 70, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)), C_PURPLE);
+  button(screenQuick, "Wi-Fi", 166, 72, 142, 70, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Wifi)), C_BLUE);
+  button(screenQuick, "Timers", 12, 158, 142, 70, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Timers)), C_ORANGE);
+  button(screenQuick, "Attention", 166, 158, 142, 70, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Attention)), C_RED);
+  button(screenQuick, "Speaker test", 12, 244, 142, 70, [](lv_event_t*){ audio.chirp(); }, nullptr, C_GREEN);
+  button(screenQuick, "System", 166, 244, 142, 70, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::System)), C_GREEN);
+  button(screenQuick, "Home", 12, 340, 296, 54, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)));
 }
 
-static void updateSystemText() {
-  if (!systemBody) return;
-  char ip[24] = "Not connected";
-  if (WiFi.status() == WL_CONNECTED) snprintf(ip, sizeof(ip), "%s", WiFi.localIP().toString().c_str());
-  char body[500];
-  snprintf(body, sizeof(body),
-           "Firmware       %s\n"
-           "Network        %s\n"
-           "IP             %s\n"
-           "RSSI           %ld dBm\n"
-           "Free heap      %u KB\n"
-           "Free PSRAM     %u KB\n"
-           "Audio codec    %s\n"
-           "Brightness     %u%%\n"
-           "Uptime         %lu min",
-           FW_VERSION,
-           networkStateText(),
-           ip,
-           WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0L,
-           ESP.getFreeHeap() / 1024U,
-           ESP.getFreePsram() / 1024U,
-           audioCodecDetected ? "ES8311 detected" : "Not detected",
-           brightnessPct,
-           millis() / 60000UL);
-  lv_label_set_text(systemBody, body);
+static void createSettings() {
+  screenSettings = lv_obj_create(nullptr); styleScreen(screenSettings); addStatusBar(screenSettings, "SETTINGS");
+  settingsBody = label(screenSettings, "", &lv_font_montserrat_12, C_MUTED, 14, 52, 292);
+  button(screenSettings, "Brightness", 12, 92, 142, 50, settingAction, reinterpret_cast<void *>(0), C_GREEN);
+  button(screenSettings, "Timezone", 166, 92, 142, 50, settingAction, reinterpret_cast<void *>(1), C_BLUE);
+  button(screenSettings, "Ambient time", 12, 154, 142, 50, settingAction, reinterpret_cast<void *>(2), C_PURPLE);
+  button(screenSettings, "Ambient dim", 166, 154, 142, 50, settingAction, reinterpret_cast<void *>(3), C_ORANGE);
+  button(screenSettings, "Theme", 12, 216, 142, 50, settingAction, reinterpret_cast<void *>(4), C_BLUE);
+  button(screenSettings, "NOW source", 166, 216, 142, 50, settingAction, reinterpret_cast<void *>(5), C_GREEN);
+  button(screenSettings, "Card 1", 12, 278, 92, 48, settingAction, reinterpret_cast<void *>(10));
+  button(screenSettings, "Card 2", 114, 278, 92, 48, settingAction, reinterpret_cast<void *>(11));
+  button(screenSettings, "Card 3", 216, 278, 92, 48, settingAction, reinterpret_cast<void *>(12));
+  button(screenSettings, "Wi-Fi", 12, 340, 142, 48, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Wifi)), C_BLUE);
+  button(screenSettings, "Home", 166, 340, 142, 48, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+}
+
+static void createWifi() {
+  screenWifi = lv_obj_create(nullptr); styleScreen(screenWifi); addStatusBar(screenWifi, "WI-FI");
+  wifiBody = wrapLabel(screenWifi, "Loading...", &lv_font_montserrat_14, C_TEXT, 14, 70, 292); lv_obj_set_style_text_line_space(wifiBody, 9, 0);
+  button(screenWifi, "Reconnect", 12, 304, 142, 52, [](lv_event_t*){ connectivity.reconnect(); }, nullptr, C_BLUE);
+  button(screenWifi, "Forget", 166, 304, 142, 52, [](lv_event_t*){ connectivity.forget(); }, nullptr, C_RED);
+  button(screenWifi, "Settings", 12, 370, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)));
+  button(screenWifi, "Home", 166, 370, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+}
+
+static void createTimers() {
+  screenTimers = lv_obj_create(nullptr); styleScreen(screenTimers); addStatusBar(screenTimers, "TIMERS");
+  timerBody = wrapLabel(screenTimers, "No active timers", &lv_font_montserrat_14, C_TEXT, 14, 66, 292); lv_obj_set_style_text_line_space(timerBody, 9, 0);
+  button(screenTimers, "5 min", 12, 250, 92, 58, [](lv_event_t*){ timerPlugin.start(state,300,"5 minute timer"); }, nullptr, C_ORANGE);
+  button(screenTimers, "10 min", 114, 250, 92, 58, [](lv_event_t*){ timerPlugin.start(state,600,"10 minute timer"); }, nullptr, C_ORANGE);
+  button(screenTimers, "30 min", 216, 250, 92, 58, [](lv_event_t*){ timerPlugin.start(state,1800,"30 minute timer"); }, nullptr, C_ORANGE);
+  button(screenTimers, "Clear all", 12, 324, 142, 50, [](lv_event_t*){ for(int i=0;i<4;i++) timerPlugin.cancel(state,i); }, nullptr, C_RED);
+  button(screenTimers, "Home", 166, 324, 142, 50, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+}
+
+static void createPrinter() {
+  screenPrinter = lv_obj_create(nullptr); styleScreen(screenPrinter); addStatusBar(screenPrinter, "PRINTER");
+  printerBody = wrapLabel(screenPrinter, "Bambu integration not configured", &lv_font_montserrat_14, C_TEXT, 14, 64, 292); lv_obj_set_style_text_line_space(printerBody, 9, 0);
+  button(screenPrinter, "Settings", 12, 370, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)));
+  button(screenPrinter, "Home", 166, 370, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+}
+
+static void createFilament() {
+  screenFilament = lv_obj_create(nullptr); styleScreen(screenFilament); addStatusBar(screenFilament, "FILAMENT");
+  filamentBody = wrapLabel(screenFilament, "Filament Inventory not configured", &lv_font_montserrat_14, C_TEXT, 14, 64, 292); lv_obj_set_style_text_line_space(filamentBody, 10, 0);
+  button(screenFilament, "Settings", 12, 370, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)));
+  button(screenFilament, "Home", 166, 370, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
 }
 
 static void createSystem() {
-  screenSystem = lv_obj_create(nullptr); styleScreen(screenSystem); addTopBar(screenSystem, "SYSTEM");
-  lv_obj_t *card = panel(screenSystem, 12, 68, 296, 286, C_SURFACE_2);
-  label(card, "DEVICE DIAGNOSTICS", &lv_font_montserrat_12, C_GREEN, 16, 14);
-  systemBody = label(card, "Loading...", &lv_font_montserrat_12, C_TEXT, 16, 46, 264);
-  lv_obj_set_style_text_line_space(systemBody, 9, 0);
-  button(screenSystem, "Quick", 12, 370, 142, 44, navEvent, reinterpret_cast<void *>(5), C_BLUE);
-  button(screenSystem, "Home", 166, 370, 142, 44, navEvent, reinterpret_cast<void *>(0), C_GREEN);
-  updateSystemText();
+  screenSystem = lv_obj_create(nullptr); styleScreen(screenSystem); addStatusBar(screenSystem, "SYSTEM");
+  systemBody = wrapLabel(screenSystem, "Loading diagnostics...", &lv_font_montserrat_12, C_TEXT, 14, 58, 292); lv_obj_set_style_text_line_space(systemBody, 7, 0);
+  button(screenSystem, "Web dashboard", 12, 362, 142, 48, [](lv_event_t*){}, nullptr, C_BLUE);
+  button(screenSystem, "Home", 166, 362, 142, 48, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+}
+
+static void createRecovery() {
+  screenRecovery = lv_obj_create(nullptr); styleScreen(screenRecovery); label(screenRecovery, "RECOVERY", &lv_font_montserrat_20, C_RED, 14, 22);
+  label(screenRecovery, "Safe mode is active", &lv_font_montserrat_20, C_TEXT, 14, 72, 292);
+  recoveryBody = wrapLabel(screenRecovery, "Boot-loop protection disabled integrations. Wi-Fi setup and the web dashboard remain available so you can inspect diagnostics or install known-good firmware.", &lv_font_montserrat_14, C_MUTED, 14, 116, 292);
+  button(screenRecovery, "Wi-Fi", 12, 296, 142, 54, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Wifi)), C_BLUE);
+  button(screenRecovery, "System", 166, 296, 142, 54, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::System)), C_GREEN);
+  button(screenRecovery, "Restart", 12, 366, 296, 48, [](lv_event_t*){ ESP.restart(); }, nullptr, C_ORANGE);
 }
 
 static void createAmbient() {
   screenAmbient = lv_obj_create(nullptr); styleScreen(screenAmbient);
-  ambientNet = label(screenAmbient, networkStateText(), &lv_font_montserrat_12, networkStateColor(), 238, 20, 68);
-  lv_obj_set_style_text_align(ambientNet, LV_TEXT_ALIGN_RIGHT, 0);
-  ambientClock = label(screenAmbient, "--:--", &lv_font_montserrat_36, C_TEXT, 0, 145, 320);
-  lv_obj_set_style_text_align(ambientClock, LV_TEXT_ALIGN_CENTER, 0);
-  ambientDate = label(screenAmbient, "", &lv_font_montserrat_16, C_MUTED, 0, 197, 320);
-  lv_obj_set_style_text_align(ambientDate, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_t *line = lv_obj_create(screenAmbient);
-  lv_obj_set_pos(line, 124, 242); lv_obj_set_size(line, 72, 2);
-  lv_obj_set_style_bg_color(line, C_GREEN, 0); lv_obj_set_style_border_width(line, 0, 0);
-  lv_obj_t *hint = label(screenAmbient, "Waveshare Home\nTouch to wake", &lv_font_montserrat_14, C_MUTED, 0, 270, 320);
-  lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
-}
-
-static void wakeFromAmbient() {
-  ambientMode = false;
-  applyBacklight(brightnessPct);
-  load(screenHome);
-}
-
-static void enterAmbient() {
-  if (ambientMode) return;
-  ambientMode = true;
-  const uint8_t ambientBrightness = max<uint8_t>(10, brightnessPct / 4);
-  ledcWrite(PIN_LCD_BL, map(ambientBrightness, 0, 100, 0, 255));
-  lv_scr_load_anim(screenAmbient, LV_SCR_LOAD_ANIM_FADE_ON, 260, 0, false);
+  ambientClock = label(screenAmbient, "--:--", &lv_font_montserrat_36, C_TEXT, 0, 132, 320); lv_obj_set_style_text_align(ambientClock, LV_TEXT_ALIGN_CENTER, 0);
+  ambientDate = label(screenAmbient, "", &lv_font_montserrat_16, C_MUTED, 0, 184, 320); lv_obj_set_style_text_align(ambientDate, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_t *line = lv_obj_create(screenAmbient); lv_obj_set_pos(line, 126, 230); lv_obj_set_size(line, 68, 2); lv_obj_set_style_bg_color(line, C_GREEN, 0); lv_obj_set_style_border_width(line, 0, 0);
+  ambientSummary = wrapLabel(screenAmbient, "Everything looks good\nTouch to wake", &lv_font_montserrat_14, C_MUTED, 28, 260, 264); lv_obj_set_style_text_align(ambientSummary, LV_TEXT_ALIGN_CENTER, 0);
 }
 
 static void createUi() {
-  createHome();
-  createToday();
-  createControls();
-  createApps();
-  createAttention();
-  createQuick();
-  createSystem();
-  createAmbient();
-  load(screenHome);
+  statusLabelCount = 0;
+  createHome(); createToday(); createControls(); createApps(); createAttention(); createQuick(); createSettings(); createWifi(); createTimers(); createPrinter(); createFilament(); createSystem(); createRecovery(); createAmbient();
+  loadScreen(state.system.recoveryMode ? ScreenId::Recovery : ScreenId::Home);
 }
 
-static void updateClockAndGreeting() {
-  if (millis() - lastClockRefreshMs < 1000UL) return;
-  lastClockRefreshMs = millis();
-
-  struct tm info;
-  char timeBuf[16] = "--:--";
-  char dateBuf[40] = "Time not synced";
-  char greetingBuf[32] = "Hello";
-  if (getLocalTime(&info, 10)) {
-    strftime(timeBuf, sizeof(timeBuf), "%l:%M %p", &info);
-    while (timeBuf[0] == ' ') memmove(timeBuf, timeBuf + 1, strlen(timeBuf));
-    strftime(dateBuf, sizeof(dateBuf), "%A, %B %e", &info);
-    if (info.tm_hour < 12) snprintf(greetingBuf, sizeof(greetingBuf), "Good morning");
-    else if (info.tm_hour < 17) snprintf(greetingBuf, sizeof(greetingBuf), "Good afternoon");
-    else snprintf(greetingBuf, sizeof(greetingBuf), "Good evening");
-  }
-
-  if (homeClock) lv_label_set_text(homeClock, timeBuf);
-  if (homeDate) lv_label_set_text(homeDate, dateBuf);
-  if (homeGreeting) lv_label_set_text(homeGreeting, greetingBuf);
-  if (ambientClock) lv_label_set_text(ambientClock, timeBuf);
-  if (ambientDate) lv_label_set_text(ambientDate, dateBuf);
-
-  if (homeStatus) {
-    if (WiFi.status() == WL_CONNECTED) lv_label_set_text(homeStatus, "Connected • time sync active");
-    else if (portalRunning) lv_label_set_text(homeStatus, "Wi-Fi setup available • local UI active");
-    else lv_label_set_text(homeStatus, "Offline • local UI active");
-  }
-  refreshNetworkLabels();
+static void refreshHome() {
+  struct tm info; char timeBuf[16]="--:--"; char dateBuf[40]="Time not synced"; char greeting[28]="Hello";
+  if (getLocalTime(&info,5)) { strftime(timeBuf,sizeof(timeBuf),"%l:%M %p",&info); if(timeBuf[0]==' ') memmove(timeBuf,timeBuf+1,strlen(timeBuf)); strftime(dateBuf,sizeof(dateBuf),"%A, %B %e",&info); snprintf(greeting,sizeof(greeting),info.tm_hour<12?"Good morning":info.tm_hour<17?"Good afternoon":"Good evening"); }
+  if(homeClock) lv_label_set_text(homeClock,timeBuf); if(homeDate) lv_label_set_text(homeDate,dateBuf); if(homeGreeting) lv_label_set_text(homeGreeting,greeting);
+  if(homeStatus) { char b[96]; snprintf(b,sizeof(b),"%s • %u alert%s",WiFi.status()==WL_CONNECTED?"Connected":state.system.setupApActive?"Setup available":"Local mode",state.alertCount,state.alertCount==1?"":"s"); lv_label_set_text(homeStatus,b); }
+  updateHero();
+  for(int i=0;i<3;i++){ String t,d,v; homeCardContent(config.homeCards[i],t,d,v); lv_label_set_text(homeCardTitle[i],t.c_str()); lv_label_set_text(homeCardDetail[i],d.c_str()); lv_label_set_text(homeCardState[i],v.c_str()); }
 }
 
-static void startPortal() {
-  if (portalRunning) return;
-  wifiManager.setConfigPortalBlocking(false);
-  wifiManager.setConfigPortalTimeout(0);
-  wifiManager.setConnectTimeout(15);
-  wifiManager.setHostname("waveshare-home");
-  wifiManager.startConfigPortal(SETUP_AP);
-  portalRunning = true;
-  refreshNetworkLabels();
+static void refreshToday() {
+  if(todayWeather){ char b[180]; if(state.weather.online) snprintf(b,sizeof(b),"%.0f°F  %s\nFeels %.0f° • H %.0f° / L %.0f°\nPrecipitation %d%%",state.weather.temperatureC*9/5+32,state.weather.condition,state.weather.apparentC*9/5+32,state.weather.highC*9/5+32,state.weather.lowC*9/5+32,state.weather.precipitationPercent); else snprintf(b,sizeof(b),config.weatherEnabled?"Weather unavailable\nCheck network or coordinates":"Weather not configured\nUse the web dashboard to add location"); lv_label_set_text(todayWeather,b); }
+  if(todayAgenda){ char b[180]; if(state.calendar.online&&state.calendar.hasNext) snprintf(b,sizeof(b),"%s\n%s",state.calendar.nextTitle,state.calendar.nextWhen); else snprintf(b,sizeof(b),config.calendarEnabled?"No upcoming calendar event":"Calendar not configured\nAdd an ICS feed in the web dashboard"); lv_label_set_text(todayAgenda,b); }
+  if(todayTimer) lv_label_set_text(todayTimer,remainingTimerText().c_str());
 }
 
-static void serviceWifi() {
-  const wl_status_t status = WiFi.status();
-
-  if (status == WL_CONNECTED) {
-    if (portalRunning) {
-      wifiManager.stopConfigPortal();
-      portalRunning = false;
-    }
-    if (!timeConfigured) {
-      configTzTime("EST5EDT,M3.2.0/2,M11.1.0/2", "pool.ntp.org", "time.nist.gov");
-      timeConfigured = true;
-    }
-  } else {
-    if (portalRunning) wifiManager.process();
-    if (!portalRunning && millis() - wifiStartMs >= WIFI_CONNECT_GRACE_MS) startPortal();
-  }
-
-  if (status != previousWifiStatus) {
-    previousWifiStatus = status;
-    refreshNetworkLabels();
-    updateSystemText();
-  }
+static void refreshControls() {
+  if(!controlsBody) return; String b;
+  if(!config.homeAssistantEnabled) b="Home Assistant is not configured.\n\nOpen the local web dashboard to add its URL, token and entities.";
+  else if(!state.homeAssistant.online) b="Home Assistant is configured but currently unavailable.";
+  else { b="LIVE ENTITIES\n\n"; for(int i=0;i<4;i++){auto &e=state.homeAssistant.entities[i]; if(!e.configured)continue; b+=String(e.label)+"\n  "+e.value+"\n\n";} b+=String("Scene: ")+config.haSceneLabel+"\nAutomation: "+config.haAutomationLabel; }
+  lv_label_set_text(controlsBody,b.c_str());
 }
 
-static void serviceIdleMode() {
-  if (ambientMode) return;
-  if (millis() - lastInteractionMs >= AMBIENT_AFTER_MS) enterAmbient();
+static void refreshAttention() {
+  if(!attentionBody)return; String b;
+  if(state.alertCount==0) b="ALL CLEAR\n\nNo active alerts. Network, services and device health are within the currently configured expectations.";
+  else { for(uint8_t i=0;i<state.alertCount;i++){ auto &a=state.alerts[i]; b += (a.severity==AlertSeverity::Urgent?"URGENT":a.severity==AlertSeverity::Attention?"ATTENTION":"INFO"); b += String(" • ")+a.source+"\n"+a.title+"\n"+a.detail+"\n\n"; } }
+  lv_label_set_text(attentionBody,b.c_str());
 }
+
+static void refreshSettings() {
+  if(!settingsBody)return; char b[300]; snprintf(b,sizeof(b),"Brightness %u%% • Ambient %us @ %u%%\nTimezone %s\nTheme %s • NOW %s\nCards: %s • %s • %s\n\nFull integration and secret configuration is available at http://%s/",config.brightness,config.ambientTimeoutSec,config.ambientBrightness,config.timezoneId,themeName(config.theme),heroModeName(config.heroMode),homeCardName(config.homeCards[0]),homeCardName(config.homeCards[1]),homeCardName(config.homeCards[2]),state.system.ip); lv_label_set_text(settingsBody,b);
+}
+
+static void refreshWifi() {
+  if(!wifiBody)return; char b[320]; if(WiFi.status()==WL_CONNECTED) snprintf(b,sizeof(b),"CONNECTED\n\nSSID  %s\nRSSI  %d dBm\nIP    %s\n\nBrowser dashboard:\nhttp://%s/",state.system.ssid,state.system.rssi,state.system.ip,state.system.ip); else snprintf(b,sizeof(b),"%s\n\nSetup network: %s\nSetup address: http://%s/\n\nJoin the setup Wi-Fi from your phone or Mac to configure a new network.",state.system.setupApActive?"SETUP PORTAL ACTIVE":"OFFLINE",SETUP_AP_NAME,state.system.ip); lv_label_set_text(wifiBody,b);
+}
+
+static void refreshTimers() {
+  if(!timerBody)return; String b; for(int i=0;i<4;i++){auto &t=state.timers[i]; if(!t.active&&!t.fired)continue; if(t.fired){b+=String("DONE • ")+t.label+"\n\n";continue;} uint32_t left=(int32_t)(t.endMs-millis())>0?(t.endMs-millis())/1000UL:0; char x[80];snprintf(x,sizeof(x),"%s\n%02lu:%02lu remaining\n\n",t.label,left/60UL,left%60UL);b+=x;} if(!b.length())b="No active timers.\n\nStart a quick timer below or create one from the local web dashboard."; lv_label_set_text(timerBody,b.c_str());
+}
+
+static void refreshPrinter() {
+  if(!printerBody)return; char b[520]; if(!config.bambuEnabled) snprintf(b,sizeof(b),"Bambu Lab integration is not configured.\n\nUse the web dashboard to enter the P1S IP address, serial number and LAN access code."); else if(!state.printer.online) snprintf(b,sizeof(b),"P1S OFFLINE\n\nConfigured host: %s\nWaiting for local MQTT on port 8883.",config.bambuHost); else snprintf(b,sizeof(b),"P1S • %s\n\nJob       %s\nProgress  %u%%\nRemaining %s\nLayer     %d / %d\nNozzle    %.0f°C\nBed       %.0f°C\nAMS       %d loaded slots\nHumidity  %d\nError     %lu",state.printer.status,strlen(state.printer.jobName)?state.printer.jobName:"—",state.printer.progress,formatMinutes(state.printer.remainingMinutes).c_str(),state.printer.currentLayer,state.printer.totalLayers,state.printer.nozzleC,state.printer.bedC,state.printer.amsLoadedSlots,state.printer.amsHumidity,(unsigned long)state.printer.errorCode); lv_label_set_text(printerBody,b);
+}
+
+static void refreshFilament() {
+  if(!filamentBody)return; char b[420]; if(!config.filamentEnabled) snprintf(b,sizeof(b),"Filament Inventory is not configured.\n\nConnect this device to the private cloud inventory from the web dashboard."); else if(!state.filament.online) snprintf(b,sizeof(b),"Inventory unavailable\n\nProfile: %s\nEndpoint configured, waiting for cloud sync.",config.filamentProfile); else snprintf(b,sizeof(b),"PROFILE  %s\n\nTotal spools   %d\nLoaded         %d\nLow            %d\nEmpty          %d\nUnknown        %d\n\nCloud updated\n%s",state.filament.profile,state.filament.totalSpools,state.filament.loadedSpools,state.filament.lowSpools,state.filament.emptySpools,state.filament.unknownSpools,strlen(state.filament.updatedAt)?state.filament.updatedAt:"recently"); lv_label_set_text(filamentBody,b);
+}
+
+static void refreshSystem() {
+  if(!systemBody)return; char b[620]; snprintf(b,sizeof(b),"Firmware      %s\nBoot count     %lu\nBoot attempts  %lu\nReset reason   %s\nRecovery       %s\nStable boot    %s\nWatchdog       active\nUptime         %lu min\nFree heap      %lu KB\nFree PSRAM     %lu KB\nAudio          %s\nWi-Fi          %s\nIP             %s\nWeb dashboard  %s\nOTA            %s",FW_VERSION,(unsigned long)state.system.bootCount,(unsigned long)state.system.bootAttempts,state.system.resetReason,state.system.recoveryMode?"YES":"no",state.system.stableBoot?"yes":"pending",(unsigned long)(state.system.uptimeSec/60),(unsigned long)(state.system.freeHeap/1024),(unsigned long)(state.system.freePsram/1024),state.system.audioReady?"ES8311 ready":"unavailable",WiFi.status()==WL_CONNECTED?state.system.ssid:state.system.setupApActive?SETUP_AP_NAME:"offline",state.system.ip,state.system.webReady?"ready":"starting",state.system.otaInProgress?"installing":"idle"); lv_label_set_text(systemBody,b);
+}
+
+static void refreshAmbient() {
+  if(!ambientClock)return; struct tm info; char t[16]="--:--",d[40]=""; if(getLocalTime(&info,5)){strftime(t,sizeof(t),"%l:%M %p",&info); if(t[0]==' ')memmove(t,t+1,strlen(t));strftime(d,sizeof(d),"%A, %B %e",&info);} lv_label_set_text(ambientClock,t);lv_label_set_text(ambientDate,d);
+  String s;if(state.alertCount&&state.alerts[0].severity!=AlertSeverity::Info)s=String(state.alerts[0].title)+"\n"+state.alerts[0].detail;else if(state.printer.printing)s=String("P1S • ")+state.printer.progress+"%\n"+formatMinutes(state.printer.remainingMinutes)+" remaining";else if(state.calendar.hasNext)s=String(state.calendar.nextTitle)+"\n"+state.calendar.nextWhen;else if(state.weather.online)s=String((int)round(state.weather.temperatureC*9/5+32))+"°F • "+state.weather.condition+"\nTouch to wake";else s="Everything looks good\nTouch to wake"; lv_label_set_text(ambientSummary,s.c_str());
+}
+
+static void refreshUi() {
+  refreshStatusBars(); refreshHome(); refreshToday(); refreshControls(); refreshAttention(); refreshSettings(); refreshWifi(); refreshTimers(); refreshPrinter(); refreshFilament(); refreshSystem(); refreshAmbient();
+}
+
+static void applyTimeConfiguration() {
+  if(WiFi.status()!=WL_CONNECTED)return;
+  if(timeConfigured && !strcmp(appliedTimezone,config.timezonePosix))return;
+  configTzTime(config.timezonePosix,"pool.ntp.org","time.nist.gov"); strlcpy(appliedTimezone,config.timezonePosix,sizeof(appliedTimezone)); timeConfigured=true;
+}
+
+static void enterAmbient() {
+  if(ambientMode||state.system.recoveryMode)return; ambientMode=true; applyBacklight(config.ambientBrightness); refreshAmbient(); lv_scr_load_anim(screenAmbient,LV_SCR_LOAD_ANIM_FADE_ON,250,0,false);
+}
+
+static void wakeFromAmbient() { ambientMode=false;applyBacklight(config.brightness);loadScreen(ScreenId::Home); }
 
 void setup() {
-  Serial.begin(115200);
-  delay(100);
-  Serial.printf("%s %s starting...\n", DEVICE_NAME, FW_VERSION);
+  Serial.begin(115200); delay(120); Serial.printf("Waveshare Home %s starting\n",FW_VERSION);
+  configStore.begin(); configStore.load(config); bootGuard.begin(state); applyThemeTokens();
+  Wire.begin(PIN_I2C_SDA,PIN_I2C_SCL); if(!ioExpander.begin())Serial.println("TCA9554 init warning"); ioExpander.pinMode1(1,OUTPUT); lcdReset();
+  if(!touch.begin(Wire,FT6X36_SLAVE_ADDRESS))Serial.println("FT6336 touch warning");
+  if(!gfx->begin()){Serial.println("ST7796 init failed");while(true)delay(1000);} gfx->fillScreen(RGB565_BLACK);
+  ledcAttach(PIN_LCD_BL,5000,8);applyBacklight(config.brightness);
 
-  prefs.begin("waveshare-home", false);
-  brightnessPct = prefs.getUChar("brightness", DEFAULT_BRIGHTNESS);
+  lv_init(); const uint32_t pixels=SCREEN_W*80UL; drawBuf1=static_cast<lv_color_t*>(heap_caps_malloc(pixels*sizeof(lv_color_t),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT)); drawBuf2=static_cast<lv_color_t*>(heap_caps_malloc(pixels*sizeof(lv_color_t),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT));
+  if(!drawBuf1||!drawBuf2){if(drawBuf1)heap_caps_free(drawBuf1);if(drawBuf2)heap_caps_free(drawBuf2);drawBuf1=static_cast<lv_color_t*>(heap_caps_malloc(SCREEN_W*40UL*sizeof(lv_color_t),MALLOC_CAP_8BIT));drawBuf2=nullptr;if(!drawBuf1){Serial.println("LVGL allocation failed");while(true)delay(1000);}lv_disp_draw_buf_init(&drawBuf,drawBuf1,nullptr,SCREEN_W*40UL);}else lv_disp_draw_buf_init(&drawBuf,drawBuf1,drawBuf2,pixels);
+  lv_disp_drv_init(&displayDriver);displayDriver.hor_res=SCREEN_W;displayDriver.ver_res=SCREEN_H;displayDriver.flush_cb=displayFlush;displayDriver.draw_buf=&drawBuf;lv_disp_drv_register(&displayDriver);
+  lv_indev_drv_init(&inputDriver);inputDriver.type=LV_INDEV_TYPE_POINTER;inputDriver.read_cb=touchRead;lv_indev_drv_register(&inputDriver);
+  createUi();lastInteractionMs=millis();for(int i=0;i<8;i++){lv_timer_handler();delay(12);}
 
-  Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
-  if (!ioExpander.begin()) Serial.println("Warning: TCA9554 init failed");
-  ioExpander.pinMode1(1, OUTPUT);
-  lcdReset();
-
-  if (!touch.begin(Wire, FT6X36_SLAVE_ADDRESS)) Serial.println("Warning: touch controller not detected");
-  audioCodecDetected = i2cPresent(ES8311_ADDR);
-
-  if (!gfx->begin()) {
-    Serial.println("Fatal: ST7796 display init failed");
-    while (true) delay(1000);
-  }
-  gfx->fillScreen(RGB565_BLACK);
-
-  ledcAttach(PIN_LCD_BL, 5000, 8);
-  applyBacklight(brightnessPct);
-
-  lv_init();
-  const uint32_t pixelCount = SCREEN_W * 80UL;
-  drawBuf1 = static_cast<lv_color_t *>(heap_caps_malloc(pixelCount * sizeof(lv_color_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-  drawBuf2 = static_cast<lv_color_t *>(heap_caps_malloc(pixelCount * sizeof(lv_color_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-  if (!drawBuf1 || !drawBuf2) {
-    if (drawBuf1) heap_caps_free(drawBuf1);
-    if (drawBuf2) heap_caps_free(drawBuf2);
-    drawBuf1 = static_cast<lv_color_t *>(heap_caps_malloc(SCREEN_W * 40UL * sizeof(lv_color_t), MALLOC_CAP_8BIT));
-    drawBuf2 = nullptr;
-    if (!drawBuf1) {
-      Serial.println("Fatal: LVGL buffer allocation failed");
-      while (true) delay(1000);
-    }
-    lv_disp_draw_buf_init(&drawBuf, drawBuf1, nullptr, SCREEN_W * 40UL);
-  } else {
-    lv_disp_draw_buf_init(&drawBuf, drawBuf1, drawBuf2, pixelCount);
-  }
-
-  lv_disp_drv_init(&displayDriver);
-  displayDriver.hor_res = SCREEN_W;
-  displayDriver.ver_res = SCREEN_H;
-  displayDriver.flush_cb = displayFlush;
-  displayDriver.draw_buf = &drawBuf;
-  lv_disp_drv_register(&displayDriver);
-
-  lv_indev_drv_init(&inputDriver);
-  inputDriver.type = LV_INDEV_TYPE_POINTER;
-  inputDriver.read_cb = touchRead;
-  lv_indev_drv_register(&inputDriver);
-
-  createUi();
-  lastInteractionMs = millis();
-
-  for (int i = 0; i < 8; ++i) {
-    lv_timer_handler();
-    delay(12);
-  }
-
-  WiFi.mode(WIFI_STA);
-  WiFi.setHostname("waveshare-home");
-  WiFi.begin();
-  wifiStartMs = millis();
-  previousWifiStatus = WiFi.status();
-  updateClockAndGreeting();
-  updateSystemText();
-  Serial.println("Waveshare Home UI ready");
+  connectivity.begin(config,state); webDashboard.begin(config,state); audio.begin(config,state);
+  serviceManager.add(&weatherPlugin);serviceManager.add(&bambuPlugin);serviceManager.add(&filamentPlugin);serviceManager.add(&homeAssistantPlugin);serviceManager.add(&calendarPlugin);serviceManager.add(&timerPlugin);
+  if(!state.system.recoveryMode)serviceManager.begin(config,state);
+  attentionEngine.update(config,state);refreshUi();Serial.println("Waveshare Home platform ready");
 }
 
 void loop() {
-  lv_timer_handler();
-  serviceWifi();
-  updateClockAndGreeting();
-  serviceIdleMode();
-  serviceBrightnessPersistence();
-  if (millis() - lastSystemRefreshMs >= 5000UL) {
-    lastSystemRefreshMs = millis();
-    updateSystemText();
-  }
+  lv_timer_handler();bootGuard.loop(state);connectivity.loop(config,state);webDashboard.loop(config,state);applyTimeConfiguration();
+  if(!state.system.recoveryMode)serviceManager.loop(config,state);
+  if(webDashboard.configChanged()){webDashboard.clearConfigChanged();applyBacklight(config.brightness);audio.setVolume(config.audioVolume);timeConfigured=false;if(!state.system.recoveryMode)serviceManager.configChanged(config,state);lastUiRefreshMs=0;}
+  if(millis()-lastAttentionMs>=ATTENTION_REFRESH_MS){lastAttentionMs=millis();attentionEngine.update(config,state);}
+  if(millis()-lastUiRefreshMs>=UI_REFRESH_MS){lastUiRefreshMs=millis();refreshUi();}
+  if(!ambientMode&&!state.system.recoveryMode&&millis()-lastInteractionMs>=config.ambientTimeoutSec*1000UL)enterAmbient();
   delay(5);
 }
