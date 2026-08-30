@@ -45,15 +45,32 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import base64, zlib
-          pairs = [
-              ('.bambuhelper-validation/installer.zlib.b64', 'apply_installer_evolution.py'),
-              ('.bambuhelper-validation/device.zlib.b64', 'apply_device_onboarding_evolution.py'),
+          import base64, hashlib, zlib
+
+          installer = Path('.bambuhelper-validation/installer.zlib.b64').read_text(encoding='utf-8').strip()
+          Path('apply_installer_evolution.py').write_bytes(
+              zlib.decompress(base64.b64decode(installer))
+          )
+
+          expected = [
+              ('66dd6e22fcef195d7683718e1d40bdb0a8ffe7136862146823fe924d0642c6c1', 3000),
+              ('5b7122a96b2714492bbed212c17fcfe2ed9afe21d20cd37d14019f018c79a91b', 3000),
+              ('000a18e181179f62ac9c13791aa92c0c8517968966ef543e5e212de0813e5ee5', 3000),
+              ('946031db0fdbc6f697ec51a7bd37cde6c6c5b787ca9e080c268b04893ee6db2f', 2452),
           ]
-          for source, target in pairs:
-              payload = Path(source).read_text(encoding='utf-8').strip()
-              Path(target).write_bytes(zlib.decompress(base64.b64decode(payload)))
-              print(f'rehydrated {target}')
+          chunks = []
+          for i, (expected_sha, expected_len) in enumerate(expected):
+              chunk = Path(f'.bambuhelper-validation/device.part{i}').read_text(encoding='utf-8').strip()
+              actual_sha = hashlib.sha256(chunk.encode()).hexdigest()
+              assert len(chunk) == expected_len, (i, len(chunk), expected_len)
+              assert actual_sha == expected_sha, (i, actual_sha, expected_sha)
+              chunks.append(chunk)
+          device = ''.join(chunks)
+          assert len(device) == 11452, len(device)
+          Path('apply_device_onboarding_evolution.py').write_bytes(
+              zlib.decompress(base64.b64decode(device))
+          )
+          print('rehydrated installer and device patchers')
           PY
           python -m py_compile apply_installer_evolution.py apply_device_onboarding_evolution.py
 
