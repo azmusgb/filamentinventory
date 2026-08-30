@@ -1,0 +1,38 @@
+name: Apply rc7 Self OTA
+
+on:
+  push:
+    paths:
+      - 'tools/rc7_self_ota.py'
+      - '.github/workflows/rc7-self-ota.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply migration
+        run: python3 tools/rc7_self_ota.py
+      - name: Validate patch
+        run: |
+          git diff --check
+          grep -q '1.0.0-rc7' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -q 'checkForSelfUpdate' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'installSelfUpdate' firmware/waveshare-home/WaveshareHome/Services.cpp
+      - name: Commit firmware changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add firmware/waveshare-home/WaveshareHome/AppModel.h firmware/waveshare-home/WaveshareHome/Services.h firmware/waveshare-home/WaveshareHome/Services.cpp
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+          else
+            git commit -m 'Add device-managed OTA updates for rc7'
+            git push
+          fi
