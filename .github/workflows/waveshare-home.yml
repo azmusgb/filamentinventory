@@ -1,0 +1,73 @@
+name: Build Waveshare Home Firmware
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'firmware/waveshare-home/**'
+      - '.github/workflows/waveshare-home.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Configure Arduino package index
+        run: |
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+
+      - name: Install ESP32 core and libraries
+        run: |
+          arduino-cli core install esp32:esp32@3.2.0
+          arduino-cli lib install "lvgl@8.4.0"
+          arduino-cli lib install "GFX Library for Arduino@1.5.5"
+          arduino-cli lib install "SensorLib@0.3.1"
+          arduino-cli lib install "TCA9554@0.1.2"
+
+      - name: Compile
+        run: |
+          mkdir -p build
+          arduino-cli compile \
+            --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc,FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB \
+            --build-property "compiler.cpp.extra_flags=-DLV_CONF_INCLUDE_SIMPLE" \
+            --build-property "compiler.c.extra_flags=-DLV_CONF_INCLUDE_SIMPLE" \
+            --output-dir build \
+            firmware/waveshare-home/WaveshareHome
+          ls -lah build
+
+      - name: Prepare firmware files
+        run: |
+          cp build/WaveshareHome.ino.bin build/WaveshareHome-firmware.bin
+          cp build/WaveshareHome.ino.bootloader.bin build/WaveshareHome-bootloader.bin
+          cp build/WaveshareHome.ino.partitions.bin build/WaveshareHome-partitions.bin
+
+      - name: Create merged flash image
+        shell: bash
+        run: |
+          ESPTOOL=$(find "$HOME/.arduino15/packages/esp32/tools/esptool_py" -type f -name esptool.py | head -1)
+          if [ -z "$ESPTOOL" ]; then
+            ESPTOOL=$(find "$HOME/.arduino15/packages/esp32/tools/esptool_py" -type f -name esptool | head -1)
+          fi
+          echo "Using esptool: $ESPTOOL"
+          python3 "$ESPTOOL" --chip esp32s3 merge_bin -o build/WaveshareHome-merged.bin \
+            0x0 build/WaveshareHome.ino.bootloader.bin \
+            0x8000 build/WaveshareHome.ino.partitions.bin \
+            0x10000 build/WaveshareHome.ino.bin
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WaveshareHome-ESP32S3
+          path: |
+            build/WaveshareHome-firmware.bin
+            build/WaveshareHome-bootloader.bin
+            build/WaveshareHome-partitions.bin
+            build/WaveshareHome-merged.bin
+          if-no-files-found: error
