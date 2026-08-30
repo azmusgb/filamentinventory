@@ -2,6 +2,24 @@
 
 #include <Arduino.h>
 
+// Arduino-ESP32 does not expose GNU timegm(). This UTC conversion is based on
+// the proleptic Gregorian civil-date algorithm and does not mutate the process TZ.
+inline time_t waveshareTimegm(struct tm *tmv) {
+  int y = tmv->tm_year + 1900;
+  unsigned m = static_cast<unsigned>(tmv->tm_mon + 1);
+  unsigned d = static_cast<unsigned>(tmv->tm_mday);
+  y -= m <= 2;
+  const int era = (y >= 0 ? y : y - 399) / 400;
+  const unsigned yoe = static_cast<unsigned>(y - era * 400);
+  const unsigned doy = (153 * (m + (m > 2 ? static_cast<unsigned>(-3) : 9)) + 2) / 5 + d - 1;
+  const unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  const int64_t days = static_cast<int64_t>(era) * 146097 + static_cast<int64_t>(doe) - 719468;
+  return static_cast<time_t>(days * 86400LL + tmv->tm_hour * 3600LL + tmv->tm_min * 60LL + tmv->tm_sec);
+}
+#ifndef timegm
+#define timegm waveshareTimegm
+#endif
+
 static constexpr uint32_t CONFIG_SCHEMA_VERSION = 3;
 static constexpr char FW_VERSION[] = "1.0.0-rc1";
 static constexpr char DEFAULT_DEVICE_NAME[] = "Waveshare Home";
