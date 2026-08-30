@@ -272,7 +272,7 @@ test('mobile Inventory keeps evidence compact and separates quick actions from f
   await expect(card).toBeVisible();
   await expect(card.locator('.inventory-evidence-chip')).toHaveText('Visual estimate');
   await expect(card.locator('.inventory-quantity-amount')).toHaveText('≈800 g');
-  await expect(page.locator('.spool-action-bar')).toBeHidden();
+  await expect(card.locator('.spool-action-bar')).toBeHidden();
   await card.locator('.spool-card-more').click();
   const quick=page.locator('#inventoryCardQuickActionsDialog');
   await expect(quick).toBeVisible();
