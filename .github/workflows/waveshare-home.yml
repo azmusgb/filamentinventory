@@ -12,10 +12,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Arduino CLI
-        uses: arduino/setup-arduino-cli@v2
+        run: |
+          curl -fsSL https://github.com/arduino/arduino-cli/releases/download/v1.5.1/arduino-cli_1.5.1_Linux_64bit.tar.gz \
+            | sudo tar -xz -C /usr/local/bin arduino-cli
+          arduino-cli version
 
       - name: Configure Arduino package index
         run: |
@@ -73,9 +76,9 @@ jobs:
           ls -lh build/WaveshareHome-firmware.bin build/WaveshareHome-merged.bin
 
       - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: WaveshareHome-ESP32S3-rc5-fullflash
+          name: WaveshareHome-ESP32S3-rc6-fullflash
           path: |
             build/WaveshareHome-firmware.bin
             build/WaveshareHome-bootloader.bin
