@@ -1053,6 +1053,16 @@ void AttentionEngine::update(const AppConfig &config, AppState &state) {
   if (config.homeAssistantEnabled && state.homeAssistant.configured && !state.homeAssistant.online) add(state, AlertSeverity::Info, "Home", "Home Assistant unavailable", "Configured entities could not be refreshed.");
   if (config.calendarEnabled && state.calendar.configured && !state.calendar.online) add(state, AlertSeverity::Info, "Calendar", "Calendar unavailable", "The configured ICS feed could not be refreshed.");
   for (auto &timer : state.timers) if (timer.fired) add(state, AlertSeverity::Attention, "Timer", "Timer complete", timer.label);
+  if (config.workshopSensorEnabled) {
+    auto &e = state.workshop.environment;
+    if (!e.online || e.stale) add(state, AlertSeverity::Info, "Workshop", "Environment sensor unavailable", "Waiting for fresh workshop telemetry.");
+    else {
+      if (e.pm25 >= config.pm25Alert) add(state, AlertSeverity::Attention, "Workshop", "PM2.5 elevated", "Air filtration is recommended.");
+      if (e.voc >= config.vocAlert) add(state, AlertSeverity::Attention, "Workshop", "VOC elevated", "Air filtration is recommended.");
+      if (e.humidity >= config.humidityAlert) add(state, AlertSeverity::Info, "Workshop", "Humidity elevated", "Review filament storage conditions.");
+    }
+  }
+  if (state.workshop.dryer.completed) add(state, AlertSeverity::Attention, "Dryer", "Drying complete", state.workshop.dryer.material);
 }
 
 // ---------- Web dashboard ----------
@@ -1118,6 +1128,29 @@ void WebDashboard::installRoutes() {
     store_.save(*config_); configChanged_ = true;
     server_.sendHeader("Location", "/#bambu", true);
     server_.send(303, "text/plain", "Printer selected");
+  });
+  server_.on("/bambu/pause", HTTP_POST, [this]() { bool ok=bambu_.pausePrint(); server_.send(ok?200:409,"text/plain",ok?"Pause requested":"Printer unavailable"); });
+  server_.on("/bambu/resume", HTTP_POST, [this]() { bool ok=bambu_.resumePrint(); server_.send(ok?200:409,"text/plain",ok?"Resume requested":"Printer unavailable"); });
+  server_.on("/bambu/stop", HTTP_POST, [this]() { if(server_.arg("confirm")!="STOP"){server_.send(400,"text/plain","STOP confirmation required");return;} bool ok=bambu_.stopPrint(); server_.send(ok?200:409,"text/plain",ok?"Stop requested":"Printer unavailable"); });
+  server_.on("/api/sensor", HTTP_POST, [this]() {
+    auto &e=state_->workshop.environment; copyText(e.source,sizeof(e.source),server_.arg("source").length()?server_.arg("source"):"External sensor");
+    e.temperatureC=server_.arg("temperatureC").toFloat(); e.humidity=server_.arg("humidity").toFloat(); e.pm25=server_.arg("pm25").toFloat(); e.voc=server_.arg("voc").toFloat(); e.co2=server_.arg("co2").toFloat();
+    e.presence=server_.arg("presence")=="1"||server_.arg("presence")=="true"||server_.arg("presence")=="on"; e.online=true; e.stale=false; e.updatedMs=millis();
+    server_.send(200,"application/json","{\"ok\":true}");
+  });
+  server_.on("/dryer/start", HTTP_POST, [this]() { auto &d=state_->workshop.dryer; copyText(d.material,sizeof(d.material),server_.arg("material").length()?server_.arg("material"):"Filament"); d.targetC=constrain(server_.arg("temperatureC").toInt(),30,90); d.durationSec=(uint32_t)constrain(server_.arg("minutes").toInt(),1,1440)*60UL; d.remainingSec=d.durationSec; d.startedMs=millis(); d.running=true; d.completed=false; server_.sendHeader("Location","/#workshop",true); server_.send(303,"text/plain","Dryer started"); });
+  server_.on("/dryer/stop", HTTP_POST, [this]() { state_->workshop.dryer.running=false; state_->workshop.dryer.remainingSec=0; server_.sendHeader("Location","/#workshop",true); server_.send(303,"text/plain","Dryer stopped"); });
+  server_.on("/air/mode", HTTP_POST, [this]() { int m=constrain(server_.arg("mode").toInt(),0,3); config_->airMode=static_cast<AirMode>(m); state_->workshop.airMode=config_->airMode; store_.save(*config_); configChanged_=true; server_.sendHeader("Location","/#workshop",true); server_.send(303,"text/plain","Air mode updated"); });
+  server_.on("/api/voice", HTTP_POST, [this]() {
+    String cmd=server_.arg("command"); cmd.toLowerCase(); copyText(state_->voice.lastCommand,sizeof(state_->voice.lastCommand),cmd); String result="Command not recognized"; bool ok=false;
+    if(cmd.indexOf("pause")>=0 && cmd.indexOf("printer")>=0){ok=bambu_.pausePrint();result=ok?"Printer pause requested":"Printer unavailable";}
+    else if(cmd.indexOf("resume")>=0 && cmd.indexOf("printer")>=0){ok=bambu_.resumePrint();result=ok?"Printer resume requested":"Printer unavailable";}
+    else if(cmd.indexOf("5")>=0 && cmd.indexOf("timer")>=0){ok=timers_.start(*state_,300,"Voice 5 minute timer")>=0;result=ok?"Five minute timer started":"Timer slots full";}
+    else if(cmd.indexOf("scene")>=0){ok=homeAssistant_.callScene(*config_);result=ok?"Scene requested":"Scene unavailable";}
+    else if(cmd.indexOf("automation")>=0){ok=homeAssistant_.callAutomation(*config_);result=ok?"Automation requested":"Automation unavailable";}
+    else if(cmd.indexOf("air auto")>=0){config_->airMode=AirMode::Auto;state_->workshop.airMode=AirMode::Auto;store_.save(*config_);ok=true;result="Air mode set to Auto";}
+    else if(cmd.indexOf("air off")>=0){config_->airMode=AirMode::Off;state_->workshop.airMode=AirMode::Off;store_.save(*config_);ok=true;result="Air mode set to Off";}
+    copyText(state_->voice.status,sizeof(state_->voice.status),result); String out=String("{\"ok\":")+(ok?"true":"false")+",\"result\":\""+result+"\"}"; server_.send(ok?200:400,"application/json",out);
   });
   server_.on("/wifi/reconnect", HTTP_POST, [this]() { connectivity_.reconnect(); server_.send(200, "text/plain", "Reconnect requested"); });
   server_.on("/wifi/forget", HTTP_POST, [this]() { connectivity_.forget(); server_.send(200, "text/plain", "Wi-Fi forgotten. Join WaveshareHome-Setup."); });
@@ -1188,6 +1221,11 @@ void WebDashboard::sendRoot() {
     s += F("<div class='grid'><div><h3>Status</h3><div class='metric'>"); s += htmlEscape(state_->printer.status); s += F("</div><p>"); s += htmlEscape(state_->printer.jobName); s += F("</p></div><div><h3>Progress</h3><div class='metric'>"); s += state_->printer.progress; s += F("%</div><p>"); s += state_->printer.remainingMinutes; s += F(" min remaining</p></div></div>");
     s += F("<p>Nozzle "); s += String(state_->printer.nozzleC,1); s += F(" / "); s += String(state_->printer.nozzleTargetC,1); s += F(" C • Bed "); s += String(state_->printer.bedC,1); s += F(" / "); s += String(state_->printer.bedTargetC,1); s += F(" C • Chamber "); s += String(state_->printer.chamberC,1); s += F(" C<br>Layer "); s += state_->printer.currentLayer; s += F(" / "); s += state_->printer.totalLayers; s += F(" • Speed "); s += state_->printer.speedPercent; s += F("% • AMS slots "); s += state_->printer.amsLoadedSlots; s += F(" • Active tray "); s += state_->printer.activeTray; s += F(" • AMS humidity "); s += state_->printer.amsHumidity; s += F("<br>Fans: part "); s += state_->printer.partFan; s += F(" • aux "); s += state_->printer.auxFan; s += F(" • chamber "); s += state_->printer.chamberFan; s += F(" • Error 0x"); s += String(state_->printer.errorCode, HEX); s += F("</p>");
   }
+  if (state_->printer.online) {
+    s += F("<div class='grid'>");
+    for(int i=0;i<4;i++){ auto &slot=state_->printer.amsSlots[i]; s += F("<div class='card' style='margin:4px 0'><strong>AMS A"); s += i+1; s += state_->printer.activeTray==i?F(" • ACTIVE</strong>"):F("</strong>"); s += F("<p>"); if(!slot.loaded)s+=F("Empty"); else {s+=htmlEscape(slot.material); if(strlen(slot.name)){s+=F(" • ");s+=htmlEscape(slot.name);} if(slot.remainingPercent>=0){s+=F("<br>");s+=slot.remainingPercent;s+=F("% remaining");}} s+=F("</p></div>"); }
+    s += F("</div><div class='grid'><form method='post' action='/bambu/pause'><button class='muted'>Pause</button></form><form method='post' action='/bambu/resume'><button>Resume</button></form><form method='post' action='/bambu/stop'><input type='hidden' name='confirm' value='STOP'><button class='danger' onclick="return confirm('Stop the current print?')">Stop print</button></form></div>");
+  }
   s += F("</div><form method='post' action='/bambu/scan'><button class='muted'>Scan local network for Bambu printers</button></form>");
   if (bambu_.discoveryRunning()) s += F("<p class='warn'>Scanning for Bambu SSDP announcements… refresh this page in a few seconds.</p>");
   if (bambu_.discoveredCount()) { s += F("<label>Discovered printers</label>"); for (uint8_t i=0;i<bambu_.discoveredCount();++i) { const auto *d=bambu_.discovered(i); if(!d) continue; s += F("<form method='post' action='/bambu/use' class='card' style='margin:6px 0'><input type='hidden' name='index' value='"); s += i; s += F("'><strong>"); s += htmlEscape(strlen(d->name)?d->name:d->model); s += F("</strong><p>"); s += htmlEscape(d->model); s += F(" • "); s += htmlEscape(d->host); s += F("<br>Serial "); s += htmlEscape(d->serial); if(strlen(d->version)){s += F(" • FW "); s += htmlEscape(d->version);} s += F("</p><button type='submit'>Use this printer</button></form>"); } }
@@ -1199,7 +1237,13 @@ void WebDashboard::sendRoot() {
   for (int i = 0; i < 4; ++i) { s += F("<div class='row'><input name='haEntity"); s += i; s += F("' placeholder='entity id' value='"); s += htmlEscape(config_->haEntityIds[i]); s += F("'><input name='haLabel"); s += i; s += F("' placeholder='label' value='"); s += htmlEscape(config_->haEntityLabels[i]); s += F("'></div>"); }
   s += F("<div class='row'><input name='haSceneId' placeholder='scene.movie_night' value='"); s += htmlEscape(config_->haSceneId); s += F("'><input name='haSceneLabel' placeholder='Scene label' value='"); s += htmlEscape(config_->haSceneLabel); s += F("'></div><div class='row'><input name='haAutomationId' placeholder='automation.example' value='"); s += htmlEscape(config_->haAutomationId); s += F("'><input name='haAutomationLabel' placeholder='Automation label' value='"); s += htmlEscape(config_->haAutomationLabel); s += F("'></div><hr>");
 
+  s += F("<h3 id='workshop'>Workshop</h3><label><input type='checkbox' name='workshopEnabled'"); s += checked(config_->workshopEnabled); s += F(">Enable Workshop</label><div class='row'><label><input type='checkbox' name='workshopSensorEnabled'"); s += checked(config_->workshopSensorEnabled); s += F(">External environment sensor</label><label><input type='checkbox' name='presenceEnabled'"); s += checked(config_->presenceEnabled); s += F(">Presence-aware display</label></div><label><input type='checkbox' name='dryerEnabled'"); s += checked(config_->dryerEnabled); s += F(">Enable dryer manager</label><div class='row'><div><label>Ambient mode</label><select name='ambientMode'>");
+  const char *ambientNames[]={"Auto","Clock","Printer","Workshop","Minimal"}; for(int i=0;i<5;i++){s+=F("<option value='");s+=i;s+=F("'");s+=selected((int)config_->ambientMode==i);s+=F(">");s+=ambientNames[i];s+=F("</option>");}
+  s += F("</select></div><div><label>Air/filter mode</label><select name='airMode'>"); const char *airNames[]={"Off","Manual","Auto","Post-print"}; for(int i=0;i<4;i++){s+=F("<option value='");s+=i;s+=F("'");s+=selected((int)config_->airMode==i);s+=F(">");s+=airNames[i];s+=F("</option>");} s+=F("</select></div></div><div class='row'><div><label>Post-print filter minutes</label><input type='number' min='0' max='120' name='postFilterMinutes' value='");s+=config_->postPrintFilterMinutes;s+=F("'></div><div><label>Humidity alert %</label><input type='number' min='1' max='100' name='humidityAlert' value='");s+=String(config_->humidityAlert,0);s+=F("'></div></div><div class='row'><div><label>PM2.5 alert</label><input type='number' step='0.1' name='pm25Alert' value='");s+=String(config_->pm25Alert,1);s+=F("'></div><div><label>VOC alert</label><input type='number' step='1' name='vocAlert' value='");s+=String(config_->vocAlert,0);s+=F("'></div></div><hr>");
+
   s += F("<h3>Calendar</h3><label><input type='checkbox' name='calendarEnabled'"); s += checked(config_->calendarEnabled); s += F(">Enable ICS calendar</label><input name='calendarIcsUrl' placeholder='Private ICS URL' value='"); s += htmlEscape(config_->calendarIcsUrl); s += F("'><hr><h3>Audio</h3><label><input type='checkbox' name='audioEnabled'"); s += checked(config_->audioEnabled); s += F(">Enable ES8311 speaker</label><label>Volume</label><input type='number' min='0' max='100' name='audioVolume' value='"); s += config_->audioVolume; s += F("'><button type='submit'>Save settings</button></div></form>");
+
+  s += F("<div class='card' id='workshop'><h2>Workshop status</h2><div class='grid'><div><h3>Environment</h3><p>"); if(state_->workshop.environment.online){auto &e=state_->workshop.environment;s+=String(e.temperatureC,1)+" C • "+String(e.humidity,0)+"% RH<br>PM2.5 "+String(e.pm25,1)+" • VOC "+String(e.voc,0)+" • CO2 "+String(e.co2,0)+" ppm<br>Presence "+(e.presence?"yes":"no")+(e.stale?" • STALE":" • LIVE");} else s+=F("No sensor connected"); s+=F("</p></div><div><h3>Air management</h3><p>Mode "); const char *airNow[]={"Off","Manual","Auto","Post-print"};s+=airNow[(int)config_->airMode];s+=F("<br>Filter request: ");s+=state_->workshop.filterRequested?"ON":"idle";if(strlen(state_->workshop.filterReason)){s+=F("<br>");s+=htmlEscape(state_->workshop.filterReason);}s+=F("</p></div></div><div class='grid'>"); for(int i=0;i<4;i++){s+=F("<form method='post' action='/air/mode'><input type='hidden' name='mode' value='");s+=i;s+=F("'><button class='muted'>");s+=airNow[i];s+=F("</button></form>");}s+=F("</div><hr><h3>Dryer</h3><p>");if(state_->workshop.dryer.running){s+=htmlEscape(state_->workshop.dryer.material);s+=F(" • ");s+=state_->workshop.dryer.targetC;s+=F(" C • ");s+=state_->workshop.dryer.remainingSec/60UL;s+=F(" min remaining");}else s+=state_->workshop.dryer.completed?"Complete":"Idle";s+=F("</p><form method='post' action='/dryer/start'><div class='row'><input name='material' value='PETG' placeholder='Material'><input type='number' name='temperatureC' value='55' min='30' max='90'></div><label>Duration minutes</label><input type='number' name='minutes' value='360' min='1' max='1440'><button>Start dryer timer</button></form><form method='post' action='/dryer/stop'><button class='danger'>Stop dryer</button></form><hr><h3>External sensor ingest</h3><p><small>POST telemetry to <code>/api/sensor</code> with source, temperatureC, humidity, pm25, voc, co2 and presence.</small></p><h3>Voice / command framework</h3><p>");s+=htmlEscape(state_->voice.status);s+=F("</p><form method='post' action='/api/voice'><input name='command' placeholder='e.g. pause printer, air auto, start 5 minute timer'><button class='muted'>Run command</button></form><hr><h3>Recent activity</h3>");if(!state_->activityCount)s+=F("<p>No activity yet.</p>");else{for(int i=0;i<state_->activityCount && i<6;i++){auto &a=state_->activity[i];if(!a.valid)continue;s+=F("<p><strong>");s+=htmlEscape(a.title);s+=F("</strong><br><small>");s+=htmlEscape(a.source);if(strlen(a.detail)){s+=F(" • ");s+=htmlEscape(a.detail);}s+=F("</small></p>");}}s+=F("</div>");
 
   s += F("<div class='card'><h2>Actions</h2><div class='grid'><form method='post' action='/audio/test'><button class='muted'>Test speaker</button></form><form method='post' action='/timer/start'><input type='hidden' name='seconds' value='300'><input type='hidden' name='label' value='5 minute timer'><button class='muted'>Start 5 min timer</button></form><form method='post' action='/ha/scene'><button class='muted'>Run configured scene</button></form><form method='post' action='/ha/automation'><button class='muted'>Trigger automation</button></form></div></div>");
 
@@ -1257,6 +1301,7 @@ void WebDashboard::sendStatusJson() {
   doc["printer"]["amsHumidity"] = state_->printer.amsHumidity;
   doc["printer"]["errorCode"] = state_->printer.errorCode;
   doc["printer"]["updatedMs"] = state_->printer.updatedMs;
+  for(int i=0;i<4;i++){auto &slot=state_->printer.amsSlots[i];doc["printer"]["amsSlots"][i]["loaded"]=slot.loaded;doc["printer"]["amsSlots"][i]["active"]=slot.active;doc["printer"]["amsSlots"][i]["material"]=slot.material;doc["printer"]["amsSlots"][i]["name"]=slot.name;doc["printer"]["amsSlots"][i]["color"]=slot.color;doc["printer"]["amsSlots"][i]["remainingPercent"]=slot.remainingPercent;}
   doc["printerDiscovery"]["running"] = bambu_.discoveryRunning();
   doc["printerDiscovery"]["count"] = bambu_.discoveredCount();
   doc["filament"]["online"] = state_->filament.online;
@@ -1265,6 +1310,15 @@ void WebDashboard::sendStatusJson() {
   doc["filament"]["low"] = state_->filament.lowSpools;
   doc["calendar"]["online"] = state_->calendar.online;
   doc["calendar"]["next"] = state_->calendar.nextTitle;
+  doc["workshop"]["enabled"] = config_->workshopEnabled;
+  doc["workshop"]["airMode"] = (int)config_->airMode;
+  doc["workshop"]["ambientMode"] = (int)config_->ambientMode;
+  doc["workshop"]["filterRequested"] = state_->workshop.filterRequested;
+  doc["workshop"]["filterReason"] = state_->workshop.filterReason;
+  auto &env=state_->workshop.environment; doc["workshop"]["environment"]["online"]=env.online;doc["workshop"]["environment"]["stale"]=env.stale;doc["workshop"]["environment"]["source"]=env.source;doc["workshop"]["environment"]["temperatureC"]=env.temperatureC;doc["workshop"]["environment"]["humidity"]=env.humidity;doc["workshop"]["environment"]["pm25"]=env.pm25;doc["workshop"]["environment"]["voc"]=env.voc;doc["workshop"]["environment"]["co2"]=env.co2;doc["workshop"]["environment"]["presence"]=env.presence;
+  auto &dryer=state_->workshop.dryer;doc["workshop"]["dryer"]["running"]=dryer.running;doc["workshop"]["dryer"]["completed"]=dryer.completed;doc["workshop"]["dryer"]["material"]=dryer.material;doc["workshop"]["dryer"]["targetC"]=dryer.targetC;doc["workshop"]["dryer"]["remainingSec"]=dryer.remainingSec;
+  doc["voice"]["microphoneAvailable"]=state_->voice.microphoneAvailable;doc["voice"]["status"]=state_->voice.status;doc["voice"]["lastCommand"]=state_->voice.lastCommand;
+  for(int i=0;i<state_->activityCount;i++){auto &a=state_->activity[i];if(!a.valid)continue;doc["activity"][i]["source"]=a.source;doc["activity"][i]["title"]=a.title;doc["activity"][i]["detail"]=a.detail;doc["activity"][i]["epoch"]=(long long)a.epoch;}
   doc["alerts"] = state_->alertCount;
   String out;
   serializeJson(doc, out);
@@ -1325,6 +1379,16 @@ void WebDashboard::handleSettingsSave() {
   copyText(config_->calendarIcsUrl, sizeof(config_->calendarIcsUrl), server_.arg("calendarIcsUrl"));
   config_->audioEnabled = server_.hasArg("audioEnabled");
   config_->audioVolume = constrain(server_.arg("audioVolume").toInt(), 0, 100);
+  config_->workshopEnabled = server_.hasArg("workshopEnabled");
+  config_->workshopSensorEnabled = server_.hasArg("workshopSensorEnabled");
+  config_->presenceEnabled = server_.hasArg("presenceEnabled");
+  config_->dryerEnabled = server_.hasArg("dryerEnabled");
+  config_->ambientMode = static_cast<AmbientDisplayMode>(constrain(server_.arg("ambientMode").toInt(),0,4));
+  config_->airMode = static_cast<AirMode>(constrain(server_.arg("airMode").toInt(),0,3));
+  config_->postPrintFilterMinutes = constrain(server_.arg("postFilterMinutes").toInt(),0,120);
+  config_->pm25Alert = max(0.0f,server_.arg("pm25Alert").toFloat());
+  config_->vocAlert = max(0.0f,server_.arg("vocAlert").toFloat());
+  config_->humidityAlert = constrain(server_.arg("humidityAlert").toFloat(),1.0f,100.0f);
   config_->schemaVersion = CONFIG_SCHEMA_VERSION;
   store_.save(*config_);
   configChanged_ = true;
