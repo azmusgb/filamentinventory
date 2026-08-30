@@ -8,6 +8,7 @@
 #include "TouchDrvFT6X36.hpp"
 #include "AppModel.h"
 #include "Services.h"
+#include "Workshop.h"
 
 static constexpr int PIN_LCD_BL = 6;
 static constexpr int PIN_SPI_MISO = 2;
@@ -42,6 +43,8 @@ CalendarPlugin calendarPlugin;
 TimerPlugin timerPlugin(audio);
 ServiceManager serviceManager;
 AttentionEngine attentionEngine;
+WorkshopService workshopService;
+ActivityEngine activityEngine;
 WebDashboard webDashboard(configStore, connectivity, audio, timerPlugin, homeAssistantPlugin, bambuPlugin);
 
 static lv_disp_draw_buf_t drawBuf;
@@ -621,6 +624,7 @@ void setup() {
 
   connectivity.begin(config,state); webDashboard.begin(config,state); audio.begin(config,state);
   serviceManager.add(&weatherPlugin);serviceManager.add(&bambuPlugin);serviceManager.add(&filamentPlugin);serviceManager.add(&homeAssistantPlugin);serviceManager.add(&calendarPlugin);serviceManager.add(&timerPlugin);
+  workshopService.begin(config,state);
   if(!state.system.recoveryMode)serviceManager.begin(config,state);
   attentionEngine.update(config,state);refreshUi();Serial.println("Waveshare Home platform ready");
 }
@@ -628,7 +632,9 @@ void setup() {
 void loop() {
   lv_timer_handler();bootGuard.loop(state);connectivity.loop(config,state);webDashboard.loop(config,state);applyTimeConfiguration();
   if(!state.system.recoveryMode)serviceManager.loop(config,state);
-  if(webDashboard.configChanged()){webDashboard.clearConfigChanged();applyBacklight(config.brightness);audio.setVolume(config.audioVolume);timeConfigured=false;if(!state.system.recoveryMode)serviceManager.configChanged(config,state);lastUiRefreshMs=0;}
+  workshopService.loop(config,state); activityEngine.loop(state);
+  if(config.presenceEnabled && state.workshop.environment.presence){lastInteractionMs=millis(); if(ambientMode)wakeFromAmbient();}
+  if(webDashboard.configChanged()){webDashboard.clearConfigChanged();applyBacklight(config.brightness);audio.setVolume(config.audioVolume);timeConfigured=false;if(!state.system.recoveryMode)serviceManager.configChanged(config,state);workshopService.begin(config,state);lastUiRefreshMs=0;}
   if(millis()-lastAttentionMs>=ATTENTION_REFRESH_MS){lastAttentionMs=millis();attentionEngine.update(config,state);}
   if(millis()-lastUiRefreshMs>=UI_REFRESH_MS){lastUiRefreshMs=millis();refreshUi();}
   if(!ambientMode&&!state.system.recoveryMode&&millis()-lastInteractionMs>=config.ambientTimeoutSec*1000UL)enterAmbient();

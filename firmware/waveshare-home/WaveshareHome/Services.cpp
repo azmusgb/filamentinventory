@@ -153,6 +153,16 @@ bool ConfigStore::load(AppConfig &config) {
   copyText(config.calendarIcsUrl, sizeof(config.calendarIcsUrl), doc["calendar"]["icsUrl"] | "");
   config.audioEnabled = doc["audio"]["enabled"] | true;
   config.audioVolume = constrain((int)(doc["audio"]["volume"] | 55), 0, 100);
+  config.workshopEnabled = doc["workshop"]["enabled"] | true;
+  config.workshopSensorEnabled = doc["workshop"]["sensorEnabled"] | false;
+  config.presenceEnabled = doc["workshop"]["presenceEnabled"] | false;
+  config.dryerEnabled = doc["workshop"]["dryerEnabled"] | true;
+  config.airMode = static_cast<AirMode>(constrain((int)(doc["workshop"]["airMode"] | 2), 0, 3));
+  config.ambientMode = static_cast<AmbientDisplayMode>(constrain((int)(doc["workshop"]["ambientMode"] | 0), 0, 4));
+  config.postPrintFilterMinutes = constrain((int)(doc["workshop"]["postFilterMinutes"] | 15), 0, 120);
+  config.pm25Alert = doc["workshop"]["pm25Alert"] | 20.0f;
+  config.vocAlert = doc["workshop"]["vocAlert"] | 250.0f;
+  config.humidityAlert = doc["workshop"]["humidityAlert"] | 45.0f;
 
   if (config.schemaVersion < CONFIG_SCHEMA_VERSION) {
     config.schemaVersion = CONFIG_SCHEMA_VERSION;
@@ -206,6 +216,16 @@ bool ConfigStore::save(const AppConfig &config) {
   doc["calendar"]["icsUrl"] = config.calendarIcsUrl;
   doc["audio"]["enabled"] = config.audioEnabled;
   doc["audio"]["volume"] = config.audioVolume;
+  doc["workshop"]["enabled"] = config.workshopEnabled;
+  doc["workshop"]["sensorEnabled"] = config.workshopSensorEnabled;
+  doc["workshop"]["presenceEnabled"] = config.presenceEnabled;
+  doc["workshop"]["dryerEnabled"] = config.dryerEnabled;
+  doc["workshop"]["airMode"] = static_cast<uint8_t>(config.airMode);
+  doc["workshop"]["ambientMode"] = static_cast<uint8_t>(config.ambientMode);
+  doc["workshop"]["postFilterMinutes"] = config.postPrintFilterMinutes;
+  doc["workshop"]["pm25Alert"] = config.pm25Alert;
+  doc["workshop"]["vocAlert"] = config.vocAlert;
+  doc["workshop"]["humidityAlert"] = config.humidityAlert;
 
   String out;
   serializeJson(doc, out);
@@ -646,15 +666,26 @@ void BambuPlugin::callback(char *, byte *payload, unsigned int length) {
     JsonArray units = ams["ams"].as<JsonArray>();
     for (JsonObject unit : units) {
       JsonArray trays = unit["tray"].as<JsonArray>();
+      int localIndex = 0;
       for (JsonObject tray : trays) {
         const char *type = tray["tray_type"] | "";
         const char *color = tray["tray_color"] | "";
+        int idx = localIndex++;
+        if (idx < 4) {
+          auto &slot = p.amsSlots[idx];
+          slot.loaded = strlen(type) || strlen(color);
+          copyText(slot.material, sizeof(slot.material), type);
+          copyText(slot.color, sizeof(slot.color), color);
+          copyText(slot.name, sizeof(slot.name), tray["tray_sub_brands"] | "");
+          if (!tray["remain"].isNull()) slot.remainingPercent = tray["remain"] | -1;
+        }
         if (strlen(type) || strlen(color)) p.amsLoadedSlots++;
       }
       if (unit.containsKey("humidity")) p.amsHumidity = unit["humidity"] | p.amsHumidity;
     }
     String active = ams["tray_now"] | "-1";
     p.activeTray = active.toInt();
+    for (int i = 0; i < 4; ++i) p.amsSlots[i].active = (i == p.activeTray);
   }
   if (p.connectedMs == 0) p.connectedMs = millis();
   p.updatedMs = millis();
@@ -682,6 +713,16 @@ void BambuPlugin::requestPushAll() {
   const char *payload = "{\"pushing\":{\"sequence_id\":\"0\",\"command\":\"pushall\"}}";
   mqtt_.publish(requestTopic.c_str(), payload);
 }
+
+bool BambuPlugin::sendPrintCommand(const char *command) {
+  if (!config_ || !mqtt_.connected() || !command || !*command) return false;
+  String topic = String("device/") + config_->bambuSerial + "/request";
+  String payload = String("{\"print\":{\"sequence_id\":\"0\",\"command\":\"") + command + "\"}}";
+  return mqtt_.publish(topic.c_str(), payload.c_str());
+}
+bool BambuPlugin::pausePrint() { return sendPrintCommand("pause"); }
+bool BambuPlugin::resumePrint() { return sendPrintCommand("resume"); }
+bool BambuPlugin::stopPrint() { return sendPrintCommand("stop"); }
 
 // ---------- Filament Inventory ----------
 

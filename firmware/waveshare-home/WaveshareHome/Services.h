@@ -229,6 +229,9 @@ public:
   uint8_t discoveredCount() const { return discoveredCount_; }
   const BambuDiscoveredPrinter *discovered(uint8_t index) const { return index < discoveredCount_ ? &discovered_[index] : nullptr; }
   bool useDiscovered(AppConfig &config, AppState &state, uint8_t index);
+  bool pausePrint();
+  bool resumePrint();
+  bool stopPrint();
 private:
   WiFiClientSecure tls_;
   PubSubClient mqtt_;
@@ -246,6 +249,7 @@ private:
   void callback(char *topic, byte *payload, unsigned int length);
   bool connectMqtt();
   void requestPushAll();
+  bool sendPrintCommand(const char *command);
   void pollDiscovery();
   void parseDiscoveryPacket(const String &packet, const IPAddress &remoteIp);
   int findDiscovered(const char *serial, const char *host) const;

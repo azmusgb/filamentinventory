@@ -21,8 +21,8 @@ inline time_t waveshareTimegm(struct tm *tmv) {
 #define timegm waveshareTimegm
 #endif
 
-static constexpr uint32_t CONFIG_SCHEMA_VERSION = 3;
-static constexpr char FW_VERSION[] = "1.0.0-rc3";
+static constexpr uint32_t CONFIG_SCHEMA_VERSION = 4;
+static constexpr char FW_VERSION[] = "1.0.0-rc4";
 static constexpr char DEFAULT_DEVICE_NAME[] = "Waveshare Home";
 static constexpr char SETUP_AP_NAME[] = "WaveshareHome-Setup";
 
@@ -51,6 +51,8 @@ enum class ThemeMode : uint8_t { Midnight = 0, Oled = 1, HighContrast = 2 };
 enum class HeroMode : uint8_t { Auto = 0, Printer = 1, Weather = 2, Calendar = 3, Filament = 4, System = 5 };
 enum class HomeCard : uint8_t { Controls = 0, Today = 1, Printer = 2, Filament = 3, Weather = 4, System = 5, Timers = 6, Attention = 7 };
 enum class AlertSeverity : uint8_t { Info = 0, Attention = 1, Urgent = 2 };
+enum class AmbientDisplayMode : uint8_t { Auto = 0, Clock = 1, Printer = 2, Workshop = 3, Minimal = 4 };
+enum class AirMode : uint8_t { Off = 0, Manual = 1, Auto = 2, PostPrint = 3 };
 
 struct AppConfig {
   uint32_t schemaVersion = CONFIG_SCHEMA_VERSION;
@@ -95,6 +97,16 @@ struct AppConfig {
 
   bool audioEnabled = true;
   uint8_t audioVolume = 55;
+  bool workshopEnabled = true;
+  bool workshopSensorEnabled = false;
+  bool presenceEnabled = false;
+  bool dryerEnabled = true;
+  AirMode airMode = AirMode::Auto;
+  AmbientDisplayMode ambientMode = AmbientDisplayMode::Auto;
+  uint8_t postPrintFilterMinutes = 15;
+  float pm25Alert = 20.0f;
+  float vocAlert = 250.0f;
+  float humidityAlert = 45.0f;
 };
 
 struct WeatherState {
@@ -122,6 +134,15 @@ struct BambuDiscoveredPrinter {
   char version[32] = "";
   int signal = 0;
   uint32_t lastSeenMs = 0;
+};
+
+struct AmsSlotState {
+  bool loaded = false;
+  bool active = false;
+  char material[24] = "";
+  char color[12] = "";
+  char name[32] = "";
+  int remainingPercent = -1;
 };
 
 struct PrinterState {
@@ -155,6 +176,7 @@ struct PrinterState {
   int amsLoadedSlots = 0;
   int activeTray = -1;
   int amsHumidity = -1;
+  AmsSlotState amsSlots[4];
   uint32_t errorCode = 0;
   uint32_t updatedMs = 0;
   uint32_t connectedMs = 0;
@@ -215,6 +237,58 @@ struct AlertItem {
   char detail[120] = "";
 };
 
+struct EnvironmentState {
+  bool online = false;
+  bool stale = true;
+  bool presence = false;
+  float temperatureC = 0;
+  float humidity = 0;
+  float pm25 = 0;
+  float voc = 0;
+  float co2 = 0;
+  char source[32] = "Not connected";
+  uint32_t updatedMs = 0;
+};
+
+struct DryerState {
+  bool running = false;
+  bool completed = false;
+  char material[32] = "";
+  uint16_t targetC = 0;
+  uint32_t durationSec = 0;
+  uint32_t remainingSec = 0;
+  uint32_t startedMs = 0;
+};
+
+struct WorkshopState {
+  bool enabled = true;
+  bool sensorConfigured = false;
+  bool presenceConfigured = false;
+  bool dryerConfigured = true;
+  bool filterRequested = false;
+  AirMode airMode = AirMode::Auto;
+  uint32_t postFilterUntilMs = 0;
+  char filterReason[64] = "";
+  EnvironmentState environment;
+  DryerState dryer;
+};
+
+struct ActivityItem {
+  bool valid = false;
+  time_t epoch = 0;
+  uint32_t ms = 0;
+  char source[24] = "";
+  char title[64] = "";
+  char detail[96] = "";
+};
+
+struct VoiceState {
+  bool microphoneAvailable = false;
+  bool listening = false;
+  char lastCommand[64] = "";
+  char status[48] = "Microphone not configured";
+};
+
 struct SystemState {
   bool recoveryMode = false;
   bool stableBoot = false;
@@ -243,6 +317,10 @@ struct AppState {
   HomeAssistantState homeAssistant;
   CalendarState calendar;
   TimerState timers[4];
+  WorkshopState workshop;
+  VoiceState voice;
+  ActivityItem activity[12];
+  uint8_t activityCount = 0;
   AlertItem alerts[10];
   uint8_t alertCount = 0;
   SystemState system;
