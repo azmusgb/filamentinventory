@@ -52,7 +52,10 @@ jobs:
 
       - name: Verify OTA partition layout
         run: |
-          python3 "$HOME/.arduino15/packages/esp32/hardware/esp32/3.2.0/tools/gen_esp32part.py" build/WaveshareHome.ino.partitions.bin
+          python3 "$HOME/.arduino15/packages/esp32/hardware/esp32/3.2.0/tools/gen_esp32part.py" build/WaveshareHome.ino.partitions.bin | tee build/partition-layout.txt
+          grep -q 'app0,app,ota_0,0x10000,4M' build/partition-layout.txt
+          grep -q 'app1,app,ota_1,0x410000,4M' build/partition-layout.txt
+          grep -q 'otadata,data,ota,0xe000,8K' build/partition-layout.txt
 
       - name: Prepare firmware files
         run: |
@@ -60,24 +63,23 @@ jobs:
           cp build/WaveshareHome.ino.bootloader.bin build/WaveshareHome-bootloader.bin
           cp build/WaveshareHome.ino.partitions.bin build/WaveshareHome-partitions.bin
 
-      - name: Install esptool
-        run: python3 -m pip install --user 'esptool==4.8.1'
+          # Arduino-ESP32 already emits the authoritative full-flash image. Use it
+          # instead of rebuilding a partial image that omits OTA initialization data.
+          test -f build/WaveshareHome.ino.merged.bin
+          cp build/WaveshareHome.ino.merged.bin build/WaveshareHome-merged.bin
 
-      - name: Create merged flash image
-        run: |
-          python3 -m esptool --chip esp32s3 merge_bin -o build/WaveshareHome-merged.bin \
-            0x0 build/WaveshareHome.ino.bootloader.bin \
-            0x8000 build/WaveshareHome.ino.partitions.bin \
-            0x10000 build/WaveshareHome.ino.bin
-          ls -lh build/WaveshareHome-merged.bin build/WaveshareHome-firmware.bin
+          # A true 16 MB merged image should be 0x1000000 bytes. Reject partial images.
+          test "$(stat -c%s build/WaveshareHome-merged.bin)" -eq 16777216
+          ls -lh build/WaveshareHome-firmware.bin build/WaveshareHome-merged.bin
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WaveshareHome-ESP32S3-v1
+          name: WaveshareHome-ESP32S3-rc5-fullflash
           path: |
             build/WaveshareHome-firmware.bin
             build/WaveshareHome-bootloader.bin
             build/WaveshareHome-partitions.bin
             build/WaveshareHome-merged.bin
+            build/partition-layout.txt
           if-no-files-found: error
