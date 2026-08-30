@@ -7,46 +7,145 @@ html.fi-v11 .spool-card-more {
   display: none;
 }
 
+html.fi-v11 .inventory-head-status-demoted > .spool-head > .confidence[hidden] {
+  display: none;
+}
+
 html.fi-v11 .inventory-quantity-row {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 7px;
+}
+
+html.fi-v11 .inventory-quantity-primary {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
   gap: 8px;
 }
 
 html.fi-v11 .inventory-quantity-amount {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 760;
+  line-height: 1.1;
+  letter-spacing: -.025em;
+  white-space: nowrap;
+}
+
+html.fi-v11 .inventory-quantity-percent {
   color: var(--color-text-muted);
   font-family: var(--font-mono);
   font-size: 11px;
+  font-weight: 650;
   white-space: nowrap;
+}
+
+html.fi-v11 .inventory-quantity-row[data-quantity-evidence="unknown"] .inventory-quantity-amount {
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0;
 }
 
 html.fi-v11 .inventory-evidence-chip {
   justify-self: end;
-  padding: 3px 7px;
+  padding: 2px 6px;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-pill);
-  background: var(--color-surface-raised);
+  background: transparent;
   color: var(--color-text-muted);
-  font-size: 9.5px;
+  font-size: 9px;
   font-weight: 700;
+  line-height: 1.35;
   white-space: nowrap;
 }
 
 html.fi-v11 .inventory-evidence-chip[data-evidence="measured"] {
-  border-color: color-mix(in srgb, var(--color-success) 34%, var(--color-border-subtle));
-  background: var(--color-success-soft);
+  border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-border-subtle));
+  background: color-mix(in srgb, var(--color-success) 7%, transparent);
   color: var(--color-success);
 }
 
 html.fi-v11 .inventory-evidence-chip[data-evidence="estimated"] {
-  border-color: color-mix(in srgb, var(--color-info) 30%, var(--color-border-subtle));
-  background: color-mix(in srgb, var(--color-info) 10%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-info) 24%, var(--color-border-subtle));
+  background: color-mix(in srgb, var(--color-info) 6%, transparent);
   color: var(--color-info);
 }
 
 html.fi-v11 .inventory-evidence-chip[data-evidence="unknown"] {
+  border-style: dashed;
   color: var(--color-text-subtle);
+}
+
+html.fi-v11 .inventory-state-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+html.fi-v11 .inventory-state-row[hidden] {
+  display: none;
+}
+
+html.fi-v11 .inventory-state-chip,
+html.fi-v11 .inventory-id-chip {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-pill);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: .025em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+html.fi-v11 .inventory-state-chip[data-state="low"],
+html.fi-v11 .inventory-state-chip[data-state="empty"] {
+  border-color: color-mix(in srgb, var(--color-danger) 34%, var(--color-border-subtle));
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
+  color: var(--color-danger);
+}
+
+html.fi-v11 .inventory-state-chip[data-state="loaded"] {
+  border-color: color-mix(in srgb, var(--color-success) 30%, var(--color-border-subtle));
+  background: color-mix(in srgb, var(--color-success) 7%, transparent);
+  color: var(--color-success);
+}
+
+html.fi-v11 .inventory-state-chip[data-state="archived"] {
+  color: var(--color-text-subtle);
+}
+
+html.fi-v11 .inventory-placement {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.fi-v11 .inventory-id-chip {
+  margin-left: auto;
+  border-style: dashed;
+  color: var(--color-text-subtle);
+  text-transform: none;
+}
+
+html.fi-v11 .inventory-id-chip[data-id-confidence="low"],
+html.fi-v11 .inventory-id-chip[data-id-confidence="unknown"] {
+  border-color: color-mix(in srgb, var(--color-warning) 32%, var(--color-border-subtle));
+  color: var(--color-warning);
 }
 
 @media (max-width: 640px) {
@@ -161,7 +260,7 @@ html.fi-v11 .inventory-evidence-chip[data-evidence="unknown"] {
 
   html.fi-v11 .fi-page-inventory .spool-head {
     display: grid;
-    grid-template-columns: 36px minmax(0, 1fr) auto auto;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
     min-height: 52px;
     align-items: center;
     gap: 7px;
@@ -183,15 +282,6 @@ html.fi-v11 .inventory-evidence-chip[data-evidence="unknown"] {
     margin-top: 2px;
     font-size: 10.5px;
     line-height: 1.2;
-  }
-
-  html.fi-v11 .fi-page-inventory .confidence {
-    margin-left: 0;
-    padding: 3px 5px;
-    border-radius: 7px;
-    font-size: 7.5px;
-    letter-spacing: .035em;
-    white-space: nowrap;
   }
 
   html.fi-v11 .fi-page-inventory .spool-card-more {
@@ -219,31 +309,49 @@ html.fi-v11 .inventory-evidence-chip[data-evidence="unknown"] {
   }
 
   html.fi-v11 .fi-page-inventory .fill-top.inventory-quantity-row {
-    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 7px;
-    min-height: 25px;
+    min-height: 26px;
     margin: 0 0 5px;
   }
 
-  html.fi-v11 .fi-page-inventory .inventory-quantity-percent {
-    font-size: 17px;
-    line-height: 1;
-    letter-spacing: -.03em;
+  html.fi-v11 .fi-page-inventory .inventory-quantity-primary {
+    gap: 6px;
   }
 
   html.fi-v11 .fi-page-inventory .inventory-quantity-amount {
+    font-size: 15.5px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-quantity-percent {
     font-size: 9.5px;
   }
 
+  html.fi-v11 .fi-page-inventory .inventory-quantity-row[data-quantity-evidence="unknown"] .inventory-quantity-amount {
+    font-size: 11.5px;
+  }
+
   html.fi-v11 .fi-page-inventory .inventory-evidence-chip {
-    padding: 2px 6px;
-    font-size: 8px;
+    padding: 2px 5px;
+    font-size: 7.75px;
   }
 
   html.fi-v11 .fi-page-inventory .progress {
     height: 3px;
     margin: 0;
     border: 0;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-state-row {
+    gap: 5px;
+    margin-top: 6px;
+    font-size: 8.75px;
+  }
+
+  html.fi-v11 .fi-page-inventory .inventory-state-chip,
+  html.fi-v11 .fi-page-inventory .inventory-id-chip {
+    padding: 2px 5px;
+    font-size: 7.25px;
   }
 
   html.fi-v11 .fi-page-inventory .spool-card .meta,
