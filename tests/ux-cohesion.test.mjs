@@ -36,7 +36,11 @@ test('cohesion client implements the cross-page UX contracts', async () => {
   assert.match(client, /Reset filters/);
   assert.match(client, /Preferences save automatically/);
   assert.match(client, /Save \$\{remaining\} remaining/);
-  assert.match(client, /Weight evidence, storage, printer placement/);
+  assert.match(client, /How much filament is on it\?/);
+  assert.match(client, /name="fiQuantityMode" value="full"/);
+  assert.match(client, /name="fiQuantityMode" value="estimate"/);
+  assert.match(client, /name="fiQuantityMode" value="measured"/);
+  assert.match(client, /Storage, printer placement, purchase details, identification and notes/);
 });
 
 test('cohesion stylesheet preserves shared presentation rules', async () => {
