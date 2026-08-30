@@ -25,6 +25,7 @@ async function boot(page) {
     localStorage.clear();
     sessionStorage.clear();
     localStorage.setItem('filament-current-user-v1','Bill');
+    localStorage.setItem('filament-user-isolation-v1',JSON.stringify({at:'2026-08-29T20:00:00.000Z',schemaVersion:10,cloudIsolation:'profile-scoped'}));
     localStorage.setItem('filament-user-v1:bill:inventory',JSON.stringify(inventory));
   }, inventory);
   await page.goto('/');
