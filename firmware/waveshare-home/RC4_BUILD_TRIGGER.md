@@ -1,3 +1,3 @@
-# rc4 build trigger
+# rc5 build trigger
 
-Phase 2 validation retry after guarded Bambu Stop HTML fix.
+OTA hardening validation: progress UI, slot diagnostics, strict upload validation, detailed error reporting, and safer reboot flow.
