@@ -53,8 +53,8 @@ test('Home prioritizes low stock over summary metrics', async ({page}) => {
     spool({id:'H003',material:'PLA',colorName:'White',colorHex:'#f5f5f4',visualPercent:65,placementState:'Loaded',printerName:'P1S',feederName:'AMS',feederSlot:'2'}),
   ]);
 
+  await expect(page.locator('.fi-home-decision')).toHaveText('1 spool at reorder level');
   await expect(page.locator('[data-home-decision-label]')).toHaveText('Next decision');
-  await expect(page.locator('[data-home-decision]')).toHaveText('1 spool at reorder level');
   await expect(page.locator('[data-home-decision-detail]')).toContainText('Review the lowest spool before the next print');
   await expect(page.locator('[data-home-summary]')).toContainText('3 active');
   await expect(page.locator('[data-home-summary]')).toContainText('0.80 kg known');
@@ -69,12 +69,13 @@ test('Home prioritizes low stock over summary metrics', async ({page}) => {
   await expect(next).toHaveAttribute('data-spool','H001');
   await expect(next).toHaveClass(/btn-primary/);
   await expect(page.locator('[data-print-readiness]')).not.toHaveClass(/btn-primary/);
+  await expect(page.locator('.fi-home-scan-empty')).toBeHidden();
 });
 
 test('Home turns unknown quantity into a measurement task', async ({page}) => {
   await boot(page,[spool({id:'H010',material:'PETG',colorName:'Orange',visualPercent:null,location:'Shelf'})]);
 
-  await expect(page.locator('[data-home-decision]')).toHaveText('Measure 1 unknown spool');
+  await expect(page.locator('.fi-home-decision')).toHaveText('Measure 1 unknown spool');
   await expect(page.locator('[data-home-decision-detail]')).toContainText('measured evidence');
   await expect(page.locator('[data-home-summary]')).toHaveText('1 active · 0.00 kg known · 0 loaded');
   const next = page.locator('[data-home-next-action]');
@@ -82,15 +83,17 @@ test('Home turns unknown quantity into a measurement task', async ({page}) => {
   await expect(next).toHaveText('Measure next spool');
   await expect(next).toHaveAttribute('data-home-action','weigh');
   await expect(next).toHaveAttribute('data-spool','H010');
+  await expect(page.locator('.fi-home-scan-empty')).toBeHidden();
 });
 
 test('Home promotes print readiness when loaded state is healthy', async ({page}) => {
   await boot(page,[spool({id:'H020',visualPercent:70,placementState:'Loaded',printerName:'P1S',feederName:'AMS',feederSlot:'1'})]);
 
   await expect(page.locator('[data-home-decision-label]')).toHaveText('Ready state');
-  await expect(page.locator('[data-home-decision]')).toHaveText('1 spool loaded now');
+  await expect(page.locator('.fi-home-decision')).toHaveText('1 spool loaded now');
   await expect(page.locator('[data-home-next-action]')).toBeHidden();
   await expect(page.locator('[data-print-readiness]')).toBeVisible();
   await expect(page.locator('[data-print-readiness]')).toHaveClass(/btn-primary/);
   await expect(page.locator('[data-home-loaded-count]')).toHaveText('1');
+  await expect(page.locator('.fi-home-scan-empty')).toBeHidden();
 });
