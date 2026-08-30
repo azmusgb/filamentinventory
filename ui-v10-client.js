@@ -31,6 +31,7 @@
 
   function ensureCohesionAssets() {
     ensureStyle('/css/components/ux-cohesion.css', 'fiCohesionStyles');
+    ensureStyle('/css/components/home-v12.css', 'fiHomeV12Styles');
     ensureStyle('/css/components/preferences-v12.css', 'fiPreferencesV12Styles');
     ensureScript('/ux-cohesion-client.js', 'fiCohesionClient');
     ensureScript('/preferences-v12-client.js', 'fiPreferencesV12Client');

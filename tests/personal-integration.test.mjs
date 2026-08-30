@@ -38,6 +38,30 @@ test('dashboard is one decision-focused Home surface with a deliberate zero-spoo
   assert.match(css, /\.fi-home-empty/);
 });
 
+test('V12 Home promotes the next decision while demoting aggregate counts to context', async () => {
+  const [source, css, bootstrap, assets, sw] = await Promise.all([
+    read('personal-dashboard.js'),
+    read('css/components/home-v12.css'),
+    read('ui-v10-client.js'),
+    read('scripts/public-assets.mjs'),
+    read('sw.js'),
+  ]);
+  assert.match(source, /recommendedActions/);
+  assert.match(source, /data-home-decision-label/);
+  assert.match(source, /data-home-decision-detail/);
+  assert.match(source, /data-home-next-action/);
+  assert.match(source, /Review low spool/);
+  assert.match(source, /Measure next spool/);
+  assert.match(source, /A scale reading will replace uncertainty with measured evidence/);
+  assert.match(source, /active · .*kg known · .*loaded/);
+  assert.match(css, /\.fi-home-decision-label/);
+  assert.match(css, /\.fi-home-intro \.lead\.fi-home-decision/);
+  assert.match(css, /\.fi-home-decision-detail/);
+  assert.match(css, /\.fi-home-summary/);
+  assert.doesNotMatch(css, /!important/);
+  for (const content of [bootstrap,assets,sw]) assert.ok(content.includes('home-v12.css'),'V12 Home stylesheet must ship through bootstrap/build/offline surfaces');
+});
+
 test('V11 mobile navigation is owned by the shell and exposes Home, Inventory, Scan, Printer and More', async () => {
   const [shell, personal, css] = await Promise.all([read('app-shell-client.js'), read('personal-dashboard.js'), read('css/components/v11.css')]);
   assert.match(shell, /mobile-bottom-nav/);
@@ -53,7 +77,7 @@ test('V11 mobile navigation is owned by the shell and exposes Home, Inventory, S
 
 test('dashboard language is operational and free of obsolete shared-household framing', async () => {
   const source = await read('personal-dashboard.js');
-  for (const expected of ['Needs attention','Loaded now','All caught up','No spools yet']) assert.ok(source.includes(expected),`missing dashboard copy: ${expected}`);
+  for (const expected of ['Needs attention','Loaded now','All caught up','No spools yet','Next decision','Ready state']) assert.ok(source.includes(expected),`missing dashboard copy: ${expected}`);
   for (const stale of ['Shared household inventory','Shared activity','Bill + Aimee','Transfer ownership']) assert.equal(source.includes(stale),false,`stale shared copy remains: ${stale}`);
 });
 

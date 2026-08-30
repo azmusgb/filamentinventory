@@ -47,9 +47,13 @@
     view.innerHTML = `<div class="fi-home-dashboard">
       <section class="fi-home-intro">
         <h2 id="dashboardTitle">Filament Inventory</h2>
-        <p class="lead"></p>
+        <p class="fi-home-decision-label" data-home-decision-label>Next decision</p>
+        <p class="lead fi-home-decision" data-home-decision></p>
+        <p class="fi-home-decision-detail" data-home-decision-detail></p>
+        <p class="fi-home-summary" data-home-summary></p>
         <div class="fi-home-actions">
-          <button class="btn btn-primary" type="button" data-print-readiness>Can I print this?</button>
+          <button class="btn btn-primary" type="button" data-home-next-action hidden></button>
+          <button class="btn" type="button" data-print-readiness>Can I print this?</button>
           <button class="btn" id="heroAddBtn" type="button">+ Add spool</button>
           <button class="btn fi-home-scan-empty" type="button" data-shell-action="scan">Scan spool</button>
         </div>
@@ -85,7 +89,7 @@
     summary.needsMeasurement.filter(spool => !used.has(String(spool.id))).slice(0,Math.max(0,3-rows.length)).forEach(spool => {
       rows.push({spool,state:'warning',chip:'MEASURE',detail:`Amount unknown · ${spool.location || 'No location'}`,action:'weigh'});
     });
-    if (!rows.length) return `<div class="empty"><strong>All caught up</strong>No low-stock or unmeasured spools need attention.</div>`;
+    if (!rows.length) return `<div class="empty"><strong>All caught up</strong>No low-stock or unknown-quantity spools need attention.</div>`;
     return rows.map(({spool,state,chip,detail,action}) => `<button class="fi-home-row" type="button" data-home-action="${action}" data-spool="${esc(spool.id)}"><i class="fi-spool-swatch" style="background:${esc(spool.colorHex || '#666d7d')}"></i><span class="fi-row-copy"><strong>${esc(spool.material || 'Unknown')} · ${esc(spool.colorName || 'Unknown')}</strong><small>${esc(spool.id)} · ${esc(detail)}</small></span><span class="fi-status-chip" data-state="${state}">${chip}</span></button>`).join('');
   }
 
@@ -94,33 +98,86 @@
     return summary.loadedSpools.slice(0,4).map(spool => `<button class="fi-home-row" type="button" data-home-action="printer" data-spool="${esc(spool.id)}"><i class="fi-spool-swatch" style="background:${esc(spool.colorHex || '#666d7d')}"></i><span class="fi-row-copy"><strong>${esc(spool.material || 'Unknown')} · ${esc(spool.colorName || 'Unknown')}</strong><small>${esc(spool.id)} · ${esc(measurementLabel(spool))} · ${esc(core().loadedLabel(spool))}</small></span><span class="fi-status-chip" data-state="success">LOADED</span></button>`).join('');
   }
 
+  function decisionModel(snapshot, owner, summary) {
+    if (!summary.activeCount) {
+      return {
+        label:'Start here',
+        title:'Add or scan your first spool.',
+        detail:'Start with brand, material, color and location. Add quantity evidence only when it is useful.',
+        action:'',
+        actionLabel:'',
+        spoolId:'',
+      };
+    }
+
+    const next = core()?.recommendedActions?.(snapshot,owner)?.[0] || {kind:'healthy',title:'Your inventory is in good shape',detail:'No urgent inventory work is waiting.',spoolId:''};
+    if (next.kind === 'reorder') {
+      return {label:'Next decision', title:next.title, detail:`${next.detail}. Review the lowest spool before the next print.`, action:'open', actionLabel:'Review low spool', spoolId:next.spoolId || ''};
+    }
+    if (next.kind === 'measure') {
+      return {label:'Next decision', title:next.title, detail:`${next.detail}. A scale reading will replace uncertainty with measured evidence.`, action:'weigh', actionLabel:'Measure next spool', spoolId:next.spoolId || ''};
+    }
+    if (next.kind === 'loaded') {
+      return {label:'Ready state', title:next.title, detail:`${next.detail}. Check print readiness when you know what the next job needs.`, action:'', actionLabel:'', spoolId:next.spoolId || ''};
+    }
+    return {label:'Status', title:next.title, detail:'No low-stock or unknown-quantity spool needs attention. Check print readiness or add inventory when needed.', action:'', actionLabel:'', spoolId:''};
+  }
+
   function render() {
     if (rendering || !ensureLayout() || !core()) return;
     rendering = true;
     try {
       const owner = currentUser();
-      const summary = core().summarizeOwner(state(),owner);
+      const snapshot = state();
+      const summary = core().summarizeOwner(snapshot,owner);
       const name = identity(owner).displayName;
       const view = $('dashboardView');
       const empty = summary.activeCount === 0;
+      const decision = decisionModel(snapshot,owner,summary);
       view.classList.toggle('fi-home-empty',empty);
       view.dataset.empty = String(empty);
+      view.dataset.homeDecision = decision.action || (empty ? 'empty' : 'ready');
 
       const title = $('dashboardTitle');
-      const lead = view.querySelector('.fi-home-intro .lead');
+      const decisionLabel = view.querySelector('[data-home-decision-label]');
+      const decisionCopy = view.querySelector('[data-home-decision]');
+      const decisionDetail = view.querySelector('[data-home-decision-detail]');
+      const summaryCopy = view.querySelector('[data-home-summary]');
+      const nextAction = view.querySelector('[data-home-next-action]');
       const add = $('heroAddBtn');
       const scan = view.querySelector('.fi-home-scan-empty');
       const print = view.querySelector('[data-print-readiness]');
+
       if (title) title.textContent = empty ? `${name}'s Inventory` : greeting(name);
-      if (lead) lead.textContent = empty
-        ? 'Add or scan your first spool to start tracking what is available and where it is.'
-        : `${summary.activeCount} active · ${(summary.knownGrams/1000).toFixed(2)} kg known · ${summary.loadedCount} loaded`;
+      if (decisionLabel) decisionLabel.textContent = decision.label;
+      if (decisionCopy) decisionCopy.textContent = decision.title;
+      if (decisionDetail) decisionDetail.textContent = decision.detail;
+      if (summaryCopy) {
+        summaryCopy.hidden = empty;
+        summaryCopy.textContent = empty ? '' : `${summary.activeCount} active · ${(summary.knownGrams/1000).toFixed(2)} kg known · ${summary.loadedCount} loaded`;
+      }
+
+      const hasNextAction = !empty && Boolean(decision.action && decision.actionLabel);
+      if (nextAction) {
+        nextAction.hidden = !hasNextAction;
+        nextAction.textContent = decision.actionLabel;
+        if (hasNextAction) {
+          nextAction.dataset.homeAction = decision.action;
+          nextAction.dataset.spool = decision.spoolId;
+        } else {
+          delete nextAction.dataset.homeAction;
+          delete nextAction.dataset.spool;
+        }
+      }
+      if (print) {
+        print.hidden = empty;
+        print.classList.toggle('btn-primary',!empty && !hasNextAction);
+      }
       if (add) {
         add.textContent = empty ? '+ Add first spool' : '+ Add spool';
         add.classList.toggle('btn-primary',empty);
       }
       if (scan) scan.hidden = !empty;
-      if (print) print.hidden = empty;
 
       const attentionCount = summary.reorderCount + summary.unknownCount;
       const attention = view.querySelector('[data-home-attention-count]');

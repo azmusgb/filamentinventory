@@ -8,6 +8,7 @@ export const PUBLIC_ASSETS = Object.freeze([
   'css/components/app-shell.css',
   'css/components/v11.css',
   'css/components/ux-cohesion.css',
+  'css/components/home-v12.css',
   'css/components/preferences-v12.css',
   'css/components/v11-workflows.css',
   'css/components/inventory-mobile.css',
