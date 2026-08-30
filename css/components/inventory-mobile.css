@@ -7,7 +7,7 @@ html.fi-v11 .spool-card-more {
   display: none;
 }
 
-html.fi-v11 .inventory-head-status-demoted > .spool-head > .confidence[hidden] {
+.inventory-head-status-demoted .confidence[hidden] {
   display: none;
 }
 
