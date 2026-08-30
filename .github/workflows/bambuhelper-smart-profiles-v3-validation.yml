@@ -57,6 +57,43 @@ jobs:
               Path(target).write_bytes(raw)
               print(f'rehydrated {target}: {len(raw)} bytes')
           PY
+
+      - name: Hotfix v3 duplicate refresh anchor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('apply_smart_profiles_evolution_v3.py')
+          text = p.read_text(encoding='utf-8')
+          old = """    text = replace_once(
+              text,
+              '''  updatePrinterOnboarding();
+            refreshPrinterHealth(false);''',
+              '''  updatePrinterOnboarding();
+            refreshGaugeProfileUi();
+            refreshPrinterHealth(false);''',
+              "app/profile-account-selection",
+          )
+          """
+          new = """    profile_refresh_anchor = '''  updatePrinterOnboarding();
+            refreshPrinterHealth(false);'''
+              profile_refresh_count = text.count(profile_refresh_anchor)
+              if profile_refresh_count < 1:
+                  raise PatchError(
+                      "app/profile-context-refresh: expected at least one v2 refresh anchor"
+                  )
+              text = text.replace(
+                  profile_refresh_anchor,
+                  '''  updatePrinterOnboarding();
+            refreshGaugeProfileUi();
+            refreshPrinterHealth(false);''',
+              )
+          """
+          if old not in text:
+              raise SystemExit('v3 hotfix anchor not found')
+          p.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
           python -m py_compile \
             apply_installer_evolution.py \
             apply_device_onboarding_evolution.py \
@@ -81,11 +118,9 @@ jobs:
           set -euo pipefail
           node --check upstream/docs/flasher.js
           node --check upstream/web/app.js
-
           grep -Fq 'BOARD_VARIANT=\"ws_lcd_350\"' upstream/boards/ws_lcd_350.ini
           grep -Fq 'DISPLAY_320x480=1' upstream/boards/ws_lcd_350.ini
           grep -Fq 'USE_FT6336=1' upstream/boards/ws_lcd_350.ini
-
           grep -Fq 'Remote monitor profile' upstream/include/web_pages.h
           grep -Fq 'X2D dual-nozzle' upstream/include/web_pages.h
           grep -Fq 'AMS overview' upstream/include/web_pages.h
@@ -95,7 +130,6 @@ jobs:
           grep -Fq 'hasAuxFanRight' upstream/web/app.js
           grep -Fq 'saveGaugeLayout();' upstream/web/app.js
           grep -Fq 'Profiles are not available on the round dashboard' upstream/web/app.js
-
           grep -Fq 'Setup health' upstream/include/web_pages.h
           grep -Fq 'Export Support Report' upstream/include/web_pages.h
           grep -Fq 'Email code is recommended.' upstream/include/web_pages.h
