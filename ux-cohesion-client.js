@@ -286,7 +286,10 @@
       visual.appendChild(help);
     }
 
-    setQuantityMode(quantityModeFromValues());
+    const activeMode = dialog.open && ['full', 'estimate', 'measured'].includes(dialog.dataset.quantityMode)
+      ? dialog.dataset.quantityMode
+      : quantityModeFromValues();
+    setQuantityMode(activeMode);
     observeSpoolDialog();
   }
 
