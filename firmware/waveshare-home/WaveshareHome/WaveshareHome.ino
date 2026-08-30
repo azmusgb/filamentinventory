@@ -21,10 +21,9 @@ static constexpr int PIN_I2C_SCL = 7;
 static constexpr uint16_t SCREEN_W = 320;
 static constexpr uint16_t SCREEN_H = 480;
 static constexpr uint8_t ES8311_ADDR = 0x18;
-static constexpr uint32_t AMBIENT_AFTER_MS = 60000UL;
 static constexpr uint32_t DIM_AFTER_MS = 120000UL;
 static constexpr uint8_t DEFAULT_BRIGHTNESS = 82;
-static constexpr char FW_VERSION[] = "0.2.0";
+static constexpr char FW_VERSION[] = "0.2.1";
 
 TCA9554 ioExpander(0x20);
 TouchDrvFT6X36 touch;
@@ -59,7 +58,6 @@ static lv_obj_t *brightnessValue = nullptr;
 static const lv_color_t C_BG = lv_color_hex(0x03080C);
 static const lv_color_t C_PANEL = lv_color_hex(0x0A1319);
 static const lv_color_t C_PANEL_2 = lv_color_hex(0x0E1B23);
-static const lv_color_t C_PANEL_3 = lv_color_hex(0x13252E);
 static const lv_color_t C_BORDER = lv_color_hex(0x1C3039);
 static const lv_color_t C_TEXT = lv_color_hex(0xF4F8FA);
 static const lv_color_t C_MUTED = lv_color_hex(0x93A3AC);
@@ -75,6 +73,9 @@ static uint32_t lastSystemRefreshMs = 0;
 static uint8_t brightnessPct = DEFAULT_BRIGHTNESS;
 static bool ambientMode = false;
 static bool audioCodecDetected = false;
+static bool wifiStarted = false;
+static bool timeConfigured = false;
+static wl_status_t previousWifiStatus = WL_NO_SHIELD;
 
 static void setBacklight(uint8_t percent) {
   brightnessPct = constrain(percent, 5, 100);
@@ -219,16 +220,16 @@ static void addBottomNav(lv_obj_t *screen, int active) {
 static void createHome() {
   screenHome = lv_obj_create(nullptr); styleScreen(screenHome);
   homeClock = label(screenHome, "--:--", &lv_font_montserrat_18, C_TEXT, 14, 14);
-  homeWifi = label(screenHome, "OFFLINE", &lv_font_montserrat_12, C_ORANGE, 250, 18);
+  homeWifi = label(screenHome, "STARTING", &lv_font_montserrat_12, C_ORANGE, 236, 18);
   homeDate = label(screenHome, "Starting...", &lv_font_montserrat_14, C_MUTED, 14, 45);
   label(screenHome, "Good afternoon", &lv_font_montserrat_20, C_TEXT, 14, 73);
-  homeStatus = label(screenHome, "Home Hub is ready.", &lv_font_montserrat_14, C_MUTED, 14, 101, 292);
+  homeStatus = label(screenHome, "Home Hub is starting.", &lv_font_montserrat_14, C_MUTED, 14, 101, 292);
 
   lv_obj_t *now = panel(screenHome, 12, 130, 296, 124, C_PANEL_2);
   label(now, "NOW", &lv_font_montserrat_12, C_GREEN, 14, 10);
   label(now, "Home Hub", &lv_font_montserrat_18, C_TEXT, 14, 34);
   label(now, "Ready", &lv_font_montserrat_36, C_TEXT, 14, 58);
-  label(now, "Live services connect as configured", &lv_font_montserrat_12, C_MUTED, 14, 101, 265);
+  label(now, "Touch-first dashboard • local-first", &lv_font_montserrat_12, C_MUTED, 14, 101, 265);
   lv_obj_add_flag(now, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_add_event_cb(now, navEvent, LV_EVENT_CLICKED, reinterpret_cast<void *>(3));
 
@@ -269,8 +270,7 @@ static void createToday() {
   label(agenda, "No calendar connected", &lv_font_montserrat_18, C_TEXT, 14, 42);
   label(agenda, "Calendar integration can be added without changing the Home layout.", &lv_font_montserrat_12, C_MUTED, 14, 77, 266);
   label(agenda, "NTP time", &lv_font_montserrat_12, C_GREEN, 14, 135);
-  label(agenda, WiFi.status() == WL_CONNECTED ? "Synced" : "Waiting for Wi-Fi", &lv_font_montserrat_14,
-        WiFi.status() == WL_CONNECTED ? C_GREEN : C_ORANGE, 112, 132);
+  label(agenda, "Follows Wi-Fi", &lv_font_montserrat_14, C_MUTED, 112, 132);
 
   lv_obj_t *footer = panel(screenToday, 12, 358, 296, 54);
   label(footer, "Adaptive Today view", &lv_font_montserrat_14, C_TEXT, 14, 10);
@@ -345,8 +345,7 @@ static void createQuick() {
   screenQuick = lv_obj_create(nullptr); styleScreen(screenQuick); addTopBar(screenQuick, "QUICK PANEL");
   lv_obj_t *connectivity = panel(screenQuick, 12, 72, 296, 92, C_PANEL_2);
   label(connectivity, "Wi-Fi", &lv_font_montserrat_14, C_TEXT, 16, 14);
-  label(connectivity, WiFi.status() == WL_CONNECTED ? "Connected" : "Setup available", &lv_font_montserrat_12,
-        WiFi.status() == WL_CONNECTED ? C_GREEN : C_ORANGE, 16, 40);
+  label(connectivity, "Setup: WaveshareHome-Setup", &lv_font_montserrat_12, C_MUTED, 16, 40, 264);
   label(connectivity, audioCodecDetected ? "Audio codec detected" : "Audio codec not detected", &lv_font_montserrat_12,
         audioCodecDetected ? C_GREEN : C_ORANGE, 16, 64);
 
@@ -383,7 +382,7 @@ static void updateSystemText() {
            "Brightness     %u%%\n"
            "Uptime         %lu min",
            FW_VERSION,
-           WiFi.status() == WL_CONNECTED ? "Connected" : "Offline",
+           WiFi.status() == WL_CONNECTED ? "Connected" : "Setup / offline",
            ip,
            WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0L,
            ESP.getFreeHeap() / 1024U,
@@ -411,10 +410,10 @@ static void createAmbient() {
   lv_obj_set_style_text_align(ambientClock, LV_TEXT_ALIGN_CENTER, 0);
   ambientDate = label(screenAmbient, "", &lv_font_montserrat_16, C_MUTED, 0, 194, 320);
   lv_obj_set_style_text_align(ambientDate, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_t *line = lv_obj_create(screenAmbient);
-  lv_obj_set_pos(line, 108, 236); lv_obj_set_size(line, 104, 2);
-  lv_obj_set_style_bg_color(line, C_GREEN, 0); lv_obj_set_style_border_width(line, 0, 0);
-  lv_obj_set_style_radius(line, 2, 0);
+  lv_obj_t *lineObj = lv_obj_create(screenAmbient);
+  lv_obj_set_pos(lineObj, 108, 236); lv_obj_set_size(lineObj, 104, 2);
+  lv_obj_set_style_bg_color(lineObj, C_GREEN, 0); lv_obj_set_style_border_width(lineObj, 0, 0);
+  lv_obj_set_style_radius(lineObj, 2, 0);
   lv_obj_t *hint = label(screenAmbient, "Everything looks good\nTouch to wake", &lv_font_montserrat_14, C_MUTED, 0, 266, 320);
   lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
 }
@@ -463,31 +462,46 @@ static void updateClock() {
   if (ambientDate) lv_label_set_text(ambientDate, dateBuf);
   if (homeWifi) {
     const bool online = WiFi.status() == WL_CONNECTED;
-    lv_label_set_text(homeWifi, online ? "ONLINE" : "OFFLINE");
+    lv_label_set_text(homeWifi, online ? "ONLINE" : "SETUP");
     lv_obj_set_style_text_color(homeWifi, online ? C_GREEN : C_ORANGE, 0);
   }
   if (homeStatus) {
-    lv_label_set_text(homeStatus, WiFi.status() == WL_CONNECTED ? "Connected • time synced • system healthy" : "Offline • local controls remain available");
+    lv_label_set_text(homeStatus, WiFi.status() == WL_CONNECTED
+      ? "Connected • time sync active • system healthy"
+      : "Wi-Fi setup available • local UI remains active");
   }
 }
 
 static void serviceIdleMode() {
   if (ambientMode) return;
-  const uint32_t idle = millis() - lastInteractionMs;
-  if (idle >= DIM_AFTER_MS) enterAmbient();
+  if (millis() - lastInteractionMs >= DIM_AFTER_MS) enterAmbient();
 }
 
-static void connectWifi() {
+static void startWifiProvisioning() {
   WiFi.mode(WIFI_STA);
-  wifiManager.setConfigPortalTimeout(180);
-  wifiManager.setConnectTimeout(20);
+  wifiManager.setConfigPortalBlocking(false);
+  wifiManager.setConfigPortalTimeout(0);
+  wifiManager.setConnectTimeout(10);
   wifiManager.setHostname("waveshare-home");
-  const bool connected = wifiManager.autoConnect("WaveshareHome-Setup");
-  if (connected) {
+  wifiManager.autoConnect("WaveshareHome-Setup");
+  wifiStarted = true;
+  previousWifiStatus = WiFi.status();
+}
+
+static void serviceWifi() {
+  if (!wifiStarted) return;
+  wifiManager.process();
+  const wl_status_t status = WiFi.status();
+
+  if (status == WL_CONNECTED && !timeConfigured) {
     configTzTime("EST5EDT,M3.2.0/2,M11.1.0/2", "pool.ntp.org", "time.nist.gov");
-    Serial.printf("Wi-Fi connected: %s\n", WiFi.localIP().toString().c_str());
-  } else {
-    Serial.println("Wi-Fi setup timed out; continuing offline");
+    timeConfigured = true;
+  }
+
+  if (status != previousWifiStatus) {
+    previousWifiStatus = status;
+    updateClock();
+    updateSystemText();
   }
 }
 
@@ -513,6 +527,9 @@ void setup() {
   }
   gfx->fillScreen(RGB565_BLACK);
 
+  pinMode(PIN_LCD_BL, OUTPUT);
+  digitalWrite(PIN_LCD_BL, HIGH);
+  delay(50);
   ledcAttach(PIN_LCD_BL, 5000, 8);
   setBacklight(brightnessPct);
 
@@ -548,7 +565,15 @@ void setup() {
 
   createUi();
   lastInteractionMs = millis();
-  connectWifi();
+
+  // Force several LVGL cycles before starting network provisioning. This guarantees
+  // that the display is visibly alive even when Wi-Fi needs first-run setup.
+  for (int i = 0; i < 12; ++i) {
+    lv_timer_handler();
+    delay(10);
+  }
+
+  startWifiProvisioning();
   updateClock();
   updateSystemText();
   Serial.println("Waveshare Home ready");
@@ -556,6 +581,7 @@ void setup() {
 
 void loop() {
   lv_timer_handler();
+  serviceWifi();
   updateClock();
   serviceIdleMode();
   if (millis() - lastSystemRefreshMs >= 5000UL) {
