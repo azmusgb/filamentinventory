@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { buildDisplayFeed } from '../netlify/lib/display-feed.mts';
 
 test('display feed aggregates active inventory without exposing spool identity', () => {
@@ -68,4 +69,16 @@ test('display feed handles an empty cloud store', () => {
   assert.equal(feed.status, 'No synced inventory');
   assert.deepEqual(feed.metrics.map(metric => metric.value), ['0','0','0','0']);
   assert.equal(feed.stale, true);
+});
+
+test('display feed function resolves one authenticated sync scope and never enumerates inventories', () => {
+  const source = readFileSync(new URL('../netlify/functions/display-feed.mts', import.meta.url), 'utf8');
+
+  assert.match(source, /x-filament-sync-key/);
+  assert.match(source, /x-filament-profile/);
+  assert.match(source, /createHash\('sha256'\)/);
+  assert.match(source, /inventory-\$\{hash\}/);
+  assert.match(source, /store\.get\(keyName/);
+  assert.doesNotMatch(source, /store\.list\(/);
+  assert.doesNotMatch(source, /searchParams\.get\(['"](?:key|profile)['"]\)/);
 });
