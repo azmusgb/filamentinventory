@@ -1224,7 +1224,7 @@ void WebDashboard::sendRoot() {
   if (state_->printer.online) {
     s += F("<div class='grid'>");
     for(int i=0;i<4;i++){ auto &slot=state_->printer.amsSlots[i]; s += F("<div class='card' style='margin:4px 0'><strong>AMS A"); s += i+1; s += state_->printer.activeTray==i?F(" • ACTIVE</strong>"):F("</strong>"); s += F("<p>"); if(!slot.loaded)s+=F("Empty"); else {s+=htmlEscape(slot.material); if(strlen(slot.name)){s+=F(" • ");s+=htmlEscape(slot.name);} if(slot.remainingPercent>=0){s+=F("<br>");s+=slot.remainingPercent;s+=F("% remaining");}} s+=F("</p></div>"); }
-    s += F("</div><div class='grid'><form method='post' action='/bambu/pause'><button class='muted'>Pause</button></form><form method='post' action='/bambu/resume'><button>Resume</button></form><form method='post' action='/bambu/stop'><input type='hidden' name='confirm' value='STOP'><button class='danger' onclick="return confirm('Stop the current print?')">Stop print</button></form></div>");
+    s += F("</div><div class='grid'><form method='post' action='/bambu/pause'><button class='muted'>Pause</button></form><form method='post' action='/bambu/resume'><button>Resume</button></form><form method='post' action='/bambu/stop'><input name='confirm' placeholder='Type STOP to confirm'><button class='danger'>Stop print</button></form></div>");
   }
   s += F("</div><form method='post' action='/bambu/scan'><button class='muted'>Scan local network for Bambu printers</button></form>");
   if (bambu_.discoveryRunning()) s += F("<p class='warn'>Scanning for Bambu SSDP announcements… refresh this page in a few seconds.</p>");
