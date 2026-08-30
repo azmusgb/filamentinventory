@@ -1,0 +1,117 @@
+name: BambuHelper ws_lcd_350 validation
+
+on:
+  push:
+    branches:
+      - bambuhelper-validation
+    paths:
+      - '.github/workflows/bambuhelper-validation.yml'
+      - '.bambuhelper-validation/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Patch, static-check, and build ws_lcd_350
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout validation harness
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned BambuHelper source
+        uses: actions/checkout@v4
+        with:
+          repository: Keralots/BambuHelper
+          ref: 8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4
+          path: upstream
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Rehydrate evolution patchers
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import base64, zlib
+          pairs = [
+              ('.bambuhelper-validation/installer.zlib.b64', 'apply_installer_evolution.py'),
+              ('.bambuhelper-validation/device.zlib.b64', 'apply_device_onboarding_evolution.py'),
+          ]
+          for source, target in pairs:
+              payload = Path(source).read_text(encoding='utf-8').strip()
+              Path(target).write_bytes(zlib.decompress(base64.b64decode(payload)))
+              print(f'rehydrated {target}')
+          PY
+          python -m py_compile apply_installer_evolution.py apply_device_onboarding_evolution.py
+
+      - name: Apply Web Flasher evolution
+        run: python apply_installer_evolution.py --repo upstream --apply
+
+      - name: Apply device onboarding evolution
+        run: python apply_device_onboarding_evolution.py --repo upstream --apply
+
+      - name: Static integration checks
+        shell: bash
+        run: |
+          node --check upstream/docs/flasher.js
+          node --check upstream/web/app.js
+          grep -Fq 'BOARD_VARIANT=\"ws_lcd_350\"' upstream/boards/ws_lcd_350.ini
+          grep -Fq 'DISPLAY_320x480=1' upstream/boards/ws_lcd_350.ini
+          grep -Fq 'USE_FT6336=1' upstream/boards/ws_lcd_350.ini
+          grep -Fq 'Aux Fan Right (X2D)' upstream/web/app.js
+          grep -Fq 'Bambu Cloud (All printers)' upstream/include/web_pages.h
+          grep -Fq 'Email code is recommended.' upstream/include/web_pages.h
+          grep -Fq 'Save &amp; Verify' upstream/include/web_pages.h
+          grep -Fq 'Verify Connection' upstream/include/web_pages.h
+          grep -Fq 'BOARD_STORAGE_KEY' upstream/docs/flasher.js
+          grep -Fq 'Export diagnostics' upstream/docs/index.html
+
+      - name: Install PlatformIO
+        run: python -m pip install --upgrade platformio
+
+      - name: Build Waveshare 3.5 firmware
+        working-directory: upstream
+        run: pio run -e ws_lcd_350
+
+      - name: Build merged Web Flasher binary
+        working-directory: upstream
+        run: python merge_bins.py --board ws_lcd_350 --full
+
+      - name: Produce validation report
+        shell: bash
+        run: |
+          {
+            echo 'BambuHelper ws_lcd_350 validation'
+            echo '================================='
+            echo 'upstream_commit=8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4'
+            echo 'board=ws_lcd_350'
+            echo 'panel=ST7796_320x480_FT6336'
+            echo 'x2d_static_marker=Aux Fan Right (X2D)'
+            echo
+            echo 'Build artifacts:'
+            find upstream/.pio/build/ws_lcd_350 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+            echo
+            echo 'Merged full binaries:'
+            find upstream/firmware -type f -name 'BambuHelper-ws_lcd_350-*-Full.bin' -printf '%p %s bytes\n' | sort
+            echo
+            echo 'SHA256:'
+            find upstream/.pio/build/ws_lcd_350 upstream/firmware -type f \( -name 'firmware.bin' -o -name 'BambuHelper-ws_lcd_350-*-Full.bin' \) -print0 | sort -z | xargs -0 sha256sum
+          } | tee validation-report.txt
+
+      - name: Upload validated firmware and report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bambuhelper-ws_lcd_350-validation
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            upstream/.pio/build/ws_lcd_350/firmware.bin
+            upstream/firmware/*/BambuHelper-ws_lcd_350-*-Full.bin
+            validation-report.txt
