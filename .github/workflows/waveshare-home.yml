@@ -63,7 +63,7 @@ jobs:
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WaveshareHome-ESP32S3-v0.2
+          name: WaveshareHome-ESP32S3-v0.3
           path: |
             build/WaveshareHome-firmware.bin
             build/WaveshareHome-bootloader.bin
