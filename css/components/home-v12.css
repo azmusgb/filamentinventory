@@ -40,16 +40,13 @@ html.fi-v11.fi-ux-v12 .fi-home-summary {
   line-height: 1.45;
 }
 
-html.fi-v11.fi-ux-v12 .fi-home-summary[hidden] {
+html.fi-v11.fi-ux-v12 .fi-home-summary[hidden],
+html.fi-v11.fi-ux-v12 .fi-home-actions [hidden] {
   display: none;
 }
 
 html.fi-v11.fi-ux-v12 .fi-home-actions {
   margin-top: 16px;
-}
-
-html.fi-v11.fi-ux-v12 .fi-home-actions [data-home-next-action][hidden] {
-  display: none;
 }
 
 html.fi-v11.fi-ux-v12 .fi-home-section {
