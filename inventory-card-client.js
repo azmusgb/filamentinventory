@@ -6,6 +6,7 @@
   let queued = false;
   let interactionBound = false;
   const $ = id => document.getElementById(id);
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   function evidenceFromCard(card) {
     const fill = card.querySelector('.fill-top');
@@ -63,11 +64,14 @@
       button = document.createElement('button');
       button.className = 'spool-card-more';
       button.type = 'button';
-      button.dataset.spoolActionsOpen = id;
       button.textContent = '•••';
       head.appendChild(button);
     }
+    delete button.dataset.spoolActionsOpen;
+    button.dataset.inventoryCardMenu = id;
     button.setAttribute('aria-label',`More actions for ${id}`);
+    button.setAttribute('aria-haspopup','dialog');
+    button.setAttribute('aria-controls','inventoryCardQuickActionsDialog');
     button.title = 'More spool actions';
   }
 
@@ -94,11 +98,99 @@
     return globalThis.FilamentInventoryWorkflows?.open?.(id,{source:'inventory-card'}) ?? false;
   }
 
+  function ensureQuickMenuDialog() {
+    let dialog = $('inventoryCardQuickActionsDialog');
+    if (dialog) return dialog;
+    dialog = document.createElement('dialog');
+    dialog.id = 'inventoryCardQuickActionsDialog';
+    dialog.className = 'spool-action-dialog inventory-card-menu-dialog';
+    dialog.setAttribute('aria-labelledby','inventoryCardQuickActionsTitle');
+    dialog.innerHTML = `
+      <div class="spool-action-shell">
+        <div class="spool-action-head">
+          <div><span class="eyebrow">Spool actions</span><h2 id="inventoryCardQuickActionsTitle">Spool</h2></div>
+          <button class="btn icon-btn" type="button" data-inventory-card-menu-close aria-label="Close spool actions">×</button>
+        </div>
+        <div class="spool-action-body">
+          <div class="spool-action-grid" data-inventory-card-menu-actions></div>
+        </div>
+      </div>`;
+    document.body.appendChild(dialog);
+    return dialog;
+  }
+
+  function renderQuickMenu(id) {
+    const dialog = ensureQuickMenuDialog();
+    const card = document.querySelector(`#inventoryGrid .spool-card[data-id="${globalThis.CSS?.escape ? CSS.escape(id) : id}"]`);
+    const archived = Boolean(card?.querySelector('button[data-action="restore"]'));
+    const title = $('inventoryCardQuickActionsTitle');
+    const actions = dialog.querySelector('[data-inventory-card-menu-actions]');
+    if (title) title.textContent = id;
+    dialog.dataset.spoolId = id;
+    if (actions) actions.innerHTML = `
+      <button class="btn btn-primary" type="button" data-inventory-card-action="open">Open details</button>
+      <button class="btn" type="button" data-inventory-card-action="weigh">Weigh</button>
+      <button class="btn" type="button" data-inventory-card-action="place">Printer / AMS</button>
+      <button class="btn" type="button" data-inventory-card-action="label">QR label</button>
+      <button class="btn" type="button" data-inventory-card-action="edit">Edit</button>
+      <button class="btn" type="button" data-inventory-card-action="${archived ? 'restore' : 'archive'}">${archived ? 'Restore' : 'Archive'}</button>`;
+    return dialog;
+  }
+
+  function openQuickMenu(id) {
+    const dialog = renderQuickMenu(String(id || '').trim());
+    if (!dialog.open) dialog.showModal();
+  }
+
+  function closeQuickMenu() {
+    const dialog = $('inventoryCardQuickActionsDialog');
+    if (dialog?.open) dialog.close();
+  }
+
+  function runQuickAction(action) {
+    const dialog = $('inventoryCardQuickActionsDialog');
+    const id = String(dialog?.dataset.spoolId || '').trim();
+    if (!id) return;
+    closeQuickMenu();
+    const workflows = globalThis.FilamentInventoryWorkflows;
+    if (!workflows) return;
+    if (action === 'open') workflows.open?.(id,{source:'inventory-card-menu'});
+    else workflows[action]?.(id);
+  }
+
   function bindPrimaryInteraction() {
     if (interactionBound) return;
     interactionBound = true;
 
     document.addEventListener('click', event => {
+      const menuButton = event.target instanceof Element ? event.target.closest('[data-inventory-card-menu]') : null;
+      if (menuButton) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        openQuickMenu(menuButton.dataset.inventoryCardMenu);
+        return;
+      }
+
+      const menuAction = event.target instanceof Element ? event.target.closest('[data-inventory-card-action]') : null;
+      if (menuAction) {
+        event.preventDefault();
+        runQuickAction(menuAction.dataset.inventoryCardAction);
+        return;
+      }
+
+      const close = event.target instanceof Element ? event.target.closest('[data-inventory-card-menu-close]') : null;
+      if (close) {
+        event.preventDefault();
+        closeQuickMenu();
+        return;
+      }
+
+      const quickDialog = $('inventoryCardQuickActionsDialog');
+      if (quickDialog?.open && event.target === quickDialog) {
+        closeQuickMenu();
+        return;
+      }
+
       const card = event.target instanceof Element ? event.target.closest('#inventoryGrid .spool-card[data-primary-spool-open]') : null;
       if (!card || isInteractiveTarget(event.target, card)) return;
       event.preventDefault();
@@ -149,6 +241,7 @@
 
   function init() {
     bindPrimaryInteraction();
+    ensureQuickMenuDialog();
     watch();
     queueEnhance();
     globalThis.FilamentInventoryCardPresentation = Object.freeze({refresh:queueEnhance});
