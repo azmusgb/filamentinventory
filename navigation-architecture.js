@@ -1,11 +1,12 @@
 (() => {
   'use strict';
 
-  const PRIMARY_VIEWS = new Set(['dashboard', 'inventory', 'household']);
+  const PRIMARY_VIEWS = new Set(['dashboard', 'inventory', 'household', 'history']);
   const $ = id => document.getElementById(id);
   const qs = selector => document.querySelector(selector);
   let observer = null;
   let scheduled = false;
+  let bound = false;
 
   function ensurePresentationAssets() {
     const stylesheet = '/css/components/inventory-mobile.css';
@@ -27,10 +28,11 @@
     }
   }
 
-  function shellButton({view, action, icon, label}) {
+  function shellButton({view, action, icon, label, className = ''}) {
     const route = view ? ` data-shell-view="${view}"` : '';
     const task = action ? ` data-shell-action="${action}"` : '';
-    return `<button type="button"${route}${task}><span class="fi-nav-icon" aria-hidden="true">${icon}</span><span>${label}</span></button>`;
+    const classes = className ? ` class="${className}"` : '';
+    return `<button type="button"${classes}${route}${task}><span class="fi-nav-icon" aria-hidden="true">${icon}</span><span>${label}</span></button>`;
   }
 
   function moreAction({view, action, label}) {
@@ -62,14 +64,17 @@
     document.querySelectorAll('[data-bottom-view]').forEach(control => {
       control.setAttribute('aria-current', control.dataset.bottomView === view ? 'page' : 'false');
     });
-    const more = qs('[data-bottom-more]');
-    if (more) more.setAttribute('aria-current', PRIMARY_VIEWS.has(view) ? 'false' : 'page');
+    document.querySelectorAll('[data-v12-more]').forEach(control => {
+      control.setAttribute('aria-current', PRIMARY_VIEWS.has(view) ? 'false' : 'page');
+    });
+    const more = qs('.mobile-bottom-nav [data-bottom-more]');
+    if (more) more.setAttribute('aria-current', ['dashboard', 'inventory', 'household'].includes(view) ? 'false' : 'page');
   }
 
   function refineSidebar() {
     const sidebar = $('fiDesktopSidebar');
-    if (!sidebar || sidebar.dataset.navigationArchitecture === '1') return;
-    sidebar.dataset.navigationArchitecture = '1';
+    if (!sidebar || sidebar.dataset.navigationArchitecture === '2') return;
+    sidebar.dataset.navigationArchitecture = '2';
     sidebar.innerHTML = `
       <div class="fi-sidebar-group-label">Workspace</div>
       <nav class="fi-secondary-nav" aria-label="Primary destinations">
@@ -78,35 +83,21 @@
         ${shellButton({view:'household', icon:'◉', label:'Printer'})}
         ${shellButton({view:'history', icon:'↺', label:'Activity'})}
       </nav>
-      <div class="fi-sidebar-group-label">Manage</div>
-      <nav class="fi-secondary-nav" aria-label="Inventory management">
-        ${shellButton({view:'labels', icon:'◇', label:'QR labels'})}
-      </nav>
       <div class="fi-sidebar-spacer"></div>
-      <div class="fi-sidebar-group-label">Quick actions</div>
+      <div class="fi-sidebar-group-label">Actions</div>
       <nav class="fi-secondary-nav fi-quick-actions" aria-label="Quick actions">
         ${shellButton({action:'print', icon:'✓', label:'Can I print this?'})}
-        ${shellButton({action:'scan', icon:'⌁', label:'Scan spool'})}
-        ${shellButton({action:'add', icon:'＋', label:'Add spool'})}
-        ${shellButton({view:'weigh', icon:'◌', label:'Weigh spool'})}
+        ${shellButton({action:'add', icon:'＋', label:'Add spool', className:'fi-sidebar-primary-action'})}
       </nav>
-      <div class="fi-sidebar-group-label">Devices & data</div>
-      <nav class="fi-secondary-nav" aria-label="Devices and data">
-        ${shellButton({view:'sync', icon:'⇄', label:'Sync devices'})}
-        ${shellButton({view:'data', icon:'⇩', label:'Backup & data'})}
-      </nav>
-      <div class="fi-sidebar-group-label">Settings</div>
-      <nav class="fi-secondary-nav" aria-label="Settings">
-        ${shellButton({view:'preferences', icon:'⚙', label:'Preferences'})}
+      <nav class="fi-secondary-nav fi-sidebar-more" aria-label="More tools">
+        <button type="button" data-v12-more aria-haspopup="dialog" aria-controls="fiMoreSheet"><span class="fi-nav-icon" aria-hidden="true">•••</span><span>Tools & settings</span></button>
       </nav>`;
   }
 
   function preserveBottomNav() {
     const nav = qs('.mobile-bottom-nav');
     if (!nav) return;
-    nav.dataset.navigationArchitecture = '1';
-    // The V11 shell owns mobile navigation. Preserve its durable controller
-    // attributes and visual hierarchy: Home / Inventory / Scan / Printer / More.
+    nav.dataset.navigationArchitecture = '2';
     const required = [
       '[data-bottom-view="dashboard"]',
       '[data-bottom-view="inventory"]',
@@ -120,13 +111,13 @@
       <button type="button" data-bottom-view="inventory"><span aria-hidden="true">▦</span><small>Inventory</small></button>
       <button type="button" data-bottom-scan><span aria-hidden="true">⌁</span><small>Scan</small></button>
       <button type="button" data-bottom-view="household"><span aria-hidden="true">◉</span><small>Printer</small></button>
-      <button type="button" data-bottom-more aria-haspopup="dialog"><span aria-hidden="true">•••</span><small>More</small></button>`;
+      <button type="button" data-bottom-more aria-haspopup="dialog" aria-controls="fiMoreSheet"><span aria-hidden="true">•••</span><small>More</small></button>`;
   }
 
   function refineMoreSheet() {
     const dialog = qs('.fi-more-sheet');
-    if (!dialog || dialog.dataset.navigationArchitecture === '1') return;
-    dialog.dataset.navigationArchitecture = '1';
+    if (!dialog || dialog.dataset.navigationArchitecture === '2') return;
+    dialog.dataset.navigationArchitecture = '2';
     if (!dialog.id) dialog.id = 'fiMoreSheet';
     dialog.setAttribute('aria-labelledby', 'fiMoreSheetTitle');
     dialog.innerHTML = `
@@ -137,8 +128,9 @@
       <div class="dialog-body">
         <div class="fi-more-groups">
           <section class="fi-more-group">
-            <h4>Workflow</h4>
+            <h4>Filament workflow</h4>
             <div class="fi-more-actions">
+              ${moreAction({action:'scan', label:'Scan spool'})}
               ${moreAction({view:'weigh', label:'Weigh spool'})}
               ${moreAction({action:'print', label:'Can I print this?'})}
             </div>
@@ -146,7 +138,6 @@
           <section class="fi-more-group">
             <h4>Manage</h4>
             <div class="fi-more-actions">
-              ${moreAction({view:'history', label:'Activity'})}
               ${moreAction({view:'labels', label:'QR labels'})}
             </div>
           </section>
@@ -158,18 +149,17 @@
             </div>
           </section>
           <section class="fi-more-group">
-            <h4>Settings</h4>
+            <h4>Workspace</h4>
             <div class="fi-more-actions">
               ${moreAction({view:'preferences', label:'Preferences'})}
             </div>
           </section>
         </div>
       </div>`;
-    const more = qs('[data-bottom-more]');
-    if (more) {
+    document.querySelectorAll('[data-v12-more], .mobile-bottom-nav [data-bottom-more]').forEach(more => {
       more.setAttribute('aria-haspopup', 'dialog');
       more.setAttribute('aria-controls', dialog.id);
-    }
+    });
   }
 
   function retireLegacyNavigation() {
@@ -191,7 +181,23 @@
     const brand = qs('.brand h1');
     if (brand) brand.textContent = 'Filament Inventory';
     const copy = qs('.brand p');
-    if (copy) copy.textContent = 'Private filament workspace';
+    if (copy) copy.textContent = 'Filament workspace';
+  }
+
+  function openMore() {
+    const dialog = qs('.fi-more-sheet');
+    if (dialog && !dialog.open) dialog.showModal();
+  }
+
+  function bind() {
+    if (bound) return;
+    bound = true;
+    document.addEventListener('click', event => {
+      if (event.target.closest('[data-v12-more]')) {
+        event.preventDefault();
+        openMore();
+      }
+    });
   }
 
   function apply() {
@@ -225,6 +231,7 @@
 
   function init() {
     ensurePresentationAssets();
+    bind();
     scheduleApply();
     observe();
     document.addEventListener('fi:navigation', event => {
