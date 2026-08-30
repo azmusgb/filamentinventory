@@ -22,7 +22,7 @@ inline time_t waveshareTimegm(struct tm *tmv) {
 #endif
 
 static constexpr uint32_t CONFIG_SCHEMA_VERSION = 4;
-static constexpr char FW_VERSION[] = "1.0.0-rc6";
+static constexpr char FW_VERSION[] = "1.0.0-rc7";
 static constexpr char DEFAULT_DEVICE_NAME[] = "Waveshare Home";
 static constexpr char SETUP_AP_NAME[] = "WaveshareHome-Setup";
 
@@ -107,6 +107,11 @@ struct AppConfig {
   float pm25Alert = 20.0f;
   float vocAlert = 250.0f;
   float humidityAlert = 45.0f;
+
+  // 0=manual, 1=notify, 2=auto-install stable. Preview channel is never auto-installed.
+  uint8_t updateMode = 1;
+  uint8_t updateChannel = 1; // 0=stable, 1=preview/RC
+  uint16_t updateCheckMinutes = 360;
 };
 
 struct WeatherState {
@@ -311,6 +316,16 @@ struct SystemState {
   uint32_t watchdogFeeds = 0;
   uint32_t otaBytes = 0;
   uint32_t otaTotal = 0;
+
+  bool updateAvailable = false;
+  bool updateCheckInProgress = false;
+  char updateVersion[32] = "";
+  char updateStatus[48] = "Not checked";
+  char updateError[120] = "";
+  char updateFirmwareUrl[320] = "";
+  char updateSha256[65] = "";
+  uint32_t updateSize = 0;
+  uint32_t updateCheckedMs = 0;
 };
 
 struct AppState {

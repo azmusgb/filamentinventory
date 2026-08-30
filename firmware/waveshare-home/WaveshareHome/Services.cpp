@@ -2,6 +2,7 @@
 #include <Wire.h>
 #include <math.h>
 #include <esp_err.h>
+#include <mbedtls/sha256.h>
 
 namespace {
 constexpr uint32_t WIFI_AP_DELAY_MS = 10000UL;
@@ -164,6 +165,9 @@ bool ConfigStore::load(AppConfig &config) {
   config.pm25Alert = doc["workshop"]["pm25Alert"] | 20.0f;
   config.vocAlert = doc["workshop"]["vocAlert"] | 250.0f;
   config.humidityAlert = doc["workshop"]["humidityAlert"] | 45.0f;
+  config.updateMode = constrain((int)(doc["updates"]["mode"] | 1), 0, 2);
+  config.updateChannel = constrain((int)(doc["updates"]["channel"] | 1), 0, 1);
+  config.updateCheckMinutes = constrain((int)(doc["updates"]["checkMinutes"] | 360), 15, 1440);
 
   if (config.schemaVersion < CONFIG_SCHEMA_VERSION) {
     config.schemaVersion = CONFIG_SCHEMA_VERSION;
@@ -227,6 +231,9 @@ bool ConfigStore::save(const AppConfig &config) {
   doc["workshop"]["pm25Alert"] = config.pm25Alert;
   doc["workshop"]["vocAlert"] = config.vocAlert;
   doc["workshop"]["humidityAlert"] = config.humidityAlert;
+  doc["updates"]["mode"] = config.updateMode;
+  doc["updates"]["channel"] = config.updateChannel;
+  doc["updates"]["checkMinutes"] = config.updateCheckMinutes;
 
   String out;
   serializeJson(doc, out);
@@ -1186,9 +1193,22 @@ void WebDashboard::begin(AppConfig &config, AppState &state) {
   state.system.webReady = true;
 }
 
-void WebDashboard::loop(AppConfig &, AppState &) {
+void WebDashboard::loop(AppConfig &config, AppState &state) {
   if (started_) server_.handleClient();
   if (rebootAfterResponse_ && (int32_t)(millis() - rebootAtMs_) >= 0) ESP.restart();
+
+  if (WiFi.status() == WL_CONNECTED && config.updateMode != 0 && !state.system.otaInProgress) {
+    const uint32_t interval = (uint32_t)config.updateCheckMinutes * 60UL * 1000UL;
+    const bool initialDue = !selfUpdateInitialCheckDone_ && millis() > 60000UL;
+    const bool periodicDue = selfUpdateInitialCheckDone_ && millis() - lastSelfUpdateCheckMs_ >= interval;
+    if (initialDue || periodicDue) {
+      selfUpdateInitialCheckDone_ = true;
+      lastSelfUpdateCheckMs_ = millis();
+      if (checkForSelfUpdate(true) && config.updateMode == 2 && config.updateChannel == 0 && state.system.updateAvailable) {
+        installSelfUpdate();
+      }
+    }
+  }
 }
 
 void WebDashboard::installRoutes() {
@@ -1253,6 +1273,17 @@ void WebDashboard::installRoutes() {
   server_.on("/ha/scene", HTTP_POST, [this]() { server_.send(homeAssistant_.callScene(*config_) ? 200 : 502, "text/plain", "Scene request sent"); });
   server_.on("/ha/automation", HTTP_POST, [this]() { server_.send(homeAssistant_.callAutomation(*config_) ? 200 : 502, "text/plain", "Automation request sent"); });
   server_.on("/update", HTTP_POST, [this]() { handleUpdateFinished(); }, [this]() { handleUpdateUpload(); });
+  server_.on("/update/check", HTTP_POST, [this]() {
+    bool ok = checkForSelfUpdate(true);
+    server_.sendHeader("Location", "/#ota", true);
+    server_.send(ok ? 303 : 502, "text/plain", ok ? "Update check complete" : state_->system.updateError);
+  });
+  server_.on("/update/install", HTTP_POST, [this]() {
+    if (!state_->system.updateAvailable) { server_.send(409, "text/plain", "No newer update is ready to install"); return; }
+    server_.send(200, "text/plain", "Downloading and installing update. Device will restart when validation succeeds.");
+    delay(60);
+    if (installSelfUpdate()) scheduleRestart(1500);
+  });
   server_.on("/generate_204", HTTP_ANY, [this]() { sendRoot(); });
   server_.on("/hotspot-detect.html", HTTP_ANY, [this]() { sendRoot(); });
   server_.on("/connecttest.txt", HTTP_ANY, [this]() { sendRoot(); });
@@ -1326,6 +1357,8 @@ void WebDashboard::sendRoot() {
   const char *ambientNames[]={"Auto","Clock","Printer","Workshop","Minimal"}; for(int i=0;i<5;i++){s+=F("<option value='");s+=i;s+=F("'");s+=selected((int)config_->ambientMode==i);s+=F(">");s+=ambientNames[i];s+=F("</option>");}
   s += F("</select></div><div><label>Air/filter mode</label><select name='airMode'>"); const char *airNames[]={"Off","Manual","Auto","Post-print"}; for(int i=0;i<4;i++){s+=F("<option value='");s+=i;s+=F("'");s+=selected((int)config_->airMode==i);s+=F(">");s+=airNames[i];s+=F("</option>");} s+=F("</select></div></div><div class='row'><div><label>Post-print filter minutes</label><input type='number' min='0' max='120' name='postFilterMinutes' value='");s+=config_->postPrintFilterMinutes;s+=F("'></div><div><label>Humidity alert %</label><input type='number' min='1' max='100' name='humidityAlert' value='");s+=String(config_->humidityAlert,0);s+=F("'></div></div><div class='row'><div><label>PM2.5 alert</label><input type='number' step='0.1' name='pm25Alert' value='");s+=String(config_->pm25Alert,1);s+=F("'></div><div><label>VOC alert</label><input type='number' step='1' name='vocAlert' value='");s+=String(config_->vocAlert,0);s+=F("'></div></div><hr>");
 
+  s += F("<h3>Updates</h3><div class='row'><div><label>Mode</label><select name='updateMode'><option value='0'"); s += selected(config_->updateMode==0); s += F(">Manual</option><option value='1'"); s += selected(config_->updateMode==1); s += F(">Notify me</option><option value='2'"); s += selected(config_->updateMode==2); s += F(">Auto-install stable</option></select></div><div><label>Channel</label><select name='updateChannel'><option value='0'"); s += selected(config_->updateChannel==0); s += F(">Stable</option><option value='1'"); s += selected(config_->updateChannel==1); s += F(">Preview / RC</option></select></div></div><label>Check interval (minutes)</label><input type='number' min='15' max='1440' name='updateCheckMinutes' value='"); s += config_->updateCheckMinutes; s += F("'><p><small>Preview builds can notify and install manually. Automatic installation is intentionally limited to the stable channel.</small></p><hr>");
+
   s += F("<h3>Calendar</h3><label><input type='checkbox' name='calendarEnabled'"); s += checked(config_->calendarEnabled); s += F(">Enable ICS calendar</label><input name='calendarIcsUrl' placeholder='Private ICS URL' value='"); s += htmlEscape(config_->calendarIcsUrl); s += F("'><hr><h3>Audio</h3><label><input type='checkbox' name='audioEnabled'"); s += checked(config_->audioEnabled); s += F(">Enable ES8311 speaker</label><label>Volume</label><input type='number' min='0' max='100' name='audioVolume' value='"); s += config_->audioVolume; s += F("'><button type='submit'>Save settings</button></div></form>");
 
   s += F("<div class='card' id='workshop'><h2>Workshop status</h2><div class='grid'><div><h3>Environment</h3><p>"); if(state_->workshop.environment.online){auto &e=state_->workshop.environment;s+=String(e.temperatureC,1)+" C • "+String(e.humidity,0)+"% RH<br>PM2.5 "+String(e.pm25,1)+" • VOC "+String(e.voc,0)+" • CO2 "+String(e.co2,0)+" ppm<br>Presence "+(e.presence?"yes":"no")+(e.stale?" • STALE":" • LIVE");} else s+=F("No sensor connected"); s+=F("</p></div><div><h3>Air management</h3><p>Mode "); const char *airNow[]={"Off","Manual","Auto","Post-print"};s+=airNow[(int)config_->airMode];s+=F("<br>Filter request: ");s+=state_->workshop.filterRequested?"ON":"idle";if(strlen(state_->workshop.filterReason)){s+=F("<br>");s+=htmlEscape(state_->workshop.filterReason);}s+=F("</p></div></div><div class='grid'>"); for(int i=0;i<4;i++){s+=F("<form method='post' action='/air/mode'><input type='hidden' name='mode' value='");s+=i;s+=F("'><button class='muted'>");s+=airNow[i];s+=F("</button></form>");}s+=F("</div><hr><h3>Dryer</h3><p>");if(state_->workshop.dryer.running){s+=htmlEscape(state_->workshop.dryer.material);s+=F(" • ");s+=state_->workshop.dryer.targetC;s+=F(" C • ");s+=state_->workshop.dryer.remainingSec/60UL;s+=F(" min remaining");}else s+=state_->workshop.dryer.completed?"Complete":"Idle";s+=F("</p><form method='post' action='/dryer/start'><div class='row'><input name='material' value='PETG' placeholder='Material'><input type='number' name='temperatureC' value='55' min='30' max='90'></div><label>Duration minutes</label><input type='number' name='minutes' value='360' min='1' max='1440'><button>Start dryer timer</button></form><form method='post' action='/dryer/stop'><button class='danger'>Stop dryer</button></form><hr><h3>External sensor ingest</h3><p><small>POST telemetry to <code>/api/sensor</code> with source, temperatureC, humidity, pm25, voc, co2 and presence.</small></p><h3>Voice / command framework</h3><p>");s+=htmlEscape(state_->voice.status);s+=F("</p><form method='post' action='/api/voice'><input name='command' placeholder='e.g. pause printer, air auto, start 5 minute timer'><button class='muted'>Run command</button></form><hr><h3>Recent activity</h3>");if(!state_->activityCount)s+=F("<p>No activity yet.</p>");else{for(int i=0;i<state_->activityCount && i<6;i++){auto &a=state_->activity[i];if(!a.valid)continue;s+=F("<p><strong>");s+=htmlEscape(a.title);s+=F("</strong><br><small>");s+=htmlEscape(a.source);if(strlen(a.detail)){s+=F(" • ");s+=htmlEscape(a.detail);}s+=F("</small></p>");}}s+=F("</div>");
@@ -1340,7 +1373,9 @@ void WebDashboard::sendRoot() {
     if (next) { s += F(" • capacity "); s += next->size / 1024UL; s += F(" KB"); }
     s += F("</p>");
     if (!next) s += F("<p class='warn'>OTA partition unavailable. Install the merged firmware once over USB to provision the dual-slot partition table.</p>");
-    s += F("<p>Choose only <code>WaveshareHome-firmware.bin</code>. Do not upload the merged, bootloader, or partition binary here.</p>");
+    s += F("<h3>Device-managed updates</h3><p>Status: <strong>"); s += htmlEscape(state_->system.updateStatus); s += F("</strong>"); if (strlen(state_->system.updateVersion)) { s += F(" • latest "); s += htmlEscape(state_->system.updateVersion); } if (strlen(state_->system.updateError)) { s += F("<br><span class='warn'>"); s += htmlEscape(state_->system.updateError); s += F("</span>"); } s += F("</p><div class='grid'><form method='post' action='/update/check'><button class='muted'>Check for update</button></form>"); if (state_->system.updateAvailable) { s += F("<form method='post' action='/update/install'><button>Download & install "); s += htmlEscape(state_->system.updateVersion); s += F("</button></form>"); } s += F("</div><p><small>The device downloads only the release firmware binary, verifies its size and SHA-256 manifest, writes the inactive OTA slot, then reboots through the existing boot guard.</small></p>");
+    s += F("<p><small>Policy: "); const char *updateModes[]={"Manual","Notify me","Auto-install stable"}; s += updateModes[config_->updateMode]; s += F(" • Channel: "); s += config_->updateChannel ? "Preview / RC" : "Stable"; s += F("</small></p>");
+    s += F("<hr><p>Manual browser OTA remains available. Choose only <code>WaveshareHome-firmware.bin</code>. Do not upload the merged, bootloader, or partition binary here.</p>");
     s += F("<form id='otaForm' method='POST' action='/update' enctype='multipart/form-data'><input id='otaFile' type='file' name='firmware' accept='.bin' required><button id='otaButton' type='submit'>Install firmware</button></form><progress id='otaProgress' max='100' value='0' style='width:100%;margin-top:12px'></progress><p id='otaMessage'>");
     s += htmlEscape(state_->system.otaStatus);
     if (strlen(state_->system.otaError)) { s += F(" • "); s += htmlEscape(state_->system.otaError); }
@@ -1380,6 +1415,13 @@ void WebDashboard::sendStatusJson() {
     doc["ota"]["bytes"] = state_->system.otaBytes;
     doc["ota"]["status"] = state_->system.otaStatus;
     doc["ota"]["error"] = state_->system.otaError;
+  doc["updater"]["mode"] = config_->updateMode;
+  doc["updater"]["channel"] = config_->updateChannel;
+  doc["updater"]["available"] = state_->system.updateAvailable;
+  doc["updater"]["latestVersion"] = state_->system.updateVersion;
+  doc["updater"]["status"] = state_->system.updateStatus;
+  doc["updater"]["error"] = state_->system.updateError;
+  doc["updater"]["size"] = state_->system.updateSize;
   }
   doc["weather"]["online"] = state_->weather.online;
   doc["weather"]["temperatureC"] = state_->weather.temperatureC;
@@ -1504,11 +1546,220 @@ void WebDashboard::handleSettingsSave() {
   config_->pm25Alert = max(0.0f,server_.arg("pm25Alert").toFloat());
   config_->vocAlert = max(0.0f,server_.arg("vocAlert").toFloat());
   config_->humidityAlert = constrain(server_.arg("humidityAlert").toFloat(),1.0f,100.0f);
+  config_->updateMode = constrain(server_.arg("updateMode").toInt(),0,2);
+  config_->updateChannel = constrain(server_.arg("updateChannel").toInt(),0,1);
+  config_->updateCheckMinutes = constrain(server_.arg("updateCheckMinutes").toInt(),15,1440);
   config_->schemaVersion = CONFIG_SCHEMA_VERSION;
   store_.save(*config_);
   configChanged_ = true;
   server_.sendHeader("Location", "/", true);
   server_.send(303, "text/plain", "Saved");
+}
+
+bool WebDashboard::checkForSelfUpdate(bool force) {
+  if (!config_ || !state_ || WiFi.status() != WL_CONNECTED) return false;
+  auto &sys = state_->system;
+  if (sys.updateCheckInProgress || sys.otaInProgress) return false;
+  if (!force && sys.updateCheckedMs && millis() - sys.updateCheckedMs < 60000UL) return true;
+
+  sys.updateCheckInProgress = true;
+  sys.updateError[0] = '\0';
+  strlcpy(sys.updateStatus, "Checking GitHub", sizeof(sys.updateStatus));
+
+  WiFiClientSecure secure;
+  secure.setInsecure();
+  HTTPClient http;
+  http.setConnectTimeout(6000);
+  http.setTimeout(9000);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  String api = config_->updateChannel == 0
+    ? "https://api.github.com/repos/azmusgb/filamentinventory/releases/latest"
+    : "https://api.github.com/repos/azmusgb/filamentinventory/releases?per_page=8";
+  if (!http.begin(secure, api)) {
+    strlcpy(sys.updateError, "Could not open GitHub release API", sizeof(sys.updateError));
+    sys.updateCheckInProgress = false;
+    return false;
+  }
+  http.addHeader("User-Agent", "WaveshareHome-ESP32-Updater");
+  http.addHeader("Accept", "application/vnd.github+json");
+  int code = http.GET();
+  if (code != HTTP_CODE_OK) {
+    snprintf(sys.updateError, sizeof(sys.updateError), "GitHub release API HTTP %d", code);
+    http.end(); sys.updateCheckInProgress = false; return false;
+  }
+
+  JsonDocument releases;
+  DeserializationError err = deserializeJson(releases, http.getStream());
+  http.end();
+  if (err) {
+    strlcpy(sys.updateError, "Invalid GitHub release response", sizeof(sys.updateError));
+    sys.updateCheckInProgress = false; return false;
+  }
+
+  JsonObject release;
+  if (config_->updateChannel == 0) release = releases.as<JsonObject>();
+  else if (releases.is<JsonArray>() && releases.as<JsonArray>().size()) release = releases[0].as<JsonObject>();
+  if (release.isNull()) {
+    strlcpy(sys.updateError, "No release found for selected channel", sizeof(sys.updateError));
+    sys.updateCheckInProgress = false; return false;
+  }
+
+  String version = release["tag_name"] | "";
+  version.replace("waveshare-v", "");
+  version.replace("v", "");
+  String firmwareUrl, manifestUrl;
+  for (JsonObject asset : release["assets"].as<JsonArray>()) {
+    String name = asset["name"] | "";
+    if (name == "WaveshareHome-firmware.bin") firmwareUrl = asset["browser_download_url"] | "";
+    else if (name == "update-manifest.json") manifestUrl = asset["browser_download_url"] | "";
+  }
+  if (!version.length() || !firmwareUrl.length() || !manifestUrl.length()) {
+    strlcpy(sys.updateError, "Release is missing firmware or manifest asset", sizeof(sys.updateError));
+    sys.updateCheckInProgress = false; return false;
+  }
+
+  WiFiClientSecure manifestSecure;
+  manifestSecure.setInsecure();
+  HTTPClient manifestHttp;
+  manifestHttp.setConnectTimeout(6000);
+  manifestHttp.setTimeout(9000);
+  manifestHttp.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  if (!manifestHttp.begin(manifestSecure, manifestUrl)) {
+    strlcpy(sys.updateError, "Could not open release manifest", sizeof(sys.updateError));
+    sys.updateCheckInProgress = false; return false;
+  }
+  manifestHttp.addHeader("User-Agent", "WaveshareHome-ESP32-Updater");
+  int manifestCode = manifestHttp.GET();
+  if (manifestCode != HTTP_CODE_OK) {
+    snprintf(sys.updateError, sizeof(sys.updateError), "Manifest HTTP %d", manifestCode);
+    manifestHttp.end(); sys.updateCheckInProgress = false; return false;
+  }
+  JsonDocument manifest;
+  err = deserializeJson(manifest, manifestHttp.getStream());
+  manifestHttp.end();
+  if (err) {
+    strlcpy(sys.updateError, "Invalid update manifest", sizeof(sys.updateError));
+    sys.updateCheckInProgress = false; return false;
+  }
+
+  String sha = manifest["sha256"] | "";
+  uint32_t size = manifest["size"] | 0;
+  if (sha.length() != 64 || size == 0) {
+    strlcpy(sys.updateError, "Manifest lacks SHA-256 or size", sizeof(sys.updateError));
+    sys.updateCheckInProgress = false; return false;
+  }
+
+  strlcpy(sys.updateVersion, version.c_str(), sizeof(sys.updateVersion));
+  strlcpy(sys.updateFirmwareUrl, firmwareUrl.c_str(), sizeof(sys.updateFirmwareUrl));
+  strlcpy(sys.updateSha256, sha.c_str(), sizeof(sys.updateSha256));
+  sys.updateSize = size;
+  sys.updateCheckedMs = millis();
+  sys.updateAvailable = version != String(FW_VERSION);
+  strlcpy(sys.updateStatus, sys.updateAvailable ? "Update available" : "Up to date", sizeof(sys.updateStatus));
+  sys.updateCheckInProgress = false;
+  return true;
+}
+
+bool WebDashboard::installSelfUpdate() {
+  if (!state_ || WiFi.status() != WL_CONNECTED) return false;
+  auto &sys = state_->system;
+  if (!sys.updateAvailable || !strlen(sys.updateFirmwareUrl) || strlen(sys.updateSha256) != 64) return false;
+  const esp_partition_t *next = esp_ota_get_next_update_partition(nullptr);
+  if (!next || sys.updateSize == 0 || sys.updateSize > next->size) {
+    strlcpy(sys.updateError, "Update does not fit inactive OTA slot", sizeof(sys.updateError));
+    return false;
+  }
+
+  WiFiClientSecure secure;
+  secure.setInsecure();
+  HTTPClient http;
+  http.setConnectTimeout(7000);
+  http.setTimeout(15000);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  if (!http.begin(secure, sys.updateFirmwareUrl)) {
+    strlcpy(sys.updateError, "Could not open firmware URL", sizeof(sys.updateError));
+    return false;
+  }
+  http.addHeader("User-Agent", "WaveshareHome-ESP32-Updater");
+  int code = http.GET();
+  if (code != HTTP_CODE_OK) {
+    snprintf(sys.updateError, sizeof(sys.updateError), "Firmware HTTP %d", code);
+    http.end(); return false;
+  }
+
+  int length = http.getSize();
+  if (length <= 0 || (uint32_t)length != sys.updateSize || (uint32_t)length > next->size) {
+    strlcpy(sys.updateError, "Firmware size differs from signed manifest", sizeof(sys.updateError));
+    http.end(); return false;
+  }
+
+  if (Update.isRunning()) Update.abort();
+  Update.clearError();
+  if (!Update.begin((size_t)length, U_FLASH)) {
+    String e = String("Update.begin: ") + Update.errorString();
+    strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));
+    http.end(); return false;
+  }
+
+  sys.otaInProgress = true;
+  sys.otaBytes = 0;
+  sys.otaTotal = length;
+  strlcpy(sys.otaStatus, "Downloading", sizeof(sys.otaStatus));
+  sys.otaError[0] = '\0';
+
+  mbedtls_sha256_context shaCtx;
+  mbedtls_sha256_init(&shaCtx);
+  mbedtls_sha256_starts(&shaCtx, 0);
+  WiFiClient *stream = http.getStreamPtr();
+  uint8_t buffer[4096];
+  uint32_t remaining = (uint32_t)length;
+  bool ok = true;
+  while (remaining > 0) {
+    size_t available = stream->available();
+    if (!available) {
+      if (!http.connected()) { ok = false; strlcpy(sys.updateError, "Firmware download ended early", sizeof(sys.updateError)); break; }
+      delay(2); esp_task_wdt_reset(); continue;
+    }
+    size_t want = min<size_t>(sizeof(buffer), min<size_t>(available, remaining));
+    int got = stream->readBytes(buffer, want);
+    if (got <= 0) { ok = false; strlcpy(sys.updateError, "Firmware stream read failed", sizeof(sys.updateError)); break; }
+    mbedtls_sha256_update(&shaCtx, buffer, got);
+    size_t written = Update.write(buffer, got);
+    if (written != (size_t)got) { ok = false; strlcpy(sys.updateError, Update.errorString(), sizeof(sys.updateError)); break; }
+    remaining -= got;
+    sys.otaBytes += got;
+    esp_task_wdt_reset();
+  }
+  http.end();
+
+  uint8_t digest[32];
+  mbedtls_sha256_finish(&shaCtx, digest);
+  mbedtls_sha256_free(&shaCtx);
+  char digestHex[65];
+  for (int i = 0; i < 32; ++i) sprintf(digestHex + i * 2, "%02x", digest[i]);
+  digestHex[64] = '\0';
+  String expected = sys.updateSha256; expected.toLowerCase();
+  String actual = digestHex; actual.toLowerCase();
+  if (ok && actual != expected) { ok = false; strlcpy(sys.updateError, "SHA-256 verification failed", sizeof(sys.updateError)); }
+
+  if (!ok) {
+    Update.abort();
+    sys.otaInProgress = false;
+    strlcpy(sys.otaStatus, "Failed", sizeof(sys.otaStatus));
+    return false;
+  }
+  strlcpy(sys.otaStatus, "Validating", sizeof(sys.otaStatus));
+  if (!Update.end(true)) {
+    String e = String("Validation: ") + Update.errorString();
+    strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));
+    sys.otaInProgress = false;
+    strlcpy(sys.otaStatus, "Failed", sizeof(sys.otaStatus));
+    return false;
+  }
+  sys.otaInProgress = false;
+  sys.otaReadyToReboot = true;
+  strlcpy(sys.otaStatus, "Installed", sizeof(sys.otaStatus));
+  return true;
 }
 
 void WebDashboard::handleUpdateUpload() {

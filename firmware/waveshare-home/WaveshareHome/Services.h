@@ -357,6 +357,8 @@ private:
   uint32_t rebootAtMs_ = 0;
   bool otaUploadStarted_ = false;
   bool otaUploadSucceeded_ = false;
+  uint32_t lastSelfUpdateCheckMs_ = 0;
+  bool selfUpdateInitialCheckDone_ = false;
 
   void installRoutes();
   void sendRoot();
@@ -365,6 +367,8 @@ private:
   void handleSettingsSave();
   void handleUpdateUpload();
   void handleUpdateFinished();
+  bool checkForSelfUpdate(bool force = false);
+  bool installSelfUpdate();
   void handleNotFound();
   String pageHeader(const char *title);
   String pageFooter();
