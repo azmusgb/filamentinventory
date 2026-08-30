@@ -31,20 +31,24 @@ async function boot(page) {
   await page.goto('/');
   await expect.poll(() => page.evaluate(() => Boolean(globalThis.FilamentInventoryNavigation))).toBe(true);
   await page.evaluate(() => globalThis.FilamentInventoryNavigation.navigate('inventory',{historyMode:'push',focus:false}));
-  await expect(page.locator('#inventoryGrid .spool-card')).toHaveCount(1);
-  await expect(page.locator('#inventoryGrid .spool-card')).toHaveAttribute('data-primary-spool-open','CARD01');
+  const card = page.locator('#inventoryGrid .spool-card');
+  await expect(card).toHaveCount(1);
+  await expect(card).toHaveAttribute('data-primary-spool-open','CARD01');
+  await expect(card).not.toHaveAttribute('role','button');
+  await expect(card.locator('.spool-card-primary')).toHaveAttribute('aria-label','Open details for spool CARD01');
 }
 
 test.beforeEach(async ({page}) => boot(page));
 
-test('card body and keyboard open full spool details', async ({page}) => {
+test('card body and title button open full spool details', async ({page}) => {
   const card = page.locator('#inventoryGrid .spool-card').first();
   await card.locator('.fill-top').click();
   await expect(page.locator('#spoolActionDialog[open]')).toBeVisible();
   await expect(page.locator('#inventoryCardQuickActionsDialog')).not.toHaveAttribute('open','');
   await page.locator('#spoolActionClose').click();
 
-  await card.focus();
+  const primary = card.locator('.spool-card-primary');
+  await primary.focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('#spoolActionDialog[open]')).toBeVisible();
 });
