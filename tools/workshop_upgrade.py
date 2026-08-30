@@ -11,7 +11,7 @@ def r(path, old, new):
 
 app = "firmware/waveshare-home/WaveshareHome/AppModel.h"
 r(app, 'static constexpr uint32_t CONFIG_SCHEMA_VERSION = 3;', 'static constexpr uint32_t CONFIG_SCHEMA_VERSION = 4;')
-r(app, 'static constexpr char FW_VERSION[] = "1.0.0-rc2";', 'static constexpr char FW_VERSION[] = "1.0.0-rc4";')
+r(app, 'static constexpr char FW_VERSION[] = "1.0.0-rc3";', 'static constexpr char FW_VERSION[] = "1.0.0-rc4";')
 r(app, 'enum class AlertSeverity : uint8_t { Info = 0, Attention = 1, Urgent = 2 };', '''enum class AlertSeverity : uint8_t { Info = 0, Attention = 1, Urgent = 2 };
 enum class AmbientDisplayMode : uint8_t { Auto = 0, Clock = 1, Printer = 2, Workshop = 3, Minimal = 4 };
 enum class AirMode : uint8_t { Off = 0, Manual = 1, Auto = 2, PostPrint = 3 };''')
