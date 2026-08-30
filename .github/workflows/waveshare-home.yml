@@ -30,6 +30,7 @@ jobs:
           arduino-cli lib install "GFX Library for Arduino@1.5.5"
           arduino-cli lib install "SensorLib@0.3.1"
           arduino-cli lib install "TCA9554@0.1.2"
+          arduino-cli lib install "WiFiManager@2.0.17"
 
       - name: Compile
         run: |
@@ -62,7 +63,7 @@ jobs:
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WaveshareHome-ESP32S3
+          name: WaveshareHome-ESP32S3-v0.2
           path: |
             build/WaveshareHome-firmware.bin
             build/WaveshareHome-bootloader.bin
