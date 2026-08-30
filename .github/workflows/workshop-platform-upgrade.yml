@@ -1,5 +1,6 @@
 name: Workshop Platform Upgrade
 
+# Trigger rc4 migration after script/version-anchor fixes.
 on:
   workflow_dispatch:
   push:
