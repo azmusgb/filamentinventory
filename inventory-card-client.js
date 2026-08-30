@@ -6,7 +6,6 @@
   let queued = false;
   let interactionBound = false;
   const $ = id => document.getElementById(id);
-  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   function evidenceFromCard(card) {
     const fill = card.querySelector('.fill-top');
@@ -55,7 +54,7 @@
     if (progress) progress.hidden = evidence.tone === 'unknown';
   }
 
-  function ensureDetailsAction(card) {
+  function ensureQuickActionButton(card) {
     const head = card.querySelector('.spool-head');
     const id = String(card.dataset.id || '').trim();
     if (!head || !id) return;
@@ -77,14 +76,30 @@
     button.title = 'More spool actions';
   }
 
-  function ensurePrimaryOpenSemantics(card) {
+  function ensurePrimaryOpenButton(card) {
+    const head = card.querySelector('.spool-head');
     const id = String(card.dataset.id || '').trim();
-    if (!id) return;
-    card.setAttribute('tabindex','0');
-    card.setAttribute('role','button');
-    card.setAttribute('aria-label',`Open details for spool ${id}`);
+    if (!head || !id) return;
+    let title = head.querySelector('.spool-title');
+    if (!title) return;
+
+    if (!(title instanceof HTMLButtonElement)) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `${title.className} spool-card-primary`;
+      while (title.firstChild) button.appendChild(title.firstChild);
+      title.replaceWith(button);
+      title = button;
+    }
+
+    title.classList.add('spool-card-primary');
+    title.dataset.spoolPrimaryOpen = id;
+    title.setAttribute('aria-label',`Open details for spool ${id}`);
     card.dataset.primarySpoolOpen = id;
-    // Prevent the older cohesion layer from attaching a second card-open handler.
+    card.removeAttribute('role');
+    card.removeAttribute('tabindex');
+    card.removeAttribute('aria-label');
+    // Prevent the older cohesion layer from attaching card-level button semantics.
     card.dataset.cohesionOpen = '1';
   }
 
@@ -94,10 +109,10 @@
     return Boolean(interactive && interactive !== card);
   }
 
-  function openCard(card) {
-    const id = String(card?.dataset.primarySpoolOpen || card?.dataset.id || '').trim();
-    if (!id) return false;
-    return globalThis.FilamentInventoryWorkflows?.open?.(id,{source:'inventory-card'}) ?? false;
+  function openSpool(id, source) {
+    const spoolId = String(id || '').trim();
+    if (!spoolId) return false;
+    return globalThis.FilamentInventoryWorkflows?.open?.(spoolId,{source}) ?? false;
   }
 
   function ensureQuickMenuDialog() {
@@ -123,7 +138,8 @@
 
   function renderQuickMenu(id) {
     const dialog = ensureQuickMenuDialog();
-    const card = document.querySelector(`#inventoryGrid .spool-card[data-id="${globalThis.CSS?.escape ? CSS.escape(id) : id}"]`);
+    const escaped = globalThis.CSS?.escape ? CSS.escape(id) : id.replace(/["\\]/g,'\\$&');
+    const card = document.querySelector(`#inventoryGrid .spool-card[data-id="${escaped}"]`);
     const archived = Boolean(card?.querySelector('button[data-action="restore"]'));
     const title = $('inventoryCardQuickActionsTitle');
     const actions = dialog.querySelector('[data-inventory-card-menu-actions]');
@@ -165,7 +181,10 @@
     interactionBound = true;
 
     document.addEventListener('click', event => {
-      const menuButton = event.target instanceof Element ? event.target.closest('[data-inventory-card-menu]') : null;
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+
+      const menuButton = target.closest('[data-inventory-card-menu]');
       if (menuButton) {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -173,14 +192,14 @@
         return;
       }
 
-      const menuAction = event.target instanceof Element ? event.target.closest('[data-inventory-card-action]') : null;
+      const menuAction = target.closest('[data-inventory-card-action]');
       if (menuAction) {
         event.preventDefault();
         runQuickAction(menuAction.dataset.inventoryCardAction);
         return;
       }
 
-      const close = event.target instanceof Element ? event.target.closest('[data-inventory-card-menu-close]') : null;
+      const close = target.closest('[data-inventory-card-menu-close]');
       if (close) {
         event.preventDefault();
         closeQuickMenu();
@@ -188,25 +207,24 @@
       }
 
       const quickDialog = $('inventoryCardQuickActionsDialog');
-      if (quickDialog?.open && event.target === quickDialog) {
+      if (quickDialog?.open && target === quickDialog) {
         closeQuickMenu();
         return;
       }
 
-      const card = event.target instanceof Element ? event.target.closest('#inventoryGrid .spool-card[data-primary-spool-open]') : null;
-      if (!card || isInteractiveTarget(event.target, card)) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      openCard(card);
-    }, true);
+      const primary = target.closest('[data-spool-primary-open]');
+      if (primary) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        openSpool(primary.dataset.spoolPrimaryOpen,'inventory-card-title');
+        return;
+      }
 
-    document.addEventListener('keydown', event => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
-      const card = event.target instanceof Element ? event.target.closest('#inventoryGrid .spool-card[data-primary-spool-open]') : null;
-      if (!card || event.target !== card) return;
+      const card = target.closest('#inventoryGrid .spool-card[data-primary-spool-open]');
+      if (!card || isInteractiveTarget(target, card)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      openCard(card);
+      openSpool(card.dataset.primarySpoolOpen,'inventory-card');
     }, true);
   }
 
@@ -215,8 +233,8 @@
     card.classList.add('inventory-card-compact');
     normalizeConfidence(card);
     compactEvidence(card);
-    ensureDetailsAction(card);
-    ensurePrimaryOpenSemantics(card);
+    ensureQuickActionButton(card);
+    ensurePrimaryOpenButton(card);
   }
 
   function enhance() {
