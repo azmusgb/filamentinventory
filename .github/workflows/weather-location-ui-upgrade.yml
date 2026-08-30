@@ -1,0 +1,76 @@
+name: Weather Location UI Upgrade
+
+on:
+  push:
+    paths:
+      - '.github/workflows/weather-location-ui-upgrade.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Improve weather location UX and diagnostics
+        shell: python
+        run: |
+          from pathlib import Path
+
+          services = Path('firmware/waveshare-home/WaveshareHome/Services.cpp')
+          s = services.read_text()
+
+          old = '''  s += F("<div class='card' id='integrations'><h2>Integrations</h2><h3>Weather</h3><label><input type='checkbox' name='weatherEnabled'"); s += checked(config_->weatherEnabled); s += F(">Enable weather</label><div class='row'><input name='weatherLocation' placeholder='Location label' value='"); s += htmlEscape(config_->weatherLocation); s += F("'><input name='weatherLat' placeholder='Latitude' value='"); s += String(config_->weatherLatitude, 5); s += F("'></div><div class='row'><input name='weatherLon' placeholder='Longitude' value='"); s += String(config_->weatherLongitude, 5); s += F("'><label><input type='checkbox' name='weatherAlerts'"); s += checked(config_->severeWeatherEnabled); s += F(">NWS severe alerts</label></div><hr>");
+'''
+
+          new = '''  s += F("<div class='card' id='integrations'><h2>Integrations</h2><h3>Weather</h3><label><input type='checkbox' name='weatherEnabled'"); s += checked(config_->weatherEnabled); s += F(">Enable weather</label>");
+  s += F("<label>ZIP code or City, State</label><input name='weatherLocation' placeholder='29710 or Clover, SC' value='"); s += htmlEscape(config_->weatherLocation); s += F("'>");
+  s += F("<p><small>Recommended: enter a U.S. 5-digit ZIP or City, State. The device resolves coordinates automatically.</small></p>");
+  s += F("<details><summary>Advanced: manual coordinates</summary><div class='row'><div><label>Latitude</label><input name='weatherLat' placeholder='Optional latitude' value='"); s += String(config_->weatherLatitude, 5); s += F("'></div><div><label>Longitude</label><input name='weatherLon' placeholder='Optional longitude' value='"); s += String(config_->weatherLongitude, 5); s += F("'></div></div></details>");
+  s += F("<label><input type='checkbox' name='weatherAlerts'"); s += checked(config_->severeWeatherEnabled); s += F(">NWS severe alerts</label>");
+  s += F("<p>Status: <strong>"); s += state_->weather.configured ? (state_->weather.online ? "Online" : state_->weather.condition) : "Not configured"; s += F("</strong>");
+  if (fabsf(config_->weatherLatitude) > 0.0001f || fabsf(config_->weatherLongitude) > 0.0001f) { s += F(" • resolved "); s += String(config_->weatherLatitude, 4); s += F(", "); s += String(config_->weatherLongitude, 4); }
+  s += F("</p><hr>");
+'''
+
+          if old not in s:
+              raise SystemExit('weather UI source block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''  doc["weather"]["online"] = state_->weather.online;
+  doc["weather"]["temperatureC"] = state_->weather.temperatureC;
+  doc["weather"]["condition"] = state_->weather.condition;
+  doc["weather"]["alert"] = state_->weather.severeAlert ? state_->weather.alertHeadline : "";
+'''
+          new = '''  doc["weather"]["enabled"] = config_->weatherEnabled;
+  doc["weather"]["configured"] = state_->weather.configured;
+  doc["weather"]["online"] = state_->weather.online;
+  doc["weather"]["location"] = config_->weatherLocation;
+  doc["weather"]["latitude"] = config_->weatherLatitude;
+  doc["weather"]["longitude"] = config_->weatherLongitude;
+  doc["weather"]["temperatureC"] = state_->weather.temperatureC;
+  doc["weather"]["condition"] = state_->weather.condition;
+  doc["weather"]["alert"] = state_->weather.severeAlert ? state_->weather.alertHeadline : "";
+'''
+          if old not in s:
+              raise SystemExit('weather status source block not found')
+          s = s.replace(old, new, 1)
+          services.write_text(s)
+
+          app = Path('firmware/waveshare-home/WaveshareHome/AppModel.h')
+          a = app.read_text()
+          a = a.replace('static constexpr char FW_VERSION[] = "1.0.0-rc1";', 'static constexpr char FW_VERSION[] = "1.0.0-rc2";')
+          app.write_text(a)
+
+      - name: Commit upgrade
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add firmware/waveshare-home/WaveshareHome/Services.cpp firmware/waveshare-home/WaveshareHome/AppModel.h
+          git diff --cached --check
+          git commit -m "Polish ZIP and city-state weather setup"
+          git push
