@@ -28,6 +28,9 @@
 .fi-ui .spool-action-grid .btn { min-height:48px; justify-content:center; }
 .fi-ui .spool-action-note { margin:var(--space-4) 0 0; color:var(--color-text-muted); font-size:var(--text-sm); line-height:1.5; }
 .fi-ui .spool-action-bar { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:var(--space-2); margin-top:var(--space-3); }
+.fi-ui .inventory-card-menu-dialog { width:min(460px,calc(100vw - 24px)); max-width:460px; }
+.fi-ui .inventory-card-menu-dialog .spool-action-grid { grid-template-columns:1fr; margin-top:0; }
+.fi-ui .inventory-card-menu-dialog .spool-action-body { padding-top:var(--space-4); }
 
 /* Global dialog state invariant: closed native dialogs must never participate in layout. */
 .fi-ui dialog:not([open]) { display:none; }
@@ -46,6 +49,8 @@
   .fi-ui .spool-action-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .fi-ui .spool-action-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .fi-ui .spool-action-grid .btn-primary { grid-column:1 / -1; }
+  .fi-ui .inventory-card-menu-dialog .spool-action-grid { grid-template-columns:1fr; }
+  .fi-ui .inventory-card-menu-dialog .spool-action-grid .btn-primary { grid-column:auto; }
 }
 @media (max-width:959px) {
   .fi-ui.fi-v10 .mobile-bottom-nav [data-bottom-scan] {
