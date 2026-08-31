@@ -37,7 +37,7 @@ jobs:
       - name: Apply every complete per-file patch block
         shell: python
         run: |
-          import pathlib, re, subprocess, sys
+          import pathlib, re, subprocess
           patch = pathlib.Path('/tmp/v15.partial.patch').read_text(errors='replace')
           starts = [m.start() for m in re.finditer(r'(?m)^diff --git ', patch)]
           if not starts:
@@ -60,7 +60,6 @@ jobs:
                   skipped.append((name, check.stderr.strip()))
                   print('SKIPPED', name, check.stderr.strip())
           print(f'Applied {len(applied)} complete file patch(es); skipped {len(skipped)} incomplete/conflicting block(s).')
-          pathlib.Path('/tmp/applied-files.txt').write_text('\n'.join(applied) + '\n')
           pathlib.Path('/tmp/skipped-files.txt').write_text('\n'.join(f'{n}: {e}' for n,e in skipped) + '\n')
           if not applied:
               raise SystemExit('No complete patch blocks could be applied')
