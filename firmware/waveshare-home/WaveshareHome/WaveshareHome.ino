@@ -70,6 +70,7 @@ static lv_obj_t *screenAutomation = nullptr;
 static lv_obj_t *screenActivity = nullptr;
 static lv_obj_t *screenDevices = nullptr;
 static lv_obj_t *screenModes = nullptr;
+static lv_obj_t *screenReadiness = nullptr;
 static lv_obj_t *screenSystem = nullptr;
 static lv_obj_t *screenRecovery = nullptr;
 static lv_obj_t *screenAmbient = nullptr;
@@ -100,6 +101,7 @@ static lv_obj_t *automationBody = nullptr;
 static lv_obj_t *activityBody = nullptr;
 static lv_obj_t *devicesBody = nullptr;
 static lv_obj_t *modesBody = nullptr;
+static lv_obj_t *readinessBody = nullptr;
 static lv_obj_t *systemBody = nullptr;
 static lv_obj_t *settingsBody = nullptr;
 static lv_obj_t *ambientClock = nullptr;
@@ -131,7 +133,7 @@ static char appliedTimezone[80] = "";
 
 enum class ScreenId : uint8_t {
   Home, Today, Controls, Apps, Attention, Quick, Settings, Wifi,
-  Timers, Printer, Filament, Workshop, Insights, Automation, Activity, Devices, System, Recovery, Ambient
+  Timers, Printer, Filament, Workshop, Insights, Automation, Activity, Devices, Readiness, System, Recovery, Ambient
 };
 
 static void applyThemeTokens() {
@@ -281,6 +283,7 @@ static lv_obj_t *screenFor(ScreenId id) {
     case ScreenId::Modes: return screenModes;
     case ScreenId::Activity: return screenActivity;
     case ScreenId::Devices: return screenDevices;
+    case ScreenId::Readiness: return screenReadiness;
     case ScreenId::System: return screenSystem;
     case ScreenId::Recovery: return screenRecovery;
     case ScreenId::Ambient: return screenAmbient;
@@ -440,7 +443,7 @@ static void createApps() {
     {"Controls", ScreenId::Controls, C_GREEN}, {"Today", ScreenId::Today, C_PURPLE}, {"Timers", ScreenId::Timers, C_ORANGE},
     {"Attention", ScreenId::Attention, C_RED}, {"Insights", ScreenId::Insights, C_PURPLE}, {"Automation", ScreenId::Automation, C_ORANGE}, {"Quick", ScreenId::Quick, C_BLUE},
     {"Activity", ScreenId::Activity, C_PURPLE}, {"Devices", ScreenId::Devices, C_BLUE}, {"Settings", ScreenId::Settings, C_PURPLE},
-    {"Modes", ScreenId::Modes, C_BLUE}, {"System", ScreenId::System, C_GREEN}
+    {"Modes", ScreenId::Modes, C_BLUE}, {"Readiness", ScreenId::Readiness, C_BLUE}, {"System", ScreenId::System, C_GREEN}
   };
   for (size_t i = 0; i < sizeof(apps)/sizeof(apps[0]); ++i) button(screenApps, apps[i].name, 12 + (i%3)*102, 54 + (i/3)*70, 92, 58, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(apps[i].id)), apps[i].color);
   button(screenApps, "Home", 114, 402, 194, 24, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)));
@@ -485,6 +488,7 @@ static void createQuick() {
   button(screenQuick, "Activity", 12, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Activity)), C_PURPLE);
   button(screenQuick, "Devices", 114, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
   button(screenQuick, "Modes", 216, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Modes)), C_BLUE);
+  button(screenQuick, "Readiness", 216, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Readiness)), C_BLUE);
   button(screenQuick, "Home", 12, 348, 296, 48, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
 }
 
@@ -622,6 +626,15 @@ static void createModes() {
   button(screenModes, "Home screen", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
 }
 
+static void createReadiness() {
+  screenReadiness = lv_obj_create(nullptr); styleScreen(screenReadiness); addStatusBar(screenReadiness, "READINESS");
+  readinessBody = wrapLabel(screenReadiness, "Evaluating setup...", &lv_font_montserrat_12, C_TEXT, 14, 54, 292);
+  lv_obj_set_style_text_line_space(readinessBody, 5, 0);
+  button(screenReadiness, "Devices", 12, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
+  button(screenReadiness, "Settings", 114, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)), C_PURPLE);
+  button(screenReadiness, "Home", 216, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+}
+
 static void createSystem() {
   screenSystem = lv_obj_create(nullptr); styleScreen(screenSystem); addStatusBar(screenSystem, "SYSTEM");
   systemBody = wrapLabel(screenSystem, "Loading diagnostics...", &lv_font_montserrat_12, C_TEXT, 14, 58, 292); lv_obj_set_style_text_line_space(systemBody, 7, 0);
@@ -648,7 +661,7 @@ static void createAmbient() {
 
 static void createUi() {
   statusLabelCount = 0;
-  createHome(); createToday(); createControls(); createApps(); createAttention(); createQuick(); createSettings(); createWifi(); createTimers(); createPrinter(); createFilament(); createWorkshop(); createInsights(); createAutomation(); createActivity(); createDevices(); createSystem(); createRecovery(); createAmbient();
+  createHome(); createToday(); createControls(); createApps(); createAttention(); createQuick(); createSettings(); createWifi(); createTimers(); createPrinter(); createFilament(); createWorkshop(); createInsights(); createAutomation(); createActivity(); createDevices(); createReadiness(); createSystem(); createRecovery(); createAmbient();
   loadScreen(state.system.recoveryMode ? ScreenId::Recovery : ScreenId::Home);
 }
 
@@ -870,6 +883,36 @@ static void refreshModes() {
   lv_label_set_text(modesBody, b.c_str());
 }
 
+static void refreshReadiness() {
+  if(!readinessBody) return;
+  int configured=0, total=7;
+  if(WiFi.status()==WL_CONNECTED) configured++;
+  if(config.weatherEnabled && state.weather.configured) configured++;
+  if(config.bambuEnabled && strlen(config.bambuHost)) configured++;
+  if(config.filamentEnabled) configured++;
+  if(config.calendarEnabled) configured++;
+  if(config.homeAssistantEnabled) configured++;
+  if(config.workshopEnabled) configured++;
+  int score=(configured*100)/total;
+
+  String b="SETUP READINESS  "+String(score)+"%\n\n";
+  b += String(WiFi.status()==WL_CONNECTED?"✓":"○")+" Network           "+(WiFi.status()==WL_CONNECTED?"Connected":"Needs setup")+"\n";
+  b += String(config.weatherEnabled&&state.weather.configured?"✓":"○")+" Weather           "+(config.weatherEnabled?(state.weather.configured?"Configured":"Needs location"):"Optional / off")+"\n";
+  b += String(config.bambuEnabled&&strlen(config.bambuHost)?"✓":"○")+" Bambu printer     "+(config.bambuEnabled?(strlen(config.bambuHost)?"Configured":"Needs printer"):"Optional / off")+"\n";
+  b += String(config.filamentEnabled?"✓":"○")+" Filament          "+(config.filamentEnabled?"Enabled":"Optional / off")+"\n";
+  b += String(config.calendarEnabled?"✓":"○")+" Calendar          "+(config.calendarEnabled?"Enabled":"Optional / off")+"\n";
+  b += String(config.homeAssistantEnabled?"✓":"○")+" Home Assistant    "+(config.homeAssistantEnabled?"Enabled":"Optional / off")+"\n";
+  b += String(config.workshopEnabled?"✓":"○")+" Workshop          "+(config.workshopEnabled?"Enabled":"Disabled")+"\n\n";
+
+  if(!state.system.stableBoot) b += "NEXT  Allow boot validation to complete.";
+  else if(WiFi.status()!=WL_CONNECTED) b += "NEXT  Connect Wi-Fi from the setup portal.";
+  else if(config.weatherEnabled&&!state.weather.configured) b += "NEXT  Set ZIP or City, State in Weather settings.";
+  else if(config.bambuEnabled&&!strlen(config.bambuHost)) b += "NEXT  Scan for your Bambu printer or enter its IP.";
+  else if(state.system.updateAvailable) b += String("NEXT  Firmware ")+state.system.updateVersion+" is available.";
+  else b += "NEXT  Core setup is healthy. Add optional integrations when useful.";
+  lv_label_set_text(readinessBody,b.c_str());
+}
+
 static void refreshSystem() {
   if(!systemBody)return;
   const esp_partition_t *running=esp_ota_get_running_partition();
@@ -907,7 +950,7 @@ static void refreshAmbient() {
 }
 
 static void refreshUi() {
-  refreshStatusBars(); refreshHome(); refreshToday(); refreshControls(); refreshAttention(); refreshSettings(); refreshWifi(); refreshTimers(); refreshPrinter(); refreshFilament(); refreshWorkshop(); refreshInsights(); refreshAutomation(); refreshActivity(); refreshDevices(); refreshSystem(); refreshAmbient();
+  refreshStatusBars(); refreshHome(); refreshToday(); refreshControls(); refreshAttention(); refreshSettings(); refreshWifi(); refreshTimers(); refreshPrinter(); refreshFilament(); refreshWorkshop(); refreshInsights(); refreshAutomation(); refreshActivity(); refreshDevices(); refreshReadiness(); refreshSystem(); refreshAmbient();
 }
 
 static void applyTimeConfiguration() {
