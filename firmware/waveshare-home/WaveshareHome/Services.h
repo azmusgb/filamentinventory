@@ -237,15 +237,30 @@ public:
   bool testConnection();
   uint32_t discoveryPackets() const { return discoveryPackets_; }
   uint32_t discoveryMatchedPackets() const { return discoveryMatchedPackets_; }
+  uint32_t discoveryPackets1900() const { return discoveryPackets1900_; }
+  uint32_t discoveryPackets1990() const { return discoveryPackets1990_; }
+  uint32_t discoveryPackets2021() const { return discoveryPackets2021_; }
+  uint32_t discoveryNotifyPackets() const { return discoveryNotifyPackets_; }
+  uint32_t discoveryResponsePackets() const { return discoveryResponsePackets_; }
+  uint32_t discoveryProbeSends() const { return discoveryProbeSends_; }
+  uint16_t discoveryCandidateChecks() const { return discoveryCandidateChecks_; }
+  uint8_t discoveryCandidateHits() const { return discoveryCandidateHits_; }
+  uint8_t discoveryListenerMask() const { return discoveryListenerMask_; }
+  const char *discoveryLastRemote() const { return discoveryLastRemote_; }
+  const char *discoveryLastStartLine() const { return discoveryLastStartLine_; }
   const char *discoveryStatus() const { return discoveryStatus_; }
   int mqttState() { return mqtt_.state(); }
 private:
   WiFiClientSecure tls_;
   PubSubClient mqtt_;
-  WiFiUDP discoveryUdp_;
-  WiFiUDP discoveryUdpLegacy_;
+  WiFiUDP discoveryUdp_;       // UDP 2021 / Bambu Studio channel
+  WiFiUDP discoveryUdpLegacy_; // UDP 1990 / alternate notify channel
+  WiFiUDP discoveryUdpSsdp_;   // UDP 1900 / standard SSDP channel
   bool discoveryPrimaryReady_ = false;
   bool discoveryLegacyReady_ = false;
+  bool discoverySsdpReady_ = false;
+  bool discoverySleepCaptured_ = false;
+  bool discoverySleepWasEnabled_ = false;
   AppConfig *config_ = nullptr;
   AppState *state_ = nullptr;
   uint32_t lastConnectAttemptMs_ = 0;
@@ -255,8 +270,21 @@ private:
   uint32_t lastDiscoveryProbeMs_ = 0;
   uint32_t discoveryPackets_ = 0;
   uint32_t discoveryMatchedPackets_ = 0;
-  char discoveryStatus_[96] = "Idle";
-  BambuDiscoveredPrinter discovered_[6];
+  uint32_t discoveryPackets1900_ = 0;
+  uint32_t discoveryPackets1990_ = 0;
+  uint32_t discoveryPackets2021_ = 0;
+  uint32_t discoveryNotifyPackets_ = 0;
+  uint32_t discoveryResponsePackets_ = 0;
+  uint32_t discoveryProbeSends_ = 0;
+  uint16_t discoveryCandidateChecks_ = 0;
+  uint8_t discoveryCandidateHits_ = 0;
+  uint8_t discoveryCandidateHost_ = 1;
+  uint8_t discoveryListenerMask_ = 0;
+  bool discoveryCandidateScanStarted_ = false;
+  char discoveryLastRemote_[24] = "";
+  char discoveryLastStartLine_[48] = "";
+  char discoveryStatus_[160] = "Idle";
+  BambuDiscoveredPrinter discovered_[8];
   uint8_t discoveredCount_ = 0;
   static BambuPlugin *instance_;
   static void callbackStatic(char *topic, byte *payload, unsigned int length);
@@ -266,7 +294,10 @@ private:
   bool sendPrintCommand(const char *command);
   void sendDiscoveryProbe();
   void pollDiscovery();
-  void parseDiscoveryPacket(const String &packet, const IPAddress &remoteIp);
+  void scanFallbackCandidate();
+  void finishDiscovery();
+  void restoreDiscoverySleep();
+  void parseDiscoveryPacket(const String &packet, const IPAddress &remoteIp, uint16_t localPort);
   int findDiscovered(const char *serial, const char *host) const;
 };
 
