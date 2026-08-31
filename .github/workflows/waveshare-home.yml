@@ -14,6 +14,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Resolve firmware version
+        id: version
+        run: |
+          VERSION=$(python3 - <<'PY'
+          import re
+          text=open('firmware/waveshare-home/WaveshareHome/AppModel.h').read()
+          m=re.search(r'FW_VERSION\[\]\s*=\s*"([^"]+)"', text)
+          if not m: raise SystemExit('FW_VERSION not found')
+          print(m.group(1))
+          PY
+          )
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building $VERSION"
+
       - name: Install Arduino CLI
         run: |
           curl -fsSL https://github.com/arduino/arduino-cli/releases/download/v1.5.1/arduino-cli_1.5.1_Linux_64bit.tar.gz \
@@ -75,7 +89,7 @@ jobs:
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v7
         with:
-          name: WaveshareHome-ESP32S3-rc7-fullflash
+          name: WaveshareHome-ESP32S3-${{ steps.version.outputs.version }}-fullflash
           path: |
             build/WaveshareHome-firmware.bin
             build/WaveshareHome-bootloader.bin
