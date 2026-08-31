@@ -38,6 +38,7 @@ public:
   bool begin(AppState &state);
   void loop(AppState &state);
   void markStable(AppState &state);
+  void clearRecovery(AppState &state);
   bool recoveryRequested() const { return recoveryRequested_; }
 private:
   Preferences prefs_;

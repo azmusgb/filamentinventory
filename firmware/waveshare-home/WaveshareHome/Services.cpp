@@ -293,14 +293,45 @@ void ConfigStore::factoryReset() {
 
 bool BootGuard::begin(AppState &state) {
   prefs_.begin("boot-guard", false);
+
+  const esp_reset_reason_t resetReason = esp_reset_reason();
+  copyText(state.system.resetReason, sizeof(state.system.resetReason), resetReasonText(resetReason));
+
   state.system.bootCount = prefs_.getUInt("count", 0) + 1;
   prefs_.putUInt("count", state.system.bootCount);
-  state.system.bootAttempts = prefs_.getUInt("attempts", 0) + 1;
-  prefs_.putUInt("attempts", state.system.bootAttempts);
-  copyText(state.system.resetReason, sizeof(state.system.resetReason), resetReasonText(esp_reset_reason()));
+
+  // A firmware upgrade is a new validation epoch. Never inherit a stale
+  // failure counter from an older image into freshly installed firmware.
+  const String storedFirmware = prefs_.getString("fw", "");
+  const bool sameFirmware = storedFirmware == FW_VERSION;
+  const bool previousBootPending = prefs_.getBool("pending", false);
+  uint32_t failedBoots = prefs_.getUInt("attempts", 0);
+
+  if (!sameFirmware) {
+    failedBoots = 0;
+    prefs_.putString("fw", FW_VERSION);
+  } else if (!previousBootPending) {
+    failedBoots = 0;
+  } else {
+    // Only crash-class resets count toward boot-loop recovery. Normal OTA/
+    // software restarts, power cycles and external reset presses should not
+    // manufacture a boot loop merely because they occur before 45 seconds.
+    const bool crashReset =
+        resetReason == ESP_RST_PANIC ||
+        resetReason == ESP_RST_INT_WDT ||
+        resetReason == ESP_RST_TASK_WDT ||
+        resetReason == ESP_RST_WDT ||
+        resetReason == ESP_RST_BROWNOUT;
+    if (crashReset) ++failedBoots;
+  }
+
+  state.system.bootAttempts = failedBoots;
+  prefs_.putUInt("attempts", failedBoots);
+  prefs_.putBool("pending", true);
+
   pinMode(0, INPUT_PULLUP);
   delay(4);
-  recoveryRequested_ = state.system.bootAttempts >= 3 || digitalRead(0) == LOW;
+  recoveryRequested_ = failedBoots >= 3 || digitalRead(0) == LOW;
   state.system.recoveryMode = recoveryRequested_;
   bootMs_ = millis();
 
@@ -320,14 +351,33 @@ void BootGuard::loop(AppState &state) {
   state.system.uptimeSec = millis() / 1000UL;
   state.system.freeHeap = ESP.getFreeHeap();
   state.system.freePsram = ESP.getFreePsram();
-  if (!stableMarked_ && millis() - bootMs_ >= STABLE_BOOT_MS) markStable(state);
+  if (!stableMarked_ && !state.system.recoveryMode && millis() - bootMs_ >= STABLE_BOOT_MS) markStable(state);
 }
 
 void BootGuard::markStable(AppState &state) {
+  // Safe mode intentionally disables integrations. It must never validate an
+  // OTA image simply because the reduced recovery environment stayed alive.
+  if (state.system.recoveryMode) return;
   prefs_.putUInt("attempts", 0);
+  prefs_.putBool("pending", false);
+  prefs_.putString("fw", FW_VERSION);
   stableMarked_ = true;
   state.system.stableBoot = true;
   esp_ota_mark_app_valid_cancel_rollback();
+}
+
+void BootGuard::clearRecovery(AppState &state) {
+  // Give this exact firmware one clean normal-boot attempt without touching
+  // user configuration, Wi-Fi credentials, or other NVS namespaces. If the
+  // image truly crash-loops, crash-class resets will accumulate again and
+  // recovery mode will return automatically.
+  prefs_.putUInt("attempts", 0);
+  prefs_.putBool("pending", false);
+  prefs_.putString("fw", FW_VERSION);
+  recoveryRequested_ = false;
+  stableMarked_ = false;
+  state.system.bootAttempts = 0;
+  state.system.recoveryMode = false;
 }
 
 // ---------- Connectivity ----------

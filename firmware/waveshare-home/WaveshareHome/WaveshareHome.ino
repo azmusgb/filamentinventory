@@ -535,10 +535,10 @@ static void createSystem() {
 static void createRecovery() {
   screenRecovery = lv_obj_create(nullptr); styleScreen(screenRecovery); label(screenRecovery, "RECOVERY", &lv_font_montserrat_20, C_RED, 14, 22);
   label(screenRecovery, "Safe mode is active", &lv_font_montserrat_20, C_TEXT, 14, 72, 292);
-  recoveryBody = wrapLabel(screenRecovery, "Boot-loop protection disabled integrations. Wi-Fi setup and the web dashboard remain available so you can inspect diagnostics or install known-good firmware.", &lv_font_montserrat_14, C_MUTED, 14, 116, 292);
+  recoveryBody = wrapLabel(screenRecovery, "Boot-loop protection paused integrations. A new firmware version starts with a clean validation epoch. Try Normal Boot clears only the boot-loop counter; Wi-Fi and settings are preserved.", &lv_font_montserrat_14, C_MUTED, 14, 116, 292);
   button(screenRecovery, "Wi-Fi", 12, 296, 142, 54, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Wifi)), C_BLUE);
   button(screenRecovery, "System", 166, 296, 142, 54, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::System)), C_GREEN);
-  button(screenRecovery, "Restart", 12, 366, 296, 48, [](lv_event_t*){ ESP.restart(); }, nullptr, C_ORANGE);
+  button(screenRecovery, "Try normal boot", 12, 366, 296, 48, [](lv_event_t*){ bootGuard.clearRecovery(state); delay(80); ESP.restart(); }, nullptr, C_ORANGE);
 }
 
 static void createAmbient() {
