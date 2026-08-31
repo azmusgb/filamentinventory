@@ -35,8 +35,9 @@ function overlaps(a, b) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-test('Waveshare Home UX release is versioned as 1.4.0', () => {
-  assert.match(model, /FW_VERSION\[\]\s*=\s*"1\.4\.0"/);
+test('Waveshare Home UX release is versioned as 1.5.0 with schema 5', () => {
+  assert.match(model, /FW_VERSION\[\]\s*=\s*"1\.5\.0"/);
+  assert.match(model, /CONFIG_SCHEMA_VERSION\s*=\s*5/);
 });
 
 test('touch navigation uses a stable Home / Printer / More model', () => {
@@ -50,8 +51,8 @@ test('touch navigation uses a stable Home / Printer / More model', () => {
 test('More launcher is intentionally reduced and touch friendly', () => {
   const apps = functionBody(ino, 'createApps');
   const entries = [...apps.matchAll(/\{"([^"]+)",\s*ScreenId::/g)].map((m) => m[1]);
-  assert.deepEqual(entries, ['Workshop', 'Filament', 'Controls', 'Automation', 'Today', 'Timers', 'Device', 'System']);
-  assert.match(apps, /142, 64/);
+  assert.deepEqual(entries, ['Workshop', 'Filament', 'Today', 'Smart Home', 'Timers', 'Settings']);
+  assert.match(apps, /142, 70/);
   assert.doesNotMatch(apps, /24,\s*navEvent/);
 });
 
@@ -118,4 +119,65 @@ test('web home prioritizes normal workshop actions over maintenance actions', ()
   assert.doesNotMatch(homeSource, /hero-actions.*Check for update/);
   assert.doesNotMatch(homeSource, /hero-actions.*Reconnect Wi-Fi/);
   assert.doesNotMatch(homeSource, /hero-actions.*Test speaker/);
+});
+
+
+test('v1.5 home defaults prioritize printer, filament and workshop', () => {
+  assert.match(model, /HomeCard homeCards\[3\] = \{HomeCard::Printer, HomeCard::Filament, HomeCard::Workshop\}/);
+  assert.match(model, /Workshop = 8/);
+});
+
+test('bottom navigation meets the 44px touch-target floor', () => {
+  const nav = functionBody(ino, 'addBottomNav');
+  assert.match(nav, /95, 44/);
+});
+
+test('settings no longer overlap a multiline summary and theme changes apply', () => {
+  const create = functionBody(ino, 'createSettings');
+  const refresh = functionBody(ino, 'refreshSettings');
+  assert.match(create, /settingsBody = label/);
+  assert.doesNotMatch(refresh, /Cards:/);
+  const action = functionBody(ino, 'settingAction');
+  assert.match(action, /action == 4[\s\S]*ESP\.restart\(\)/);
+});
+
+test('dynamic touch surfaces are bounded or scrollable', () => {
+  assert.match(ino, /scrollBodyLabel/);
+  for (const name of ['createAttention', 'createTimers', 'createActivity', 'createSystem']) {
+    assert.match(functionBody(ino, name), /scrollBodyLabel/);
+  }
+});
+
+test('touch refresh follows the active screen and includes Modes', () => {
+  assert.match(ino, /static ScreenId currentScreen/);
+  const active = functionBody(ino, 'refreshActiveScreen');
+  assert.match(active, /case ScreenId::Modes: refreshModes\(\)/);
+  const loopStart = ino.indexOf('void loop()');
+  assert.match(ino.slice(loopStart), /refreshActiveScreen\(\)/);
+});
+
+test('workshop air modes have explicit Manual and PostPrint behavior', () => {
+  const workshop = fs.readFileSync(path.join(root, 'firmware/waveshare-home/WaveshareHome/Workshop.cpp'), 'utf8');
+  assert.match(workshop, /AirMode::Manual/);
+  assert.match(workshop, /Manual request/);
+  assert.match(workshop, /AirMode::PostPrint/);
+  assert.match(workshop, /Post-print filtration/);
+});
+
+test('readiness separates core health from optional integrations', () => {
+  const readiness = functionBody(ino, 'refreshReadiness');
+  assert.match(readiness, /CORE/);
+  assert.match(readiness, /OPTIONAL/);
+  assert.doesNotMatch(readiness, /configured\*100/);
+});
+
+test('web API exposes authoritative printer printing state and filament attention', () => {
+  assert.match(services, /doc\["printer"\]\["printing"\]/);
+  assert.match(services, /attentionCount/);
+});
+
+test('web live state uses request timeouts and authoritative print state', () => {
+  assert.match(services, /fetchWithTimeout/);
+  assert.match(services, /d\.printer\.printing/);
+  assert.match(services, /nowFilament/);
 });

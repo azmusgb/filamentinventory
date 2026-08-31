@@ -21,8 +21,8 @@ inline time_t waveshareTimegm(struct tm *tmv) {
 #define timegm waveshareTimegm
 #endif
 
-static constexpr uint32_t CONFIG_SCHEMA_VERSION = 4;
-static constexpr char FW_VERSION[] = "1.4.0";
+static constexpr uint32_t CONFIG_SCHEMA_VERSION = 5;
+static constexpr char FW_VERSION[] = "1.5.0";
 static constexpr char DEFAULT_DEVICE_NAME[] = "Waveshare Home";
 static constexpr char SETUP_AP_NAME[] = "WaveshareHome-Setup";
 static constexpr uint8_t DEFAULT_AUDIO_VOLUME = 55;
@@ -50,7 +50,7 @@ static constexpr size_t TIMEZONE_COUNT = sizeof(TIMEZONES) / sizeof(TIMEZONES[0]
 
 enum class ThemeMode : uint8_t { Midnight = 0, Oled = 1, HighContrast = 2 };
 enum class HeroMode : uint8_t { Auto = 0, Printer = 1, Weather = 2, Calendar = 3, Filament = 4, System = 5 };
-enum class HomeCard : uint8_t { Controls = 0, Today = 1, Printer = 2, Filament = 3, Weather = 4, System = 5, Timers = 6, Attention = 7 };
+enum class HomeCard : uint8_t { Controls = 0, Today = 1, Printer = 2, Filament = 3, Weather = 4, System = 5, Timers = 6, Attention = 7, Workshop = 8 };
 enum class AlertSeverity : uint8_t { Info = 0, Attention = 1, Urgent = 2 };
 enum class AmbientDisplayMode : uint8_t { Auto = 0, Clock = 1, Printer = 2, Workshop = 3, Minimal = 4 };
 enum class AirMode : uint8_t { Off = 0, Manual = 1, Auto = 2, PostPrint = 3 };
@@ -65,7 +65,7 @@ struct AppConfig {
   uint16_t ambientTimeoutSec = 120;
   ThemeMode theme = ThemeMode::Midnight;
   HeroMode heroMode = HeroMode::Auto;
-  HomeCard homeCards[3] = {HomeCard::Controls, HomeCard::Today, HomeCard::System};
+  HomeCard homeCards[3] = {HomeCard::Printer, HomeCard::Filament, HomeCard::Workshop};
 
   bool weatherEnabled = false;
   float weatherLatitude = 0.0f;
@@ -111,7 +111,7 @@ struct AppConfig {
 
   // 0=manual, 1=notify, 2=auto-install stable. Preview channel is never auto-installed.
   uint8_t updateMode = 1;
-  uint8_t updateChannel = 1; // 0=stable, 1=preview/RC
+  uint8_t updateChannel = 0; // 0=stable, 1=preview/RC
   uint16_t updateCheckMinutes = 360;
 };
 
@@ -197,6 +197,17 @@ struct PrinterState {
   uint32_t connectedMs = 0;
 };
 
+struct FilamentAttentionSpool {
+  bool valid = false;
+  char id[40] = "";
+  char brand[32] = "";
+  char material[24] = "";
+  char colorName[32] = "";
+  char colorHex[12] = "#64748b";
+  int remainingGrams = -1;
+  int remainingPercent = -1;
+};
+
 struct FilamentState {
   bool configured = false;
   bool online = false;
@@ -208,6 +219,8 @@ struct FilamentState {
   char profile[12] = "Bill";
   char updatedAt[40] = "";
   uint32_t updatedMs = 0;
+  FilamentAttentionSpool attention[3];
+  uint8_t attentionCount = 0;
 };
 
 struct HomeAssistantEntityState {
@@ -383,6 +396,7 @@ inline const char *homeCardName(HomeCard card) {
     case HomeCard::System: return "System";
     case HomeCard::Timers: return "Timers";
     case HomeCard::Attention: return "Attention";
+    case HomeCard::Workshop: return "Workshop";
     default: return "System";
   }
 }

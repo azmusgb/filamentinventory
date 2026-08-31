@@ -4,7 +4,7 @@ Touch-first general-purpose Home Hub firmware for the **Waveshare ESP32-S3-Touch
 
 The printer is an integration, not the identity of the device. The Home screen is designed around **NOW + NEXT + STATUS**, with live services feeding one shared state/attention model.
 
-## v1.4.0 — Calm workshop appliance UX
+## v1.5.0 — Calm workshop appliance UX
 
 v1.4 is a product-UX consolidation release. It keeps the existing dark industrial visual language while reducing navigation density, making printer state glanceable, and moving maintenance detail behind progressive disclosure.
 

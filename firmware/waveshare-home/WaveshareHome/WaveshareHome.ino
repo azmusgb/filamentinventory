@@ -105,7 +105,14 @@ static lv_obj_t *printerChamberLabel = nullptr;
 static lv_obj_t *printerAmsPanels[4] = {nullptr};
 static lv_obj_t *printerAmsLabels[4] = {nullptr};
 static lv_obj_t *filamentBody = nullptr;
+static lv_obj_t *filamentMetricLabels[4] = {nullptr};
 static lv_obj_t *workshopBody = nullptr;
+static lv_obj_t *workshopEnvironmentLabel = nullptr;
+static lv_obj_t *workshopAirLabel = nullptr;
+static lv_obj_t *workshopDryerLabel = nullptr;
+static lv_obj_t *printerPauseButton = nullptr;
+static lv_obj_t *printerResumeButton = nullptr;
+static lv_obj_t *printerStopButton = nullptr;
 static lv_obj_t *insightsBody = nullptr;
 static lv_obj_t *automationBody = nullptr;
 static lv_obj_t *activityBody = nullptr;
@@ -145,6 +152,7 @@ enum class ScreenId : uint8_t {
   Home, Today, Controls, Apps, Attention, Quick, Settings, Wifi,
   Timers, Printer, Filament, Workshop, Insights, Automation, Activity, Devices, Readiness, Modes, System, Recovery, Ambient
 };
+static ScreenId currentScreen = ScreenId::Home;
 
 static void applyThemeTokens() {
   if (config.theme == ThemeMode::Oled) {
@@ -231,6 +239,19 @@ static lv_obj_t *panel(lv_obj_t *parent, int x, int y, int w, int h, lv_color_t 
   return obj;
 }
 
+
+static lv_obj_t *scrollBodyLabel(lv_obj_t *parent, const char *text, const lv_font_t *font, lv_color_t color,
+                                 int x, int y, int w, int h) {
+  lv_obj_t *box = panel(parent, x, y, w, h, C_SURFACE);
+  lv_obj_add_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scroll_dir(box, LV_DIR_VER);
+  lv_obj_set_scrollbar_mode(box, LV_SCROLLBAR_MODE_AUTO);
+  lv_obj_set_style_pad_all(box, 10, 0);
+  lv_obj_t *body = wrapLabel(box, text, font, color, 0, 0, w - 20);
+  lv_obj_set_height(body, LV_SIZE_CONTENT);
+  return body;
+}
+
 static lv_obj_t *button(lv_obj_t *parent, const char *text, int x, int y, int w, int h,
                         lv_event_cb_t cb, void *data = nullptr, lv_color_t accent = lv_color_hex(0x4ADE80)) {
   lv_obj_t *btn = lv_btn_create(parent);
@@ -303,6 +324,7 @@ static lv_obj_t *screenFor(ScreenId id) {
 
 static void loadScreen(ScreenId id) {
   lastInteractionMs = millis();
+  currentScreen = id;
   lv_obj_t *target = screenFor(id);
   if (target) lv_scr_load_anim(target, LV_SCR_LOAD_ANIM_FADE_ON, 110, 0, false);
 }
@@ -313,10 +335,10 @@ static void navEvent(lv_event_t *e) {
 }
 
 static void addBottomNav(lv_obj_t *screen, ScreenId active) {
-  lv_obj_t *bar = panel(screen, 8, 426, 304, 46, lv_color_hex(0x050B0F));
+  lv_obj_t *bar = panel(screen, 8, 420, 304, 52, lv_color_hex(0x050B0F));
   struct N { const char *name; ScreenId id; } items[] = {{"Home", ScreenId::Home}, {"Printer", ScreenId::Printer}, {"More", ScreenId::Apps}};
   for (int i = 0; i < 3; ++i) {
-    lv_obj_t *btn = button(bar, items[i].name, 4 + i * 99, 4, 95, 38, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(items[i].id)));
+    lv_obj_t *btn = button(bar, items[i].name, 4 + i * 99, 4, 95, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(items[i].id)));
     if (active == items[i].id) {
       lv_obj_set_style_bg_color(btn, lv_color_hex(0x102A1B), 0);
       lv_obj_set_style_border_color(btn, lv_color_hex(0x2B7650), 0);
@@ -388,7 +410,7 @@ static void updateHero() {
   char value[64] = "Ready"; char detail[128] = "Everything looks good"; const char *eyebrow = "NOW"; const char *title = config.deviceName;
   switch (mode) {
     case HeroMode::Printer:
-      title = "Bambu P1S"; snprintf(value, sizeof(value), "%u%%", state.printer.progress);
+      title = strlen(state.printer.displayName) ? state.printer.displayName : (strlen(state.printer.model) ? state.printer.model : "Bambu printer"); snprintf(value, sizeof(value), "%u%%", state.printer.progress);
       snprintf(detail, sizeof(detail), "%s • %s remaining", strlen(state.printer.jobName) ? state.printer.jobName : state.printer.status, formatMinutes(state.printer.remainingMinutes).c_str()); break;
     case HeroMode::Weather:
       title = strlen(config.weatherLocation) ? config.weatherLocation : "Weather"; snprintf(value, sizeof(value), "%.0f°F", state.weather.temperatureC * 9.0f / 5.0f + 32.0f);
@@ -415,12 +437,35 @@ static void homeCardContent(HomeCard card, String &title, String &detail, String
   switch (card) {
     case HomeCard::Controls: detail = "Smart home"; value = state.homeAssistant.online ? "Live" : (config.homeAssistantEnabled ? "Offline" : "Setup"); break;
     case HomeCard::Today: detail = "Agenda"; value = state.calendar.hasNext ? "Next" : "Open"; break;
-    case HomeCard::Printer: detail = "P1S"; value = state.printer.printing ? String(state.printer.progress) + "%" : (state.printer.online ? state.printer.status : "Setup"); break;
+    case HomeCard::Printer: detail = strlen(state.printer.model) ? state.printer.model : "Bambu"; value = state.printer.printing ? String(state.printer.progress) + "%" : (state.printer.online ? state.printer.status : "Setup"); break;
     case HomeCard::Filament: detail = "Inventory"; value = state.filament.online ? String(state.filament.totalSpools) : "Setup"; break;
     case HomeCard::Weather: detail = "Forecast"; value = state.weather.online ? String((int)round(state.weather.temperatureC*9.0/5.0+32)) + "°" : "Setup"; break;
     case HomeCard::Timers: detail = "Local"; value = String(activeTimerCount()) + " active"; break;
     case HomeCard::Attention: detail = "Alerts"; value = String(state.alertCount); break;
+    case HomeCard::Workshop: detail = "Air & dryer"; value = state.workshop.filterRequested ? "Filtering" : (state.workshop.dryer.running ? "Drying" : "Ready"); break;
     case HomeCard::System: default: detail = "Health"; value = state.system.recoveryMode ? "Recovery" : "Good"; break;
+  }
+}
+
+
+static lv_color_t homeCardColor(HomeCard card) {
+  switch (card) {
+    case HomeCard::Attention:
+      if (!state.alertCount) return C_GREEN;
+      return state.alerts[0].severity == AlertSeverity::Urgent ? C_RED : C_ORANGE;
+    case HomeCard::Printer:
+      return !config.bambuEnabled || !state.printer.online ? C_MUTED : state.printer.error ? C_RED : state.printer.printing ? C_GREEN : C_BLUE;
+    case HomeCard::Filament:
+      return !config.filamentEnabled || !state.filament.online ? C_MUTED : state.filament.emptySpools ? C_RED : state.filament.lowSpools ? C_ORANGE : C_GREEN;
+    case HomeCard::Weather:
+      return !state.weather.online ? C_MUTED : state.weather.severeAlert ? C_ORANGE : C_BLUE;
+    case HomeCard::Workshop:
+      return state.workshop.filterRequested ? C_ORANGE : state.workshop.dryer.running ? C_BLUE : C_GREEN;
+    case HomeCard::Controls:
+      return state.homeAssistant.online ? C_GREEN : C_MUTED;
+    case HomeCard::System:
+      return state.system.recoveryMode ? C_RED : state.system.updateAvailable ? C_ORANGE : C_GREEN;
+    default: return C_GREEN;
   }
 }
 
@@ -429,7 +474,7 @@ static ScreenId screenForCard(HomeCard card) {
     case HomeCard::Controls: return ScreenId::Controls; case HomeCard::Today: return ScreenId::Today;
     case HomeCard::Printer: return ScreenId::Printer; case HomeCard::Filament: return ScreenId::Filament;
     case HomeCard::Weather: return ScreenId::Today; case HomeCard::Timers: return ScreenId::Timers;
-    case HomeCard::Attention: return ScreenId::Attention; default: return ScreenId::System;
+    case HomeCard::Attention: return ScreenId::Attention; case HomeCard::Workshop: return ScreenId::Workshop; default: return ScreenId::System;
   }
 }
 
@@ -486,12 +531,11 @@ static void createApps() {
   label(screenApps, "WORKSHOP & DEVICE", &lv_font_montserrat_12, C_DIM, 12, 52);
   struct App { const char *name; ScreenId id; lv_color_t color; } apps[] = {
     {"Workshop", ScreenId::Workshop, C_ORANGE}, {"Filament", ScreenId::Filament, C_BLUE},
-    {"Controls", ScreenId::Controls, C_GREEN}, {"Automation", ScreenId::Automation, C_PURPLE},
-    {"Today", ScreenId::Today, C_BLUE}, {"Timers", ScreenId::Timers, C_ORANGE},
-    {"Device", ScreenId::Devices, C_BLUE}, {"System", ScreenId::System, C_GREEN}
+    {"Today", ScreenId::Today, C_BLUE}, {"Smart Home", ScreenId::Controls, C_GREEN},
+    {"Timers", ScreenId::Timers, C_ORANGE}, {"Settings", ScreenId::Settings, C_PURPLE}
   };
   for (size_t i = 0; i < sizeof(apps)/sizeof(apps[0]); ++i) {
-    button(screenApps, apps[i].name, 12 + (i % 2) * 154, 76 + (i / 2) * 76, 142, 64,
+    button(screenApps, apps[i].name, 12 + (i % 2) * 154, 82 + (i / 2) * 86, 142, 70,
            navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(apps[i].id)), apps[i].color);
   }
   addBottomNav(screenApps, ScreenId::Apps);
@@ -499,7 +543,7 @@ static void createApps() {
 
 static void createAttention() {
   screenAttention = lv_obj_create(nullptr); styleScreen(screenAttention); addStatusBar(screenAttention, "ATTENTION");
-  attentionBody = wrapLabel(screenAttention, "All clear", &lv_font_montserrat_14, C_TEXT, 14, 64, 292); lv_obj_set_style_text_line_space(attentionBody, 8, 0);
+  attentionBody = scrollBodyLabel(screenAttention, "All clear", &lv_font_montserrat_14, C_TEXT, 12, 56, 296, 350); lv_obj_set_style_text_line_space(attentionBody, 8, 0);
   addBottomNav(screenAttention, ScreenId::Apps);
 }
 
@@ -513,9 +557,9 @@ static void settingAction(lv_event_t *e) {
   else if (action == 5) { config.heroMode = static_cast<HeroMode>((static_cast<int>(config.heroMode)+1)%6); }
   else if (action == 6) { config.ambientMode = static_cast<AmbientDisplayMode>((static_cast<int>(config.ambientMode)+1)%5); }
   else if (action == 7) { config.airMode = static_cast<AirMode>((static_cast<int>(config.airMode)+1)%4); state.workshop.airMode = config.airMode; }
-  else if (action >= 10 && action <= 12) { int i=action-10; config.homeCards[i]=static_cast<HomeCard>((static_cast<int>(config.homeCards[i])+1)%8); }
+  else if (action >= 10 && action <= 12) { int i=action-10; config.homeCards[i]=static_cast<HomeCard>((static_cast<int>(config.homeCards[i])+1)%9); }
   configStore.save(config); applyBacklight(config.brightness); applyThemeTokens();
-  if (action == 4) { lv_obj_t *current = lv_scr_act(); (void)current; }
+  if (action == 4) { delay(120); ESP.restart(); }
   lastUiRefreshMs = 0;
 }
 
@@ -535,20 +579,20 @@ static void createQuick() {
 
 static void createSettings() {
   screenSettings = lv_obj_create(nullptr); styleScreen(screenSettings); addStatusBar(screenSettings, "SETTINGS");
-  settingsBody = label(screenSettings, "", &lv_font_montserrat_12, C_MUTED, 14, 52, 292);
-  button(screenSettings, "Brightness", 12, 92, 142, 50, settingAction, reinterpret_cast<void *>(0), C_GREEN);
-  button(screenSettings, "Timezone", 166, 92, 142, 50, settingAction, reinterpret_cast<void *>(1), C_BLUE);
-  button(screenSettings, "Ambient time", 12, 154, 142, 50, settingAction, reinterpret_cast<void *>(2), C_PURPLE);
-  button(screenSettings, "Ambient dim", 166, 154, 142, 50, settingAction, reinterpret_cast<void *>(3), C_ORANGE);
-  button(screenSettings, "Theme", 12, 216, 92, 46, settingAction, reinterpret_cast<void *>(4), C_BLUE);
-  button(screenSettings, "NOW", 114, 216, 92, 46, settingAction, reinterpret_cast<void *>(5), C_GREEN);
-  button(screenSettings, "Ambient", 216, 216, 92, 46, settingAction, reinterpret_cast<void *>(6), C_PURPLE);
-  button(screenSettings, "Air mode", 12, 274, 92, 46, settingAction, reinterpret_cast<void *>(7), C_ORANGE);
-  button(screenSettings, "Card 1", 114, 274, 92, 46, settingAction, reinterpret_cast<void *>(10));
-  button(screenSettings, "Card 2", 216, 274, 92, 46, settingAction, reinterpret_cast<void *>(11));
-  button(screenSettings, "Card 3", 12, 332, 92, 46, settingAction, reinterpret_cast<void *>(12));
-  button(screenSettings, "Workshop", 114, 332, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Workshop)), C_ORANGE);
-  button(screenSettings, "Wi-Fi", 216, 332, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Wifi)), C_BLUE);
+  settingsBody = label(screenSettings, "", &lv_font_montserrat_12, C_MUTED, 14, 50, 292);
+  button(screenSettings, "Brightness", 12, 80, 142, 48, settingAction, reinterpret_cast<void *>(0), C_GREEN);
+  button(screenSettings, "Timezone", 166, 80, 142, 48, settingAction, reinterpret_cast<void *>(1), C_BLUE);
+  button(screenSettings, "Ambient time", 12, 140, 142, 48, settingAction, reinterpret_cast<void *>(2), C_PURPLE);
+  button(screenSettings, "Ambient dim", 166, 140, 142, 48, settingAction, reinterpret_cast<void *>(3), C_ORANGE);
+  button(screenSettings, "Theme", 12, 200, 92, 48, settingAction, reinterpret_cast<void *>(4), C_BLUE);
+  button(screenSettings, "NOW", 114, 200, 92, 48, settingAction, reinterpret_cast<void *>(5), C_GREEN);
+  button(screenSettings, "Ambient", 216, 200, 92, 48, settingAction, reinterpret_cast<void *>(6), C_PURPLE);
+  button(screenSettings, "Air mode", 12, 260, 92, 48, settingAction, reinterpret_cast<void *>(7), C_ORANGE);
+  button(screenSettings, "Card 1", 114, 260, 92, 48, settingAction, reinterpret_cast<void *>(10));
+  button(screenSettings, "Card 2", 216, 260, 92, 48, settingAction, reinterpret_cast<void *>(11));
+  button(screenSettings, "Card 3", 12, 320, 92, 48, settingAction, reinterpret_cast<void *>(12));
+  button(screenSettings, "Workshop", 114, 320, 92, 48, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Workshop)), C_ORANGE);
+  button(screenSettings, "Wi-Fi", 216, 320, 92, 48, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Wifi)), C_BLUE);
   addBottomNav(screenSettings, ScreenId::Apps);
 }
 
@@ -556,14 +600,14 @@ static void createWifi() {
   screenWifi = lv_obj_create(nullptr); styleScreen(screenWifi); addStatusBar(screenWifi, "WI-FI");
   wifiBody = wrapLabel(screenWifi, "Loading...", &lv_font_montserrat_14, C_TEXT, 14, 70, 292); lv_obj_set_style_text_line_space(wifiBody, 9, 0);
   button(screenWifi, "Reconnect", 12, 304, 142, 52, [](lv_event_t*){ connectivity.reconnect(); }, nullptr, C_BLUE);
-  button(screenWifi, "Forget", 166, 304, 142, 52, [](lv_event_t*){ connectivity.forget(); }, nullptr, C_RED);
+  lv_obj_t *forget = button(screenWifi, "Hold Forget", 166, 304, 142, 52, nullptr, nullptr, C_RED); lv_obj_add_event_cb(forget, [](lv_event_t*){ connectivity.forget(); }, LV_EVENT_LONG_PRESSED, nullptr);
   button(screenWifi, "Settings", 12, 370, 296, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)), C_BLUE);
   addBottomNav(screenWifi, ScreenId::Apps);
 }
 
 static void createTimers() {
   screenTimers = lv_obj_create(nullptr); styleScreen(screenTimers); addStatusBar(screenTimers, "TIMERS");
-  timerBody = wrapLabel(screenTimers, "No active timers", &lv_font_montserrat_14, C_TEXT, 14, 66, 292); lv_obj_set_style_text_line_space(timerBody, 9, 0);
+  timerBody = scrollBodyLabel(screenTimers, "No active timers", &lv_font_montserrat_14, C_TEXT, 12, 58, 296, 176); lv_obj_set_style_text_line_space(timerBody, 9, 0);
   button(screenTimers, "5 min", 12, 250, 92, 58, [](lv_event_t*){ timerPlugin.start(state,300,"5 minute timer"); }, nullptr, C_ORANGE);
   button(screenTimers, "10 min", 114, 250, 92, 58, [](lv_event_t*){ timerPlugin.start(state,600,"10 minute timer"); }, nullptr, C_ORANGE);
   button(screenTimers, "30 min", 216, 250, 92, 58, [](lv_event_t*){ timerPlugin.start(state,1800,"30 minute timer"); }, nullptr, C_ORANGE);
@@ -603,33 +647,48 @@ static void createPrinter() {
     printerAmsLabels[i] = wrapLabel(printerAmsPanels[i], "A1\nEmpty", &lv_font_montserrat_12, C_MUTED, 8, 7, 52);
   }
 
-  button(screenPrinter, "Pause", 12, 352, 92, 56, [](lv_event_t*){ bambuPlugin.pausePrint(); }, nullptr, C_ORANGE);
-  button(screenPrinter, "Resume", 114, 352, 92, 56, [](lv_event_t*){ bambuPlugin.resumePrint(); }, nullptr, C_GREEN);
-  lv_obj_t *stop = button(screenPrinter, "Hold Stop", 216, 352, 92, 56, nullptr, nullptr, C_RED);
-  lv_obj_add_event_cb(stop, [](lv_event_t*){ bambuPlugin.stopPrint(); }, LV_EVENT_LONG_PRESSED, nullptr);
+  printerPauseButton = button(screenPrinter, "Pause", 12, 352, 92, 56, [](lv_event_t*){ bambuPlugin.pausePrint(); }, nullptr, C_ORANGE);
+  printerResumeButton = button(screenPrinter, "Resume", 114, 352, 92, 56, [](lv_event_t*){ bambuPlugin.resumePrint(); }, nullptr, C_GREEN);
+  printerStopButton = button(screenPrinter, "Hold Stop", 216, 352, 92, 56, nullptr, nullptr, C_RED);
+  lv_obj_add_event_cb(printerStopButton, [](lv_event_t*){ bambuPlugin.stopPrint(); }, LV_EVENT_LONG_PRESSED, nullptr);
   addBottomNav(screenPrinter, ScreenId::Printer);
 }
 
 static void createFilament() {
   screenFilament = lv_obj_create(nullptr); styleScreen(screenFilament); addStatusBar(screenFilament, "FILAMENT");
-  filamentBody = wrapLabel(screenFilament, "Filament Inventory not configured", &lv_font_montserrat_14, C_TEXT, 14, 64, 292); lv_obj_set_style_text_line_space(filamentBody, 10, 0);
-  button(screenFilament, "Settings", 12, 370, 296, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)), C_BLUE);
+  const char *names[] = {"SPOOLS", "LOADED", "LOW", "EMPTY"};
+  for (int i = 0; i < 4; ++i) {
+    lv_obj_t *p = panel(screenFilament, 12 + (i % 2) * 154, 58 + (i / 2) * 78, 142, 66, C_SURFACE_2);
+    label(p, names[i], &lv_font_montserrat_12, C_DIM, 10, 8, 120);
+    filamentMetricLabels[i] = label(p, "--", &lv_font_montserrat_20, C_TEXT, 10, 31, 120);
+  }
+  label(screenFilament, "NEEDS ATTENTION", &lv_font_montserrat_12, C_DIM, 12, 220);
+  filamentBody = scrollBodyLabel(screenFilament, "Connect Filament Inventory from the web dashboard.", &lv_font_montserrat_12, C_TEXT, 12, 240, 296, 166);
   addBottomNav(screenFilament, ScreenId::Apps);
 }
 
 static void createWorkshop() {
   screenWorkshop = lv_obj_create(nullptr); styleScreen(screenWorkshop); addStatusBar(screenWorkshop, "WORKSHOP");
-  workshopBody = wrapLabel(screenWorkshop, "Workshop starting...", &lv_font_montserrat_12, C_TEXT, 14, 54, 292); lv_obj_set_style_text_line_space(workshopBody, 5, 0);
-  button(screenWorkshop, "Air mode", 12, 304, 92, 46, [](lv_event_t*){ config.airMode=static_cast<AirMode>((static_cast<int>(config.airMode)+1)%4); state.workshop.airMode=config.airMode; configStore.save(config); }, nullptr, C_BLUE);
-  button(screenWorkshop, "PETG dry", 114, 304, 92, 46, [](lv_event_t*){ workshopService.startDryer(state,"PETG",55,6UL*3600UL); }, nullptr, C_ORANGE);
-  button(screenWorkshop, "Stop dryer", 216, 304, 92, 46, [](lv_event_t*){ workshopService.stopDryer(state); }, nullptr, C_RED);
-  button(screenWorkshop, "Quick controls", 12, 366, 296, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Quick)), C_BLUE);
+  lv_obj_t *env = panel(screenWorkshop, 12, 58, 296, 92, C_SURFACE_2);
+  label(env, "ENVIRONMENT", &lv_font_montserrat_12, C_BLUE, 12, 9);
+  workshopEnvironmentLabel = wrapLabel(env, "No sensor connected", &lv_font_montserrat_14, C_TEXT, 12, 34, 270);
+  lv_obj_t *air = panel(screenWorkshop, 12, 162, 142, 112, C_SURFACE);
+  label(air, "AIR", &lv_font_montserrat_12, C_GREEN, 10, 9);
+  workshopAirLabel = wrapLabel(air, "Auto\nReady", &lv_font_montserrat_14, C_TEXT, 10, 34, 120);
+  lv_obj_t *dryer = panel(screenWorkshop, 166, 162, 142, 112, C_SURFACE);
+  label(dryer, "DRYER TIMER", &lv_font_montserrat_12, C_ORANGE, 10, 9);
+  workshopDryerLabel = wrapLabel(dryer, "Idle", &lv_font_montserrat_14, C_TEXT, 10, 34, 120);
+  workshopBody = label(screenWorkshop, "", &lv_font_montserrat_12, C_MUTED, 12, 286, 296);
+  button(screenWorkshop, "Air mode", 12, 316, 92, 48, [](lv_event_t*){ config.airMode=static_cast<AirMode>((static_cast<int>(config.airMode)+1)%4); state.workshop.airMode=config.airMode; configStore.save(config); }, nullptr, C_BLUE);
+  button(screenWorkshop, "PETG timer", 114, 316, 92, 48, [](lv_event_t*){ workshopService.startDryer(state,"PETG",55,6UL*3600UL); }, nullptr, C_ORANGE);
+  button(screenWorkshop, "Stop timer", 216, 316, 92, 48, [](lv_event_t*){ workshopService.stopDryer(state); }, nullptr, C_RED);
+  button(screenWorkshop, "Quick controls", 12, 376, 296, 40, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Quick)), C_BLUE);
   addBottomNav(screenWorkshop, ScreenId::Apps);
 }
 
 static void createInsights() {
   screenInsights = lv_obj_create(nullptr); styleScreen(screenInsights); addStatusBar(screenInsights, "INSIGHTS");
-  insightsBody = wrapLabel(screenInsights, "Evaluating current context...", &lv_font_montserrat_12, C_TEXT, 14, 54, 292);
+  insightsBody = scrollBodyLabel(screenInsights, "Evaluating current context...", &lv_font_montserrat_12, C_TEXT, 12, 54, 296, 298);
   lv_obj_set_style_text_line_space(insightsBody, 5, 0);
   button(screenInsights, "Workshop", 12, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Workshop)), C_ORANGE);
   button(screenInsights, "Device", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
@@ -638,7 +697,7 @@ static void createInsights() {
 
 static void createAutomation() {
   screenAutomation = lv_obj_create(nullptr); styleScreen(screenAutomation); addStatusBar(screenAutomation, "AUTOMATION");
-  automationBody = wrapLabel(screenAutomation, "Evaluating local rules...", &lv_font_montserrat_12, C_TEXT, 14, 54, 292); lv_obj_set_style_text_line_space(automationBody, 5, 0);
+  automationBody = scrollBodyLabel(screenAutomation, "Evaluating local rules...", &lv_font_montserrat_12, C_TEXT, 12, 54, 296, 298); lv_obj_set_style_text_line_space(automationBody, 5, 0);
   button(screenAutomation, "Workshop", 12, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Workshop)), C_ORANGE);
   button(screenAutomation, "Insights", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Insights)), C_PURPLE);
   addBottomNav(screenAutomation, ScreenId::Apps);
@@ -646,14 +705,14 @@ static void createAutomation() {
 
 static void createActivity() {
   screenActivity = lv_obj_create(nullptr); styleScreen(screenActivity); addStatusBar(screenActivity, "ACTIVITY");
-  activityBody = wrapLabel(screenActivity, "No recent activity", &lv_font_montserrat_12, C_TEXT, 14, 54, 292); lv_obj_set_style_text_line_space(activityBody, 5, 0);
+  activityBody = scrollBodyLabel(screenActivity, "No recent activity", &lv_font_montserrat_12, C_TEXT, 12, 54, 296, 298); lv_obj_set_style_text_line_space(activityBody, 5, 0);
   button(screenActivity, "Device", 12, 366, 296, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
   addBottomNav(screenActivity, ScreenId::Apps);
 }
 
 static void createDevices() {
   screenDevices = lv_obj_create(nullptr); styleScreen(screenDevices); addStatusBar(screenDevices, "DEVICES");
-  devicesBody = wrapLabel(screenDevices, "Inspecting device health...", &lv_font_montserrat_12, C_TEXT, 14, 54, 292); lv_obj_set_style_text_line_space(devicesBody, 5, 0);
+  devicesBody = scrollBodyLabel(screenDevices, "Inspecting device health...", &lv_font_montserrat_12, C_TEXT, 12, 54, 296, 298); lv_obj_set_style_text_line_space(devicesBody, 5, 0);
   button(screenDevices, "Activity", 12, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Activity)), C_PURPLE);
   button(screenDevices, "Settings", 114, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)), C_BLUE);
   button(screenDevices, "Modes", 216, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Modes)), C_GREEN);
@@ -700,7 +759,7 @@ static void createModes() {
 
 static void createReadiness() {
   screenReadiness = lv_obj_create(nullptr); styleScreen(screenReadiness); addStatusBar(screenReadiness, "READINESS");
-  readinessBody = wrapLabel(screenReadiness, "Evaluating setup...", &lv_font_montserrat_12, C_TEXT, 14, 54, 292);
+  readinessBody = scrollBodyLabel(screenReadiness, "Evaluating setup...", &lv_font_montserrat_12, C_TEXT, 12, 54, 296, 298);
   lv_obj_set_style_text_line_space(readinessBody, 5, 0);
   button(screenReadiness, "Device", 12, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
   button(screenReadiness, "Settings", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)), C_PURPLE);
@@ -709,7 +768,7 @@ static void createReadiness() {
 
 static void createSystem() {
   screenSystem = lv_obj_create(nullptr); styleScreen(screenSystem); addStatusBar(screenSystem, "SYSTEM");
-  systemBody = wrapLabel(screenSystem, "Loading diagnostics...", &lv_font_montserrat_12, C_TEXT, 14, 58, 292); lv_obj_set_style_text_line_space(systemBody, 7, 0);
+  systemBody = scrollBodyLabel(screenSystem, "Loading diagnostics...", &lv_font_montserrat_12, C_TEXT, 12, 54, 296, 294); lv_obj_set_style_text_line_space(systemBody, 7, 0);
   button(screenSystem, "Readiness", 12, 362, 142, 48, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Readiness)), C_BLUE);
   button(screenSystem, "Activity", 166, 362, 142, 48, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Activity)), C_PURPLE);
   addBottomNav(screenSystem, ScreenId::Apps);
@@ -744,7 +803,7 @@ static void refreshHome() {
   if(homeClock) lv_label_set_text(homeClock,timeBuf); if(homeDate) lv_label_set_text(homeDate,dateBuf); if(homeGreeting) lv_label_set_text(homeGreeting,greeting);
   if(homeStatus) { char b[96]; snprintf(b,sizeof(b),"%s • %u alert%s",WiFi.status()==WL_CONNECTED?"Connected":state.system.setupApActive?"Setup available":"Local mode",state.alertCount,state.alertCount==1?"":"s"); lv_label_set_text(homeStatus,b); }
   updateHero();
-  for(int i=0;i<3;i++){ String t,d,v; homeCardContent(config.homeCards[i],t,d,v); lv_label_set_text(homeCardTitle[i],t.c_str()); lv_label_set_text(homeCardDetail[i],d.c_str()); lv_label_set_text(homeCardState[i],v.c_str()); }
+  for(int i=0;i<3;i++){ String t,d,v; homeCardContent(config.homeCards[i],t,d,v); lv_label_set_text(homeCardTitle[i],t.c_str()); lv_label_set_text(homeCardDetail[i],d.c_str()); lv_label_set_text(homeCardState[i],v.c_str()); lv_obj_set_style_text_color(homeCardState[i],homeCardColor(config.homeCards[i]),0); }
 }
 
 static void refreshToday() {
@@ -786,7 +845,10 @@ static void refreshAttention() {
 }
 
 static void refreshSettings() {
-  if(!settingsBody)return; char b[360]; snprintf(b,sizeof(b),"Brightness %u%% • dim %us @ %u%%\nTimezone %s\nTheme %s • NOW %s\nAmbient %s • Air %s\nCards: %s • %s • %s\nWeb: http://%s/",config.brightness,config.ambientTimeoutSec,config.ambientBrightness,config.timezoneId,themeName(config.theme),heroModeName(config.heroMode),ambientModeName(config.ambientMode),airModeName(config.airMode),homeCardName(config.homeCards[0]),homeCardName(config.homeCards[1]),homeCardName(config.homeCards[2]),state.system.ip); lv_label_set_text(settingsBody,b);
+  if(!settingsBody)return;
+  char b[220];
+  snprintf(b,sizeof(b),"%u%% • %s • NOW %s • %s",config.brightness,themeName(config.theme),heroModeName(config.heroMode),config.timezoneId);
+  lv_label_set_text(settingsBody,b);
 }
 
 static void refreshWifi() {
@@ -831,6 +893,10 @@ static void refreshPrinter() {
   if (online) snprintf(temp, sizeof(temp), "%.0f°", state.printer.chamberC); else snprintf(temp, sizeof(temp), "--°");
   lv_label_set_text(printerChamberLabel, temp);
 
+  if (printerPauseButton) { if (printing) lv_obj_clear_state(printerPauseButton, LV_STATE_DISABLED); else lv_obj_add_state(printerPauseButton, LV_STATE_DISABLED); }
+  if (printerResumeButton) { if (online && !printing) lv_obj_clear_state(printerResumeButton, LV_STATE_DISABLED); else lv_obj_add_state(printerResumeButton, LV_STATE_DISABLED); }
+  if (printerStopButton) { if (online && (printing || !strcmp(state.printer.status, "PAUSE") || !strcmp(state.printer.status, "PAUSED"))) lv_obj_clear_state(printerStopButton, LV_STATE_DISABLED); else lv_obj_add_state(printerStopButton, LV_STATE_DISABLED); }
+
   for (int i = 0; i < 4; ++i) {
     if (!printerAmsLabels[i] || !printerAmsPanels[i]) continue;
     auto &slot = state.printer.amsSlots[i];
@@ -849,20 +915,50 @@ static void refreshPrinter() {
 }
 
 static void refreshFilament() {
-  if(!filamentBody)return; char b[420]; if(!config.filamentEnabled) snprintf(b,sizeof(b),"Filament Inventory is not configured.\n\nConnect this device to the private cloud inventory from the web dashboard."); else if(!state.filament.online) snprintf(b,sizeof(b),"Inventory unavailable\n\nProfile: %s\nEndpoint configured, waiting for cloud sync.",config.filamentProfile); else snprintf(b,sizeof(b),"PROFILE  %s\n\nTotal spools   %d\nLoaded         %d\nLow            %d\nEmpty          %d\nUnknown        %d\n\nCloud updated\n%s",state.filament.profile,state.filament.totalSpools,state.filament.loadedSpools,state.filament.lowSpools,state.filament.emptySpools,state.filament.unknownSpools,strlen(state.filament.updatedAt)?state.filament.updatedAt:"recently"); lv_label_set_text(filamentBody,b);
+  if (!filamentBody) return;
+  int values[] = {state.filament.totalSpools, state.filament.loadedSpools, state.filament.lowSpools, state.filament.emptySpools};
+  for (int i = 0; i < 4; ++i) if (filamentMetricLabels[i]) {
+    lv_label_set_text(filamentMetricLabels[i], config.filamentEnabled && state.filament.online ? String(values[i]).c_str() : "--");
+    lv_obj_set_style_text_color(filamentMetricLabels[i], i == 3 && values[i] ? C_RED : i == 2 && values[i] ? C_ORANGE : C_TEXT, 0);
+  }
+  String b;
+  if (!config.filamentEnabled) b = "Filament Inventory is not configured.\nConnect it from the web dashboard.";
+  else if (!state.filament.online) b = String("Inventory unavailable\nProfile: ") + config.filamentProfile + "\nWaiting for cloud sync.";
+  else if (state.filament.attentionCount) {
+    for (int i = 0; i < state.filament.attentionCount; ++i) {
+      auto &a = state.filament.attention[i];
+      if (!a.valid) continue;
+      b += String("• ") + (strlen(a.brand) ? a.brand : "Filament") + " " + (strlen(a.material) ? a.material : "") + "\n  " + (strlen(a.colorName) ? a.colorName : "Unknown color");
+      if (a.remainingPercent >= 0) b += String(" • ") + a.remainingPercent + "%";
+      else if (a.remainingGrams >= 0) b += String(" • ") + a.remainingGrams + " g";
+      b += "\n\n";
+    }
+  } else b = String("All tracked spools are above their configured low thresholds.\nProfile ") + state.filament.profile;
+  lv_label_set_text(filamentBody, b.c_str());
 }
 
 static void refreshWorkshop() {
-  if(!workshopBody)return; String b="PRINTER\n";
-  b += state.printer.online ? (String(state.printer.status)+" • "+state.printer.progress+"% • "+formatMinutes(state.printer.remainingMinutes)) : "Offline / not configured";
-  b += "\n\nENVIRONMENT\n";
-  auto &e=state.workshop.environment;
-  if(!e.online) b += "No sensor connected";
-  else { b += String(e.source)+" • "+(e.stale?"STALE":"LIVE")+"\n"+String(e.temperatureC,1)+"°C • "+String(e.humidity,0)+"% RH • PM2.5 "+String(e.pm25,1)+"\nVOC "+String(e.voc,0)+" • CO2 "+String(e.co2,0)+" ppm • Presence "+(e.presence?"yes":"no"); }
-  b += "\n\nAIR  "; b += airModeName(config.airMode); b += state.workshop.filterRequested ? String(" • FILTER ON\n")+state.workshop.filterReason : " • filter idle";
-  b += "\n\nDRYER  "; auto &d=state.workshop.dryer; if(d.running){ b += String(d.material)+" • "+d.targetC+"°C • "+(d.remainingSec/60UL)+" min"; } else b += d.completed?"Complete":"Idle";
-  if(state.activityCount){ b+="\n\nRECENT  "; b+=state.activity[0].title; }
-  lv_label_set_text(workshopBody,b.c_str());
+  auto &e = state.workshop.environment;
+  if (workshopEnvironmentLabel) {
+    String b = !e.online ? "No sensor connected" : String(e.stale ? "STALE" : "LIVE") + " • " + e.source + "\n" + String(e.temperatureC,1) + "°C • " + String(e.humidity,0) + "% RH\nPM2.5 " + String(e.pm25,1) + " • VOC " + String(e.voc,0);
+    lv_label_set_text(workshopEnvironmentLabel, b.c_str());
+    lv_obj_set_style_text_color(workshopEnvironmentLabel, e.online && !e.stale ? C_TEXT : C_MUTED, 0);
+  }
+  if (workshopAirLabel) {
+    String b = String(airModeName(config.airMode)) + "\n" + (state.workshop.filterRequested ? "FILTER ON" : "Ready");
+    if (state.workshop.filterRequested && strlen(state.workshop.filterReason)) b += String("\n") + state.workshop.filterReason;
+    lv_label_set_text(workshopAirLabel, b.c_str());
+    lv_obj_set_style_text_color(workshopAirLabel, state.workshop.filterRequested ? C_ORANGE : C_TEXT, 0);
+  }
+  if (workshopDryerLabel) {
+    auto &d = state.workshop.dryer;
+    String b = d.running ? String(d.material) + " • " + d.targetC + "°C\n" + (d.remainingSec/60UL) + " min left" : d.completed ? "Complete" : "Idle";
+    lv_label_set_text(workshopDryerLabel, b.c_str());
+  }
+  if (workshopBody) {
+    String b = state.printer.printing ? String("Printer ") + state.printer.progress + "% • " + formatMinutes(state.printer.remainingMinutes) + " left" : "Printer idle";
+    lv_label_set_text(workshopBody, b.c_str());
+  }
 }
 
 static void refreshInsights() {
@@ -995,31 +1091,22 @@ static void refreshModes() {
 
 static void refreshReadiness() {
   if(!readinessBody) return;
-  int configured=0, total=7;
-  if(WiFi.status()==WL_CONNECTED) configured++;
-  if(config.weatherEnabled && state.weather.configured) configured++;
-  if(config.bambuEnabled && strlen(config.bambuHost)) configured++;
-  if(config.filamentEnabled) configured++;
-  if(config.calendarEnabled) configured++;
-  if(config.homeAssistantEnabled) configured++;
-  if(config.workshopEnabled) configured++;
-  int score=(configured*100)/total;
-
-  String b="SETUP READINESS  "+String(score)+"%\n\n";
-  b += String(WiFi.status()==WL_CONNECTED?"✓":"○")+" Network           "+(WiFi.status()==WL_CONNECTED?"Connected":"Needs setup")+"\n";
-  b += String(config.weatherEnabled&&state.weather.configured?"✓":"○")+" Weather           "+(config.weatherEnabled?(state.weather.configured?"Configured":"Needs location"):"Optional / off")+"\n";
-  b += String(config.bambuEnabled&&strlen(config.bambuHost)?"✓":"○")+" Bambu printer     "+(config.bambuEnabled?(strlen(config.bambuHost)?"Configured":"Needs printer"):"Optional / off")+"\n";
-  b += String(config.filamentEnabled?"✓":"○")+" Filament          "+(config.filamentEnabled?"Enabled":"Optional / off")+"\n";
-  b += String(config.calendarEnabled?"✓":"○")+" Calendar          "+(config.calendarEnabled?"Enabled":"Optional / off")+"\n";
-  b += String(config.homeAssistantEnabled?"✓":"○")+" Home Assistant    "+(config.homeAssistantEnabled?"Enabled":"Optional / off")+"\n";
-  b += String(config.workshopEnabled?"✓":"○")+" Workshop          "+(config.workshopEnabled?"Enabled":"Disabled")+"\n\n";
-
-  if(!state.system.stableBoot) b += "NEXT  Allow boot validation to complete.";
-  else if(WiFi.status()!=WL_CONNECTED) b += "NEXT  Connect Wi-Fi from the setup portal.";
-  else if(config.weatherEnabled&&!state.weather.configured) b += "NEXT  Set ZIP or City, State in Weather settings.";
-  else if(config.bambuEnabled&&!strlen(config.bambuHost)) b += "NEXT  Scan for your Bambu printer or enter its IP.";
-  else if(state.system.updateAvailable) b += String("NEXT  Firmware ")+state.system.updateVersion+" is available.";
-  else b += "NEXT  Core setup is healthy. Add optional integrations when useful.";
+  const bool networkReady = WiFi.status() == WL_CONNECTED;
+  const bool systemReady = state.system.stableBoot && !state.system.recoveryMode;
+  const bool workshopReady = config.workshopEnabled;
+  String b = "CORE\n";
+  b += String(networkReady ? "✓" : "○") + " Network       " + (networkReady ? "Connected" : "Needs setup") + "\n";
+  b += String(systemReady ? "✓" : "○") + " System        " + (systemReady ? "Ready" : state.system.recoveryMode ? "Recovery" : "Validating") + "\n";
+  b += String(workshopReady ? "✓" : "○") + " Workshop      " + (workshopReady ? "Enabled" : "Disabled") + "\n\nOPTIONAL\n";
+  b += String(config.weatherEnabled && state.weather.configured ? "✓" : "○") + " Weather       " + (config.weatherEnabled ? (state.weather.configured ? "Configured" : "Needs location") : "Off") + "\n";
+  b += String(config.bambuEnabled && state.printer.configured ? "✓" : "○") + " Printer       " + (config.bambuEnabled ? (state.printer.configured ? "Configured" : "Needs printer") : "Off") + "\n";
+  b += String(config.filamentEnabled ? "✓" : "○") + " Filament      " + (config.filamentEnabled ? "Enabled" : "Off") + "\n";
+  b += String(config.calendarEnabled ? "✓" : "○") + " Calendar      " + (config.calendarEnabled ? "Enabled" : "Off") + "\n";
+  b += String(config.homeAssistantEnabled ? "✓" : "○") + " Smart Home    " + (config.homeAssistantEnabled ? "Enabled" : "Off") + "\n\n";
+  if(!systemReady) b += "NEXT  Complete boot validation or recovery.";
+  else if(!networkReady) b += "NEXT  Connect Wi-Fi.";
+  else if(state.system.updateAvailable) b += String("NEXT  Firmware ") + state.system.updateVersion + " is available.";
+  else b += "READY  Core setup is healthy. Optional integrations do not reduce readiness.";
   lv_label_set_text(readinessBody,b.c_str());
 }
 
@@ -1059,8 +1146,34 @@ static void refreshAmbient() {
   lv_label_set_text(ambientSummary,s.c_str());
 }
 
+static void refreshActiveScreen() {
+  refreshStatusBars();
+  switch (currentScreen) {
+    case ScreenId::Home: refreshHome(); break;
+    case ScreenId::Today: refreshToday(); break;
+    case ScreenId::Controls: refreshControls(); break;
+    case ScreenId::Attention: refreshAttention(); break;
+    case ScreenId::Settings: refreshSettings(); break;
+    case ScreenId::Wifi: refreshWifi(); break;
+    case ScreenId::Timers: refreshTimers(); break;
+    case ScreenId::Printer: refreshPrinter(); break;
+    case ScreenId::Filament: refreshFilament(); break;
+    case ScreenId::Workshop: refreshWorkshop(); break;
+    case ScreenId::Insights: refreshInsights(); break;
+    case ScreenId::Automation: refreshAutomation(); break;
+    case ScreenId::Activity: refreshActivity(); break;
+    case ScreenId::Devices: refreshDevices(); break;
+    case ScreenId::Modes: refreshModes(); break;
+    case ScreenId::Readiness: refreshReadiness(); break;
+    case ScreenId::System: refreshSystem(); break;
+    case ScreenId::Ambient: refreshAmbient(); break;
+    default: break;
+  }
+}
+
 static void refreshUi() {
-  refreshStatusBars(); refreshHome(); refreshToday(); refreshControls(); refreshAttention(); refreshSettings(); refreshWifi(); refreshTimers(); refreshPrinter(); refreshFilament(); refreshWorkshop(); refreshInsights(); refreshAutomation(); refreshActivity(); refreshDevices(); refreshReadiness(); refreshSystem(); refreshAmbient();
+  refreshHome();
+  refreshActiveScreen();
 }
 
 static void applyTimeConfiguration() {
@@ -1103,7 +1216,7 @@ void loop() {
   if(config.presenceEnabled && state.workshop.environment.presence){lastInteractionMs=millis(); if(ambientMode)wakeFromAmbient();}
   if(webDashboard.configChanged()){webDashboard.clearConfigChanged();applyBacklight(config.brightness);audio.setVolume(config.audioVolume);timeConfigured=false;if(!state.system.recoveryMode)serviceManager.configChanged(config,state);workshopService.begin(config,state);lastUiRefreshMs=0;}
   if(millis()-lastAttentionMs>=ATTENTION_REFRESH_MS){lastAttentionMs=millis();attentionEngine.update(config,state);}
-  if(millis()-lastUiRefreshMs>=UI_REFRESH_MS){lastUiRefreshMs=millis();refreshUi();}
+  if(millis()-lastUiRefreshMs>=UI_REFRESH_MS){lastUiRefreshMs=millis();refreshActiveScreen();}
   if(!ambientMode&&!state.system.recoveryMode&&millis()-lastInteractionMs>=config.ambientTimeoutSec*1000UL)enterAmbient();
   delay(5);
 }

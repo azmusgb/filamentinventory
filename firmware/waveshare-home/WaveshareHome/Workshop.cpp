@@ -39,7 +39,13 @@ void WorkshopService::begin(AppConfig &config, AppState &state) {
 
 void WorkshopService::loop(AppConfig &config, AppState &state) {
   state.workshop.enabled = config.workshopEnabled;
-  if (!config.workshopEnabled) return;
+  state.workshop.airMode = config.airMode;
+  if (!config.workshopEnabled) {
+    state.workshop.filterRequested = false;
+    state.workshop.filterReason[0] = '\0';
+    state.workshop.postFilterUntilMs = 0;
+    return;
+  }
 
   if (state.workshop.dryer.running) {
     uint32_t elapsed = (millis() - state.workshop.dryer.startedMs) / 1000UL;
@@ -52,27 +58,50 @@ void WorkshopService::loop(AppConfig &config, AppState &state) {
     }
   }
 
-  if (config.airMode == AirMode::Auto) {
+  const bool printJustFinished = lastPrinting_ && !state.printer.printing;
+  const bool postWindowActive = (int32_t)(state.workshop.postFilterUntilMs - millis()) > 0;
+  const bool airElevated = state.workshop.environment.online && !state.workshop.environment.stale &&
+    (state.workshop.environment.pm25 >= config.pm25Alert || state.workshop.environment.voc >= config.vocAlert);
+
+  if (config.airMode == AirMode::Manual) {
+    state.workshop.postFilterUntilMs = 0;
+    state.workshop.filterRequested = true;
+    copyWs(state.workshop.filterReason, sizeof(state.workshop.filterReason), "Manual request");
+  } else if (config.airMode == AirMode::Auto) {
     if (state.printer.printing) {
       state.workshop.filterRequested = true;
       copyWs(state.workshop.filterReason, sizeof(state.workshop.filterReason), "Printer active");
-    } else if (state.workshop.environment.pm25 >= config.pm25Alert || state.workshop.environment.voc >= config.vocAlert) {
+    } else if (airElevated) {
       state.workshop.filterRequested = true;
       copyWs(state.workshop.filterReason, sizeof(state.workshop.filterReason), "Air quality elevated");
-    } else if (lastPrinting_ && !state.printer.printing) {
+    } else if (printJustFinished) {
       state.workshop.postFilterUntilMs = millis() + config.postPrintFilterMinutes * 60000UL;
-      state.workshop.filterRequested = true;
+      state.workshop.filterRequested = config.postPrintFilterMinutes > 0;
       copyWs(state.workshop.filterReason, sizeof(state.workshop.filterReason), "Post-print filtration");
-    } else if ((int32_t)(state.workshop.postFilterUntilMs - millis()) > 0) {
+    } else if (postWindowActive) {
       state.workshop.filterRequested = true;
       copyWs(state.workshop.filterReason, sizeof(state.workshop.filterReason), "Post-print filtration");
     } else {
       state.workshop.filterRequested = false;
       state.workshop.filterReason[0] = '\0';
+      state.workshop.postFilterUntilMs = 0;
     }
-  } else if (config.airMode == AirMode::Off) {
+  } else if (config.airMode == AirMode::PostPrint) {
+    if (printJustFinished) {
+      state.workshop.postFilterUntilMs = millis() + config.postPrintFilterMinutes * 60000UL;
+    }
+    if ((int32_t)(state.workshop.postFilterUntilMs - millis()) > 0) {
+      state.workshop.filterRequested = true;
+      copyWs(state.workshop.filterReason, sizeof(state.workshop.filterReason), "Post-print filtration");
+    } else {
+      state.workshop.filterRequested = false;
+      state.workshop.filterReason[0] = '\0';
+      state.workshop.postFilterUntilMs = 0;
+    }
+  } else {
     state.workshop.filterRequested = false;
     state.workshop.filterReason[0] = '\0';
+    state.workshop.postFilterUntilMs = 0;
   }
 
   state.workshop.environment.stale = state.workshop.environment.updatedMs == 0 || millis() - state.workshop.environment.updatedMs > 180000UL;
