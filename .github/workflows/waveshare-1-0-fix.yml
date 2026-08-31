@@ -1,0 +1,43 @@
+name: Fix and Build Waveshare Home 1.0
+
+on:
+  push:
+    paths:
+      - 'tools/fix_waveshare_1_0_modes.py'
+      - '.github/workflows/waveshare-1-0-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Apply stable 1.0 compile fix
+        run: python3 tools/fix_waveshare_1_0_modes.py
+      - name: Validate stable source
+        run: |
+          grep -q 'FW_VERSION\[\] = "1.0.0"' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -q 'Readiness, Modes, System' firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+          grep -q 'case ScreenId::Modes: return screenModes;' firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+      - name: Commit stable fix
+        run: |
+          if git diff --quiet; then
+            echo 'Stable fix already applied'
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+            git commit -m 'Fix Modes enum for stable Waveshare Home 1.0.0'
+            git push
+          fi
+      - name: Trigger validated stable firmware build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run waveshare-home.yml --repo '${{ github.repository }}'
