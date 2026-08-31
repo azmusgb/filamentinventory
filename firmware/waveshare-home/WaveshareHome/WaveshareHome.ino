@@ -69,6 +69,7 @@ static lv_obj_t *screenInsights = nullptr;
 static lv_obj_t *screenAutomation = nullptr;
 static lv_obj_t *screenActivity = nullptr;
 static lv_obj_t *screenDevices = nullptr;
+static lv_obj_t *screenModes = nullptr;
 static lv_obj_t *screenSystem = nullptr;
 static lv_obj_t *screenRecovery = nullptr;
 static lv_obj_t *screenAmbient = nullptr;
@@ -98,6 +99,7 @@ static lv_obj_t *insightsBody = nullptr;
 static lv_obj_t *automationBody = nullptr;
 static lv_obj_t *activityBody = nullptr;
 static lv_obj_t *devicesBody = nullptr;
+static lv_obj_t *modesBody = nullptr;
 static lv_obj_t *systemBody = nullptr;
 static lv_obj_t *settingsBody = nullptr;
 static lv_obj_t *ambientClock = nullptr;
@@ -276,6 +278,7 @@ static lv_obj_t *screenFor(ScreenId id) {
     case ScreenId::Workshop: return screenWorkshop;
     case ScreenId::Insights: return screenInsights;
     case ScreenId::Automation: return screenAutomation;
+    case ScreenId::Modes: return screenModes;
     case ScreenId::Activity: return screenActivity;
     case ScreenId::Devices: return screenDevices;
     case ScreenId::System: return screenSystem;
@@ -437,7 +440,7 @@ static void createApps() {
     {"Controls", ScreenId::Controls, C_GREEN}, {"Today", ScreenId::Today, C_PURPLE}, {"Timers", ScreenId::Timers, C_ORANGE},
     {"Attention", ScreenId::Attention, C_RED}, {"Insights", ScreenId::Insights, C_PURPLE}, {"Automation", ScreenId::Automation, C_ORANGE}, {"Quick", ScreenId::Quick, C_BLUE},
     {"Activity", ScreenId::Activity, C_PURPLE}, {"Devices", ScreenId::Devices, C_BLUE}, {"Settings", ScreenId::Settings, C_PURPLE},
-    {"System", ScreenId::System, C_GREEN}
+    {"Modes", ScreenId::Modes, C_BLUE}, {"System", ScreenId::System, C_GREEN}
   };
   for (size_t i = 0; i < sizeof(apps)/sizeof(apps[0]); ++i) button(screenApps, apps[i].name, 12 + (i%3)*102, 54 + (i/3)*70, 92, 58, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(apps[i].id)), apps[i].color);
   button(screenApps, "Home", 114, 402, 194, 24, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)));
@@ -481,6 +484,7 @@ static void createQuick() {
   button(screenQuick, "Insights", 216, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Insights)), C_PURPLE);
   button(screenQuick, "Activity", 12, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Activity)), C_PURPLE);
   button(screenQuick, "Devices", 114, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
+  button(screenQuick, "Modes", 216, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Modes)), C_BLUE);
   button(screenQuick, "Home", 12, 348, 296, 48, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
 }
 
@@ -578,6 +582,44 @@ static void createDevices() {
   devicesBody = wrapLabel(screenDevices, "Inspecting device health...", &lv_font_montserrat_12, C_TEXT, 14, 54, 292); lv_obj_set_style_text_line_space(devicesBody, 5, 0);
   button(screenDevices, "Activity", 12, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Activity)), C_PURPLE);
   button(screenDevices, "Home", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+}
+
+static void applyOperationalMode(int mode) {
+  if(mode == 0) { // Home / adaptive
+    config.ambientMode = AmbientDisplayMode::Auto;
+    config.airMode = AirMode::Auto;
+    config.audioEnabled = true;
+  } else if(mode == 1) { // Print focus
+    config.ambientMode = AmbientDisplayMode::Printer;
+    config.airMode = AirMode::Auto;
+    config.audioEnabled = true;
+  } else if(mode == 2) { // Workshop focus
+    config.ambientMode = AmbientDisplayMode::Workshop;
+    config.airMode = AirMode::Auto;
+    config.audioEnabled = true;
+  } else if(mode == 3) { // Quiet
+    config.ambientMode = AmbientDisplayMode::Minimal;
+    config.audioEnabled = false;
+  }
+  state.workshop.airMode = config.airMode;
+  configStore.save(config);
+  audio.setVolume(config.audioEnabled ? config.audioVolume : 0);
+  lastUiRefreshMs = 0;
+}
+
+static void modeEvent(lv_event_t *e) {
+  applyOperationalMode((int)reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
+}
+
+static void createModes() {
+  screenModes = lv_obj_create(nullptr); styleScreen(screenModes); addStatusBar(screenModes, "MODES");
+  modesBody = wrapLabel(screenModes, "Adaptive operating profiles", &lv_font_montserrat_12, C_MUTED, 14, 54, 292);
+  button(screenModes, "Home", 12, 92, 142, 64, modeEvent, reinterpret_cast<void *>(0), C_GREEN);
+  button(screenModes, "Print focus", 166, 92, 142, 64, modeEvent, reinterpret_cast<void *>(1), C_BLUE);
+  button(screenModes, "Workshop", 12, 170, 142, 64, modeEvent, reinterpret_cast<void *>(2), C_ORANGE);
+  button(screenModes, "Quiet", 166, 170, 142, 64, modeEvent, reinterpret_cast<void *>(3), C_PURPLE);
+  button(screenModes, "Automation", 12, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Automation)), C_BLUE);
+  button(screenModes, "Home screen", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
 }
 
 static void createSystem() {
@@ -812,6 +854,20 @@ static void refreshDevices() {
   b += String("Presence           ")+(config.presenceEnabled?(e.online?(e.presence?"Detected":"Clear"):"Not connected"):"Disabled")+"\n";
   b += String("Dryer              ")+(config.dryerEnabled?(state.workshop.dryer.running?"Running":"Ready"):"Disabled");
   lv_label_set_text(devicesBody,b.c_str());
+}
+
+static void refreshModes() {
+  if(!modesBody) return;
+  String b = "CURRENT PROFILE\n";
+  if(config.ambientMode == AmbientDisplayMode::Printer) b += "Print focus";
+  else if(config.ambientMode == AmbientDisplayMode::Workshop) b += "Workshop focus";
+  else if(config.ambientMode == AmbientDisplayMode::Minimal && !config.audioEnabled) b += "Quiet";
+  else b += "Home / adaptive";
+  b += "\n\nAmbient  "; b += ambientModeName(config.ambientMode);
+  b += "\nAir      "; b += airModeName(config.airMode);
+  b += "\nAudio    "; b += config.audioEnabled ? "On" : "Muted";
+  b += "\n\nProfiles change only local display/audio/filter policy. They do not start or stop a print.";
+  lv_label_set_text(modesBody, b.c_str());
 }
 
 static void refreshSystem() {
