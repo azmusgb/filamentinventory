@@ -39,3 +39,5 @@ jobs:
           git add firmware/waveshare-home/WaveshareHome
           git commit -m 'Fix device OTA and weather UX for rc9'
           git push
+
+# Retry after resilient Weather matcher fix.
