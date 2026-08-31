@@ -2104,23 +2104,81 @@ bool WebDashboard::installSelfUpdate() {
   sys.otaError[0] = '\0';
   sys.updateError[0] = '\0';
 
+  // Resolve GitHub cross-host release-asset redirects explicitly.
+  String firmwareUrl = sys.updateFirmwareUrl;
+  {
+    WiFiClientSecure redirectSecure;
+    redirectSecure.setInsecure();
+    HTTPClient redirectHttp;
+    redirectHttp.setConnectTimeout(7000);
+    redirectHttp.setTimeout(15000);
+    redirectHttp.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+    const char *redirectHeaders[] = {"Location"};
+    redirectHttp.collectHeaders(redirectHeaders, 1);
+    if (!redirectHttp.begin(redirectSecure, firmwareUrl)) {
+      strlcpy(sys.updateError, "Could not open firmware URL", sizeof(sys.updateError));
+      strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));
+      free(image);
+      sys.otaInProgress = false;
+      return false;
+    }
+    redirectHttp.addHeader("User-Agent", "WaveshareHome/1.0.7 ESP32-S3");
+    const int redirectCode = redirectHttp.GET();
+    if (redirectCode >= 300 && redirectCode < 400) {
+      String location = redirectHttp.header("Location");
+      redirectHttp.end();
+      if (!location.startsWith("https://")) {
+        strlcpy(sys.updateError, "Firmware redirect missing secure Location", sizeof(sys.updateError));
+        strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));
+        free(image);
+        sys.otaInProgress = false;
+        return false;
+      }
+      firmwareUrl = location;
+    } else if (redirectCode == HTTP_CODE_OK) {
+      redirectHttp.end();
+    } else {
+      String e = String("Firmware redirect HTTP ") + redirectCode;
+      strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));
+      strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));
+      redirectHttp.end();
+      free(image);
+      sys.otaInProgress = false;
+      return false;
+    }
+  }
+
   WiFiClientSecure secure;
   secure.setInsecure();
   HTTPClient http;
   http.setConnectTimeout(7000);
   http.setTimeout(15000);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  if (!http.begin(secure, sys.updateFirmwareUrl)) {
-    strlcpy(sys.updateError, "Could not open firmware URL", sizeof(sys.updateError));
+  http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+  const char *assetHeaders[] = {"Content-Type"};
+  http.collectHeaders(assetHeaders, 1);
+  if (!http.begin(secure, firmwareUrl)) {
+    strlcpy(sys.updateError, "Could not open release asset URL", sizeof(sys.updateError));
+    strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));
     free(image);
     sys.otaInProgress = false;
     return false;
   }
-  http.addHeader("User-Agent", "WaveshareHome/1.0.1 ESP32-S3");
+  http.addHeader("User-Agent", "WaveshareHome/1.0.7 ESP32-S3");
   int code = http.GET();
   if (code != HTTP_CODE_OK) {
-    String e = String("Firmware HTTP ") + code;
+    String e = String("Firmware asset HTTP ") + code;
     strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));
+    strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));
+    http.end();
+    free(image);
+    sys.otaInProgress = false;
+    return false;
+  }
+  const String contentType = http.header("Content-Type");
+  if (contentType.length() && contentType.indexOf("application/octet-stream") < 0) {
+    String e = String("Unexpected firmware Content-Type: ") + contentType;
+    strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));
+    strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));
     http.end();
     free(image);
     sys.otaInProgress = false;
@@ -2194,6 +2252,18 @@ bool WebDashboard::installSelfUpdate() {
     } else if (ok) {
       strlcpy(sys.updateError, "Firmware SHA-256 verification failed", sizeof(sys.updateError));
     }
+    strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));
+    free(image);
+    sys.otaInProgress = false;
+    sys.otaReadyToReboot = false;
+    strlcpy(sys.updateStatus, "Install failed", sizeof(sys.updateStatus));
+    strlcpy(sys.otaStatus, "Failed", sizeof(sys.otaStatus));
+    return false;
+  }
+
+  if (sys.updateSize == 0 || image[0] != 0xE9) {
+    strlcpy(sys.updateError, "Downloaded file is not an ESP application image", sizeof(sys.updateError));
+    strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));
     free(image);
     sys.otaInProgress = false;
     sys.otaReadyToReboot = false;
