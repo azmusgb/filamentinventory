@@ -693,7 +693,7 @@ void setup() {
 }
 
 void loop() {
-  lv_timer_handler();bootGuard.loop(state);connectivity.loop(config,state);webDashboard.loop(config,state);applyTimeConfiguration();
+  lv_timer_handler();bootGuard.loop(state);connectivity.loop(config,state);webDashboard.loop(config,state);bambuPlugin.serviceDiscovery();applyTimeConfiguration();
   if(!state.system.recoveryMode)serviceManager.loop(config,state);
   workshopService.loop(config,state); activityEngine.loop(state);
   if(config.presenceEnabled && state.workshop.environment.presence){lastInteractionMs=millis(); if(ambientMode)wakeFromAmbient();}

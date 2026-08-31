@@ -226,6 +226,7 @@ public:
   void loop(AppConfig &config, AppState &state) override;
   void onConfigChanged(AppConfig &config, AppState &state) override;
   bool startDiscovery();
+  void serviceDiscovery();
   bool discoveryRunning() const { return discoveryRunning_; }
   uint8_t discoveredCount() const { return discoveredCount_; }
   const BambuDiscoveredPrinter *discovered(uint8_t index) const { return index < discoveredCount_ ? &discovered_[index] : nullptr; }
@@ -242,6 +243,9 @@ private:
   WiFiClientSecure tls_;
   PubSubClient mqtt_;
   WiFiUDP discoveryUdp_;
+  WiFiUDP discoveryUdpLegacy_;
+  bool discoveryPrimaryReady_ = false;
+  bool discoveryLegacyReady_ = false;
   AppConfig *config_ = nullptr;
   AppState *state_ = nullptr;
   uint32_t lastConnectAttemptMs_ = 0;

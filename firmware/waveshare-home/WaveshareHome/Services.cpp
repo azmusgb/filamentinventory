@@ -14,7 +14,8 @@ constexpr uint32_t HA_INTERVAL_MS = 30UL * 1000UL;
 constexpr uint32_t CALENDAR_INTERVAL_MS = 5UL * 60UL * 1000UL;
 constexpr uint32_t AUDIO_SAMPLE_RATE = 44100;
 constexpr uint16_t BAMBU_DISCOVERY_PORT = 2021;
-constexpr uint32_t BAMBU_DISCOVERY_MS = 15000UL;
+constexpr uint16_t BAMBU_DISCOVERY_LEGACY_PORT = 1990;
+constexpr uint32_t BAMBU_DISCOVERY_MS = 30000UL;
 constexpr uint32_t BAMBU_DISCOVERY_PROBE_MS = 1800UL;
 const IPAddress BAMBU_DISCOVERY_GROUP(239, 255, 255, 250);
 constexpr int I2S_MCLK = 12;
@@ -591,20 +592,50 @@ BambuPlugin::BambuPlugin() : mqtt_(tls_) {
 
 void BambuPlugin::sendDiscoveryProbe() {
   if (!discoveryRunning_ || WiFi.status() != WL_CONNECTED) return;
-  const char *probes[] = {
-    "M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:2021\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\nST: ssdp:all\r\n\r\n",
-    "M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:2021\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\nST: urn:bambulab-com:device:3dprinter:1\r\n\r\n"
+
+  WiFiUDP *tx = discoveryPrimaryReady_ ? &discoveryUdp_ : (discoveryLegacyReady_ ? &discoveryUdpLegacy_ : nullptr);
+  if (!tx) return;
+
+  const IPAddress local = WiFi.localIP();
+  const IPAddress mask = WiFi.subnetMask();
+  IPAddress directedBroadcast(255, 255, 255, 255);
+  bool validMask = false;
+  for (uint8_t i = 0; i < 4; ++i) {
+    if (mask[i] != 0) validMask = true;
+    directedBroadcast[i] = static_cast<uint8_t>((local[i] & mask[i]) | static_cast<uint8_t>(~mask[i]));
+  }
+  const IPAddress globalBroadcast(255, 255, 255, 255);
+  const uint16_t ports[] = {BAMBU_DISCOVERY_PORT, BAMBU_DISCOVERY_LEGACY_PORT};
+  const char *targets[] = {"ssdp:all", "urn:bambulab-com:device:3dprinter:1"};
+
+  auto transmit = [&](const IPAddress &destination, uint16_t port, const String &payload) {
+    if (!tx->beginPacket(destination, port)) return;
+    tx->write(reinterpret_cast<const uint8_t *>(payload.c_str()), payload.length());
+    tx->endPacket();
+    delay(1);
   };
-  const IPAddress broadcast(255, 255, 255, 255);
-  for (const char *probe : probes) {
-    discoveryUdp_.beginPacket(BAMBU_DISCOVERY_GROUP, BAMBU_DISCOVERY_PORT);
-    discoveryUdp_.write(reinterpret_cast<const uint8_t *>(probe), strlen(probe));
-    discoveryUdp_.endPacket();
-    // Some routers suppress multicast replies while still forwarding broadcast.
-    // Sending both is harmless and substantially improves discovery on consumer LANs.
-    discoveryUdp_.beginPacket(broadcast, BAMBU_DISCOVERY_PORT);
-    discoveryUdp_.write(reinterpret_cast<const uint8_t *>(probe), strlen(probe));
-    discoveryUdp_.endPacket();
+
+  for (uint16_t port : ports) {
+    for (const char *target : targets) {
+      String probe;
+      probe.reserve(180);
+      probe += "M-SEARCH * HTTP/1.1
+";
+      probe += "HOST: 239.255.255.250:";
+      probe += String(port);
+      probe += "
+MAN: \"ssdp:discover\"
+MX: 2
+ST: ";
+      probe += target;
+      probe += "
+
+";
+
+      transmit(BAMBU_DISCOVERY_GROUP, port, probe);
+      if (validMask) transmit(directedBroadcast, port, probe);
+      if (!validMask || directedBroadcast != globalBroadcast) transmit(globalBroadcast, port, probe);
+    }
   }
   lastDiscoveryProbeMs_ = millis();
 }
@@ -614,19 +645,41 @@ bool BambuPlugin::startDiscovery() {
     copyText(discoveryStatus_, sizeof(discoveryStatus_), "Wi-Fi is offline");
     return false;
   }
+
   discoveryUdp_.stop();
+  discoveryUdpLegacy_.stop();
+  discoveryPrimaryReady_ = false;
+  discoveryLegacyReady_ = false;
   discoveredCount_ = 0;
   discoveryPackets_ = 0;
   discoveryMatchedPackets_ = 0;
   lastDiscoveryProbeMs_ = 0;
   for (auto &item : discovered_) item = BambuDiscoveredPrinter{};
-  if (!discoveryUdp_.beginMulticast(BAMBU_DISCOVERY_GROUP, BAMBU_DISCOVERY_PORT)) {
-    copyText(discoveryStatus_, sizeof(discoveryStatus_), "Could not join Bambu discovery multicast");
+
+  discoveryPrimaryReady_ = discoveryUdp_.beginMulticast(BAMBU_DISCOVERY_GROUP, BAMBU_DISCOVERY_PORT);
+  if (!discoveryPrimaryReady_) {
+    discoveryUdp_.stop();
+    discoveryPrimaryReady_ = discoveryUdp_.begin(BAMBU_DISCOVERY_PORT);
+  }
+
+  discoveryLegacyReady_ = discoveryUdpLegacy_.beginMulticast(BAMBU_DISCOVERY_GROUP, BAMBU_DISCOVERY_LEGACY_PORT);
+  if (!discoveryLegacyReady_) {
+    discoveryUdpLegacy_.stop();
+    discoveryLegacyReady_ = discoveryUdpLegacy_.begin(BAMBU_DISCOVERY_LEGACY_PORT);
+  }
+
+  if (!discoveryPrimaryReady_ && !discoveryLegacyReady_) {
+    copyText(discoveryStatus_, sizeof(discoveryStatus_), "Could not bind Bambu UDP 2021 or 1990");
     return false;
   }
+
   discoveryRunning_ = true;
   discoveryStartedMs_ = millis();
-  copyText(discoveryStatus_, sizeof(discoveryStatus_), "Listening for Bambu LAN announcements");
+  char status[96];
+  snprintf(status, sizeof(status), "Scanning Bambu LAN for 30s on UDP %s%s",
+           discoveryPrimaryReady_ ? "2021" : "",
+           discoveryLegacyReady_ ? (discoveryPrimaryReady_ ? "+1990" : "1990") : "");
+  copyText(discoveryStatus_, sizeof(discoveryStatus_), status);
   sendDiscoveryProbe();
   return true;
 }
@@ -721,14 +774,24 @@ void BambuPlugin::parseDiscoveryPacket(const String &packet, const IPAddress &re
 void BambuPlugin::pollDiscovery() {
   if (!discoveryRunning_) return;
 
-  int size = discoveryUdp_.parsePacket();
-  while (size > 0) {
-    String packet;
-    packet.reserve(size + 1);
-    while (discoveryUdp_.available()) packet += static_cast<char>(discoveryUdp_.read());
-    parseDiscoveryPacket(packet, discoveryUdp_.remoteIP());
-    size = discoveryUdp_.parsePacket();
-  }
+  auto drain = [&](WiFiUDP &udp, bool ready) {
+    if (!ready) return;
+    int size = udp.parsePacket();
+    while (size > 0) {
+      const IPAddress remote = udp.remoteIP();
+      String packet;
+      packet.reserve(static_cast<size_t>(size) + 1U);
+      while (size-- > 0) {
+        const int c = udp.read();
+        if (c >= 0) packet += static_cast<char>(c);
+      }
+      if (packet.length()) parseDiscoveryPacket(packet, remote);
+      size = udp.parsePacket();
+    }
+  };
+
+  drain(discoveryUdp_, discoveryPrimaryReady_);
+  drain(discoveryUdpLegacy_, discoveryLegacyReady_);
 
   const uint32_t now = millis();
   if (now - lastDiscoveryProbeMs_ >= BAMBU_DISCOVERY_PROBE_MS) sendDiscoveryProbe();
@@ -736,13 +799,19 @@ void BambuPlugin::pollDiscovery() {
   if (now - discoveryStartedMs_ >= BAMBU_DISCOVERY_MS) {
     discoveryRunning_ = false;
     discoveryUdp_.stop();
+    discoveryUdpLegacy_.stop();
+    discoveryPrimaryReady_ = false;
+    discoveryLegacyReady_ = false;
+
     char status[96];
     if (discoveredCount_) {
-      snprintf(status, sizeof(status), "Scan complete: %u printer%s found", discoveredCount_, discoveredCount_ == 1 ? "" : "s");
+      snprintf(status, sizeof(status), "Scan complete: found %u printer%s", discoveredCount_, discoveredCount_ == 1 ? "" : "s");
+    } else if (discoveryMatchedPackets_) {
+      snprintf(status, sizeof(status), "Scan complete: %lu Bambu packet%s matched but no usable printer record", (unsigned long)discoveryMatchedPackets_, discoveryMatchedPackets_ == 1 ? "" : "s");
     } else if (discoveryPackets_) {
       snprintf(status, sizeof(status), "Scan complete: %lu UDP packets seen, none identified as Bambu", (unsigned long)discoveryPackets_);
     } else {
-      snprintf(status, sizeof(status), "Scan complete: no UDP replies; use manual IP/serial setup");
+      snprintf(status, sizeof(status), "No Bambu announcements on UDP 2021/1990; check same LAN or use manual IP");
     }
     copyText(discoveryStatus_, sizeof(discoveryStatus_), status);
   }
@@ -781,8 +850,11 @@ void BambuPlugin::onConfigChanged(AppConfig &config, AppState &state) {
   begin(config, state);
 }
 
+void BambuPlugin::serviceDiscovery() {
+  if (discoveryRunning_ && WiFi.status() == WL_CONNECTED) pollDiscovery();
+}
+
 void BambuPlugin::loop(AppConfig &config, AppState &state) {
-  if (WiFi.status() == WL_CONNECTED) pollDiscovery();
   if (!config.bambuEnabled || !state.printer.configured || WiFi.status() != WL_CONNECTED) return;
   if (!mqtt_.connected()) {
     state.printer.online = false;
@@ -1522,7 +1594,7 @@ void WebDashboard::sendRoot() {
   }
   s += F("</div><form method='post' action='/bambu/scan'><button class='muted'>Scan local network for Bambu printers</button></form>");
   s += F("<p class='status'>Discovery: "); s += htmlEscape(bambu_.discoveryStatus()); s += F(" • packets "); s += bambu_.discoveryPackets(); s += F(" • matched "); s += bambu_.discoveryMatchedPackets(); s += F("</p>");
-  if (bambu_.discoveryRunning()) s += F("<p class='warn'>Scanning for multicast, broadcast and passive Bambu LAN announcements… this page will refresh automatically.</p><script>setTimeout(()=>location.reload(),3000)</script>");
+  if (bambu_.discoveryRunning()) s += F("<p class='warn'>Scanning UDP 2021 + 1990 using passive announcements, multicast M-SEARCH and subnet broadcast… this page will refresh automatically.</p><script>setTimeout(()=>location.reload(),3000)</script>");
   if (bambu_.discoveredCount()) { s += F("<label>Discovered printers</label>"); for (uint8_t i=0;i<bambu_.discoveredCount();++i) { const auto *d=bambu_.discovered(i); if(!d) continue; s += F("<form method='post' action='/bambu/use' class='card' style='margin:6px 0'><input type='hidden' name='index' value='"); s += i; s += F("'><strong>"); s += htmlEscape(strlen(d->name)?d->name:d->model); s += F("</strong><p>"); s += htmlEscape(d->model); s += F(" • "); s += htmlEscape(d->host); s += F("<br>Serial "); s += htmlEscape(d->serial); if(strlen(d->version)){s += F(" • FW "); s += htmlEscape(d->version);} s += F("</p><button type='submit'>Use this printer</button></form>"); } }
   s += F("<label><input type='checkbox' name='bambuEnabled'"); s += checked(config_->bambuEnabled); s += F(">Enable local MQTT monitoring</label><div class='row'><div><label>Printer IP / host</label><input name='bambuHost' placeholder='e.g. 10.0.0.50' value='"); s += htmlEscape(config_->bambuHost); s += F("'></div><div><label>Printer serial</label><input name='bambuSerial' placeholder='Printer serial number' value='"); s += htmlEscape(config_->bambuSerial); s += F("'></div></div><label>LAN access code</label><input type='password' name='bambuAccessCode' placeholder='Leave blank to keep saved code'><p><small>Scan is optional. Manual IP + serial + LAN access code is a fully supported fallback. Save settings before testing the MQTT connection.</small></p><div class='row'><button type='submit'>Save settings</button><button class='muted' type='submit' formaction='/bambu/test' formmethod='post'>Test saved MQTT connection</button></div><p><small>Last MQTT state: "); s += bambu_.mqttState(); s += F(" (0 means connected).</small></p><hr>");
 
