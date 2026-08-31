@@ -1,8 +1,5 @@
 #include "Services.h"
 #include <Wire.h>
-#include "TCA9554.h"
-
-extern TCA9554 ioExpander;
 #include <math.h>
 #include <esp_err.h>
 #include <esp_heap_caps.h>
@@ -16,7 +13,8 @@ constexpr uint32_t WEATHER_ALERT_INTERVAL_MS = 5UL * 60UL * 1000UL;
 constexpr uint32_t FILAMENT_INTERVAL_MS = 3UL * 60UL * 1000UL;
 constexpr uint32_t HA_INTERVAL_MS = 30UL * 1000UL;
 constexpr uint32_t CALENDAR_INTERVAL_MS = 5UL * 60UL * 1000UL;
-constexpr uint32_t AUDIO_SAMPLE_RATE = 44100;
+constexpr uint32_t AUDIO_SAMPLE_RATE = 48000;
+constexpr uint32_t AUDIO_MCLK_MULTIPLE = 256;
 constexpr uint16_t BAMBU_DISCOVERY_PORT = 2021;
 constexpr uint16_t BAMBU_DISCOVERY_LEGACY_PORT = 1990;
 constexpr uint16_t BAMBU_DISCOVERY_SSDP_PORT = 1900;
@@ -453,42 +451,27 @@ void ConnectivityService::stopSetupAp(AppState &state) {
 bool AudioService::begin(const AppConfig &config, AppState &state) {
   volume_ = config.audioVolume;
   state.system.audioReady = false;
+  ready_ = false;
 
-  // Waveshare's board support enables the external speaker amplifier through
-  // the TCA9554 expander before attempting codec playback. The previous Home
-  // firmware configured ES8311/I2S but left the physical output stage off.
-  ioExpander.pinMode1(2, OUTPUT);
-  ioExpander.write1(2, config.audioEnabled ? 1 : 0);
-  delay(20);
+  if (!config.audioEnabled) return false;
 
-  if (!config.audioEnabled) {
-    ready_ = false;
-    return false;
-  }
-
+  // Match Waveshare's known-working ESP32-S3-Touch-LCD-3.5 audio reference:
+  // ES8311 on I2C0, 48 kHz, 256x MCLK, 16-bit samples and the documented
+  // BCLK/LRCK/SDOUT/MCLK GPIOs. Do not toggle unrelated TCA9554 outputs.
   handle_ = es8311_create(I2C_NUM_0, ES8311_ADDRRES_0);
-  if (!handle_) {
-    ready_ = false;
-    return false;
-  }
+  if (!handle_) return false;
 
   const es8311_clock_config_t clockCfg = {
     .mclk_inverted = false,
     .sclk_inverted = false,
     .mclk_from_mclk_pin = true,
-    .mclk_frequency = AUDIO_SAMPLE_RATE * 256,
+    .mclk_frequency = AUDIO_SAMPLE_RATE * AUDIO_MCLK_MULTIPLE,
     .sample_frequency = AUDIO_SAMPLE_RATE
   };
-  if (es8311_init(handle_, &clockCfg, ES8311_RESOLUTION_16, ES8311_RESOLUTION_16) != ESP_OK) {
-    ready_ = false;
-    return false;
-  }
-  if (es8311_voice_volume_set(handle_, volume_, nullptr) != ESP_OK ||
-      es8311_microphone_config(handle_, false) != ESP_OK ||
-      es8311_voice_mute(handle_, false) != ESP_OK) {
-    ready_ = false;
-    return false;
-  }
+  if (es8311_init(handle_, &clockCfg, ES8311_RESOLUTION_16, ES8311_RESOLUTION_16) != ESP_OK) return false;
+  if (es8311_voice_volume_set(handle_, volume_, nullptr) != ESP_OK) return false;
+  if (es8311_microphone_config(handle_, false) != ESP_OK) return false;
+  if (es8311_voice_mute(handle_, false) != ESP_OK) return false;
 
   i2s_.setPins(I2S_BCLK, I2S_LRCK, I2S_DOUT, I2S_DIN, I2S_MCLK);
   ready_ = i2s_.begin(I2S_MODE_STD, AUDIO_SAMPLE_RATE, I2S_DATA_BIT_WIDTH_16BIT,
@@ -1731,13 +1714,19 @@ void WebDashboard::installRoutes() {
   });
   server_.on("/audio/test", HTTP_POST, [this]() {
     if (!audio_.ready()) {
-      server_.send(503, "text/plain", "Speaker is not initialized. Ensure ES8311 speaker is enabled, save settings, then restart the device.");
+      server_.send(503, "text/plain", "Audio hardware initialization failed. Restart after enabling audio; if this persists, inspect ES8311/I2S diagnostics.");
       return;
     }
-    audio_.chirp(660, 220);
-    delay(70);
-    audio_.chirp(880, 260);
-    server_.send(200, "text/plain", "Speaker test played: two-tone 660/880 Hz");
+    const uint8_t savedVolume = config_->audioVolume;
+    const uint8_t testVolume = max<uint8_t>(savedVolume, 85);
+    audio_.setVolume(testVolume);
+    audio_.chirp(523, 500);
+    delay(100);
+    audio_.chirp(659, 500);
+    delay(100);
+    audio_.chirp(784, 650);
+    audio_.setVolume(savedVolume);
+    server_.send(200, "text/plain", "Speaker diagnostic sent at 48 kHz: C5/E5/G5. Confirm audible output.");
   });
   server_.on("/timer/start", HTTP_POST, [this]() {
     uint32_t sec = constrain(server_.arg("seconds").toInt(), 1, 86400);
