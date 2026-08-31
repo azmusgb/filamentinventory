@@ -1662,7 +1662,7 @@ bool WebDashboard::checkForSelfUpdate(bool force) {
   const bool stableChannel = config_->updateChannel == 0;
   String api = stableChannel
     ? "https://api.github.com/repos/azmusgb/filamentinventory/releases/latest"
-    : "https://api.github.com/repos/azmusgb/filamentinventory/releases?per_page=20";
+    : "https://api.github.com/repos/azmusgb/filamentinventory/releases?per_page=1";
   if (!http.begin(secure, api)) {
     strlcpy(sys.updateError, "Could not open GitHub release API", sizeof(sys.updateError));
     sys.updateCheckInProgress = false;
@@ -1670,6 +1670,7 @@ bool WebDashboard::checkForSelfUpdate(bool force) {
   }
   http.addHeader("User-Agent", "WaveshareHome-ESP32-Updater");
   http.addHeader("Accept", "application/vnd.github+json");
+  http.addHeader("Accept-Encoding", "identity");
   int code = http.GET();
   if (stableChannel && code == HTTP_CODE_NOT_FOUND) {
     http.end();
@@ -1686,11 +1687,17 @@ bool WebDashboard::checkForSelfUpdate(bool force) {
     http.end(); sys.updateCheckInProgress = false; return false;
   }
 
-  JsonDocument releases;
-  DeserializationError err = deserializeJson(releases, http.getStream());
+  String releasePayload = http.getString();
   http.end();
+  if (!releasePayload.length()) {
+    strlcpy(sys.updateError, "Empty GitHub release response", sizeof(sys.updateError));
+    sys.updateCheckInProgress = false; return false;
+  }
+  JsonDocument releases;
+  DeserializationError err = deserializeJson(releases, releasePayload);
   if (err) {
-    strlcpy(sys.updateError, "Invalid GitHub release response", sizeof(sys.updateError));
+    String e = String("GitHub JSON: ") + err.c_str();
+    strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));
     sys.updateCheckInProgress = false; return false;
   }
 
@@ -1740,16 +1747,19 @@ bool WebDashboard::checkForSelfUpdate(bool force) {
     sys.updateCheckInProgress = false; return false;
   }
   manifestHttp.addHeader("User-Agent", "WaveshareHome-ESP32-Updater");
+  manifestHttp.addHeader("Accept-Encoding", "identity");
   int manifestCode = manifestHttp.GET();
   if (manifestCode != HTTP_CODE_OK) {
     snprintf(sys.updateError, sizeof(sys.updateError), "Manifest HTTP %d", manifestCode);
     manifestHttp.end(); sys.updateCheckInProgress = false; return false;
   }
-  JsonDocument manifest;
-  err = deserializeJson(manifest, manifestHttp.getStream());
+  String manifestPayload = manifestHttp.getString();
   manifestHttp.end();
+  JsonDocument manifest;
+  err = deserializeJson(manifest, manifestPayload);
   if (err) {
-    strlcpy(sys.updateError, "Invalid update manifest", sizeof(sys.updateError));
+    String e = String("Manifest JSON: ") + err.c_str();
+    strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));
     sys.updateCheckInProgress = false; return false;
   }
 
@@ -1793,6 +1803,7 @@ bool WebDashboard::installSelfUpdate() {
     return false;
   }
   http.addHeader("User-Agent", "WaveshareHome-ESP32-Updater");
+  http.addHeader("Accept-Encoding", "identity");
   int code = http.GET();
   if (code != HTTP_CODE_OK) {
     snprintf(sys.updateError, sizeof(sys.updateError), "Firmware HTTP %d", code);
