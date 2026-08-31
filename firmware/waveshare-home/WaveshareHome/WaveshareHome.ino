@@ -864,25 +864,40 @@ static void refreshPrinter() {
 
   const bool enabled = config.bambuEnabled;
   const bool online = state.printer.online;
-  const bool printing = online && state.printer.printing;
+  const bool live = online && !state.printer.telemetryStale;
+  const bool printing = live && state.printer.printing;
+  const bool paused = live && state.printer.paused;
   const char *name = strlen(state.printer.displayName) ? state.printer.displayName : (strlen(state.printer.model) ? state.printer.model : "Bambu printer");
 
-  String stateLine = String(name) + " • " + (!enabled ? "SETUP" : !online ? "OFFLINE" : state.printer.error ? "ERROR" : printing ? "PRINTING" : state.printer.status);
+  String activity = !enabled ? "SETUP" : !online ? "OFFLINE" : state.printer.telemetryStale ? "STALE" : printerActivityName(state.printer.activity);
+  String stateLine = String(name) + " • " + activity;
   lv_label_set_text(printerStateLabel, stateLine.c_str());
-  lv_obj_set_style_text_color(printerStateLabel, state.printer.error ? C_RED : printing ? C_GREEN : online ? C_BLUE : C_MUTED, 0);
+  lv_obj_set_style_text_color(printerStateLabel,
+      state.printer.error || state.printer.failed ? C_RED :
+      state.printer.telemetryStale ? C_ORANGE :
+      printing ? C_GREEN : paused ? C_ORANGE : online ? C_BLUE : C_MUTED, 0);
 
-  String job = !enabled ? "Connect Bambu from web dashboard" : !online ? "Waiting for local MQTT" : strlen(state.printer.jobName) ? state.printer.jobName : "Ready for the next print";
+  String job;
+  if (!enabled) job = "Connect Bambu from web dashboard";
+  else if (!online) job = state.printer.connectionStatus;
+  else if (state.printer.telemetryStale) job = String(state.printer.connectionStatus) + "\nLast known: " + (strlen(state.printer.jobName) ? state.printer.jobName : state.printer.status);
+  else if (strlen(state.printer.jobName)) job = state.printer.jobName;
+  else job = state.printer.finished ? "Print complete" : "Ready for the next print";
   lv_label_set_text(printerJobLabel, job.c_str());
 
   char progress[16]; snprintf(progress, sizeof(progress), "%u%%", online ? state.printer.progress : 0);
   lv_label_set_text(printerProgressLabel, progress);
-  String remaining = printing ? formatMinutes(state.printer.remainingMinutes) + " remaining" : (online ? String(state.printer.status) : String("Not connected"));
+  String remaining;
+  if (printing) remaining = formatMinutes(state.printer.remainingMinutes) + " remaining";
+  else if (paused) remaining = String("Paused • ") + formatMinutes(state.printer.remainingMinutes) + " remaining";
+  else if (live && state.printer.finished) remaining = "Print complete";
+  else remaining = enabled ? String(state.printer.connectionStatus) : String("Not connected");
   lv_label_set_text(printerRemainingLabel, remaining.c_str());
   lv_bar_set_value(printerProgressBar, online ? state.printer.progress : 0, LV_ANIM_ON);
 
-  char layer[80];
+  char layer[96];
   if (online && state.printer.totalLayers > 0) snprintf(layer, sizeof(layer), "Layer %d / %d • Speed %d%%", state.printer.currentLayer, state.printer.totalLayers, state.printer.speedPercent);
-  else snprintf(layer, sizeof(layer), "%s", enabled ? "Printer telemetry unavailable" : "Scan or configure a printer to begin");
+  else snprintf(layer, sizeof(layer), "%s", enabled ? state.printer.connectionStatus : "Scan or configure a printer to begin");
   lv_label_set_text(printerLayerLabel, layer);
 
   char temp[32];
@@ -894,20 +909,25 @@ static void refreshPrinter() {
   lv_label_set_text(printerChamberLabel, temp);
 
   if (printerPauseButton) { if (printing) lv_obj_clear_state(printerPauseButton, LV_STATE_DISABLED); else lv_obj_add_state(printerPauseButton, LV_STATE_DISABLED); }
-  if (printerResumeButton) { if (online && !printing) lv_obj_clear_state(printerResumeButton, LV_STATE_DISABLED); else lv_obj_add_state(printerResumeButton, LV_STATE_DISABLED); }
-  if (printerStopButton) { if (online && (printing || !strcmp(state.printer.status, "PAUSE") || !strcmp(state.printer.status, "PAUSED"))) lv_obj_clear_state(printerStopButton, LV_STATE_DISABLED); else lv_obj_add_state(printerStopButton, LV_STATE_DISABLED); }
+  if (printerResumeButton) { if (paused) lv_obj_clear_state(printerResumeButton, LV_STATE_DISABLED); else lv_obj_add_state(printerResumeButton, LV_STATE_DISABLED); }
+  if (printerStopButton) { if (printing || paused) lv_obj_clear_state(printerStopButton, LV_STATE_DISABLED); else lv_obj_add_state(printerStopButton, LV_STATE_DISABLED); }
 
+  // The 3.5-inch panel has four physical AMS tiles. If the active filament is
+  // on AMS 2-4, pivot those four tiles to the active AMS unit rather than always
+  // showing only AMS 1. The web API exposes all sixteen slots simultaneously.
+  int amsBase = (state.printer.activeTray >= 4 && state.printer.activeTray < 16) ? (state.printer.activeTray / 4) * 4 : 0;
   for (int i = 0; i < 4; ++i) {
     if (!printerAmsLabels[i] || !printerAmsPanels[i]) continue;
-    auto &slot = state.printer.amsSlots[i];
-    String text = "A" + String(i + 1) + "\n";
-    if (!online || !slot.loaded) text += "Empty";
+    const int idx = amsBase + i;
+    auto &slot = state.printer.amsSlots[idx];
+    String text = String(slot.unitIndex + 1) + "." + String(slot.trayIndex + 1) + "\n";
+    if (!online || idx >= state.printer.amsSlotCount || !slot.loaded) text += "Empty";
     else {
       text += strlen(slot.material) ? slot.material : "Loaded";
       if (slot.remainingPercent >= 0) text += " " + String(slot.remainingPercent) + "%";
     }
     lv_label_set_text(printerAmsLabels[i], text.c_str());
-    const bool active = online && (state.printer.activeTray == i || slot.active);
+    const bool active = online && (state.printer.activeTray == idx || slot.active);
     lv_obj_set_style_border_color(printerAmsPanels[i], active ? C_GREEN : C_BORDER, 0);
     lv_obj_set_style_border_width(printerAmsPanels[i], active ? 2 : 1, 0);
     lv_obj_set_style_text_color(printerAmsLabels[i], active ? C_TEXT : C_MUTED, 0);

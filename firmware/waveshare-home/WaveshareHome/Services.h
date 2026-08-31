@@ -275,6 +275,10 @@ private:
   AppState *state_ = nullptr;
   uint32_t lastConnectAttemptMs_ = 0;
   uint32_t reconnectBackoffMs_ = 5000;
+  uint32_t sequenceId_ = 1;
+  static constexpr uint32_t TELEMETRY_STALE_MS = 30000UL;
+  static constexpr uint32_t TELEMETRY_RECONNECT_MS = 90000UL;
+  static constexpr uint32_t PUSHALL_REFRESH_MS = 20000UL;
   bool discoveryRunning_ = false;
   uint32_t discoveryStartedMs_ = 0;
   uint32_t lastDiscoveryProbeMs_ = 0;

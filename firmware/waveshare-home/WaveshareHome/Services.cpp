@@ -675,6 +675,7 @@ BambuPlugin::BambuPlugin() : mqtt_(tls_) {
   mqtt_.setCallback(callbackStatic);
   mqtt_.setBufferSize(16384);
   mqtt_.setKeepAlive(30);
+  mqtt_.setSocketTimeout(5);
 }
 
 
@@ -1027,9 +1028,14 @@ void BambuPlugin::begin(AppConfig &config, AppState &state) {
   config_ = &config;
   state_ = &state;
   state.printer.configured = config.bambuEnabled && strlen(config.bambuHost) && strlen(config.bambuSerial) && strlen(config.bambuAccessCode);
+  state.printer.telemetryStale = true;
   if (!state.printer.configured) {
     state.printer.online = false;
+    state.printer.activity = PrinterActivity::Unknown;
     copyText(state.printer.status, sizeof(state.printer.status), "Not configured");
+    copyText(state.printer.connectionStatus, sizeof(state.printer.connectionStatus), "Not configured");
+  } else {
+    copyText(state.printer.connectionStatus, sizeof(state.printer.connectionStatus), "Configured - connecting");
   }
   if (mqtt_.connected()) mqtt_.disconnect();
   mqtt_.setServer(config.bambuHost, 8883);
@@ -1046,17 +1052,60 @@ void BambuPlugin::serviceDiscovery() {
 }
 
 void BambuPlugin::loop(AppConfig &config, AppState &state) {
-  if (!config.bambuEnabled || !state.printer.configured || WiFi.status() != WL_CONNECTED) return;
+  if (!config.bambuEnabled || !state.printer.configured) return;
+
+  PrinterState &p = state.printer;
+  const uint32_t now = millis();
+  if (WiFi.status() != WL_CONNECTED) {
+    p.online = false;
+    p.telemetryStale = true;
+    p.activity = PrinterActivity::Offline;
+    copyText(p.connectionStatus, sizeof(p.connectionStatus), "Wi-Fi offline");
+    return;
+  }
+
   if (!mqtt_.connected()) {
-    state.printer.online = false;
-    if (lastConnectAttemptMs_ == 0 || millis() - lastConnectAttemptMs_ >= reconnectBackoffMs_) {
-      lastConnectAttemptMs_ = millis();
+    p.online = false;
+    p.telemetryStale = true;
+    p.activity = PrinterActivity::Offline;
+    copyText(p.connectionStatus, sizeof(p.connectionStatus), "MQTT reconnecting");
+    if (lastConnectAttemptMs_ == 0 || now - lastConnectAttemptMs_ >= reconnectBackoffMs_) {
+      lastConnectAttemptMs_ = now;
       if (connectMqtt()) reconnectBackoffMs_ = 5000;
       else reconnectBackoffMs_ = min<uint32_t>(60000, reconnectBackoffMs_ * 2);
     }
     return;
   }
+
+  p.online = true;
   mqtt_.loop();
+
+  if (!p.updatedMs) {
+    p.telemetryStale = true;
+    copyText(p.connectionStatus, sizeof(p.connectionStatus), "MQTT connected - waiting for telemetry");
+    if (!p.lastPushAllMs || now - p.lastPushAllMs >= PUSHALL_REFRESH_MS) requestPushAll();
+    return;
+  }
+
+  const uint32_t age = now - p.updatedMs;
+  if (age > TELEMETRY_RECONNECT_MS) {
+    p.telemetryStale = true;
+    p.online = false;
+    p.activity = PrinterActivity::Offline;
+    copyText(p.connectionStatus, sizeof(p.connectionStatus), "Telemetry timed out - reconnecting");
+    mqtt_.disconnect();
+    lastConnectAttemptMs_ = 0;
+    return;
+  }
+
+  if (age > TELEMETRY_STALE_MS) {
+    p.telemetryStale = true;
+    copyText(p.connectionStatus, sizeof(p.connectionStatus), "Telemetry stale - refreshing");
+    if (!p.lastPushAllMs || now - p.lastPushAllMs >= PUSHALL_REFRESH_MS) requestPushAll();
+  } else {
+    p.telemetryStale = false;
+    copyText(p.connectionStatus, sizeof(p.connectionStatus), "Live local MQTT telemetry");
+  }
 }
 
 void BambuPlugin::callbackStatic(char *topic, byte *payload, unsigned int length) {
@@ -1072,13 +1121,40 @@ void BambuPlugin::callback(char *, byte *payload, unsigned int length) {
 
   PrinterState &p = state_->printer;
   p.online = true;
+
+  // Command responses and telemetry share the report topic. Capture command
+  // results without falsely treating an acknowledgement as fresh telemetry.
+  String responseCommand = print["command"] | "";
+  String responseResult = print["result"] | "";
+  if (responseCommand.length() && responseResult.length() && strlen(p.lastCommand) &&
+      !responseCommand.compareTo(p.lastCommand)) {
+    copyText(p.lastCommandResult, sizeof(p.lastCommandResult), responseResult);
+  }
+
+  const bool telemetryPayload = print.containsKey("gcode_state") || print.containsKey("mc_percent") ||
+                                print.containsKey("mc_remaining_time") || print.containsKey("nozzle_temper") ||
+                                print.containsKey("bed_temper") || print.containsKey("layer_num") ||
+                                print.containsKey("ams") || print.containsKey("print_error");
+  if (!telemetryPayload) return;
+
   String status = print["gcode_state"] | p.status;
   copyText(p.status, sizeof(p.status), status);
   String upper = status;
   upper.toUpperCase();
-  p.printing = upper == "RUNNING" || upper == "PRINTING" || upper == "PREPARE";
+
+  if (upper == "RUNNING" || upper == "PRINTING") p.activity = PrinterActivity::Printing;
+  else if (upper == "PREPARE" || upper == "PREPARING") p.activity = PrinterActivity::Preparing;
+  else if (upper == "PAUSE" || upper == "PAUSED") p.activity = PrinterActivity::Paused;
+  else if (upper == "FINISH" || upper == "FINISHED" || upper == "COMPLETE" || upper == "COMPLETED") p.activity = PrinterActivity::Finished;
+  else if (upper == "FAILED" || upper == "ERROR") p.activity = PrinterActivity::Failed;
+  else if (upper == "IDLE" || upper == "READY") p.activity = PrinterActivity::Idle;
+  else if (p.activity == PrinterActivity::Offline || p.activity == PrinterActivity::Unknown) p.activity = PrinterActivity::Idle;
+
+  p.printing = p.activity == PrinterActivity::Printing || p.activity == PrinterActivity::Preparing;
+  p.paused = p.activity == PrinterActivity::Paused;
+  p.finished = p.activity == PrinterActivity::Finished;
   p.progress = constrain((int)(print["mc_percent"] | p.progress), 0, 100);
-  p.remainingMinutes = print["mc_remaining_time"] | p.remainingMinutes;
+  p.remainingMinutes = max(0, (int)(print["mc_remaining_time"] | p.remainingMinutes));
   p.nozzleC = print["nozzle_temper"] | p.nozzleC;
   p.nozzleTargetC = print["nozzle_target_temper"] | p.nozzleTargetC;
   p.bedC = print["bed_temper"] | p.bedC;
@@ -1092,42 +1168,64 @@ void BambuPlugin::callback(char *, byte *payload, unsigned int length) {
   p.wifiSignal = print["wifi_signal"] | p.wifiSignal;
   String stage = print["mc_print_stage"] | p.stage;
   if (stage.length()) copyText(p.stage, sizeof(p.stage), stage);
-  p.currentLayer = print["layer_num"] | p.currentLayer;
-  p.totalLayers = print["total_layer_num"] | p.totalLayers;
+  p.currentLayer = max(0, (int)(print["layer_num"] | p.currentLayer));
+  p.totalLayers = max(0, (int)(print["total_layer_num"] | p.totalLayers));
   String job = print["subtask_name"] | p.jobName;
   if (job.length()) copyText(p.jobName, sizeof(p.jobName), job);
   p.errorCode = print["print_error"] | p.errorCode;
   p.error = p.errorCode != 0;
+  if (p.error) p.activity = PrinterActivity::Failed;
+  p.failed = p.activity == PrinterActivity::Failed || p.error;
+  p.printing = p.activity == PrinterActivity::Printing || p.activity == PrinterActivity::Preparing;
+  p.paused = p.activity == PrinterActivity::Paused;
+  p.finished = p.activity == PrinterActivity::Finished;
 
   JsonObject ams = print["ams"].as<JsonObject>();
   if (!ams.isNull()) {
+    for (auto &slot : p.amsSlots) slot = AmsSlotState{};
     p.amsLoadedSlots = 0;
+    p.amsUnitCount = 0;
+    p.amsSlotCount = 0;
+    p.amsHumidity = -1;
+
     JsonArray units = ams["ams"].as<JsonArray>();
+    int unitIndex = 0;
     for (JsonObject unit : units) {
+      if (unitIndex >= 4) break;
       JsonArray trays = unit["tray"].as<JsonArray>();
       int localIndex = 0;
       for (JsonObject tray : trays) {
+        if (localIndex >= 4) break;
+        const int idx = unitIndex * 4 + localIndex;
+        auto &slot = p.amsSlots[idx];
+        slot.unitIndex = static_cast<uint8_t>(unitIndex);
+        slot.trayIndex = static_cast<uint8_t>(localIndex);
         const char *type = tray["tray_type"] | "";
         const char *color = tray["tray_color"] | "";
-        int idx = localIndex++;
-        if (idx < 4) {
-          auto &slot = p.amsSlots[idx];
-          slot.loaded = strlen(type) || strlen(color);
-          copyText(slot.material, sizeof(slot.material), type);
-          copyText(slot.color, sizeof(slot.color), color);
-          copyText(slot.name, sizeof(slot.name), tray["tray_sub_brands"] | "");
-          if (!tray["remain"].isNull()) slot.remainingPercent = tray["remain"] | -1;
-        }
-        if (strlen(type) || strlen(color)) p.amsLoadedSlots++;
+        slot.loaded = strlen(type) || strlen(color);
+        copyText(slot.material, sizeof(slot.material), type);
+        copyText(slot.color, sizeof(slot.color), color);
+        copyText(slot.name, sizeof(slot.name), tray["tray_sub_brands"] | "");
+        if (!tray["remain"].isNull()) slot.remainingPercent = constrain((int)(tray["remain"] | -1), -1, 100);
+        if (slot.loaded) p.amsLoadedSlots++;
+        p.amsSlotCount = max<uint8_t>(p.amsSlotCount, static_cast<uint8_t>(idx + 1));
+        localIndex++;
       }
-      if (unit.containsKey("humidity")) p.amsHumidity = unit["humidity"] | p.amsHumidity;
+      if (p.amsHumidity < 0 && unit.containsKey("humidity")) p.amsHumidity = unit["humidity"] | -1;
+      unitIndex++;
     }
+    p.amsUnitCount = static_cast<uint8_t>(unitIndex);
+
     String active = ams["tray_now"] | "-1";
     p.activeTray = active.toInt();
-    for (int i = 0; i < 4; ++i) p.amsSlots[i].active = (i == p.activeTray);
+    for (int i = 0; i < 16; ++i) p.amsSlots[i].active = (i == p.activeTray);
   }
+
   if (p.connectedMs == 0) p.connectedMs = millis();
   p.updatedMs = millis();
+  p.telemetryMessages++;
+  p.telemetryStale = false;
+  copyText(p.connectionStatus, sizeof(p.connectionStatus), "Live local MQTT telemetry");
 }
 
 bool BambuPlugin::connectMqtt() {
@@ -1135,36 +1233,68 @@ bool BambuPlugin::connectMqtt() {
   uint64_t chip = ESP.getEfuseMac();
   char clientId[40];
   snprintf(clientId, sizeof(clientId), "WaveshareHome-%04X", (uint16_t)(chip & 0xFFFF));
-  if (!mqtt_.connect(clientId, "bblp", config_->bambuAccessCode)) return false;
+  if (!mqtt_.connect(clientId, "bblp", config_->bambuAccessCode)) {
+    state_->printer.online = false;
+    state_->printer.telemetryStale = true;
+    copyText(state_->printer.connectionStatus, sizeof(state_->printer.connectionStatus), "MQTT connection failed");
+    return false;
+  }
   String reportTopic = String("device/") + config_->bambuSerial + "/report";
-  mqtt_.subscribe(reportTopic.c_str());
+  if (!mqtt_.subscribe(reportTopic.c_str())) {
+    copyText(state_->printer.connectionStatus, sizeof(state_->printer.connectionStatus), "MQTT subscribe failed");
+    mqtt_.disconnect();
+    state_->printer.online = false;
+    return false;
+  }
   state_->printer.online = true;
+  state_->printer.telemetryStale = true;
   state_->printer.connectedMs = millis();
+  state_->printer.reconnectCount++;
   copyText(state_->printer.host, sizeof(state_->printer.host), config_->bambuHost);
   copyText(state_->printer.serial, sizeof(state_->printer.serial), config_->bambuSerial);
+  copyText(state_->printer.connectionStatus, sizeof(state_->printer.connectionStatus), "MQTT connected - requesting telemetry");
   requestPushAll();
   return true;
 }
 
 void BambuPlugin::requestPushAll() {
-  if (!config_ || !mqtt_.connected()) return;
+  if (!config_ || !state_ || !mqtt_.connected()) return;
   String requestTopic = String("device/") + config_->bambuSerial + "/request";
-  const char *payload = "{\"pushing\":{\"sequence_id\":\"0\",\"command\":\"pushall\"}}";
-  mqtt_.publish(requestTopic.c_str(), payload);
+  const uint32_t seq = sequenceId_++;
+  char payload[128];
+  snprintf(payload, sizeof(payload), "{\"pushing\":{\"sequence_id\":\"%lu\",\"command\":\"pushall\"}}", (unsigned long)seq);
+  if (mqtt_.publish(requestTopic.c_str(), payload)) state_->printer.lastPushAllMs = millis();
 }
 
 bool BambuPlugin::sendPrintCommand(const char *command) {
-  if (!config_ || !mqtt_.connected() || !command || !*command) return false;
+  if (!config_ || !state_ || !command || !*command) return false;
+  PrinterState &p = state_->printer;
+  copyText(p.lastCommand, sizeof(p.lastCommand), command);
+  p.lastCommandMs = millis();
+  if (!mqtt_.connected()) {
+    copyText(p.lastCommandResult, sizeof(p.lastCommandResult), "Not sent - printer MQTT offline");
+    return false;
+  }
+
   String topic = String("device/") + config_->bambuSerial + "/request";
-  String payload = String("{\"print\":{\"sequence_id\":\"0\",\"command\":\"") + command + "\"}}";
-  return mqtt_.publish(topic.c_str(), payload.c_str());
+  const uint32_t seq = sequenceId_++;
+  char payload[144];
+  snprintf(payload, sizeof(payload), "{\"print\":{\"sequence_id\":\"%lu\",\"command\":\"%s\"}}", (unsigned long)seq, command);
+  const bool sent = mqtt_.publish(topic.c_str(), payload);
+  copyText(p.lastCommandResult, sizeof(p.lastCommandResult), sent ? "Sent - awaiting printer state" : "MQTT publish failed");
+  if (sent) requestPushAll();
+  return sent;
 }
+
 bool BambuPlugin::pausePrint() { return sendPrintCommand("pause"); }
 bool BambuPlugin::resumePrint() { return sendPrintCommand("resume"); }
 bool BambuPlugin::stopPrint() { return sendPrintCommand("stop"); }
 bool BambuPlugin::testConnection() {
   if (!config_ || !state_ || WiFi.status() != WL_CONNECTED || !state_->printer.configured) return false;
-  if (mqtt_.connected()) return true;
+  if (mqtt_.connected()) {
+    requestPushAll();
+    return true;
+  }
   return connectMqtt();
 }
 
@@ -1510,8 +1640,9 @@ void AttentionEngine::update(const AppConfig &config, AppState &state) {
     AlertSeverity severity = (!strcmp(state.weather.alertSeverity, "Extreme") || !strcmp(state.weather.alertSeverity, "Severe")) ? AlertSeverity::Urgent : AlertSeverity::Attention;
     add(state, severity, "Weather", "Weather alert", state.weather.alertHeadline);
   }
-  if (config.bambuEnabled && state.printer.error) add(state, AlertSeverity::Urgent, "Printer", "Printer error", "The Bambu printer is reporting an active error.");
-  else if (config.bambuEnabled && state.printer.configured && !state.printer.online) add(state, AlertSeverity::Attention, "Printer", "Printer offline", "Local MQTT connection is unavailable.");
+  if (config.bambuEnabled && (state.printer.error || state.printer.failed)) add(state, AlertSeverity::Urgent, "Printer", "Printer error", "The Bambu printer is reporting an active failure or error.");
+  else if (config.bambuEnabled && state.printer.configured && !state.printer.online) add(state, AlertSeverity::Attention, "Printer", "Printer offline", state.printer.connectionStatus);
+  else if (config.bambuEnabled && state.printer.online && state.printer.telemetryStale) add(state, AlertSeverity::Attention, "Printer", "Printer telemetry stale", state.printer.connectionStatus);
   if (config.filamentEnabled && state.filament.online && (state.filament.lowSpools + state.filament.emptySpools) > 0) {
     char detail[100];
     snprintf(detail, sizeof(detail), "%d low • %d empty", state.filament.lowSpools, state.filament.emptySpools);
@@ -1906,14 +2037,16 @@ void WebDashboard::sendRoot() {
   s += F("<h3 id='bambu'>Bambu Lab</h3>");
   s += F("<div class='card' style='margin:8px 0;background:#071015'><div class='top'><div><strong>");
   s += strlen(state_->printer.displayName) ? htmlEscape(state_->printer.displayName) : (strlen(config_->bambuHost) ? htmlEscape(config_->bambuHost) : String("No printer selected"));
-  s += F("</strong><p>"); s += state_->printer.online ? "Connected via local MQTT" : (state_->printer.configured ? "Configured • waiting for MQTT" : "Not configured"); s += F("</p></div><span class='badge'>"); s += state_->printer.online ? "ONLINE" : "OFFLINE"; s += F("</span></div>");
+  s += F("</strong><p>"); s += state_->printer.configured ? htmlEscape(state_->printer.connectionStatus) : String("Not configured"); s += F("</p></div><span class='badge'>"); s += state_->printer.online ? (state_->printer.telemetryStale ? "STALE" : "LIVE") : "OFFLINE"; s += F("</span></div>");
   if (state_->printer.online) {
     s += F("<div class='grid'><div><h3>Status</h3><div class='metric'>"); s += htmlEscape(state_->printer.status); s += F("</div><p>"); s += htmlEscape(state_->printer.jobName); s += F("</p></div><div><h3>Progress</h3><div class='metric'>"); s += state_->printer.progress; s += F("%</div><p>"); s += state_->printer.remainingMinutes; s += F(" min remaining</p></div></div>");
+    s += F("<p><strong>"); s += printerActivityName(state_->printer.activity); s += F("</strong> • "); s += htmlEscape(state_->printer.connectionStatus); if(strlen(state_->printer.lastCommand)){s += F("<br>Last command: ");s += htmlEscape(state_->printer.lastCommand);s += F(" • ");s += htmlEscape(state_->printer.lastCommandResult);} s += F("</p>");
     s += F("<p>Nozzle "); s += String(state_->printer.nozzleC,1); s += F(" / "); s += String(state_->printer.nozzleTargetC,1); s += F(" C • Bed "); s += String(state_->printer.bedC,1); s += F(" / "); s += String(state_->printer.bedTargetC,1); s += F(" C • Chamber "); s += String(state_->printer.chamberC,1); s += F(" C<br>Layer "); s += state_->printer.currentLayer; s += F(" / "); s += state_->printer.totalLayers; s += F(" • Speed "); s += state_->printer.speedPercent; s += F("% • AMS slots "); s += state_->printer.amsLoadedSlots; s += F(" • Active tray "); s += state_->printer.activeTray; s += F(" • AMS humidity "); s += state_->printer.amsHumidity; s += F("<br>Fans: part "); s += state_->printer.partFan; s += F(" • aux "); s += state_->printer.auxFan; s += F(" • chamber "); s += state_->printer.chamberFan; s += F(" • Error 0x"); s += String(state_->printer.errorCode, HEX); s += F("</p>");
   }
   if (state_->printer.online) {
     s += F("<div class='grid'>");
-    for(int i=0;i<4;i++){ auto &slot=state_->printer.amsSlots[i]; s += F("<div class='card' style='margin:4px 0'><strong>AMS A"); s += i+1; s += state_->printer.activeTray==i?F(" • ACTIVE</strong>"):F("</strong>"); s += F("<p>"); if(!slot.loaded)s+=F("Empty"); else {s+=htmlEscape(slot.material); if(strlen(slot.name)){s+=F(" • ");s+=htmlEscape(slot.name);} if(slot.remainingPercent>=0){s+=F("<br>");s+=slot.remainingPercent;s+=F("% remaining");}} s+=F("</p></div>"); }
+    int visibleAmsSlots = state_->printer.amsSlotCount ? min(16, (int)state_->printer.amsSlotCount) : 4;
+    for(int i=0;i<visibleAmsSlots;i++){ auto &slot=state_->printer.amsSlots[i]; s += F("<div class='card' style='margin:4px 0'><strong>AMS "); s += slot.unitIndex+1; s += F("."); s += slot.trayIndex+1; s += (state_->printer.activeTray==i||slot.active)?F(" • ACTIVE</strong>"):F("</strong>"); s += F("<p>"); if(!slot.loaded)s+=F("Empty"); else {s+=htmlEscape(slot.material); if(strlen(slot.name)){s+=F(" • ");s+=htmlEscape(slot.name);} if(slot.remainingPercent>=0){s+=F("<br>");s+=slot.remainingPercent;s+=F("% remaining");}} s+=F("</p></div>"); }
     s += F("</div><div class='grid'><button type='submit' class='muted' formaction='/bambu/pause' formmethod='post' formnovalidate>Pause</button><button type='submit' formaction='/bambu/resume' formmethod='post' formnovalidate>Resume</button><div><input name='confirm' placeholder='Type STOP to confirm'><button type='submit' class='danger' formaction='/bambu/stop' formmethod='post' formnovalidate data-confirm='Stop the active print?'>Stop print</button></div></div>");
   }
   s += F("</div><button type='submit' class='muted' formaction='/bambu/scan' formmethod='post' formnovalidate>Scan local network for Bambu printers</button>");
@@ -2039,6 +2172,17 @@ void WebDashboard::sendStatusJson() {
   doc["printer"]["configured"] = state_->printer.configured;
   doc["printer"]["online"] = state_->printer.online;
   doc["printer"]["printing"] = state_->printer.printing;
+  doc["printer"]["paused"] = state_->printer.paused;
+  doc["printer"]["finished"] = state_->printer.finished;
+  doc["printer"]["failed"] = state_->printer.failed;
+  doc["printer"]["activity"] = printerActivityName(state_->printer.activity);
+  doc["printer"]["telemetryStale"] = state_->printer.telemetryStale;
+  doc["printer"]["connectionStatus"] = state_->printer.connectionStatus;
+  doc["printer"]["telemetryAgeMs"] = state_->printer.updatedMs ? millis() - state_->printer.updatedMs : 0;
+  doc["printer"]["telemetryMessages"] = state_->printer.telemetryMessages;
+  doc["printer"]["reconnectCount"] = state_->printer.reconnectCount;
+  doc["printer"]["lastCommand"] = state_->printer.lastCommand;
+  doc["printer"]["lastCommandResult"] = state_->printer.lastCommandResult;
   doc["printer"]["name"] = state_->printer.displayName;
   doc["printer"]["model"] = state_->printer.model;
   doc["printer"]["host"] = config_->bambuHost;
@@ -2060,11 +2204,13 @@ void WebDashboard::sendStatusJson() {
   doc["printer"]["auxFan"] = state_->printer.auxFan;
   doc["printer"]["chamberFan"] = state_->printer.chamberFan;
   doc["printer"]["amsLoadedSlots"] = state_->printer.amsLoadedSlots;
+  doc["printer"]["amsUnitCount"] = state_->printer.amsUnitCount;
+  doc["printer"]["amsSlotCount"] = state_->printer.amsSlotCount;
   doc["printer"]["activeTray"] = state_->printer.activeTray;
   doc["printer"]["amsHumidity"] = state_->printer.amsHumidity;
   doc["printer"]["errorCode"] = state_->printer.errorCode;
   doc["printer"]["updatedMs"] = state_->printer.updatedMs;
-  for(int i=0;i<4;i++){auto &slot=state_->printer.amsSlots[i];doc["printer"]["amsSlots"][i]["loaded"]=slot.loaded;doc["printer"]["amsSlots"][i]["active"]=slot.active;doc["printer"]["amsSlots"][i]["material"]=slot.material;doc["printer"]["amsSlots"][i]["name"]=slot.name;doc["printer"]["amsSlots"][i]["color"]=slot.color;doc["printer"]["amsSlots"][i]["remainingPercent"]=slot.remainingPercent;}
+  for(int i=0;i<16;i++){auto &slot=state_->printer.amsSlots[i];doc["printer"]["amsSlots"][i]["unit"]=slot.unitIndex;doc["printer"]["amsSlots"][i]["tray"]=slot.trayIndex;doc["printer"]["amsSlots"][i]["loaded"]=slot.loaded;doc["printer"]["amsSlots"][i]["active"]=slot.active;doc["printer"]["amsSlots"][i]["material"]=slot.material;doc["printer"]["amsSlots"][i]["name"]=slot.name;doc["printer"]["amsSlots"][i]["color"]=slot.color;doc["printer"]["amsSlots"][i]["remainingPercent"]=slot.remainingPercent;}
   doc["printerDiscovery"]["running"] = bambu_.discoveryRunning();
   doc["printerDiscovery"]["count"] = bambu_.discoveredCount();
   doc["printerDiscovery"]["packets"] = bambu_.discoveryPackets();

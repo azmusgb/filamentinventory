@@ -22,7 +22,7 @@ inline time_t waveshareTimegm(struct tm *tmv) {
 #endif
 
 static constexpr uint32_t CONFIG_SCHEMA_VERSION = 5;
-static constexpr char FW_VERSION[] = "1.5.0";
+static constexpr char FW_VERSION[] = "1.6.0";
 static constexpr char DEFAULT_DEVICE_NAME[] = "Waveshare Home";
 static constexpr char SETUP_AP_NAME[] = "WaveshareHome-Setup";
 static constexpr uint8_t DEFAULT_AUDIO_VOLUME = 55;
@@ -54,6 +54,20 @@ enum class HomeCard : uint8_t { Controls = 0, Today = 1, Printer = 2, Filament =
 enum class AlertSeverity : uint8_t { Info = 0, Attention = 1, Urgent = 2 };
 enum class AmbientDisplayMode : uint8_t { Auto = 0, Clock = 1, Printer = 2, Workshop = 3, Minimal = 4 };
 enum class AirMode : uint8_t { Off = 0, Manual = 1, Auto = 2, PostPrint = 3 };
+enum class PrinterActivity : uint8_t { Unknown = 0, Offline = 1, Idle = 2, Preparing = 3, Printing = 4, Paused = 5, Finished = 6, Failed = 7 };
+
+inline const char *printerActivityName(PrinterActivity activity) {
+  switch (activity) {
+    case PrinterActivity::Offline: return "OFFLINE";
+    case PrinterActivity::Idle: return "READY";
+    case PrinterActivity::Preparing: return "PREPARING";
+    case PrinterActivity::Printing: return "PRINTING";
+    case PrinterActivity::Paused: return "PAUSED";
+    case PrinterActivity::Finished: return "COMPLETE";
+    case PrinterActivity::Failed: return "ERROR";
+    default: return "UNKNOWN";
+  }
+}
 
 struct AppConfig {
   uint32_t schemaVersion = CONFIG_SCHEMA_VERSION;
@@ -154,8 +168,10 @@ struct BambuDiscoveredPrinter {
 struct AmsSlotState {
   bool loaded = false;
   bool active = false;
+  uint8_t unitIndex = 0;
+  uint8_t trayIndex = 0;
   char material[24] = "";
-  char color[12] = "";
+  char color[16] = "";
   char name[32] = "";
   int remainingPercent = -1;
 };
@@ -164,8 +180,14 @@ struct PrinterState {
   bool configured = false;
   bool online = false;
   bool printing = false;
+  bool paused = false;
+  bool finished = false;
+  bool failed = false;
   bool error = false;
+  bool telemetryStale = true;
+  PrinterActivity activity = PrinterActivity::Unknown;
   char status[28] = "Not configured";
+  char connectionStatus[64] = "Not configured";
   char stage[40] = "";
   char jobName[80] = "";
   char displayName[48] = "";
@@ -173,6 +195,8 @@ struct PrinterState {
   char firmware[32] = "";
   char host[24] = "";
   char serial[40] = "";
+  char lastCommand[24] = "";
+  char lastCommandResult[64] = "";
   uint8_t progress = 0;
   int remainingMinutes = 0;
   float nozzleC = 0;
@@ -189,12 +213,18 @@ struct PrinterState {
   int chamberFan = 0;
   int wifiSignal = 0;
   int amsLoadedSlots = 0;
+  uint8_t amsUnitCount = 0;
+  uint8_t amsSlotCount = 0;
   int activeTray = -1;
   int amsHumidity = -1;
-  AmsSlotState amsSlots[4];
+  AmsSlotState amsSlots[16];
   uint32_t errorCode = 0;
   uint32_t updatedMs = 0;
   uint32_t connectedMs = 0;
+  uint32_t lastPushAllMs = 0;
+  uint32_t lastCommandMs = 0;
+  uint32_t telemetryMessages = 0;
+  uint32_t reconnectCount = 0;
 };
 
 struct FilamentAttentionSpool {
