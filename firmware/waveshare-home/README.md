@@ -4,6 +4,8 @@ Touch-first general-purpose Home Hub firmware for the **Waveshare ESP32-S3-Touch
 
 The printer is an integration, not the identity of the device. The Home screen is designed around **NOW + NEXT + STATUS**, with live services feeding one shared state/attention model.
 
+> **rc9 validation trigger:** rc9 adds dedicated Weather save/resolve controls, corrected Weather state semantics, semantic firmware-version comparison, and corrected Preview-channel GitHub release selection for device-managed OTA. This documentation-only change intentionally triggers the firmware build workflow after the automated rc9 migration commit.
+
 > **rc8 validation:** OTA upload and self-update paths are hardened against ESP32 task-watchdog starvation. This documentation-only commit intentionally triggers the firmware validation workflow after the automated rc8 migration commit.
 
 ## v1.0.0-rc1
