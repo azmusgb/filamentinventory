@@ -72,6 +72,8 @@ String weatherCodeText(int code) {
 bool beginHttp(HTTPClient &http, WiFiClientSecure &secure, const String &url) {
   http.setConnectTimeout(3500);
   http.setTimeout(5000);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.setRedirectLimit(5);
   if (url.startsWith("https://")) {
     secure.setInsecure();
     return http.begin(secure, url);
@@ -2126,11 +2128,18 @@ bool WebDashboard::installSelfUpdate() {
   }
 
   int length = http.getSize();
+  // GitHub release assets redirect to a CDN. With strict redirect following,
+  // getSize() refers to the final response. If the server uses chunked transfer
+  // encoding the length can be unknown (-1), so validate the actual byte count
+  // after download instead of rejecting an unknown Content-Length here.
   if (length > 0 && static_cast<uint32_t>(length) != sys.updateSize) {
     strlcpy(sys.updateError, "Firmware size differs from manifest", sizeof(sys.updateError));
+    strlcpy(sys.updateStatus, "Install failed", sizeof(sys.updateStatus));
+    strlcpy(sys.otaStatus, "Failed", sizeof(sys.otaStatus));
     http.end();
     free(image);
     sys.otaInProgress = false;
+    sys.otaReadyToReboot = false;
     return false;
   }
 
