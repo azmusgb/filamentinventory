@@ -1460,7 +1460,7 @@ void WebDashboard::sendRoot() {
     if (next) { s += F(" • capacity "); s += next->size / 1024UL; s += F(" KB"); }
     s += F("</p>");
     if (!next) s += F("<p class='warn'>OTA partition unavailable. Install the merged firmware once over USB to provision the dual-slot partition table.</p>");
-    s += F("<h3>Device-managed updates</h3><p>Status: <strong>"); s += htmlEscape(state_->system.updateStatus); s += F("</strong>"); if (strlen(state_->system.updateVersion)) { s += F(" • latest "); s += htmlEscape(state_->system.updateVersion); } if (strlen(state_->system.updateError)) { s += F("<br><span class='warn'>"); s += htmlEscape(state_->system.updateError); s += F("</span>"); } s += F("</p><div class='grid'><form method='post' action='/update/check'><button class='muted'>Check for update</button></form>"); if (state_->system.updateAvailable) { s += F("<form method='post' action='/update/install'><button>Download & install "); s += htmlEscape(state_->system.updateVersion); s += F("</button></form>"); } s += F("</div><p><small>The device downloads only the release firmware binary, verifies its size and SHA-256 manifest, writes the inactive OTA slot, then reboots through the existing boot guard.</small></p>");
+    s += F("<h3>Device-managed updates</h3><p>Status: <strong>"); s += htmlEscape(state_->system.updateStatus); s += F("</strong>"); if (strlen(state_->system.updateVersion)) { s += F(" • latest "); s += htmlEscape(state_->system.updateVersion); } if (strlen(state_->system.updateError)) { s += F("<br><span class='warn'>"); s += htmlEscape(state_->system.updateError); s += F("</span>"); } s += F("</p><div class='grid'><form method='post' action='/update/check'><button class='muted'>Check for update</button></form>"); if (state_->system.updateAvailable) { s += F("<form method='post' action='/update/install'><button>Download & install "); s += htmlEscape(state_->system.updateVersion); s += F("</button></form>"); } s += F("</div><p><small>The device downloads only the release firmware binary, verifies GitHub release size and SHA-256 digest, writes the inactive OTA slot, then reboots through the existing boot guard.</small></p>");
     s += F("<p><small>Policy: "); const char *updateModes[]={"Manual","Notify me","Auto-install stable"}; s += updateModes[config_->updateMode]; s += F(" • Channel: "); s += config_->updateChannel ? "Preview / RC" : "Stable"; s += F("</small></p>");
     s += F("<hr><p>Manual browser OTA remains available. Choose only <code>WaveshareHome-firmware.bin</code>. Do not upload the merged, bootloader, or partition binary here.</p>");
     s += F("<form id='otaForm' method='POST' action='/update' enctype='multipart/form-data'><input id='otaFile' type='file' name='firmware' accept='.bin' required><button id='otaButton' type='submit'>Install firmware</button></form><progress id='otaProgress' max='100' value='0' style='width:100%;margin-top:12px'></progress><p id='otaMessage'>");
@@ -1725,51 +1725,33 @@ bool WebDashboard::checkForSelfUpdate(bool force) {
   String version = release["tag_name"] | "";
   version.replace("waveshare-v", "");
   version.replace("v", "");
-  String firmwareUrl, manifestUrl;
+  String firmwareUrl;
+  String firmwareDigest;
+  uint32_t firmwareSize = 0;
   for (JsonObject asset : release["assets"].as<JsonArray>()) {
     String name = asset["name"] | "";
-    if (name == "WaveshareHome-firmware.bin") firmwareUrl = asset["browser_download_url"] | "";
-    else if (name == "update-manifest.json") manifestUrl = asset["browser_download_url"] | "";
+    if (name == "WaveshareHome-firmware.bin") {
+      // Use GitHub's API asset URL instead of browser_download_url. The API host
+      // is already proven reachable by the release check and avoids a separate
+      // github.com manifest request before OTA begins.
+      firmwareUrl = asset["url"] | "";
+      firmwareDigest = asset["digest"] | "";
+      firmwareSize = asset["size"] | 0;
+    }
   }
-  if (!version.length() || !firmwareUrl.length() || !manifestUrl.length()) {
-    strlcpy(sys.updateError, "Release is missing firmware or manifest asset", sizeof(sys.updateError));
+  if (!version.length() || !firmwareUrl.length()) {
+    strlcpy(sys.updateError, "Release is missing firmware asset", sizeof(sys.updateError));
+    sys.updateCheckInProgress = false; return false;
+  }
+  if (firmwareDigest.startsWith("sha256:")) firmwareDigest.remove(0, 7);
+  firmwareDigest.toLowerCase();
+  if (firmwareDigest.length() != 64 || firmwareSize == 0) {
+    strlcpy(sys.updateError, "Firmware asset lacks GitHub SHA-256 or size", sizeof(sys.updateError));
     sys.updateCheckInProgress = false; return false;
   }
 
-  WiFiClientSecure manifestSecure;
-  manifestSecure.setInsecure();
-  HTTPClient manifestHttp;
-  manifestHttp.setConnectTimeout(6000);
-  manifestHttp.setTimeout(9000);
-  manifestHttp.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  if (!manifestHttp.begin(manifestSecure, manifestUrl)) {
-    strlcpy(sys.updateError, "Could not open release manifest", sizeof(sys.updateError));
-    sys.updateCheckInProgress = false; return false;
-  }
-  manifestHttp.addHeader("User-Agent", "WaveshareHome-ESP32-Updater");
-  manifestHttp.addHeader("Accept-Encoding", "identity");
-  int manifestCode = manifestHttp.GET();
-  if (manifestCode != HTTP_CODE_OK) {
-    snprintf(sys.updateError, sizeof(sys.updateError), "Manifest HTTP %d", manifestCode);
-    manifestHttp.end(); sys.updateCheckInProgress = false; return false;
-  }
-  String manifestPayload = manifestHttp.getString();
-  manifestHttp.end();
-  JsonDocument manifest;
-  err = deserializeJson(manifest, manifestPayload);
-  if (err) {
-    String e = String("Manifest JSON: ") + err.c_str();
-    strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));
-    sys.updateCheckInProgress = false; return false;
-  }
-
-  String sha = manifest["sha256"] | "";
-  uint32_t size = manifest["size"] | 0;
-  if (sha.length() != 64 || size == 0) {
-    strlcpy(sys.updateError, "Manifest lacks SHA-256 or size", sizeof(sys.updateError));
-    sys.updateCheckInProgress = false; return false;
-  }
-
+  String sha = firmwareDigest;
+  uint32_t size = firmwareSize;
   strlcpy(sys.updateVersion, version.c_str(), sizeof(sys.updateVersion));
   strlcpy(sys.updateFirmwareUrl, firmwareUrl.c_str(), sizeof(sys.updateFirmwareUrl));
   strlcpy(sys.updateSha256, sha.c_str(), sizeof(sys.updateSha256));
@@ -1795,14 +1777,16 @@ bool WebDashboard::installSelfUpdate() {
   WiFiClientSecure secure;
   secure.setInsecure();
   HTTPClient http;
-  http.setConnectTimeout(7000);
-  http.setTimeout(15000);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.setConnectTimeout(12000);
+  http.setTimeout(30000);
+  http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
   if (!http.begin(secure, sys.updateFirmwareUrl)) {
     strlcpy(sys.updateError, "Could not open firmware URL", sizeof(sys.updateError));
     return false;
   }
   http.addHeader("User-Agent", "WaveshareHome-ESP32-Updater");
+  http.addHeader("Accept", "application/octet-stream");
+  http.addHeader("X-GitHub-Api-Version", "2022-11-28");
   http.addHeader("Accept-Encoding", "identity");
   int code = http.GET();
   if (code != HTTP_CODE_OK) {
@@ -1812,7 +1796,7 @@ bool WebDashboard::installSelfUpdate() {
 
   int length = http.getSize();
   if (length <= 0 || (uint32_t)length != sys.updateSize || (uint32_t)length > next->size) {
-    strlcpy(sys.updateError, "Firmware size differs from signed manifest", sizeof(sys.updateError));
+    strlcpy(sys.updateError, "Firmware size differs from GitHub release metadata", sizeof(sys.updateError));
     http.end(); return false;
   }
 
