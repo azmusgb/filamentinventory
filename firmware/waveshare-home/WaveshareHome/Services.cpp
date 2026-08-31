@@ -831,7 +831,11 @@ void FilamentPlugin::fetch(AppConfig &config, AppState &state) {
   if (!beginHttp(http, secure, config.filamentEndpoint)) return;
   http.addHeader("X-Filament-Sync-Key", config.filamentSyncKey);
   http.addHeader("X-Filament-Profile", config.filamentProfile);
+  esp_task_wdt_reset();
+  delay(0);
   int code = http.GET();
+  esp_task_wdt_reset();
+  delay(0);
   if (code != HTTP_CODE_OK) {
     state.filament.online = false;
     http.end();
@@ -1197,9 +1201,9 @@ void WebDashboard::loop(AppConfig &config, AppState &state) {
   if (started_) server_.handleClient();
   if (rebootAfterResponse_ && (int32_t)(millis() - rebootAtMs_) >= 0) ESP.restart();
 
-  if (WiFi.status() == WL_CONNECTED && config.updateMode != 0 && !state.system.otaInProgress) {
+  if (state.system.stableBoot && WiFi.status() == WL_CONNECTED && config.updateMode != 0 && !state.system.otaInProgress) {
     const uint32_t interval = (uint32_t)config.updateCheckMinutes * 60UL * 1000UL;
-    const bool initialDue = !selfUpdateInitialCheckDone_ && millis() > 60000UL;
+    const bool initialDue = !selfUpdateInitialCheckDone_ && millis() > 90000UL;
     const bool periodicDue = selfUpdateInitialCheckDone_ && millis() - lastSelfUpdateCheckMs_ >= interval;
     if (initialDue || periodicDue) {
       selfUpdateInitialCheckDone_ = true;
@@ -1799,7 +1803,11 @@ void WebDashboard::handleUpdateUpload() {
     Serial.printf("OTA start: %s -> %s (%u bytes capacity)\n", upload.filename.c_str(), next->label, (unsigned)next->size);
   } else if (upload.status == UPLOAD_FILE_WRITE) {
     if (!otaUploadStarted_ || Update.hasError()) return;
+    esp_task_wdt_reset();
+    delay(0);
     const size_t written = Update.write(upload.buf, upload.currentSize);
+    esp_task_wdt_reset();
+    delay(0);
     state_->system.otaBytes += written;
     if (written != upload.currentSize) {
       String err = String("Flash write: ") + Update.errorString();
@@ -1815,6 +1823,8 @@ void WebDashboard::handleUpdateUpload() {
     state_->system.otaTotal = state_->system.otaBytes;
     copyText(state_->system.otaStatus, sizeof(state_->system.otaStatus), "Validating");
     if (!state_->system.otaBytes) { Update.abort(); failOta("Firmware upload contained zero bytes"); return; }
+    esp_task_wdt_reset();
+    delay(0);
     if (!Update.end(true)) {
       String err = String("Validation: ") + Update.errorString();
       failOta(err.c_str());
