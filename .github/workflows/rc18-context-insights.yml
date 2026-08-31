@@ -1,0 +1,44 @@
+name: Apply rc18 Context Insights
+
+on:
+  push:
+    paths:
+      - 'tools/rc18_context_insights.py'
+      - '.github/workflows/rc18-context-insights.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  evolve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Apply rc18 evolution
+        run: python3 tools/rc18_context_insights.py
+      - name: Validate evolution
+        run: |
+          grep -q '1.0.0-rc18' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -q 'screenInsights' firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+          grep -q 'refreshInsights' firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+          grep -q 'Update available' firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+      - name: Commit rc18 firmware
+        run: |
+          if git diff --quiet; then
+            echo 'No firmware changes needed'
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add firmware/waveshare-home/WaveshareHome/AppModel.h firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+            git commit -m 'Add context-aware insights for rc18'
+            git push
+          fi
+      - name: Trigger validated firmware build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run waveshare-home.yml --repo '${{ github.repository }}'

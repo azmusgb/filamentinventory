@@ -1,0 +1,36 @@
+name: OTA Hardening
+
+on:
+  push:
+    paths:
+      - 'tools/ota_hardening.py'
+      - '.github/workflows/ota-hardening.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply rc5 OTA hardening
+        run: python3 tools/ota_hardening.py
+      - name: Validate transformed sources
+        run: |
+          grep -q '1.0.0-rc5' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -q 'otaUploadSucceeded_' firmware/waveshare-home/WaveshareHome/Services.h
+          grep -q 'OTA validated' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q "id='otaProgress'" firmware/waveshare-home/WaveshareHome/Services.cpp
+      - name: Commit migration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add firmware/waveshare-home/WaveshareHome/AppModel.h firmware/waveshare-home/WaveshareHome/Services.h firmware/waveshare-home/WaveshareHome/Services.cpp
+          if git diff --cached --quiet; then
+            echo 'No OTA migration changes to commit.'
+          else
+            git commit -m 'Harden browser OTA and diagnostics for rc5'
+            git push
+          fi

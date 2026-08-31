@@ -1,0 +1,48 @@
+name: Apply rc12 Web Console Compile Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - tools/rc12_web_console_compile_fix.py
+      - .github/workflows/rc12-web-console-compile-fix.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply compile fix
+        run: python tools/rc12_web_console_compile_fix.py
+
+      - name: Validate generated source
+        run: |
+          git diff --check
+          grep -q 'FW_VERSION\[\] = "1.0.0-rc12"' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -Fq 'document.querySelectorAll(\"form[action=' firmware/waveshare-home/WaveshareHome/Services.cpp
+
+      - name: Commit source fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add firmware/waveshare-home/WaveshareHome/Services.cpp
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit'
+          else
+            git commit -m 'Fix rc12 rich web console compile'
+            git push
+          fi
+
+      - name: Trigger firmware validation build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run waveshare-home.yml --ref main

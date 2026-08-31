@@ -52,6 +52,8 @@ jobs:
           test -f dist/css/tokens.css
           test -f dist/css/components/v11.css
           test -f dist/css/components/v11-workflows.css
+          test -f dist/css/components/ux-cohesion.css
+          test -f dist/css/components/preferences-v12.css
           test -f dist/css/components/physical-workflow.css
           test -f dist/css/components/print-job.css
           test -f dist/app-version.js
@@ -72,6 +74,8 @@ jobs:
           test -f dist/bulk-actions-client.js
           test -f dist/print-readiness-core.js
           test -f dist/print-readiness-client.js
+          test -f dist/ux-cohesion-client.js
+          test -f dist/preferences-v12-client.js
           test -f dist/ui-v10-client.js
           test -f dist/app-shell-client.js
           test -f dist/app.js

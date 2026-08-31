@@ -1,0 +1,94 @@
+.profile-operational-defaults {
+  overflow: clip;
+}
+
+.profile-operational-defaults > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.profile-operational-defaults > summary::-webkit-details-marker {
+  display: none;
+}
+
+.profile-operational-defaults > summary > span:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.profile-operational-defaults > summary strong {
+  font-size: 1rem;
+}
+
+.profile-operational-defaults > summary small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.profile-disclosure-icon {
+  flex: 0 0 auto;
+  font-size: 1.2rem;
+  line-height: 1;
+  transition: transform 160ms ease;
+}
+
+.profile-operational-defaults[open] .profile-disclosure-icon {
+  transform: rotate(45deg);
+}
+
+.profile-operational-body {
+  display: grid;
+  gap: 22px;
+  padding: 0 20px 20px;
+  border-top: 1px solid var(--color-border);
+}
+
+.profile-operational-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding-top: 20px;
+}
+
+.profile-operational-section {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.profile-operational-section .profile-settings-head {
+  margin-bottom: 14px;
+}
+
+.profile-operational-section .profile-settings-head p {
+  max-width: 68ch;
+}
+
+.profile-preferences-v12 .profile-section-nav {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 760px) {
+  .profile-operational-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-operational-defaults > summary,
+  .profile-operational-body {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-disclosure-icon {
+    transition: none;
+  }
+}

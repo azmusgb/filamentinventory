@@ -1,0 +1,31 @@
+name: Workshop Platform Upgrade
+
+# Trigger rc4 migration after script/version-anchor fixes.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/workshop_upgrade.py'
+      - '.github/workflows/workshop-platform-upgrade.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply migration
+        run: python3 tools/workshop_upgrade.py
+      - name: Validate
+        run: git diff --check
+      - name: Commit migration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add firmware/waveshare-home/WaveshareHome
+          git commit -m "Add workshop state services and printer controls"
+          git push

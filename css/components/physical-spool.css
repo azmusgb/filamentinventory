@@ -1,6 +1,8 @@
 /* Physical Spool: canonical object/action surface for a spool in hand. */
 @import url("../tokens.css");
 
+.fi-ui .spool-card-primary { appearance:none; display:block; width:100%; min-width:0; padding:0; border:0; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+.fi-ui .spool-card-primary:focus-visible { outline:3px solid color-mix(in srgb,var(--color-accent) 55%,transparent); outline-offset:4px; border-radius:var(--radius-sm); }
 .fi-ui .spool-action-dialog { width:min(680px,calc(100vw - 24px)); max-width:680px; padding:0; border:1px solid var(--color-border); border-radius:var(--radius-xl); background:var(--color-bg); color:var(--color-text); box-shadow:var(--shadow-float); }
 .fi-ui .spool-action-dialog::backdrop { background:rgba(2,6,12,.72); backdrop-filter:blur(8px); }
 .fi-ui .spool-action-shell { display:grid; max-height:min(88vh,820px); max-height:min(88dvh,820px); overflow:hidden; }
@@ -28,6 +30,9 @@
 .fi-ui .spool-action-grid .btn { min-height:48px; justify-content:center; }
 .fi-ui .spool-action-note { margin:var(--space-4) 0 0; color:var(--color-text-muted); font-size:var(--text-sm); line-height:1.5; }
 .fi-ui .spool-action-bar { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:var(--space-2); margin-top:var(--space-3); }
+.fi-ui .inventory-card-menu-dialog { width:min(460px,calc(100vw - 24px)); max-width:460px; }
+.fi-ui .inventory-card-menu-dialog .spool-action-grid { grid-template-columns:1fr; margin-top:0; }
+.fi-ui .inventory-card-menu-dialog .spool-action-body { padding-top:var(--space-4); }
 
 /* Global dialog state invariant: closed native dialogs must never participate in layout. */
 .fi-ui dialog:not([open]) { display:none; }
@@ -46,6 +51,8 @@
   .fi-ui .spool-action-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .fi-ui .spool-action-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .fi-ui .spool-action-grid .btn-primary { grid-column:1 / -1; }
+  .fi-ui .inventory-card-menu-dialog .spool-action-grid { grid-template-columns:1fr; }
+  .fi-ui .inventory-card-menu-dialog .spool-action-grid .btn-primary { grid-column:auto; }
 }
 @media (max-width:959px) {
   .fi-ui.fi-v10 .mobile-bottom-nav [data-bottom-scan] {

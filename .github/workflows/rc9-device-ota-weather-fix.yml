@@ -1,0 +1,43 @@
+name: Apply rc9 Device OTA and Weather Fix
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/rc9_device_ota_weather_fix.py'
+      - '.github/workflows/rc9-device-ota-weather-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Apply rc9 migration
+        run: python3 tools/rc9_device_ota_weather_fix.py
+
+      - name: Validate migration
+        run: |
+          grep -q 'FW_VERSION\[\] = "1.0.0-rc9"' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -q 'compareFirmwareVersions' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q '/weather/save' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'Current firmware is newer' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'Weather temporarily unavailable' firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+
+      - name: Commit firmware changes
+        run: |
+          if git diff --quiet; then
+            echo 'No changes required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add firmware/waveshare-home/WaveshareHome
+          git commit -m 'Fix device OTA and weather UX for rc9'
+          git push
+
+# Retry after resilient Weather matcher fix.

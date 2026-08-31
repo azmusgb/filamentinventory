@@ -1,0 +1,55 @@
+name: Apply rc15 Bambu Discovery Engine
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/rc15_bambu_discovery_engine.py'
+      - '.github/workflows/rc15-bambu-discovery-engine.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply rc15 discovery engine
+        run: python3 tools/rc15_bambu_discovery_engine.py
+
+      - name: Validate generated source
+        run: |
+          grep -q 'FW_VERSION\[\].*1.0.0-rc15' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -q 'BAMBU_DISCOVERY_SSDP_PORT = 1900' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'HOST: 239.255.255.250:1900' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'discoveryUdpSsdp_' firmware/waveshare-home/WaveshareHome/Services.h
+          grep -q 'discoveryCandidateChecks' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'WiFi.setSleep(false)' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'DISCOVERY ACTIVITY' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'packetsByPort' firmware/waveshare-home/WaveshareHome/Services.cpp
+
+      - name: Commit firmware source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add firmware/waveshare-home/WaveshareHome/AppModel.h \
+                  firmware/waveshare-home/WaveshareHome/Services.h \
+                  firmware/waveshare-home/WaveshareHome/Services.cpp
+          if git diff --cached --quiet; then
+            echo 'No generated changes to commit.'
+          else
+            git commit -m 'Rebuild Bambu LAN discovery for rc15'
+            git push origin HEAD:main
+          fi
+
+      - name: Trigger firmware validation build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run waveshare-home.yml --repo '${{ github.repository }}' --ref main

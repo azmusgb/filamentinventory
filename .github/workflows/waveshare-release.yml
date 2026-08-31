@@ -1,0 +1,103 @@
+name: Publish Waveshare Firmware Release
+
+on:
+  workflow_run:
+    workflows: ["Build Waveshare Home Firmware"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve source run
+        id: src
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RUN_ID=$(gh run list --repo "${{ github.repository }}" --workflow "Build Waveshare Home Firmware" --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          else
+            RUN_ID='${{ github.event.workflow_run.id }}'
+          fi
+          test -n "$RUN_ID"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout firmware source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+
+      - name: Determine version
+        id: ver
+        run: |
+          VERSION=$(python3 - <<'PY'
+          import re
+          text=open('firmware/waveshare-home/WaveshareHome/AppModel.h').read()
+          m=re.search(r'FW_VERSION\[\]\s*=\s*"([^"]+)"', text)
+          if not m: raise SystemExit('FW_VERSION not found')
+          print(m.group(1))
+          PY
+          )
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=waveshare-v$VERSION" >> "$GITHUB_OUTPUT"
+          if [[ "$VERSION" == *-* ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Download validated firmware artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p dist
+          gh run download "${{ steps.src.outputs.run_id }}" --repo "${{ github.repository }}" --dir dist
+          find dist -maxdepth 3 -type f -print
+          FW=$(find dist -name WaveshareHome-firmware.bin -print -quit)
+          MERGED=$(find dist -name WaveshareHome-merged.bin -print -quit)
+          test -n "$FW" -a -n "$MERGED"
+          cp "$FW" dist/WaveshareHome-firmware.bin
+          cp "$MERGED" dist/WaveshareHome-merged.bin
+
+      - name: Generate signed-by-hash manifest
+        run: |
+          SHA=$(sha256sum dist/WaveshareHome-firmware.bin | awk '{print $1}')
+          SIZE=$(stat -c%s dist/WaveshareHome-firmware.bin)
+          cat > dist/update-manifest.json <<EOF
+          {
+            "product": "Waveshare Home",
+            "version": "${{ steps.ver.outputs.version }}",
+            "channel": "${{ steps.ver.outputs.prerelease == 'true' && 'preview' || 'stable' }}",
+            "firmware": "WaveshareHome-firmware.bin",
+            "size": $SIZE,
+            "sha256": "$SHA"
+          }
+          EOF
+          cat dist/update-manifest.json
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG='${{ steps.ver.outputs.tag }}'
+          VERSION='${{ steps.ver.outputs.version }}'
+          FLAGS=''
+          if [ '${{ steps.ver.outputs.prerelease }}' = 'true' ]; then FLAGS='--prerelease'; fi
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              dist/WaveshareHome-firmware.bin \
+              dist/WaveshareHome-merged.bin \
+              dist/update-manifest.json \
+              --clobber --repo "${{ github.repository }}"
+          else
+            gh release create "$TAG" \
+              dist/WaveshareHome-firmware.bin \
+              dist/WaveshareHome-merged.bin \
+              dist/update-manifest.json \
+              --repo "${{ github.repository }}" \
+              --title "Waveshare Home $VERSION" \
+              --notes "Validated Waveshare Home firmware release. Device-managed OTA should use WaveshareHome-firmware.bin only; WaveshareHome-merged.bin is for USB recovery/provisioning." \
+              $FLAGS
+          fi

@@ -1,0 +1,3 @@
+rc10 device-managed OTA validation build.
+
+This build removes the separate release-manifest fetch from the device update path. The updater now uses GitHub's release-asset SHA-256 digest and size directly, and downloads the firmware through the GitHub API asset endpoint with forced redirect handling.

@@ -73,7 +73,10 @@
     const count = document.getElementById('labelSelectionCount');
     const print = document.getElementById('printLabelsBtn');
     if (count) count.textContent = `${selected.size} selected`;
-    if (print) print.disabled = selected.size === 0;
+    if (print) {
+      print.disabled = selected.size === 0;
+      print.textContent = selected.size > 0 ? `Print ${selected.size} label${selected.size === 1 ? '' : 's'}` : 'Print labels';
+    }
   }
 
   function renderPicker() {

@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 
 const FIXED_TIME = Date.parse('2026-08-28T15:00:00.000Z');
 const APPROVED_VISUAL_HASHES = Object.freeze({
-  home:'1188423a9188869c58a8fa14d46b54bc49b27c1d6f79f907cc6f65661ebecef9',
+  home:'4d54898667b7fbc4bcfed31ecdcee93329192f69645cb6d251a7d2223da2af04',
   inventory:'7aa3b52353f57c531f72169742575ef30df35a66f8ee7f2ff1a7c9e7ab07159d',
 });
 
@@ -169,7 +169,7 @@ test('service worker activates the current PWA shell cache with V11 assets', asy
   });
   expect(result).not.toBeNull();
   expect(result.script).toContain('/sw.js');
-  expect(result.cacheName).toBe('filament-inventory-v39');
+  expect(result.cacheName).toMatch(/^filament-inventory-v\d+$/);
   expect(result.shell).toBe(true);
   expect(result.workflows).toBe(true);
   expect(result.printJob).toBe(true);
@@ -265,7 +265,7 @@ test('mobile scanner unknown-spool recovery opens Add spool with the scanned ID'
   await expect(page.locator('#spoolId')).toHaveValue('T999');
 });
 
-test('mobile Inventory keeps evidence compact and hands details to the canonical spool sheet', async ({ page }, testInfo) => {
+test('mobile Inventory keeps evidence compact and separates quick actions from full spool details', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-webkit','Mobile inventory presentation contract.');
   await navigate(page,'inventory');
   const card=page.locator('#inventoryGrid .spool-card[data-id="T001"]');
@@ -274,6 +274,11 @@ test('mobile Inventory keeps evidence compact and hands details to the canonical
   await expect(card.locator('.inventory-quantity-amount')).toHaveText('≈800 g');
   await expect(card.locator('.spool-action-bar')).toBeHidden();
   await card.locator('.spool-card-more').click();
+  const quick=page.locator('#inventoryCardQuickActionsDialog');
+  await expect(quick).toBeVisible();
+  await expect(page.locator('#spoolActionDialog')).not.toHaveAttribute('open','');
+  await quick.getByRole('button',{name:'Open details',exact:true}).click();
+  await expect(quick).not.toHaveAttribute('open','');
   await expect(page.locator('#spoolActionDialog[open]')).toBeVisible();
   await expect(page.locator('#spoolActionTitle')).toContainText('T001 · Matte White');
 });

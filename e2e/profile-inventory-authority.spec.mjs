@@ -41,7 +41,7 @@ test('missing Bill partition materializes the same starter inventory the UI rend
   await expect(page.locator('#inventoryView')).toHaveClass(/active/);
   const c01 = page.locator('#inventoryGrid .spool-card[data-id="C01"]');
   await expect(c01).toBeVisible();
-  await c01.locator('[data-spool-actions-open="C01"]:visible').click();
+  await c01.locator('.spool-card-primary').click();
   await expect(page.locator('#spoolActionDialog[open]')).toBeVisible();
   await expect(page.locator('#spoolActionDialog')).toContainText('C01 · Purple');
   await expect(page.locator('#toast')).not.toContainText("C01 is not in Bill's inventory");
