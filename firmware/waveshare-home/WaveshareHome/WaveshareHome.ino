@@ -133,7 +133,7 @@ static char appliedTimezone[80] = "";
 
 enum class ScreenId : uint8_t {
   Home, Today, Controls, Apps, Attention, Quick, Settings, Wifi,
-  Timers, Printer, Filament, Workshop, Insights, Automation, Activity, Devices, Readiness, System, Recovery, Ambient
+  Timers, Printer, Filament, Workshop, Insights, Automation, Activity, Devices, Readiness, Modes, System, Recovery, Ambient
 };
 
 static void applyThemeTokens() {
