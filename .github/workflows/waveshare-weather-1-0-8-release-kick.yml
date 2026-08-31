@@ -1,0 +1,33 @@
+name: Publish Waveshare Home 1.0.8 Weather Firmware
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/waveshare-weather-1-0-8-release-kick.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify latest successful build is 1.0.8
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUN_ID=$(gh run list --repo "${{ github.repository }}" --workflow waveshare-home.yml --status success --limit 1 --json databaseId,headSha --jq '.[0].databaseId')
+          test "$RUN_ID" = "33417635939"
+          echo "Validated build run: $RUN_ID"
+
+      - name: Dispatch release publisher
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run waveshare-release.yml --repo "${{ github.repository }}" --ref main
+          echo 'Dispatched Publish Waveshare Firmware Release.'
