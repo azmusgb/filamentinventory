@@ -27,7 +27,7 @@ jobs:
       - name: Validate source
         run: |
           grep -q 'FW_VERSION\[\].*1.0.0-rc14' firmware/waveshare-home/WaveshareHome/AppModel.h
-          grep -q 'M-SEARCH \* HTTP/1.1\\\\r\\\\n' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -Fq 'probe += "M-SEARCH * HTTP/1.1\r\n";' firmware/waveshare-home/WaveshareHome/Services.cpp
           grep -q 'BAMBU_DISCOVERY_LEGACY_PORT = 1990' firmware/waveshare-home/WaveshareHome/Services.cpp
 
       - name: Commit compile fix
