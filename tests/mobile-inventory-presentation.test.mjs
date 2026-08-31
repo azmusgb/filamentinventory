@@ -20,12 +20,32 @@ test('mobile inventory presentation is published and available offline', async (
   assert.match(navigation,/inventory-card-client\.js/);
 });
 
-test('compact cards distinguish quantity evidence from identification confidence', async () => {
+test('compact cards use canonical evidence and make remaining amount primary', async () => {
   const source = await read('inventory-card-client.js');
-  for (const evidence of ['Measured','Visual estimate','Unknown']) assert.ok(source.includes(`'${evidence}'`), `missing evidence label ${evidence}`);
-  assert.match(source,/Identification confidence:/);
-  assert.match(source,/Not measured/);
-  assert.match(source,/progress\.hidden = evidence\.tone === 'unknown'/);
+  assert.match(source,/FilamentInventorySpoolContract/);
+  assert.match(source,/contract\.workflowSummary/);
+  for (const evidence of ['Measured · scale','Estimated · usage','Estimated · visual','Unknown · verify']) {
+    assert.ok(source.includes(`'${evidence}'`), `missing evidence label ${evidence}`);
+  }
+  assert.match(source,/className = 'inventory-quantity-primary'/);
+  assert.match(source,/className = 'inventory-quantity-amount'/);
+  assert.match(source,/className = 'inventory-quantity-percent'/);
+  assert.match(source,/Amount unknown/);
+  assert.match(source,/`≈\$\{Math\.round\(Number\(measurement\.grams\)\)\} g`/);
+  assert.match(source,/progress\.setAttribute\('role','progressbar'\)/);
+});
+
+test('stock, placement and identification attention remain independent of quantity evidence', async () => {
+  const source = await read('inventory-card-client.js');
+  assert.match(source,/ID_ATTENTION = new Set\(\['Medium','Low','Unknown'\]\)/);
+  assert.match(source,/stock === 'Low'/);
+  assert.match(source,/stateChip\('Low stock','low'\)/);
+  assert.match(source,/stateChip\('Loaded','loaded'\)/);
+  assert.match(source,/Stored · \$\{spool\.location \|\| 'Unassigned'\}/);
+  assert.match(source,/inventory-id-chip/);
+  assert.match(source,/badge\.hidden = true/);
+  assert.match(source,/card\.dataset\.stockState/);
+  assert.match(source,/card\.dataset\.placementState/);
 });
 
 test('card body opens details while title and ellipsis remain distinct accessible controls', async () => {
@@ -44,7 +64,7 @@ test('card body opens details while title and ellipsis remain distinct accessibl
   }
 });
 
-test('inventory presentation CSS reduces density while preserving visible focus and trust state', async () => {
+test('inventory presentation CSS expresses evidence authority before physical state', async () => {
   const [mobile,physical] = await Promise.all([
     read('css/components/inventory-mobile.css'),
     read('css/components/physical-spool.css'),
@@ -54,9 +74,15 @@ test('inventory presentation CSS reduces density while preserving visible focus 
   assert.match(mobile,/\.fi-page-header-actions\s*\{[^}]*width: auto/s);
   assert.match(mobile,/\.spool-action-bar\s*\{\s*display: none/);
   assert.match(mobile,/\.bulk-selection-mode[^}]*\.spool-card-more\s*\{\s*display: none/);
+  assert.match(mobile,/\.inventory-quantity-primary/);
+  assert.match(mobile,/\.inventory-quantity-amount/);
   assert.match(mobile,/\.inventory-evidence-chip\[data-evidence="measured"\]/);
   assert.match(mobile,/\.inventory-evidence-chip\[data-evidence="estimated"\]/);
   assert.match(mobile,/\.inventory-evidence-chip\[data-evidence="unknown"\]/);
+  assert.match(mobile,/\.inventory-state-chip\[data-state="low"\]/);
+  assert.match(mobile,/\.inventory-state-chip\[data-state="loaded"\]/);
+  assert.match(mobile,/\.inventory-placement/);
+  assert.match(mobile,/\.inventory-id-chip/);
   assert.match(physical,/\.spool-card-primary:focus-visible/);
   assert.match(physical,/\.inventory-card-menu-dialog/);
   assert.doesNotMatch(mobile,/!important/);

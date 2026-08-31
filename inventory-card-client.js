@@ -1,57 +1,215 @@
 (() => {
   'use strict';
 
+  const STORAGE_KEY = 'filament-inventory-v1';
   const CONFIDENCE_LABELS = Object.freeze({Confirmed:'Confirmed',High:'ID high',Medium:'ID medium',Low:'ID low',Unknown:'ID unknown'});
+  const ID_ATTENTION = new Set(['Medium','Low','Unknown']);
   let observer = null;
   let queued = false;
   let interactionBound = false;
   const $ = id => document.getElementById(id);
 
-  function evidenceFromCard(card) {
+  function readState() {
+    try {
+      const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      return value && Array.isArray(value.spools) ? value : {spools:[]};
+    } catch {
+      return {spools:[]};
+    }
+  }
+
+  function spoolForCard(card) {
+    const id = String(card?.dataset?.id || '').trim().toLowerCase();
+    if (!id) return null;
+    return readState().spools.find(spool => String(spool?.id || '').trim().toLowerCase() === id) || null;
+  }
+
+  function canonicalSummary(card) {
+    const spool = spoolForCard(card);
+    const contract = globalThis.FilamentInventorySpoolContract;
+    if (!spool || !contract?.workflowSummary) return null;
+    return contract.workflowSummary(spool,{owner:readState().profile || spool.owner || 'Bill'});
+  }
+
+  function fallbackEvidence(card) {
     const fill = card.querySelector('.fill-top');
     const percent = fill?.querySelector('strong')?.textContent?.trim() || '—';
     const text = String(fill?.querySelector('small')?.innerText || fill?.querySelector('small')?.textContent || '');
     const lines = text.split(/\n+/).map(value => value.trim()).filter(Boolean);
     const amount = lines[0] || 'Fill unknown';
     const source = lines[1] || 'Unknown';
-    if (/^measured$/i.test(source)) return {percent,amount:amount.replace(/^~/,''),source:'Measured',tone:'measured'};
+    if (/^measured$/i.test(source)) {
+      return {percent,amount:amount.replace(/^~/,''),source:'Measured · scale',tone:'measured',percentValue:Number.parseFloat(percent)};
+    }
     if (/^(visual|estimated)$/i.test(source)) {
       const normalized = amount.replace(/^~/,'').replace(/^≈/,'');
-      return {percent,amount:normalized === 'Fill unknown' ? 'Not measured' : `≈${normalized}`,source:'Visual estimate',tone:'estimated'};
+      return {
+        percent:percent === '—' ? '—' : `≈${percent.replace(/^≈/,'')}`,
+        amount:normalized === 'Fill unknown' ? 'Amount unknown' : `≈${normalized}`,
+        source:'Estimated · visual',
+        tone:'estimated',
+        percentValue:Number.parseFloat(percent),
+      };
     }
-    return {percent:'—',amount:'Not measured',source:'Unknown',tone:'unknown'};
+    return {percent:'—',amount:'Amount unknown',source:'Unknown · verify',tone:'unknown',percentValue:null};
   }
 
-  function normalizeConfidence(card) {
+  function evidenceModel(card, summary = canonicalSummary(card)) {
+    if (!summary) return fallbackEvidence(card);
+    const measurement = summary.measurement || {};
+    if (measurement.source === 'Measured') {
+      return {
+        percent:measurement.percent == null ? '—' : `${Math.round(Number(measurement.percent))}%`,
+        amount:measurement.grams == null ? 'Amount unknown' : `${Math.round(Number(measurement.grams))} g`,
+        source:'Measured · scale',
+        tone:'measured',
+        percentValue:measurement.percent == null ? null : Number(measurement.percent),
+      };
+    }
+    if (measurement.source === 'Estimated') {
+      return {
+        percent:measurement.percent == null ? '—' : `≈${Math.round(Number(measurement.percent))}%`,
+        amount:measurement.grams == null ? 'Amount unknown' : `≈${Math.round(Number(measurement.grams))} g`,
+        source:measurement.evidence === 'usage' ? 'Estimated · usage' : 'Estimated · visual',
+        tone:'estimated',
+        percentValue:measurement.percent == null ? null : Number(measurement.percent),
+      };
+    }
+    return {percent:'—',amount:'Amount unknown',source:'Unknown · verify',tone:'unknown',percentValue:null};
+  }
+
+  function normalizeLegacyHeaderBadge(card, summary = canonicalSummary(card)) {
     const badge = card.querySelector('.confidence');
-    if (!badge || badge.classList.contains('reorder-badge') || badge.classList.contains('archived-badge')) return;
-    const raw = badge.dataset.identificationConfidence || badge.textContent.trim();
-    badge.dataset.identificationConfidence = raw;
-    badge.textContent = CONFIDENCE_LABELS[raw] || raw;
-    badge.title = `Identification confidence: ${raw}`;
-    badge.setAttribute('aria-label',`Identification confidence: ${raw}`);
+    if (!badge) return;
+    if (!badge.classList.contains('reorder-badge') && !badge.classList.contains('archived-badge')) {
+      const raw = summary?.spool?.confidence || badge.dataset.identificationConfidence || badge.textContent.trim();
+      badge.dataset.identificationConfidence = raw;
+      badge.textContent = CONFIDENCE_LABELS[raw] || raw;
+      badge.title = `Identification confidence: ${raw}`;
+      badge.setAttribute('aria-label',`Identification confidence: ${raw}`);
+    }
+    // V12 inventory cards move lifecycle and identification signals below quantity evidence.
+    badge.hidden = true;
+    badge.setAttribute('aria-hidden','true');
+    card.classList.add('inventory-head-status-demoted');
   }
 
-  function compactEvidence(card) {
+  function compactEvidence(card, summary = canonicalSummary(card)) {
     const fill = card.querySelector('.fill-top');
     if (!fill) return;
-    const evidence = evidenceFromCard(card);
+    const evidence = evidenceModel(card,summary);
     fill.classList.add('inventory-quantity-row');
     fill.dataset.quantityEvidence = evidence.tone;
     fill.replaceChildren();
-    const percent = document.createElement('strong');
-    percent.className = 'inventory-quantity-percent';
-    percent.textContent = evidence.percent;
-    const amount = document.createElement('span');
+
+    const primary = document.createElement('span');
+    primary.className = 'inventory-quantity-primary';
+    const amount = document.createElement('strong');
     amount.className = 'inventory-quantity-amount';
     amount.textContent = evidence.amount;
+    const percent = document.createElement('span');
+    percent.className = 'inventory-quantity-percent';
+    percent.textContent = evidence.percent;
+    primary.append(amount,percent);
+
     const chip = document.createElement('span');
     chip.className = 'inventory-evidence-chip';
     chip.dataset.evidence = evidence.tone;
     chip.textContent = evidence.source;
-    fill.append(percent,amount,chip);
+    fill.append(primary,chip);
+
     const progress = card.querySelector('.progress');
-    if (progress) progress.hidden = evidence.tone === 'unknown';
+    if (progress) {
+      const known = evidence.percentValue !== null && Number.isFinite(evidence.percentValue);
+      progress.hidden = !known;
+      if (known) {
+        const value = Math.max(0,Math.min(100,Number(evidence.percentValue)));
+        const bar = progress.querySelector('i');
+        if (bar) bar.style.width = `${value}%`;
+        progress.setAttribute('role','progressbar');
+        progress.setAttribute('aria-label','Filament remaining');
+        progress.setAttribute('aria-valuemin','0');
+        progress.setAttribute('aria-valuemax','100');
+        progress.setAttribute('aria-valuenow',String(Math.round(value)));
+      } else {
+        progress.removeAttribute('role');
+        progress.removeAttribute('aria-label');
+        progress.removeAttribute('aria-valuemin');
+        progress.removeAttribute('aria-valuemax');
+        progress.removeAttribute('aria-valuenow');
+      }
+    }
+  }
+
+  function stateChip(label,state) {
+    const chip = document.createElement('span');
+    chip.className = 'inventory-state-chip';
+    chip.dataset.state = state;
+    chip.textContent = label;
+    return chip;
+  }
+
+  function renderStateRow(card, summary = canonicalSummary(card)) {
+    let row = card.querySelector('.inventory-state-row');
+    if (!row) {
+      row = document.createElement('div');
+      row.className = 'inventory-state-row';
+      const progress = card.querySelector('.progress');
+      if (progress) progress.insertAdjacentElement('afterend',row);
+      else card.querySelector('.spool-body')?.appendChild(row);
+    }
+    row.replaceChildren();
+
+    if (!summary) {
+      row.hidden = true;
+      return;
+    }
+
+    const {spool,stock,loaded,archived,placementLabel} = summary;
+    card.dataset.stockState = String(stock || '').toLowerCase();
+    card.dataset.placementState = loaded ? 'loaded' : 'stored';
+    card.dataset.quantityEvidence = evidenceModel(card,summary).tone;
+
+    const spoken = [];
+    if (archived) {
+      row.appendChild(stateChip('Archived','archived'));
+      spoken.push('Archived');
+    } else {
+      if (stock === 'Empty') {
+        row.appendChild(stateChip('Empty','empty'));
+        spoken.push('Empty');
+      } else if (stock === 'Low') {
+        row.appendChild(stateChip('Low stock','low'));
+        spoken.push('Low stock');
+      }
+      if (loaded) {
+        row.appendChild(stateChip('Loaded','loaded'));
+        spoken.push('Loaded');
+      }
+
+      const placement = document.createElement('span');
+      placement.className = 'inventory-placement';
+      placement.textContent = loaded ? placementLabel : `Stored · ${spool.location || 'Unassigned'}`;
+      row.appendChild(placement);
+      spoken.push(placement.textContent);
+    }
+
+    const confidence = spool.confidence || 'Unknown';
+    if (!archived && ID_ATTENTION.has(confidence)) {
+      const id = document.createElement('span');
+      id.className = 'inventory-id-chip';
+      id.dataset.idConfidence = confidence.toLowerCase();
+      id.textContent = CONFIDENCE_LABELS[confidence] || `ID ${confidence.toLowerCase()}`;
+      id.title = `Identification confidence: ${confidence}`;
+      row.appendChild(id);
+      spoken.push(`Identification confidence ${confidence}`);
+      card.dataset.identificationAttention = confidence.toLowerCase();
+    } else {
+      delete card.dataset.identificationAttention;
+    }
+
+    row.hidden = row.childElementCount === 0;
+    row.setAttribute('aria-label',spoken.join(', '));
   }
 
   function ensureQuickActionButton(card) {
@@ -230,9 +388,11 @@
 
   function enhanceCard(card) {
     if (!(card instanceof HTMLElement)) return;
-    card.classList.add('inventory-card-compact');
-    normalizeConfidence(card);
-    compactEvidence(card);
+    const summary = canonicalSummary(card);
+    card.classList.add('inventory-card-compact','inventory-evidence-v12');
+    normalizeLegacyHeaderBadge(card,summary);
+    compactEvidence(card,summary);
+    renderStateRow(card,summary);
     ensureQuickActionButton(card);
     ensurePrimaryOpenButton(card);
   }
@@ -266,6 +426,7 @@
     queueEnhance();
     globalThis.FilamentInventoryCardPresentation = Object.freeze({refresh:queueEnhance});
     globalThis.FilamentInventoryEvents?.on?.('inventory:changed',queueEnhance);
+    globalThis.FilamentInventoryEvents?.on?.('measurement:saved',queueEnhance);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',init,{once:true});
