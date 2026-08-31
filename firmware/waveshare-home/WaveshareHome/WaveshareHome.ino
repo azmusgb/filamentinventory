@@ -93,7 +93,17 @@ static lv_obj_t *controlsBody = nullptr;
 static lv_obj_t *attentionBody = nullptr;
 static lv_obj_t *wifiBody = nullptr;
 static lv_obj_t *timerBody = nullptr;
-static lv_obj_t *printerBody = nullptr;
+static lv_obj_t *printerStateLabel = nullptr;
+static lv_obj_t *printerJobLabel = nullptr;
+static lv_obj_t *printerProgressLabel = nullptr;
+static lv_obj_t *printerRemainingLabel = nullptr;
+static lv_obj_t *printerProgressBar = nullptr;
+static lv_obj_t *printerLayerLabel = nullptr;
+static lv_obj_t *printerNozzleLabel = nullptr;
+static lv_obj_t *printerBedLabel = nullptr;
+static lv_obj_t *printerChamberLabel = nullptr;
+static lv_obj_t *printerAmsPanels[4] = {nullptr};
+static lv_obj_t *printerAmsLabels[4] = {nullptr};
 static lv_obj_t *filamentBody = nullptr;
 static lv_obj_t *workshopBody = nullptr;
 static lv_obj_t *insightsBody = nullptr;
@@ -304,10 +314,13 @@ static void navEvent(lv_event_t *e) {
 
 static void addBottomNav(lv_obj_t *screen, ScreenId active) {
   lv_obj_t *bar = panel(screen, 8, 426, 304, 46, lv_color_hex(0x050B0F));
-  struct N { const char *name; ScreenId id; } items[] = {{"Home", ScreenId::Home}, {"Today", ScreenId::Today}, {"Apps", ScreenId::Apps}};
+  struct N { const char *name; ScreenId id; } items[] = {{"Home", ScreenId::Home}, {"Printer", ScreenId::Printer}, {"More", ScreenId::Apps}};
   for (int i = 0; i < 3; ++i) {
-    lv_obj_t *btn = button(bar, items[i].name, 4 + i * 99, 5, 95, 36, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(items[i].id)));
-    if (active == items[i].id) { lv_obj_set_style_bg_color(btn, lv_color_hex(0x102A1B), 0); lv_obj_set_style_border_color(btn, lv_color_hex(0x1E5132), 0); }
+    lv_obj_t *btn = button(bar, items[i].name, 4 + i * 99, 4, 95, 38, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(items[i].id)));
+    if (active == items[i].id) {
+      lv_obj_set_style_bg_color(btn, lv_color_hex(0x102A1B), 0);
+      lv_obj_set_style_border_color(btn, lv_color_hex(0x2B7650), 0);
+    }
   }
 }
 
@@ -343,6 +356,32 @@ static HeroMode resolvedHeroMode() {
   return HeroMode::System;
 }
 
+static ScreenId heroDestination() {
+  switch (resolvedHeroMode()) {
+    case HeroMode::Printer: return ScreenId::Printer;
+    case HeroMode::Filament: return ScreenId::Filament;
+    case HeroMode::Weather:
+    case HeroMode::Calendar: return ScreenId::Today;
+    case HeroMode::System:
+    default:
+      if (state.alertCount) {
+        const char *source = state.alerts[0].source;
+        if (!strcmp(source, "Printer")) return ScreenId::Printer;
+        if (!strcmp(source, "Filament")) return ScreenId::Filament;
+        if (!strcmp(source, "Workshop") || !strcmp(source, "Dryer")) return ScreenId::Workshop;
+        if (!strcmp(source, "Timer")) return ScreenId::Timers;
+        if (!strcmp(source, "Network")) return ScreenId::Wifi;
+        if (!strcmp(source, "Weather") || !strcmp(source, "Calendar")) return ScreenId::Today;
+      }
+      if (state.workshop.filterRequested || state.workshop.dryer.running) return ScreenId::Workshop;
+      return ScreenId::System;
+  }
+}
+
+static void heroEvent(lv_event_t *) {
+  loadScreen(heroDestination());
+}
+
 static void updateHero() {
   if (!heroTitle || !heroValue || !heroDetail || !heroEyebrow) return;
   HeroMode mode = resolvedHeroMode();
@@ -362,7 +401,7 @@ static void updateHero() {
     case HeroMode::System:
     default:
       if (state.alertCount && state.alerts[0].severity == AlertSeverity::Urgent) { title = "Attention"; snprintf(value, sizeof(value), "%s", state.alerts[0].title); snprintf(detail, sizeof(detail), "%s", state.alerts[0].detail); }
-      else if (state.system.updateAvailable) { title = "Update available"; snprintf(value, sizeof(value), "%s", state.system.updateVersion); snprintf(detail, sizeof(detail), "Open Insights or System to review"); }
+      else if (state.system.updateAvailable) { title = "Update available"; snprintf(value, sizeof(value), "%s", state.system.updateVersion); snprintf(detail, sizeof(detail), "Open System to review"); }
       else if (state.workshop.filterRequested) { title = "Workshop air"; snprintf(value, sizeof(value), "Filter on"); snprintf(detail, sizeof(detail), "%s", strlen(state.workshop.filterReason) ? state.workshop.filterReason : "Automation active"); }
       else if (state.workshop.dryer.running) { title = "Filament dryer"; snprintf(value, sizeof(value), "%s", state.workshop.dryer.material); snprintf(detail, sizeof(detail), "%lu min remaining", (unsigned long)(state.workshop.dryer.remainingSec / 60UL)); }
       else { title = config.deviceName; snprintf(value, sizeof(value), "Ready"); snprintf(detail, sizeof(detail), "%s • %lu min uptime", WiFi.status() == WL_CONNECTED ? "Online" : "Local mode", state.system.uptimeSec / 60UL); }
@@ -394,6 +433,12 @@ static ScreenId screenForCard(HomeCard card) {
   }
 }
 
+static void homeCardEvent(lv_event_t *e) {
+  int index = (int)reinterpret_cast<intptr_t>(lv_event_get_user_data(e));
+  if (index < 0 || index >= 3) return;
+  loadScreen(screenForCard(config.homeCards[index]));
+}
+
 static void createHome() {
   screenHome = lv_obj_create(nullptr); styleScreen(screenHome);
   homeClock = label(screenHome, "--:--", &lv_font_montserrat_18, C_TEXT, 12, 10);
@@ -407,7 +452,7 @@ static void createHome() {
   heroTitle = label(hero, config.deviceName, &lv_font_montserrat_16, C_TEXT, 14, 32, 265);
   heroValue = label(hero, "Ready", &lv_font_montserrat_28, C_TEXT, 14, 57, 265);
   heroDetail = label(hero, "Everything looks good", &lv_font_montserrat_12, C_MUTED, 14, 102, 265);
-  lv_obj_add_flag(hero, LV_OBJ_FLAG_CLICKABLE); lv_obj_add_event_cb(hero, navEvent, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Insights)));
+  lv_obj_add_flag(hero, LV_OBJ_FLAG_CLICKABLE); lv_obj_add_event_cb(hero, heroEvent, LV_EVENT_CLICKED, nullptr);
 
   label(screenHome, "AT A GLANCE", &lv_font_montserrat_12, C_DIM, 12, 263);
   for (int i = 0; i < 3; ++i) {
@@ -415,7 +460,7 @@ static void createHome() {
     homeCardTitle[i] = label(card, "Card", &lv_font_montserrat_14, C_TEXT, 9, 12, 76);
     homeCardDetail[i] = label(card, "Detail", &lv_font_montserrat_12, C_MUTED, 9, 40, 76);
     homeCardState[i] = label(card, "Ready", &lv_font_montserrat_12, C_GREEN, 9, 72, 76);
-    lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE); lv_obj_add_event_cb(card, navEvent, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<intptr_t>(screenForCard(config.homeCards[i]))));
+    lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE); lv_obj_add_event_cb(card, homeCardEvent, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<intptr_t>(i)));
   }
   addBottomNav(screenHome, ScreenId::Home);
 }
@@ -425,7 +470,7 @@ static void createToday() {
   lv_obj_t *weather = panel(screenToday, 12, 54, 296, 112, C_SURFACE_2); label(weather, "WEATHER", &lv_font_montserrat_12, C_BLUE, 14, 10); todayWeather = wrapLabel(weather, "Not configured", &lv_font_montserrat_16, C_TEXT, 14, 37, 266);
   lv_obj_t *agenda = panel(screenToday, 12, 178, 296, 132, C_SURFACE_2); label(agenda, "NEXT", &lv_font_montserrat_12, C_PURPLE, 14, 10); todayAgenda = wrapLabel(agenda, "No calendar connected", &lv_font_montserrat_16, C_TEXT, 14, 37, 266);
   lv_obj_t *timers = panel(screenToday, 12, 322, 296, 88, C_SURFACE); label(timers, "TIMERS", &lv_font_montserrat_12, C_ORANGE, 14, 10); todayTimer = label(timers, "No active timers", &lv_font_montserrat_14, C_TEXT, 14, 38, 266); lv_obj_add_flag(timers, LV_OBJ_FLAG_CLICKABLE); lv_obj_add_event_cb(timers, navEvent, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Timers)));
-  addBottomNav(screenToday, ScreenId::Today);
+  addBottomNav(screenToday, ScreenId::Apps);
 }
 
 static void createControls() {
@@ -437,22 +482,25 @@ static void createControls() {
 }
 
 static void createApps() {
-  screenApps = lv_obj_create(nullptr); styleScreen(screenApps); addStatusBar(screenApps, "APPS");
+  screenApps = lv_obj_create(nullptr); styleScreen(screenApps); addStatusBar(screenApps, "MORE");
+  label(screenApps, "WORKSHOP & DEVICE", &lv_font_montserrat_12, C_DIM, 12, 52);
   struct App { const char *name; ScreenId id; lv_color_t color; } apps[] = {
-    {"Workshop", ScreenId::Workshop, C_ORANGE}, {"Printer", ScreenId::Printer, C_GREEN}, {"Filament", ScreenId::Filament, C_BLUE},
-    {"Controls", ScreenId::Controls, C_GREEN}, {"Today", ScreenId::Today, C_PURPLE}, {"Timers", ScreenId::Timers, C_ORANGE},
-    {"Attention", ScreenId::Attention, C_RED}, {"Insights", ScreenId::Insights, C_PURPLE}, {"Automation", ScreenId::Automation, C_ORANGE}, {"Quick", ScreenId::Quick, C_BLUE},
-    {"Activity", ScreenId::Activity, C_PURPLE}, {"Devices", ScreenId::Devices, C_BLUE}, {"Settings", ScreenId::Settings, C_PURPLE},
-    {"Modes", ScreenId::Modes, C_BLUE}, {"Readiness", ScreenId::Readiness, C_BLUE}, {"System", ScreenId::System, C_GREEN}
+    {"Workshop", ScreenId::Workshop, C_ORANGE}, {"Filament", ScreenId::Filament, C_BLUE},
+    {"Controls", ScreenId::Controls, C_GREEN}, {"Automation", ScreenId::Automation, C_PURPLE},
+    {"Today", ScreenId::Today, C_BLUE}, {"Timers", ScreenId::Timers, C_ORANGE},
+    {"Device", ScreenId::Devices, C_BLUE}, {"System", ScreenId::System, C_GREEN}
   };
-  for (size_t i = 0; i < sizeof(apps)/sizeof(apps[0]); ++i) button(screenApps, apps[i].name, 12 + (i%3)*102, 54 + (i/3)*70, 92, 58, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(apps[i].id)), apps[i].color);
-  button(screenApps, "Home", 114, 402, 194, 24, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)));
+  for (size_t i = 0; i < sizeof(apps)/sizeof(apps[0]); ++i) {
+    button(screenApps, apps[i].name, 12 + (i % 2) * 154, 76 + (i / 2) * 76, 142, 64,
+           navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(apps[i].id)), apps[i].color);
+  }
+  addBottomNav(screenApps, ScreenId::Apps);
 }
 
 static void createAttention() {
   screenAttention = lv_obj_create(nullptr); styleScreen(screenAttention); addStatusBar(screenAttention, "ATTENTION");
   attentionBody = wrapLabel(screenAttention, "All clear", &lv_font_montserrat_14, C_TEXT, 14, 64, 292); lv_obj_set_style_text_line_space(attentionBody, 8, 0);
-  button(screenAttention, "Home", 12, 374, 296, 42, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)));
+  addBottomNav(screenAttention, ScreenId::Apps);
 }
 
 static void settingAction(lv_event_t *e) {
@@ -473,23 +521,16 @@ static void settingAction(lv_event_t *e) {
 
 static void createQuick() {
   screenQuick = lv_obj_create(nullptr); styleScreen(screenQuick); addStatusBar(screenQuick, "QUICK CONTROL");
-  button(screenQuick, "Brightness", 12, 62, 92, 58, [](lv_event_t*){ config.brightness=config.brightness>=100?30:config.brightness+10; configStore.save(config); applyBacklight(config.brightness); }, nullptr, C_BLUE);
-  button(screenQuick, "Air mode", 114, 62, 92, 58, [](lv_event_t*){ config.airMode=static_cast<AirMode>((static_cast<int>(config.airMode)+1)%4); state.workshop.airMode=config.airMode; configStore.save(config); }, nullptr, C_GREEN);
-  button(screenQuick, "Ambient", 216, 62, 92, 58, [](lv_event_t*){ config.ambientMode=static_cast<AmbientDisplayMode>((static_cast<int>(config.ambientMode)+1)%5); configStore.save(config); }, nullptr, C_PURPLE);
-  button(screenQuick, "5 min timer", 12, 132, 92, 58, [](lv_event_t*){ timerPlugin.start(state,300,"5 minute timer"); }, nullptr, C_ORANGE);
-  button(screenQuick, "Pause", 114, 132, 92, 58, [](lv_event_t*){ bambuPlugin.pausePrint(); }, nullptr, C_ORANGE);
-  button(screenQuick, "Resume", 216, 132, 92, 58, [](lv_event_t*){ bambuPlugin.resumePrint(); }, nullptr, C_GREEN);
-  button(screenQuick, "Workshop", 12, 202, 142, 58, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Workshop)), C_BLUE);
-  button(screenQuick, "Attention", 166, 202, 142, 58, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Attention)), C_RED);
-  button(screenQuick, "System", 12, 272, 142, 58, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::System)), C_PURPLE);
-  button(screenQuick, "Settings", 166, 272, 142, 58, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)), C_BLUE);
-  button(screenQuick, "Automation", 216, 274, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Automation)), C_ORANGE);
-  button(screenQuick, "Insights", 216, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Insights)), C_PURPLE);
-  button(screenQuick, "Activity", 12, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Activity)), C_PURPLE);
-  button(screenQuick, "Devices", 114, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
-  button(screenQuick, "Modes", 216, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Modes)), C_BLUE);
-  button(screenQuick, "Readiness", 216, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Readiness)), C_BLUE);
-  button(screenQuick, "Home", 12, 348, 296, 48, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+  label(screenQuick, "COMMON ACTIONS", &lv_font_montserrat_12, C_DIM, 12, 54);
+  button(screenQuick, "Brightness", 12, 78, 142, 64, [](lv_event_t*){ config.brightness=config.brightness>=100?30:config.brightness+10; configStore.save(config); applyBacklight(config.brightness); }, nullptr, C_BLUE);
+  button(screenQuick, "Air mode", 166, 78, 142, 64, [](lv_event_t*){ config.airMode=static_cast<AirMode>((static_cast<int>(config.airMode)+1)%4); state.workshop.airMode=config.airMode; configStore.save(config); }, nullptr, C_GREEN);
+  button(screenQuick, "5 min timer", 12, 154, 142, 64, [](lv_event_t*){ timerPlugin.start(state,300,"5 minute timer"); }, nullptr, C_ORANGE);
+  button(screenQuick, "Ambient", 166, 154, 142, 64, [](lv_event_t*){ config.ambientMode=static_cast<AmbientDisplayMode>((static_cast<int>(config.ambientMode)+1)%5); configStore.save(config); }, nullptr, C_PURPLE);
+  button(screenQuick, "Pause print", 12, 230, 142, 64, [](lv_event_t*){ bambuPlugin.pausePrint(); }, nullptr, C_ORANGE);
+  button(screenQuick, "Resume print", 166, 230, 142, 64, [](lv_event_t*){ bambuPlugin.resumePrint(); }, nullptr, C_GREEN);
+  button(screenQuick, "Attention", 12, 306, 142, 64, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Attention)), C_RED);
+  button(screenQuick, "Settings", 166, 306, 142, 64, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)), C_BLUE);
+  addBottomNav(screenQuick, ScreenId::Apps);
 }
 
 static void createSettings() {
@@ -507,7 +548,8 @@ static void createSettings() {
   button(screenSettings, "Card 2", 216, 274, 92, 46, settingAction, reinterpret_cast<void *>(11));
   button(screenSettings, "Card 3", 12, 332, 92, 46, settingAction, reinterpret_cast<void *>(12));
   button(screenSettings, "Workshop", 114, 332, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Workshop)), C_ORANGE);
-  button(screenSettings, "Home", 216, 332, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+  button(screenSettings, "Wi-Fi", 216, 332, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Wifi)), C_BLUE);
+  addBottomNav(screenSettings, ScreenId::Apps);
 }
 
 static void createWifi() {
@@ -515,8 +557,8 @@ static void createWifi() {
   wifiBody = wrapLabel(screenWifi, "Loading...", &lv_font_montserrat_14, C_TEXT, 14, 70, 292); lv_obj_set_style_text_line_space(wifiBody, 9, 0);
   button(screenWifi, "Reconnect", 12, 304, 142, 52, [](lv_event_t*){ connectivity.reconnect(); }, nullptr, C_BLUE);
   button(screenWifi, "Forget", 166, 304, 142, 52, [](lv_event_t*){ connectivity.forget(); }, nullptr, C_RED);
-  button(screenWifi, "Settings", 12, 370, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)));
-  button(screenWifi, "Home", 166, 370, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+  button(screenWifi, "Settings", 12, 370, 296, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)), C_BLUE);
+  addBottomNav(screenWifi, ScreenId::Apps);
 }
 
 static void createTimers() {
@@ -525,26 +567,54 @@ static void createTimers() {
   button(screenTimers, "5 min", 12, 250, 92, 58, [](lv_event_t*){ timerPlugin.start(state,300,"5 minute timer"); }, nullptr, C_ORANGE);
   button(screenTimers, "10 min", 114, 250, 92, 58, [](lv_event_t*){ timerPlugin.start(state,600,"10 minute timer"); }, nullptr, C_ORANGE);
   button(screenTimers, "30 min", 216, 250, 92, 58, [](lv_event_t*){ timerPlugin.start(state,1800,"30 minute timer"); }, nullptr, C_ORANGE);
-  button(screenTimers, "Clear all", 12, 324, 142, 50, [](lv_event_t*){ for(int i=0;i<4;i++) timerPlugin.cancel(state,i); }, nullptr, C_RED);
-  button(screenTimers, "Home", 166, 324, 142, 50, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+  button(screenTimers, "Clear all", 12, 324, 296, 50, [](lv_event_t*){ for(int i=0;i<4;i++) timerPlugin.cancel(state,i); }, nullptr, C_RED);
+  addBottomNav(screenTimers, ScreenId::Apps);
 }
 
 static void createPrinter() {
   screenPrinter = lv_obj_create(nullptr); styleScreen(screenPrinter); addStatusBar(screenPrinter, "PRINTER");
-  printerBody = wrapLabel(screenPrinter, "Bambu integration not configured", &lv_font_montserrat_12, C_TEXT, 14, 54, 292); lv_obj_set_style_text_line_space(printerBody, 5, 0);
-  button(screenPrinter, "Pause", 12, 304, 92, 46, [](lv_event_t*){ bambuPlugin.pausePrint(); }, nullptr, C_ORANGE);
-  button(screenPrinter, "Resume", 114, 304, 92, 46, [](lv_event_t*){ bambuPlugin.resumePrint(); }, nullptr, C_GREEN);
-  lv_obj_t *stop = button(screenPrinter, "Hold Stop", 216, 304, 92, 46, nullptr, nullptr, C_RED);
+
+  lv_obj_t *hero = panel(screenPrinter, 12, 54, 296, 126, C_SURFACE_2);
+  printerStateLabel = label(hero, "BAMBU P1S", &lv_font_montserrat_12, C_GREEN, 14, 10, 266);
+  printerJobLabel = label(hero, "Printer not configured", &lv_font_montserrat_16, C_TEXT, 14, 34, 266);
+  printerProgressLabel = label(hero, "--%", &lv_font_montserrat_28, C_TEXT, 14, 58, 100);
+  printerRemainingLabel = label(hero, "-- remaining", &lv_font_montserrat_12, C_MUTED, 150, 69, 130);
+  lv_obj_set_style_text_align(printerRemainingLabel, LV_TEXT_ALIGN_RIGHT, 0);
+  printerProgressBar = lv_bar_create(hero);
+  lv_obj_set_pos(printerProgressBar, 14, 95); lv_obj_set_size(printerProgressBar, 266, 8);
+  lv_bar_set_range(printerProgressBar, 0, 100); lv_bar_set_value(printerProgressBar, 0, LV_ANIM_OFF);
+  lv_obj_set_style_radius(printerProgressBar, 4, LV_PART_MAIN);
+  lv_obj_set_style_radius(printerProgressBar, 4, LV_PART_INDICATOR);
+  lv_obj_set_style_bg_color(printerProgressBar, C_BORDER, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(printerProgressBar, C_GREEN, LV_PART_INDICATOR);
+  printerLayerLabel = label(hero, "Layer -- / --", &lv_font_montserrat_12, C_MUTED, 14, 108, 266);
+
+  const char *statNames[] = {"NOZZLE", "BED", "CHAMBER"};
+  lv_obj_t **statValues[] = {&printerNozzleLabel, &printerBedLabel, &printerChamberLabel};
+  for (int i = 0; i < 3; ++i) {
+    lv_obj_t *stat = panel(screenPrinter, 12 + i * 102, 190, 92, 64, C_SURFACE);
+    label(stat, statNames[i], &lv_font_montserrat_12, C_DIM, 9, 8, 74);
+    *statValues[i] = label(stat, "--°", &lv_font_montserrat_16, C_TEXT, 9, 32, 74);
+  }
+
+  label(screenPrinter, "AMS", &lv_font_montserrat_12, C_DIM, 12, 265);
+  for (int i = 0; i < 4; ++i) {
+    printerAmsPanels[i] = panel(screenPrinter, 12 + i * 76, 284, 68, 56, C_SURFACE);
+    printerAmsLabels[i] = wrapLabel(printerAmsPanels[i], "A1\nEmpty", &lv_font_montserrat_12, C_MUTED, 8, 7, 52);
+  }
+
+  button(screenPrinter, "Pause", 12, 352, 92, 56, [](lv_event_t*){ bambuPlugin.pausePrint(); }, nullptr, C_ORANGE);
+  button(screenPrinter, "Resume", 114, 352, 92, 56, [](lv_event_t*){ bambuPlugin.resumePrint(); }, nullptr, C_GREEN);
+  lv_obj_t *stop = button(screenPrinter, "Hold Stop", 216, 352, 92, 56, nullptr, nullptr, C_RED);
   lv_obj_add_event_cb(stop, [](lv_event_t*){ bambuPlugin.stopPrint(); }, LV_EVENT_LONG_PRESSED, nullptr);
-  button(screenPrinter, "Workshop", 12, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Workshop)), C_ORANGE);
-  button(screenPrinter, "Home", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+  addBottomNav(screenPrinter, ScreenId::Printer);
 }
 
 static void createFilament() {
   screenFilament = lv_obj_create(nullptr); styleScreen(screenFilament); addStatusBar(screenFilament, "FILAMENT");
   filamentBody = wrapLabel(screenFilament, "Filament Inventory not configured", &lv_font_montserrat_14, C_TEXT, 14, 64, 292); lv_obj_set_style_text_line_space(filamentBody, 10, 0);
-  button(screenFilament, "Settings", 12, 370, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)));
-  button(screenFilament, "Home", 166, 370, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+  button(screenFilament, "Settings", 12, 370, 296, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)), C_BLUE);
+  addBottomNav(screenFilament, ScreenId::Apps);
 }
 
 static void createWorkshop() {
@@ -553,39 +623,41 @@ static void createWorkshop() {
   button(screenWorkshop, "Air mode", 12, 304, 92, 46, [](lv_event_t*){ config.airMode=static_cast<AirMode>((static_cast<int>(config.airMode)+1)%4); state.workshop.airMode=config.airMode; configStore.save(config); }, nullptr, C_BLUE);
   button(screenWorkshop, "PETG dry", 114, 304, 92, 46, [](lv_event_t*){ workshopService.startDryer(state,"PETG",55,6UL*3600UL); }, nullptr, C_ORANGE);
   button(screenWorkshop, "Stop dryer", 216, 304, 92, 46, [](lv_event_t*){ workshopService.stopDryer(state); }, nullptr, C_RED);
-  button(screenWorkshop, "Printer", 12, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Printer)), C_GREEN);
-  button(screenWorkshop, "Home", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+  button(screenWorkshop, "Quick controls", 12, 366, 296, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Quick)), C_BLUE);
+  addBottomNav(screenWorkshop, ScreenId::Apps);
 }
 
 static void createInsights() {
   screenInsights = lv_obj_create(nullptr); styleScreen(screenInsights); addStatusBar(screenInsights, "INSIGHTS");
   insightsBody = wrapLabel(screenInsights, "Evaluating current context...", &lv_font_montserrat_12, C_TEXT, 14, 54, 292);
   lv_obj_set_style_text_line_space(insightsBody, 5, 0);
-  button(screenInsights, "Workshop", 12, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Workshop)), C_ORANGE);
-  button(screenInsights, "Devices", 114, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
-  button(screenInsights, "Home", 216, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+  button(screenInsights, "Workshop", 12, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Workshop)), C_ORANGE);
+  button(screenInsights, "Device", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
+  addBottomNav(screenInsights, ScreenId::Apps);
 }
 
 static void createAutomation() {
   screenAutomation = lv_obj_create(nullptr); styleScreen(screenAutomation); addStatusBar(screenAutomation, "AUTOMATION");
   automationBody = wrapLabel(screenAutomation, "Evaluating local rules...", &lv_font_montserrat_12, C_TEXT, 14, 54, 292); lv_obj_set_style_text_line_space(automationBody, 5, 0);
-  button(screenAutomation, "Workshop", 12, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Workshop)), C_ORANGE);
-  button(screenAutomation, "Insights", 114, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Insights)), C_PURPLE);
-  button(screenAutomation, "Home", 216, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+  button(screenAutomation, "Workshop", 12, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Workshop)), C_ORANGE);
+  button(screenAutomation, "Insights", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Insights)), C_PURPLE);
+  addBottomNav(screenAutomation, ScreenId::Apps);
 }
 
 static void createActivity() {
   screenActivity = lv_obj_create(nullptr); styleScreen(screenActivity); addStatusBar(screenActivity, "ACTIVITY");
   activityBody = wrapLabel(screenActivity, "No recent activity", &lv_font_montserrat_12, C_TEXT, 14, 54, 292); lv_obj_set_style_text_line_space(activityBody, 5, 0);
-  button(screenActivity, "Devices", 12, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
-  button(screenActivity, "Home", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+  button(screenActivity, "Device", 12, 366, 296, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
+  addBottomNav(screenActivity, ScreenId::Apps);
 }
 
 static void createDevices() {
   screenDevices = lv_obj_create(nullptr); styleScreen(screenDevices); addStatusBar(screenDevices, "DEVICES");
   devicesBody = wrapLabel(screenDevices, "Inspecting device health...", &lv_font_montserrat_12, C_TEXT, 14, 54, 292); lv_obj_set_style_text_line_space(devicesBody, 5, 0);
-  button(screenDevices, "Activity", 12, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Activity)), C_PURPLE);
-  button(screenDevices, "Home", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+  button(screenDevices, "Activity", 12, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Activity)), C_PURPLE);
+  button(screenDevices, "Settings", 114, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)), C_BLUE);
+  button(screenDevices, "Modes", 216, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Modes)), C_GREEN);
+  addBottomNav(screenDevices, ScreenId::Apps);
 }
 
 static void applyOperationalMode(int mode) {
@@ -622,24 +694,25 @@ static void createModes() {
   button(screenModes, "Print focus", 166, 92, 142, 64, modeEvent, reinterpret_cast<void *>(1), C_BLUE);
   button(screenModes, "Workshop", 12, 170, 142, 64, modeEvent, reinterpret_cast<void *>(2), C_ORANGE);
   button(screenModes, "Quiet", 166, 170, 142, 64, modeEvent, reinterpret_cast<void *>(3), C_PURPLE);
-  button(screenModes, "Automation", 12, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Automation)), C_BLUE);
-  button(screenModes, "Home screen", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+  button(screenModes, "Automation", 12, 366, 296, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Automation)), C_BLUE);
+  addBottomNav(screenModes, ScreenId::Apps);
 }
 
 static void createReadiness() {
   screenReadiness = lv_obj_create(nullptr); styleScreen(screenReadiness); addStatusBar(screenReadiness, "READINESS");
   readinessBody = wrapLabel(screenReadiness, "Evaluating setup...", &lv_font_montserrat_12, C_TEXT, 14, 54, 292);
   lv_obj_set_style_text_line_space(readinessBody, 5, 0);
-  button(screenReadiness, "Devices", 12, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
-  button(screenReadiness, "Settings", 114, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)), C_PURPLE);
-  button(screenReadiness, "Home", 216, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+  button(screenReadiness, "Device", 12, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
+  button(screenReadiness, "Settings", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)), C_PURPLE);
+  addBottomNav(screenReadiness, ScreenId::Apps);
 }
 
 static void createSystem() {
   screenSystem = lv_obj_create(nullptr); styleScreen(screenSystem); addStatusBar(screenSystem, "SYSTEM");
   systemBody = wrapLabel(screenSystem, "Loading diagnostics...", &lv_font_montserrat_12, C_TEXT, 14, 58, 292); lv_obj_set_style_text_line_space(systemBody, 7, 0);
-  button(screenSystem, "Web dashboard", 12, 362, 142, 48, [](lv_event_t*){}, nullptr, C_BLUE);
-  button(screenSystem, "Home", 166, 362, 142, 48, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+  button(screenSystem, "Readiness", 12, 362, 142, 48, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Readiness)), C_BLUE);
+  button(screenSystem, "Activity", 166, 362, 142, 48, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Activity)), C_PURPLE);
+  addBottomNav(screenSystem, ScreenId::Apps);
 }
 
 static void createRecovery() {
@@ -661,7 +734,7 @@ static void createAmbient() {
 
 static void createUi() {
   statusLabelCount = 0;
-  createHome(); createToday(); createControls(); createApps(); createAttention(); createQuick(); createSettings(); createWifi(); createTimers(); createPrinter(); createFilament(); createWorkshop(); createInsights(); createAutomation(); createActivity(); createDevices(); createReadiness(); createSystem(); createRecovery(); createAmbient();
+  createHome(); createToday(); createControls(); createApps(); createAttention(); createQuick(); createSettings(); createWifi(); createTimers(); createPrinter(); createFilament(); createWorkshop(); createInsights(); createAutomation(); createActivity(); createDevices(); createModes(); createReadiness(); createSystem(); createRecovery(); createAmbient();
   loadScreen(state.system.recoveryMode ? ScreenId::Recovery : ScreenId::Home);
 }
 
@@ -725,17 +798,54 @@ static void refreshTimers() {
 }
 
 static void refreshPrinter() {
-  if(!printerBody)return; String b;
-  if(!config.bambuEnabled) b="Bambu Lab integration is not configured.\nUse the web dashboard to scan the LAN or enter printer credentials.";
-  else if(!state.printer.online) b=String("PRINTER OFFLINE\nHost: ")+config.bambuHost+"\nWaiting for local MQTT.";
-  else {
-    b=String(state.printer.displayName)+" • "+state.printer.status+"\n"+(strlen(state.printer.jobName)?state.printer.jobName:"—")+" • "+state.printer.progress+"% • "+formatMinutes(state.printer.remainingMinutes)+"\n";
-    b+=String("Layer ")+state.printer.currentLayer+"/"+state.printer.totalLayers+" • N "+String(state.printer.nozzleC,0)+"°/"+String(state.printer.nozzleTargetC,0)+"° • B "+String(state.printer.bedC,0)+"°/"+String(state.printer.bedTargetC,0)+"°\n";
-    b+=String("Chamber ")+String(state.printer.chamberC,0)+"° • Speed "+state.printer.speedPercent+"% • AMS RH "+state.printer.amsHumidity+"\n\nAMS\n";
-    for(int i=0;i<4;i++){ auto &s=state.printer.amsSlots[i]; b+=String(i==state.printer.activeTray?"> ":"  ")+"A"+(i+1)+" "; if(!s.loaded)b+="Empty"; else { b+=strlen(s.material)?s.material:"Filament"; if(strlen(s.name)){b+=" ";b+=s.name;} if(s.remainingPercent>=0){b+=" • ";b+=s.remainingPercent;b+="%";} } b+="\n"; }
-    if(state.printer.errorCode){b+="Error 0x";b+=String(state.printer.errorCode,HEX);}
+  if (!printerStateLabel || !printerJobLabel || !printerProgressLabel || !printerProgressBar) return;
+
+  const bool enabled = config.bambuEnabled;
+  const bool online = state.printer.online;
+  const bool printing = online && state.printer.printing;
+  const char *name = strlen(state.printer.displayName) ? state.printer.displayName : (strlen(state.printer.model) ? state.printer.model : "Bambu printer");
+
+  String stateLine = String(name) + " • " + (!enabled ? "SETUP" : !online ? "OFFLINE" : state.printer.error ? "ERROR" : printing ? "PRINTING" : state.printer.status);
+  lv_label_set_text(printerStateLabel, stateLine.c_str());
+  lv_obj_set_style_text_color(printerStateLabel, state.printer.error ? C_RED : printing ? C_GREEN : online ? C_BLUE : C_MUTED, 0);
+
+  String job = !enabled ? "Connect Bambu from web dashboard" : !online ? "Waiting for local MQTT" : strlen(state.printer.jobName) ? state.printer.jobName : "Ready for the next print";
+  lv_label_set_text(printerJobLabel, job.c_str());
+
+  char progress[16]; snprintf(progress, sizeof(progress), "%u%%", online ? state.printer.progress : 0);
+  lv_label_set_text(printerProgressLabel, progress);
+  String remaining = printing ? formatMinutes(state.printer.remainingMinutes) + " remaining" : (online ? String(state.printer.status) : String("Not connected"));
+  lv_label_set_text(printerRemainingLabel, remaining.c_str());
+  lv_bar_set_value(printerProgressBar, online ? state.printer.progress : 0, LV_ANIM_ON);
+
+  char layer[80];
+  if (online && state.printer.totalLayers > 0) snprintf(layer, sizeof(layer), "Layer %d / %d • Speed %d%%", state.printer.currentLayer, state.printer.totalLayers, state.printer.speedPercent);
+  else snprintf(layer, sizeof(layer), "%s", enabled ? "Printer telemetry unavailable" : "Scan or configure a printer to begin");
+  lv_label_set_text(printerLayerLabel, layer);
+
+  char temp[32];
+  if (online) snprintf(temp, sizeof(temp), "%.0f° / %.0f°", state.printer.nozzleC, state.printer.nozzleTargetC); else snprintf(temp, sizeof(temp), "--°");
+  lv_label_set_text(printerNozzleLabel, temp);
+  if (online) snprintf(temp, sizeof(temp), "%.0f° / %.0f°", state.printer.bedC, state.printer.bedTargetC); else snprintf(temp, sizeof(temp), "--°");
+  lv_label_set_text(printerBedLabel, temp);
+  if (online) snprintf(temp, sizeof(temp), "%.0f°", state.printer.chamberC); else snprintf(temp, sizeof(temp), "--°");
+  lv_label_set_text(printerChamberLabel, temp);
+
+  for (int i = 0; i < 4; ++i) {
+    if (!printerAmsLabels[i] || !printerAmsPanels[i]) continue;
+    auto &slot = state.printer.amsSlots[i];
+    String text = "A" + String(i + 1) + "\n";
+    if (!online || !slot.loaded) text += "Empty";
+    else {
+      text += strlen(slot.material) ? slot.material : "Loaded";
+      if (slot.remainingPercent >= 0) text += " " + String(slot.remainingPercent) + "%";
+    }
+    lv_label_set_text(printerAmsLabels[i], text.c_str());
+    const bool active = online && (state.printer.activeTray == i || slot.active);
+    lv_obj_set_style_border_color(printerAmsPanels[i], active ? C_GREEN : C_BORDER, 0);
+    lv_obj_set_style_border_width(printerAmsPanels[i], active ? 2 : 1, 0);
+    lv_obj_set_style_text_color(printerAmsLabels[i], active ? C_TEXT : C_MUTED, 0);
   }
-  lv_label_set_text(printerBody,b.c_str());
 }
 
 static void refreshFilament() {

@@ -4,6 +4,37 @@ Touch-first general-purpose Home Hub firmware for the **Waveshare ESP32-S3-Touch
 
 The printer is an integration, not the identity of the device. The Home screen is designed around **NOW + NEXT + STATUS**, with live services feeding one shared state/attention model.
 
+## v1.4.0 — Calm workshop appliance UX
+
+v1.4 is a product-UX consolidation release. It keeps the existing dark industrial visual language while reducing navigation density, making printer state glanceable, and moving maintenance detail behind progressive disclosure.
+
+### Touchscreen
+
+- Persistent **Home / Printer / More** navigation across normal operational screens
+- Reduced launcher from 16 peer destinations to eight purposeful secondary destinations
+- Rebuilt Quick Control layout with non-overlapping, 44+ px touch targets
+- Visual Printer screen with progress bar, job state, remaining time, layer/speed, nozzle/bed/chamber temperatures and four AMS tiles
+- Long-press Stop remains guarded while Pause and Resume stay immediately available
+- NOW card routes to the context it is actually showing (Printer, Filament, Today, Workshop, Wi-Fi or System)
+- Custom Home cards resolve their destination at tap time, so changing a card in Settings no longer leaves a stale navigation target
+- Modes is explicitly instantiated during UI creation
+- Secondary screens consistently identify **More** as their parent navigation surface
+
+### Browser dashboard
+
+- Primary navigation reduced to **Home / Printer / Workshop / Connections / Device / System**
+- Hero actions now prioritize normal workshop tasks instead of update, Wi-Fi and speaker maintenance
+- Printer is the leading live-status card
+- OTA slots, uptime, IP and updater detail are collapsed under **System health & maintenance**
+- Bambu UDP/MQTT discovery counters are collapsed under **Advanced printer diagnostics**
+- Clear keyboard focus treatment for links, buttons, inputs, selects and disclosure controls
+- `prefers-reduced-motion` support disables nonessential animation and smooth scrolling
+- Terminology is simplified around workshop, device, connections and system concepts
+
+### UX regression coverage
+
+`tests/waveshare-ux-source.test.mjs` checks the navigation model, touch-target sizing, Quick Control overlap prevention, visual Printer composition, dynamic Home routing, Modes initialization, web progressive disclosure and accessibility contracts.
+
 > **rc9 validation trigger:** rc9 adds dedicated Weather save/resolve controls, corrected Weather state semantics, semantic firmware-version comparison, and corrected Preview-channel GitHub release selection for device-managed OTA. This documentation-only change intentionally triggers the firmware build workflow after the automated rc9 migration commit.
 
 > **rc8 validation:** OTA upload and self-update paths are hardened against ESP32 task-watchdog starvation. This documentation-only commit intentionally triggers the firmware validation workflow after the automated rc8 migration commit.
