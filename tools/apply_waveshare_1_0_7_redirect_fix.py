@@ -1,0 +1,29 @@
+from pathlib import Path
+
+app = Path('firmware/waveshare-home/WaveshareHome/AppModel.h')
+text = app.read_text()
+old = 'static constexpr char FW_VERSION[] = "1.0.6";'
+new = 'static constexpr char FW_VERSION[] = "1.0.7";'
+if old not in text:
+    raise SystemExit('Expected 1.0.6 FW_VERSION not found')
+app.write_text(text.replace(old, new, 1))
+
+svc = Path('firmware/waveshare-home/WaveshareHome/Services.cpp')
+text = svc.read_text()
+
+old_block = '''  WiFiClientSecure secure;\n  secure.setInsecure();\n  HTTPClient http;\n  http.setConnectTimeout(7000);\n  http.setTimeout(15000);\n  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);\n  if (!http.begin(secure, sys.updateFirmwareUrl)) {\n    strlcpy(sys.updateError, "Could not open firmware URL", sizeof(sys.updateError));\n    free(image);\n    sys.otaInProgress = false;\n    return false;\n  }\n  http.addHeader("User-Agent", "WaveshareHome/1.0.1 ESP32-S3");\n  int code = http.GET();\n  if (code != HTTP_CODE_OK) {\n    String e = String("Firmware HTTP ") + code;\n    strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));\n    http.end();\n    free(image);\n    sys.otaInProgress = false;\n    return false;\n  }\n'''
+
+new_block = '''  // Resolve GitHub cross-host release-asset redirects explicitly.\n  String firmwareUrl = sys.updateFirmwareUrl;\n  {\n    WiFiClientSecure redirectSecure;\n    redirectSecure.setInsecure();\n    HTTPClient redirectHttp;\n    redirectHttp.setConnectTimeout(7000);\n    redirectHttp.setTimeout(15000);\n    redirectHttp.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);\n    const char *redirectHeaders[] = {"Location"};\n    redirectHttp.collectHeaders(redirectHeaders, 1);\n    if (!redirectHttp.begin(redirectSecure, firmwareUrl)) {\n      strlcpy(sys.updateError, "Could not open firmware URL", sizeof(sys.updateError));\n      strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));\n      free(image);\n      sys.otaInProgress = false;\n      return false;\n    }\n    redirectHttp.addHeader("User-Agent", "WaveshareHome/1.0.7 ESP32-S3");\n    const int redirectCode = redirectHttp.GET();\n    if (redirectCode >= 300 && redirectCode < 400) {\n      String location = redirectHttp.header("Location");\n      redirectHttp.end();\n      if (!location.startsWith("https://")) {\n        strlcpy(sys.updateError, "Firmware redirect missing secure Location", sizeof(sys.updateError));\n        strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));\n        free(image);\n        sys.otaInProgress = false;\n        return false;\n      }\n      firmwareUrl = location;\n    } else if (redirectCode == HTTP_CODE_OK) {\n      redirectHttp.end();\n    } else {\n      String e = String("Firmware redirect HTTP ") + redirectCode;\n      strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));\n      strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));\n      redirectHttp.end();\n      free(image);\n      sys.otaInProgress = false;\n      return false;\n    }\n  }\n\n  WiFiClientSecure secure;\n  secure.setInsecure();\n  HTTPClient http;\n  http.setConnectTimeout(7000);\n  http.setTimeout(15000);\n  http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);\n  const char *assetHeaders[] = {"Content-Type"};\n  http.collectHeaders(assetHeaders, 1);\n  if (!http.begin(secure, firmwareUrl)) {\n    strlcpy(sys.updateError, "Could not open release asset URL", sizeof(sys.updateError));\n    strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));\n    free(image);\n    sys.otaInProgress = false;\n    return false;\n  }\n  http.addHeader("User-Agent", "WaveshareHome/1.0.7 ESP32-S3");\n  int code = http.GET();\n  if (code != HTTP_CODE_OK) {\n    String e = String("Firmware asset HTTP ") + code;\n    strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));\n    strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));\n    http.end();\n    free(image);\n    sys.otaInProgress = false;\n    return false;\n  }\n  const String contentType = http.header("Content-Type");\n  if (contentType.length() && contentType.indexOf("application/octet-stream") < 0) {\n    String e = String("Unexpected firmware Content-Type: ") + contentType;\n    strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));\n    strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));\n    http.end();\n    free(image);\n    sys.otaInProgress = false;\n    return false;\n  }\n'''
+
+if old_block not in text:
+    raise SystemExit('Expected OTA HTTP block not found')
+text = text.replace(old_block, new_block, 1)
+
+old_fail = '''    free(image);\n    sys.otaInProgress = false;\n    sys.otaReadyToReboot = false;\n    strlcpy(sys.updateStatus, "Install failed", sizeof(sys.updateStatus));\n    strlcpy(sys.otaStatus, "Failed", sizeof(sys.otaStatus));\n    return false;\n  }\n\n  strlcpy(sys.otaStatus, "Writing", sizeof(sys.otaStatus));\n'''
+
+new_fail = '''    strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));\n    free(image);\n    sys.otaInProgress = false;\n    sys.otaReadyToReboot = false;\n    strlcpy(sys.updateStatus, "Install failed", sizeof(sys.updateStatus));\n    strlcpy(sys.otaStatus, "Failed", sizeof(sys.otaStatus));\n    return false;\n  }\n\n  if (sys.updateSize == 0 || image[0] != 0xE9) {\n    strlcpy(sys.updateError, "Downloaded file is not an ESP application image", sizeof(sys.updateError));\n    strlcpy(sys.otaError, sys.updateError, sizeof(sys.otaError));\n    free(image);\n    sys.otaInProgress = false;\n    sys.otaReadyToReboot = false;\n    strlcpy(sys.updateStatus, "Install failed", sizeof(sys.updateStatus));\n    strlcpy(sys.otaStatus, "Failed", sizeof(sys.otaStatus));\n    return false;\n  }\n\n  strlcpy(sys.otaStatus, "Writing", sizeof(sys.otaStatus));\n'''
+
+if old_fail not in text:
+    raise SystemExit('Expected OTA validation failure block not found')
+text = text.replace(old_fail, new_fail, 1)
+svc.write_text(text)
