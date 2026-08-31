@@ -1,0 +1,85 @@
+name: Apply Waveshare Home 1.6.0 Bambu First-Class
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/waveshare-1-6-0-bambu-first-class.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  patch-build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Apply Bambu first-class migration
+        run: python3 tools/apply_waveshare_1_6_0_bambu_first_class.py
+
+      - name: Validate Bambu 1.6.0 markers
+        run: |
+          set -euo pipefail
+          grep -q 'FW_VERSION\[\] = "1.6.0"' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -q 'PrinterActivity::Paused' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -q 'AmsSlotState amsSlots\[16\]' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -q 'TELEMETRY_RECONNECT_MS' firmware/waveshare-home/WaveshareHome/Services.h
+          grep -q 'Telemetry timed out - reconnecting' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'lastCommandResult' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'visibleAmsSlots' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'const bool paused = live && state.printer.paused' firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+          grep -q 'int amsBase =' firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+
+      - name: Commit 1.6.0 firmware source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            firmware/waveshare-home/WaveshareHome/AppModel.h \
+            firmware/waveshare-home/WaveshareHome/Services.h \
+            firmware/waveshare-home/WaveshareHome/Services.cpp \
+            firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+          git commit -m 'Make Bambu first-class in Waveshare Home 1.6.0'
+          git push origin HEAD:main
+
+      - name: Dispatch firmware build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run waveshare-home.yml --repo '${{ github.repository }}' --ref main
+          sleep 8
+
+      - name: Wait for validated firmware build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          EXPECTED_SHA=$(git rev-parse HEAD)
+          RUN_ID=$(gh run list --repo '${{ github.repository }}' --workflow waveshare-home.yml --event workflow_dispatch --limit 15 --json databaseId,status,headSha --jq --arg sha "$EXPECTED_SHA" 'map(select(.headSha == $sha))[0].databaseId')
+          test -n "$RUN_ID"
+          gh run watch "$RUN_ID" --repo '${{ github.repository }}' --exit-status
+          echo "$RUN_ID" > /tmp/build_run_id
+
+      - name: Verify 1.6.0 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUN_ID=$(cat /tmp/build_run_id)
+          NAME=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts" --jq '.artifacts[0].name')
+          test "$NAME" = 'WaveshareHome-ESP32S3-1.6.0-fullflash'
+          echo "Validated artifact: $NAME"
+
+      - name: Dispatch release publisher
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run waveshare-release.yml --repo '${{ github.repository }}' --ref main
