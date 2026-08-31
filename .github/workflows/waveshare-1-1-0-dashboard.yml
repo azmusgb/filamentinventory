@@ -1,0 +1,74 @@
+name: Apply Waveshare Home 1.1.0 Dashboard Redesign
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/waveshare-1-1-0-dashboard.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  patch-build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Apply dashboard redesign
+        run: python3 tools/apply_waveshare_1_1_0_dashboard.py
+
+      - name: Validate redesign markers
+        run: |
+          grep -q 'FW_VERSION\[\] = "1.1.0"' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -q 'LOCAL DEVICE OS' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q "id='now' class='command-grid'" firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'Your workshop, printer and device' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q '.command-grid' firmware/waveshare-home/web/dashboard.css
+
+      - name: Commit source patch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add firmware/waveshare-home/WaveshareHome/AppModel.h firmware/waveshare-home/WaveshareHome/Services.cpp firmware/waveshare-home/web/dashboard.css
+          git commit -m 'Evolve Waveshare dashboard in 1.1.0'
+          git push origin HEAD:main
+
+      - name: Dispatch firmware build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run waveshare-home.yml --repo '${{ github.repository }}' --ref main
+          sleep 8
+
+      - name: Wait for validated firmware build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUN_ID=$(gh run list --repo '${{ github.repository }}' --workflow waveshare-home.yml --event workflow_dispatch --limit 5 --json databaseId,status,headSha --jq 'map(select(.status != "completed"))[0].databaseId // .[0].databaseId')
+          test -n "$RUN_ID"
+          gh run watch "$RUN_ID" --repo '${{ github.repository }}' --exit-status
+          echo "$RUN_ID" > /tmp/build_run_id
+
+      - name: Verify 1.1.0 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_ID=$(cat /tmp/build_run_id)
+          NAME=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts" --jq '.artifacts[0].name')
+          test "$NAME" = 'WaveshareHome-ESP32S3-1.1.0-fullflash'
+          echo "Validated artifact: $NAME"
+
+      - name: Dispatch release publisher
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run waveshare-release.yml --repo '${{ github.repository }}' --ref main
