@@ -88,6 +88,51 @@ uint8_t parseTheme(const String &value) {
   int n = value.toInt();
   return static_cast<uint8_t>(constrain(n, 0, 2));
 }
+
+
+struct FirmwareVersionParts {
+  int major = 0;
+  int minor = 0;
+  int patch = 0;
+  int rc = -1;
+  bool valid = false;
+};
+
+FirmwareVersionParts parseFirmwareVersion(String value) {
+  value.trim();
+  value.replace("waveshare-v", "");
+  if (value.startsWith("v")) value.remove(0, 1);
+  FirmwareVersionParts out;
+  int dash = value.indexOf('-');
+  String core = dash >= 0 ? value.substring(0, dash) : value;
+  String suffix = dash >= 0 ? value.substring(dash + 1) : "";
+  int p1 = core.indexOf('.');
+  int p2 = p1 >= 0 ? core.indexOf('.', p1 + 1) : -1;
+  if (p1 < 1 || p2 <= p1 + 1) return out;
+  out.major = core.substring(0, p1).toInt();
+  out.minor = core.substring(p1 + 1, p2).toInt();
+  out.patch = core.substring(p2 + 1).toInt();
+  if (suffix.length()) {
+    if (!suffix.startsWith("rc")) return out;
+    out.rc = suffix.substring(2).toInt();
+    if (out.rc <= 0) return out;
+  }
+  out.valid = true;
+  return out;
+}
+
+int compareFirmwareVersions(const String &a, const String &b) {
+  FirmwareVersionParts av = parseFirmwareVersion(a);
+  FirmwareVersionParts bv = parseFirmwareVersion(b);
+  if (!av.valid || !bv.valid) return 0;
+  if (av.major != bv.major) return av.major > bv.major ? 1 : -1;
+  if (av.minor != bv.minor) return av.minor > bv.minor ? 1 : -1;
+  if (av.patch != bv.patch) return av.patch > bv.patch ? 1 : -1;
+  if (av.rc == bv.rc) return 0;
+  if (av.rc < 0) return 1;
+  if (bv.rc < 0) return -1;
+  return av.rc > bv.rc ? 1 : -1;
+}
 }  // namespace
 
 // ---------- ConfigStore ----------
@@ -1220,6 +1265,44 @@ void WebDashboard::installRoutes() {
   server_.on("/api/status", HTTP_GET, [this]() { sendStatusJson(); });
   server_.on("/wifi", HTTP_POST, [this]() { handleWifiSave(); });
   server_.on("/settings", HTTP_POST, [this]() { handleSettingsSave(); });
+  server_.on("/weather/save", HTTP_POST, [this]() {
+    const String previousLocation = config_->weatherLocation;
+    const String location = server_.arg("weatherLocation");
+    config_->weatherEnabled = server_.hasArg("weatherEnabled");
+    config_->severeWeatherEnabled = server_.hasArg("weatherAlerts");
+    copyText(config_->weatherLocation, sizeof(config_->weatherLocation), location);
+
+    const String latArg = server_.arg("weatherLat");
+    const String lonArg = server_.arg("weatherLon");
+    if (location != previousLocation) {
+      config_->weatherLatitude = 0.0f;
+      config_->weatherLongitude = 0.0f;
+    }
+    if (latArg.length() && lonArg.length()) {
+      config_->weatherLatitude = latArg.toFloat();
+      config_->weatherLongitude = lonArg.toFloat();
+    }
+
+    state_->weather.online = false;
+    if (!config_->weatherEnabled) {
+      state_->weather.configured = false;
+      copyText(state_->weather.condition, sizeof(state_->weather.condition), "Off");
+    } else if ((fabsf(config_->weatherLatitude) > 0.0001f || fabsf(config_->weatherLongitude) > 0.0001f)) {
+      state_->weather.configured = true;
+      copyText(state_->weather.condition, sizeof(state_->weather.condition), "Saved; refreshing weather");
+    } else if (strlen(config_->weatherLocation)) {
+      state_->weather.configured = false;
+      copyText(state_->weather.condition, sizeof(state_->weather.condition), "Resolving location...");
+    } else {
+      state_->weather.configured = false;
+      copyText(state_->weather.condition, sizeof(state_->weather.condition), "Enter ZIP or City, State");
+    }
+
+    store_.save(*config_);
+    configChanged_ = true;
+    server_.sendHeader("Location", "/#integrations", true);
+    server_.send(303, "text/plain", "Weather settings saved");
+  });
   server_.on("/bambu/scan", HTTP_POST, [this]() {
     if (!bambu_.startDiscovery()) { server_.send(409, "text/plain", "Wi-Fi must be online to scan"); return; }
     server_.sendHeader("Location", "/#bambu", true);
@@ -1330,7 +1413,7 @@ void WebDashboard::sendRoot() {
   for (int c = 0; c < 3; ++c) { s += F("<div><label>Home card "); s += c + 1; s += F("</label><select name='card"); s += c; s += F("'>"); for (int i = 0; i < 8; ++i) { s += F("<option value='"); s += i; s += F("'"); s += selected((int)config_->homeCards[c] == i); s += F(">"); s += homeCardName((HomeCard)i); s += F("</option>"); } s += F("</select></div>"); }
   s += F("</div></div>");
 
-  s += F("<div class='card' id='integrations'><h2>Integrations</h2><h3>Weather</h3><label><input type='checkbox' name='weatherEnabled'"); s += checked(config_->weatherEnabled); s += F(">Enable weather</label><label>Location</label><input name='weatherLocation' placeholder='ZIP or City, State — e.g. 29710 or Lake Wylie, SC' value='"); s += htmlEscape(config_->weatherLocation); s += F("'><p><small>Latitude/longitude are no longer required. Waveshare Home resolves the location automatically. Manual coordinates remain available below as an advanced fallback.</small></p><details><summary>Advanced: manual coordinates</summary><div class='row'><div><label>Latitude</label><input name='weatherLat' placeholder='Auto' value='"); if (fabsf(config_->weatherLatitude) > 0.0001f) s += String(config_->weatherLatitude, 5); s += F("'></div><div><label>Longitude</label><input name='weatherLon' placeholder='Auto' value='"); if (fabsf(config_->weatherLongitude) > 0.0001f) s += String(config_->weatherLongitude, 5); s += F("'></div></div></details><label><input type='checkbox' name='weatherAlerts'"); s += checked(config_->severeWeatherEnabled); s += F(">NWS severe alerts</label><p class='status'>Weather status: "); s += htmlEscape(state_->weather.condition); s += F("</p><hr>");
+  s += F("<div class='card' id='integrations'><h2>Integrations</h2><h3>Weather</h3><label><input type='checkbox' name='weatherEnabled'"); s += checked(config_->weatherEnabled); s += F(">Enable weather</label><label>Location</label><input name='weatherLocation' placeholder='ZIP or City, State — e.g. 29710 or Lake Wylie, SC' value='"); s += htmlEscape(config_->weatherLocation); s += F("'><p><small>Latitude/longitude are no longer required. Waveshare Home resolves the location automatically. Manual coordinates remain available below as an advanced fallback.</small></p><details><summary>Advanced: manual coordinates</summary><div class='row'><div><label>Latitude</label><input name='weatherLat' placeholder='Auto' value='"); if (fabsf(config_->weatherLatitude) > 0.0001f) s += String(config_->weatherLatitude, 5); s += F("'></div><div><label>Longitude</label><input name='weatherLon' placeholder='Auto' value='"); if (fabsf(config_->weatherLongitude) > 0.0001f) s += String(config_->weatherLongitude, 5); s += F("'></div></div></details><label><input type='checkbox' name='weatherAlerts'"); s += checked(config_->severeWeatherEnabled); s += F(">NWS severe alerts</label><p class='status'>Weather status: "); s += htmlEscape(state_->weather.condition); s += F("</p><div class='row'><button type='submit' formaction='/weather/save'>Save weather</button><button type='submit' formaction='/weather/save' name='resolve' value='1' class='muted'>Save & resolve now</button></div><hr>");
 
   s += F("<h3 id='bambu'>Bambu Lab</h3>");
   s += F("<div class='card' style='margin:8px 0;background:#071015'><div class='top'><div><strong>");
@@ -1576,9 +1659,10 @@ bool WebDashboard::checkForSelfUpdate(bool force) {
   http.setConnectTimeout(6000);
   http.setTimeout(9000);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  String api = config_->updateChannel == 0
+  const bool stableChannel = config_->updateChannel == 0;
+  String api = stableChannel
     ? "https://api.github.com/repos/azmusgb/filamentinventory/releases/latest"
-    : "https://api.github.com/repos/azmusgb/filamentinventory/releases?per_page=8";
+    : "https://api.github.com/repos/azmusgb/filamentinventory/releases?per_page=20";
   if (!http.begin(secure, api)) {
     strlcpy(sys.updateError, "Could not open GitHub release API", sizeof(sys.updateError));
     sys.updateCheckInProgress = false;
@@ -1587,6 +1671,16 @@ bool WebDashboard::checkForSelfUpdate(bool force) {
   http.addHeader("User-Agent", "WaveshareHome-ESP32-Updater");
   http.addHeader("Accept", "application/vnd.github+json");
   int code = http.GET();
+  if (stableChannel && code == HTTP_CODE_NOT_FOUND) {
+    http.end();
+    sys.updateAvailable = false;
+    sys.updateVersion[0] = '\0';
+    strlcpy(sys.updateStatus, "No stable release published", sizeof(sys.updateStatus));
+    sys.updateError[0] = '\0';
+    sys.updateCheckedMs = millis();
+    sys.updateCheckInProgress = false;
+    return true;
+  }
   if (code != HTTP_CODE_OK) {
     snprintf(sys.updateError, sizeof(sys.updateError), "GitHub release API HTTP %d", code);
     http.end(); sys.updateCheckInProgress = false; return false;
@@ -1601,10 +1695,23 @@ bool WebDashboard::checkForSelfUpdate(bool force) {
   }
 
   JsonObject release;
-  if (config_->updateChannel == 0) release = releases.as<JsonObject>();
-  else if (releases.is<JsonArray>() && releases.as<JsonArray>().size()) release = releases[0].as<JsonObject>();
+  if (stableChannel) {
+    release = releases.as<JsonObject>();
+  } else if (releases.is<JsonArray>()) {
+    String bestVersion;
+    for (JsonObject candidate : releases.as<JsonArray>()) {
+      if (candidate["draft"] | false) continue;
+      String candidateVersion = candidate["tag_name"] | "";
+      candidateVersion.replace("waveshare-v", "");
+      if (!parseFirmwareVersion(candidateVersion).valid) continue;
+      if (!bestVersion.length() || compareFirmwareVersions(candidateVersion, bestVersion) > 0) {
+        bestVersion = candidateVersion;
+        release = candidate;
+      }
+    }
+  }
   if (release.isNull()) {
-    strlcpy(sys.updateError, "No release found for selected channel", sizeof(sys.updateError));
+    strlcpy(sys.updateError, "No compatible release found for selected channel", sizeof(sys.updateError));
     sys.updateCheckInProgress = false; return false;
   }
 
@@ -1658,8 +1765,9 @@ bool WebDashboard::checkForSelfUpdate(bool force) {
   strlcpy(sys.updateSha256, sha.c_str(), sizeof(sys.updateSha256));
   sys.updateSize = size;
   sys.updateCheckedMs = millis();
-  sys.updateAvailable = version != String(FW_VERSION);
+  sys.updateAvailable = compareFirmwareVersions(version, String(FW_VERSION)) > 0;
   strlcpy(sys.updateStatus, sys.updateAvailable ? "Update available" : "Up to date", sizeof(sys.updateStatus));
+  if (!sys.updateAvailable && compareFirmwareVersions(version, String(FW_VERSION)) < 0) strlcpy(sys.updateStatus, "Current firmware is newer", sizeof(sys.updateStatus));
   sys.updateCheckInProgress = false;
   return true;
 }

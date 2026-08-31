@@ -565,7 +565,19 @@ static void refreshHome() {
 }
 
 static void refreshToday() {
-  if(todayWeather){ char b[180]; if(state.weather.online) snprintf(b,sizeof(b),"%.0f°F  %s\nFeels %.0f° • H %.0f° / L %.0f°\nPrecipitation %d%%",state.weather.temperatureC*9/5+32,state.weather.condition,state.weather.apparentC*9/5+32,state.weather.highC*9/5+32,state.weather.lowC*9/5+32,state.weather.precipitationPercent); else snprintf(b,sizeof(b),config.weatherEnabled?"Weather unavailable\nCheck network or coordinates":"Weather not configured\nUse the web dashboard to add location"); lv_label_set_text(todayWeather,b); }
+  if(todayWeather){
+    char b[180];
+    if(state.weather.online) {
+      snprintf(b,sizeof(b),"%.0f°F  %s\nFeels %.0f° • H %.0f° / L %.0f°\nPrecipitation %d%%",state.weather.temperatureC*9/5+32,state.weather.condition,state.weather.apparentC*9/5+32,state.weather.highC*9/5+32,state.weather.lowC*9/5+32,state.weather.precipitationPercent);
+    } else if(!config.weatherEnabled) {
+      snprintf(b,sizeof(b),"Weather off\nEnable it in the web dashboard");
+    } else if(!state.weather.configured) {
+      snprintf(b,sizeof(b),"Weather not configured\n%s", strlen(state.weather.condition) ? state.weather.condition : "Set ZIP or City, State in dashboard");
+    } else {
+      snprintf(b,sizeof(b),"Weather temporarily unavailable\nWi-Fi is %s • retrying automatically", WiFi.status()==WL_CONNECTED?"online":"offline");
+    }
+    lv_label_set_text(todayWeather,b);
+  }
   if(todayAgenda){ char b[180]; if(state.calendar.online&&state.calendar.hasNext) snprintf(b,sizeof(b),"%s\n%s",state.calendar.nextTitle,state.calendar.nextWhen); else snprintf(b,sizeof(b),config.calendarEnabled?"No upcoming calendar event":"Calendar not configured\nAdd an ICS feed in the web dashboard"); lv_label_set_text(todayAgenda,b); }
   if(todayTimer) lv_label_set_text(todayTimer,remainingTimerText().c_str());
 }
