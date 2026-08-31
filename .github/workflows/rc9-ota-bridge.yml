@@ -1,0 +1,25 @@
+name: Promote rc9 for rc8 OTA bridge
+
+on:
+  push:
+    paths:
+      - '.github/workflows/rc9-ota-bridge.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Promote rc9 release for rc8 stable-endpoint bridge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit waveshare-v1.0.0-rc9 \
+            --repo "${{ github.repository }}" \
+            --prerelease=false
+          gh release view waveshare-v1.0.0-rc9 \
+            --repo "${{ github.repository }}" \
+            --json tagName,isPrerelease,name
