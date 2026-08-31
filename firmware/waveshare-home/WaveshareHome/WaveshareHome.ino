@@ -65,6 +65,8 @@ static lv_obj_t *screenTimers = nullptr;
 static lv_obj_t *screenPrinter = nullptr;
 static lv_obj_t *screenFilament = nullptr;
 static lv_obj_t *screenWorkshop = nullptr;
+static lv_obj_t *screenActivity = nullptr;
+static lv_obj_t *screenDevices = nullptr;
 static lv_obj_t *screenSystem = nullptr;
 static lv_obj_t *screenRecovery = nullptr;
 static lv_obj_t *screenAmbient = nullptr;
@@ -90,6 +92,8 @@ static lv_obj_t *timerBody = nullptr;
 static lv_obj_t *printerBody = nullptr;
 static lv_obj_t *filamentBody = nullptr;
 static lv_obj_t *workshopBody = nullptr;
+static lv_obj_t *activityBody = nullptr;
+static lv_obj_t *devicesBody = nullptr;
 static lv_obj_t *systemBody = nullptr;
 static lv_obj_t *settingsBody = nullptr;
 static lv_obj_t *ambientClock = nullptr;
@@ -121,7 +125,7 @@ static char appliedTimezone[80] = "";
 
 enum class ScreenId : uint8_t {
   Home, Today, Controls, Apps, Attention, Quick, Settings, Wifi,
-  Timers, Printer, Filament, Workshop, System, Recovery, Ambient
+  Timers, Printer, Filament, Workshop, Activity, Devices, System, Recovery, Ambient
 };
 
 static void applyThemeTokens() {
@@ -266,6 +270,8 @@ static lv_obj_t *screenFor(ScreenId id) {
     case ScreenId::Printer: return screenPrinter;
     case ScreenId::Filament: return screenFilament;
     case ScreenId::Workshop: return screenWorkshop;
+    case ScreenId::Activity: return screenActivity;
+    case ScreenId::Devices: return screenDevices;
     case ScreenId::System: return screenSystem;
     case ScreenId::Recovery: return screenRecovery;
     case ScreenId::Ambient: return screenAmbient;
@@ -461,6 +467,8 @@ static void createQuick() {
   button(screenQuick, "Attention", 166, 202, 142, 58, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Attention)), C_RED);
   button(screenQuick, "System", 12, 272, 142, 58, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::System)), C_PURPLE);
   button(screenQuick, "Settings", 166, 272, 142, 58, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)), C_BLUE);
+  button(screenQuick, "Activity", 12, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Activity)), C_PURPLE);
+  button(screenQuick, "Devices", 114, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
   button(screenQuick, "Home", 12, 348, 296, 48, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
 }
 
@@ -529,6 +537,20 @@ static void createWorkshop() {
   button(screenWorkshop, "Home", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
 }
 
+static void createActivity() {
+  screenActivity = lv_obj_create(nullptr); styleScreen(screenActivity); addStatusBar(screenActivity, "ACTIVITY");
+  activityBody = wrapLabel(screenActivity, "No recent activity", &lv_font_montserrat_12, C_TEXT, 14, 54, 292); lv_obj_set_style_text_line_space(activityBody, 5, 0);
+  button(screenActivity, "Devices", 12, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
+  button(screenActivity, "Home", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+}
+
+static void createDevices() {
+  screenDevices = lv_obj_create(nullptr); styleScreen(screenDevices); addStatusBar(screenDevices, "DEVICES");
+  devicesBody = wrapLabel(screenDevices, "Inspecting device health...", &lv_font_montserrat_12, C_TEXT, 14, 54, 292); lv_obj_set_style_text_line_space(devicesBody, 5, 0);
+  button(screenDevices, "Activity", 12, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Activity)), C_PURPLE);
+  button(screenDevices, "Home", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+}
+
 static void createSystem() {
   screenSystem = lv_obj_create(nullptr); styleScreen(screenSystem); addStatusBar(screenSystem, "SYSTEM");
   systemBody = wrapLabel(screenSystem, "Loading diagnostics...", &lv_font_montserrat_12, C_TEXT, 14, 58, 292); lv_obj_set_style_text_line_space(systemBody, 7, 0);
@@ -555,7 +577,7 @@ static void createAmbient() {
 
 static void createUi() {
   statusLabelCount = 0;
-  createHome(); createToday(); createControls(); createApps(); createAttention(); createQuick(); createSettings(); createWifi(); createTimers(); createPrinter(); createFilament(); createWorkshop(); createSystem(); createRecovery(); createAmbient();
+  createHome(); createToday(); createControls(); createApps(); createAttention(); createQuick(); createSettings(); createWifi(); createTimers(); createPrinter(); createFilament(); createWorkshop(); createActivity(); createDevices(); createSystem(); createRecovery(); createAmbient();
   loadScreen(state.system.recoveryMode ? ScreenId::Recovery : ScreenId::Home);
 }
 
@@ -649,6 +671,39 @@ static void refreshWorkshop() {
   lv_label_set_text(workshopBody,b.c_str());
 }
 
+static void refreshActivity() {
+  if(!activityBody) return;
+  String b;
+  if(!state.activityCount) b = "No recent activity.\n\nEvents from updates, printing, workshop automation and alerts will appear here.";
+  else {
+    for(uint8_t i=0;i<state.activityCount && i<8;i++) {
+      auto &a=state.activity[i]; if(!a.valid) continue;
+      b += String(a.source)+"  •  "+a.title+"\n";
+      if(strlen(a.detail)) b += String(a.detail)+"\n";
+      b += "\n";
+    }
+  }
+  lv_label_set_text(activityBody,b.c_str());
+}
+
+static void refreshDevices() {
+  if(!devicesBody) return;
+  String b="ONBOARD\n";
+  b += String("Display + touch     ")+"Ready\n";
+  b += String("Audio / ES8311     ")+(state.system.audioReady?"Ready":"Unavailable")+"\n";
+  b += String("Wi-Fi              ")+(WiFi.status()==WL_CONNECTED?"Connected":"Offline")+"\n\nINTEGRATIONS\n";
+  b += String("Weather            ")+(config.weatherEnabled?(state.weather.online?"Online":state.weather.configured?"Unavailable":"Needs setup"):"Disabled")+"\n";
+  b += String("Bambu printer      ")+(config.bambuEnabled?(state.printer.online?"Online":"Offline"):"Disabled")+"\n";
+  b += String("Filament inventory ")+(config.filamentEnabled?(state.filament.online?"Online":"Offline"):"Disabled")+"\n";
+  b += String("Home Assistant     ")+(config.homeAssistantEnabled?(state.homeAssistant.online?"Online":"Offline"):"Disabled")+"\n";
+  b += String("Calendar           ")+(config.calendarEnabled?(state.calendar.online?"Online":"Offline"):"Disabled")+"\n\nWORKSHOP\n";
+  auto &e=state.workshop.environment;
+  b += String("Environment sensor ")+(e.online?(e.stale?"Stale":"Live"):"Not connected")+"\n";
+  b += String("Presence           ")+(config.presenceEnabled?(e.online?(e.presence?"Detected":"Clear"):"Not connected"):"Disabled")+"\n";
+  b += String("Dryer              ")+(config.dryerEnabled?(state.workshop.dryer.running?"Running":"Ready"):"Disabled");
+  lv_label_set_text(devicesBody,b.c_str());
+}
+
 static void refreshSystem() {
   if(!systemBody)return;
   const esp_partition_t *running=esp_ota_get_running_partition();
@@ -686,7 +741,7 @@ static void refreshAmbient() {
 }
 
 static void refreshUi() {
-  refreshStatusBars(); refreshHome(); refreshToday(); refreshControls(); refreshAttention(); refreshSettings(); refreshWifi(); refreshTimers(); refreshPrinter(); refreshFilament(); refreshWorkshop(); refreshSystem(); refreshAmbient();
+  refreshStatusBars(); refreshHome(); refreshToday(); refreshControls(); refreshAttention(); refreshSettings(); refreshWifi(); refreshTimers(); refreshPrinter(); refreshFilament(); refreshWorkshop(); refreshActivity(); refreshDevices(); refreshSystem(); refreshAmbient();
 }
 
 static void applyTimeConfiguration() {
