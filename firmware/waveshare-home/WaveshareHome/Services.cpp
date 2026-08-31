@@ -1273,7 +1273,11 @@ void CalendarPlugin::fetch(AppConfig &config, AppState &state) {
   WiFiClientSecure secure;
   HTTPClient http;
   if (!beginHttp(http, secure, config.calendarIcsUrl)) return;
+  esp_task_wdt_reset();
+  delay(0);
   int code = http.GET();
+  esp_task_wdt_reset();
+  delay(0);
   if (code != HTTP_CODE_OK) {
     state.calendar.online = false;
     http.end();
