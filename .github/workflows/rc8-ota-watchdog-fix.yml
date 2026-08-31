@@ -1,0 +1,32 @@
+name: Apply rc8 OTA Watchdog Fix
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/rc8_ota_watchdog_fix.py'
+      - '.github/workflows/rc8-ota-watchdog-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - run: python3 tools/rc8_ota_watchdog_fix.py
+      - run: git diff --check
+      - name: Commit fix
+        run: |
+          if git diff --quiet; then
+            echo 'No changes required'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add firmware/waveshare-home/WaveshareHome/AppModel.h firmware/waveshare-home/WaveshareHome/Services.cpp
+          git commit -m 'Harden OTA against task watchdog for rc8'
+          git push
