@@ -65,6 +65,7 @@ static lv_obj_t *screenTimers = nullptr;
 static lv_obj_t *screenPrinter = nullptr;
 static lv_obj_t *screenFilament = nullptr;
 static lv_obj_t *screenWorkshop = nullptr;
+static lv_obj_t *screenInsights = nullptr;
 static lv_obj_t *screenActivity = nullptr;
 static lv_obj_t *screenDevices = nullptr;
 static lv_obj_t *screenSystem = nullptr;
@@ -92,6 +93,7 @@ static lv_obj_t *timerBody = nullptr;
 static lv_obj_t *printerBody = nullptr;
 static lv_obj_t *filamentBody = nullptr;
 static lv_obj_t *workshopBody = nullptr;
+static lv_obj_t *insightsBody = nullptr;
 static lv_obj_t *activityBody = nullptr;
 static lv_obj_t *devicesBody = nullptr;
 static lv_obj_t *systemBody = nullptr;
@@ -125,7 +127,7 @@ static char appliedTimezone[80] = "";
 
 enum class ScreenId : uint8_t {
   Home, Today, Controls, Apps, Attention, Quick, Settings, Wifi,
-  Timers, Printer, Filament, Workshop, Activity, Devices, System, Recovery, Ambient
+  Timers, Printer, Filament, Workshop, Insights, Activity, Devices, System, Recovery, Ambient
 };
 
 static void applyThemeTokens() {
@@ -270,6 +272,7 @@ static lv_obj_t *screenFor(ScreenId id) {
     case ScreenId::Printer: return screenPrinter;
     case ScreenId::Filament: return screenFilament;
     case ScreenId::Workshop: return screenWorkshop;
+    case ScreenId::Insights: return screenInsights;
     case ScreenId::Activity: return screenActivity;
     case ScreenId::Devices: return screenDevices;
     case ScreenId::System: return screenSystem;
@@ -350,6 +353,9 @@ static void updateHero() {
     case HeroMode::System:
     default:
       if (state.alertCount && state.alerts[0].severity == AlertSeverity::Urgent) { title = "Attention"; snprintf(value, sizeof(value), "%s", state.alerts[0].title); snprintf(detail, sizeof(detail), "%s", state.alerts[0].detail); }
+      else if (state.system.updateAvailable) { title = "Update available"; snprintf(value, sizeof(value), "%s", state.system.updateVersion); snprintf(detail, sizeof(detail), "Open Insights or System to review"); }
+      else if (state.workshop.filterRequested) { title = "Workshop air"; snprintf(value, sizeof(value), "Filter on"); snprintf(detail, sizeof(detail), "%s", strlen(state.workshop.filterReason) ? state.workshop.filterReason : "Automation active"); }
+      else if (state.workshop.dryer.running) { title = "Filament dryer"; snprintf(value, sizeof(value), "%s", state.workshop.dryer.material); snprintf(detail, sizeof(detail), "%lu min remaining", (unsigned long)(state.workshop.dryer.remainingSec / 60UL)); }
       else { title = config.deviceName; snprintf(value, sizeof(value), "Ready"); snprintf(detail, sizeof(detail), "%s • %lu min uptime", WiFi.status() == WL_CONNECTED ? "Online" : "Local mode", state.system.uptimeSec / 60UL); }
       break;
   }
@@ -392,7 +398,7 @@ static void createHome() {
   heroTitle = label(hero, config.deviceName, &lv_font_montserrat_16, C_TEXT, 14, 32, 265);
   heroValue = label(hero, "Ready", &lv_font_montserrat_28, C_TEXT, 14, 57, 265);
   heroDetail = label(hero, "Everything looks good", &lv_font_montserrat_12, C_MUTED, 14, 102, 265);
-  lv_obj_add_flag(hero, LV_OBJ_FLAG_CLICKABLE); lv_obj_add_event_cb(hero, navEvent, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Apps)));
+  lv_obj_add_flag(hero, LV_OBJ_FLAG_CLICKABLE); lv_obj_add_event_cb(hero, navEvent, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Insights)));
 
   label(screenHome, "AT A GLANCE", &lv_font_montserrat_12, C_DIM, 12, 263);
   for (int i = 0; i < 3; ++i) {
@@ -426,11 +432,12 @@ static void createApps() {
   struct App { const char *name; ScreenId id; lv_color_t color; } apps[] = {
     {"Workshop", ScreenId::Workshop, C_ORANGE}, {"Printer", ScreenId::Printer, C_GREEN}, {"Filament", ScreenId::Filament, C_BLUE},
     {"Controls", ScreenId::Controls, C_GREEN}, {"Today", ScreenId::Today, C_PURPLE}, {"Timers", ScreenId::Timers, C_ORANGE},
-    {"Attention", ScreenId::Attention, C_RED}, {"Quick", ScreenId::Quick, C_BLUE}, {"Settings", ScreenId::Settings, C_PURPLE},
+    {"Attention", ScreenId::Attention, C_RED}, {"Insights", ScreenId::Insights, C_PURPLE}, {"Quick", ScreenId::Quick, C_BLUE},
+    {"Activity", ScreenId::Activity, C_PURPLE}, {"Devices", ScreenId::Devices, C_BLUE}, {"Settings", ScreenId::Settings, C_PURPLE},
     {"System", ScreenId::System, C_GREEN}
   };
-  for (int i = 0; i < 10; ++i) button(screenApps, apps[i].name, 12 + (i%3)*102, 58 + (i/3)*84, 92, 70, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(apps[i].id)), apps[i].color);
-  button(screenApps, "Home", 114, 394, 194, 28, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)));
+  for (int i = 0; i < 13; ++i) button(screenApps, apps[i].name, 12 + (i%3)*102, 54 + (i/3)*70, 92, 58, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(apps[i].id)), apps[i].color);
+  button(screenApps, "Home", 114, 402, 194, 24, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)));
 }
 
 static void createAttention() {
@@ -467,6 +474,7 @@ static void createQuick() {
   button(screenQuick, "Attention", 166, 202, 142, 58, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Attention)), C_RED);
   button(screenQuick, "System", 12, 272, 142, 58, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::System)), C_PURPLE);
   button(screenQuick, "Settings", 166, 272, 142, 58, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Settings)), C_BLUE);
+  button(screenQuick, "Insights", 216, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Insights)), C_PURPLE);
   button(screenQuick, "Activity", 12, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Activity)), C_PURPLE);
   button(screenQuick, "Devices", 114, 328, 92, 46, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
   button(screenQuick, "Home", 12, 348, 296, 48, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
@@ -537,6 +545,15 @@ static void createWorkshop() {
   button(screenWorkshop, "Home", 166, 366, 142, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
 }
 
+static void createInsights() {
+  screenInsights = lv_obj_create(nullptr); styleScreen(screenInsights); addStatusBar(screenInsights, "INSIGHTS");
+  insightsBody = wrapLabel(screenInsights, "Evaluating current context...", &lv_font_montserrat_12, C_TEXT, 14, 54, 292);
+  lv_obj_set_style_text_line_space(insightsBody, 5, 0);
+  button(screenInsights, "Workshop", 12, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Workshop)), C_ORANGE);
+  button(screenInsights, "Devices", 114, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Devices)), C_BLUE);
+  button(screenInsights, "Home", 216, 366, 92, 44, navEvent, reinterpret_cast<void *>(static_cast<intptr_t>(ScreenId::Home)), C_GREEN);
+}
+
 static void createActivity() {
   screenActivity = lv_obj_create(nullptr); styleScreen(screenActivity); addStatusBar(screenActivity, "ACTIVITY");
   activityBody = wrapLabel(screenActivity, "No recent activity", &lv_font_montserrat_12, C_TEXT, 14, 54, 292); lv_obj_set_style_text_line_space(activityBody, 5, 0);
@@ -577,7 +594,7 @@ static void createAmbient() {
 
 static void createUi() {
   statusLabelCount = 0;
-  createHome(); createToday(); createControls(); createApps(); createAttention(); createQuick(); createSettings(); createWifi(); createTimers(); createPrinter(); createFilament(); createWorkshop(); createActivity(); createDevices(); createSystem(); createRecovery(); createAmbient();
+  createHome(); createToday(); createControls(); createApps(); createAttention(); createQuick(); createSettings(); createWifi(); createTimers(); createPrinter(); createFilament(); createWorkshop(); createInsights(); createActivity(); createDevices(); createSystem(); createRecovery(); createAmbient();
   loadScreen(state.system.recoveryMode ? ScreenId::Recovery : ScreenId::Home);
 }
 
@@ -671,6 +688,49 @@ static void refreshWorkshop() {
   lv_label_set_text(workshopBody,b.c_str());
 }
 
+static void refreshInsights() {
+  if(!insightsBody) return;
+  String b;
+  int rank = 1;
+  auto add = [&](const String &title, const String &detail) {
+    b += String(rank++) + ". " + title + "\n";
+    if(detail.length()) b += String("   ") + detail + "\n";
+    b += "\n";
+  };
+
+  if(state.alertCount) {
+    auto &a = state.alerts[0];
+    if(a.severity == AlertSeverity::Urgent) add(String("URGENT • ") + a.title, a.detail);
+  }
+  if(state.system.updateAvailable) add(String("Update to ") + state.system.updateVersion, "Validated firmware is ready in the Update Center.");
+  if(state.printer.error || state.printer.errorCode) add("Printer needs attention", state.printer.status);
+  else if(state.printer.printing) add(String("Print ") + state.printer.progress + "% complete", formatMinutes(state.printer.remainingMinutes) + " remaining • " + state.printer.jobName);
+
+  if(state.filament.online && state.filament.emptySpools > 0) add(String(state.filament.emptySpools) + " empty filament spool(s)", "Review inventory before the next print.");
+  else if(state.filament.online && state.filament.lowSpools > 0) add(String(state.filament.lowSpools) + " low filament spool(s)", "Consider staging a replacement spool.");
+
+  auto &env = state.workshop.environment;
+  if(state.workshop.filterRequested) add("Air filtration requested", strlen(state.workshop.filterReason) ? state.workshop.filterReason : "Workshop automation requested filtration.");
+  else if(env.online && !env.stale && env.pm25 >= config.pm25Alert) add("PM2.5 above target", String(env.pm25,1) + " vs " + String(config.pm25Alert,1) + " threshold");
+  else if(env.online && !env.stale && env.voc >= config.vocAlert) add("VOC above target", String(env.voc,0) + " vs " + String(config.vocAlert,0) + " threshold");
+
+  if(state.workshop.dryer.running) add(String("Drying ") + state.workshop.dryer.material, String(state.workshop.dryer.remainingSec/60UL) + " min remaining");
+  if(state.weather.severeAlert) add("Weather alert", strlen(state.weather.alertHeadline) ? state.weather.alertHeadline : state.weather.condition);
+  if(state.calendar.online && state.calendar.hasNext && state.calendar.nextEpoch > 0) {
+    time_t now = time(nullptr);
+    if(state.calendar.nextEpoch > now && state.calendar.nextEpoch - now <= 7200) add(String("Upcoming • ") + state.calendar.nextTitle, state.calendar.nextWhen);
+  }
+
+  if(rank == 1) {
+    b = "ALL GOOD\n\nNo immediate actions are recommended.\n\n";
+    if(!config.bambuEnabled && !config.weatherEnabled && !config.filamentEnabled && !config.homeAssistantEnabled && !config.calendarEnabled)
+      b += "Next best step: connect an integration from the web dashboard.";
+    else
+      b += "The hub is watching printer, workshop, weather, inventory and system context for the next useful action.";
+  }
+  lv_label_set_text(insightsBody, b.c_str());
+}
+
 static void refreshActivity() {
   if(!activityBody) return;
   String b;
@@ -741,7 +801,7 @@ static void refreshAmbient() {
 }
 
 static void refreshUi() {
-  refreshStatusBars(); refreshHome(); refreshToday(); refreshControls(); refreshAttention(); refreshSettings(); refreshWifi(); refreshTimers(); refreshPrinter(); refreshFilament(); refreshWorkshop(); refreshActivity(); refreshDevices(); refreshSystem(); refreshAmbient();
+  refreshStatusBars(); refreshHome(); refreshToday(); refreshControls(); refreshAttention(); refreshSettings(); refreshWifi(); refreshTimers(); refreshPrinter(); refreshFilament(); refreshWorkshop(); refreshInsights(); refreshActivity(); refreshDevices(); refreshSystem(); refreshAmbient();
 }
 
 static void applyTimeConfiguration() {
