@@ -13,6 +13,13 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
         raise SystemExit(f"{label}: expected exactly one match, found {count}")
     return text.replace(old, new, 1)
 
+
+def regex_replace_once(text: str, pattern: str, repl: str, label: str) -> str:
+    text2, count = re.subn(pattern, repl, text, count=1, flags=re.S)
+    if count != 1:
+        raise SystemExit(f"{label}: expected exactly one regex match, found {count}")
+    return text2
+
 # Version -----------------------------------------------------------------
 app = APP.read_text()
 app = replace_once(app, 'static constexpr char FW_VERSION[] = "1.0.0-rc8";',
@@ -22,8 +29,6 @@ APP.write_text(app)
 # Services / dashboard / self OTA ----------------------------------------
 svc = SVC.read_text()
 
-# Add deterministic version comparison helpers. Stable releases outrank RCs of
-# the same major/minor/patch, and numeric RC values are compared numerically.
 helper_anchor = '''uint8_t parseTheme(const String &value) {
   int n = value.toInt();
   return static_cast<uint8_t>(constrain(n, 0, 2));
@@ -35,7 +40,7 @@ struct FirmwareVersionParts {
   int major = 0;
   int minor = 0;
   int patch = 0;
-  int rc = -1;  // -1 means stable release
+  int rc = -1;
   bool valid = false;
 };
 
@@ -65,7 +70,7 @@ FirmwareVersionParts parseFirmwareVersion(String value) {
 int compareFirmwareVersions(const String &a, const String &b) {
   FirmwareVersionParts av = parseFirmwareVersion(a);
   FirmwareVersionParts bv = parseFirmwareVersion(b);
-  if (!av.valid || !bv.valid) return a == b ? 0 : 0;
+  if (!av.valid || !bv.valid) return 0;
   if (av.major != bv.major) return av.major > bv.major ? 1 : -1;
   if (av.minor != bv.minor) return av.minor > bv.minor ? 1 : -1;
   if (av.patch != bv.patch) return av.patch > bv.patch ? 1 : -1;
@@ -77,18 +82,12 @@ int compareFirmwareVersions(const String &a, const String &b) {
 '''
 svc = replace_once(svc, helper_anchor, helper_code, 'version helpers')
 
-# Weather gets a visible local save action directly where the user edits it.
-weather_status = '''s += F("</select><div class='row'>");'''
-# Do not rely on broad placement; patch the unique Weather status fragment.
-weather_fragment = '''s += F("</select><div class='row'>");'''
+# Add visible Weather save controls using a resilient match around the unique
+# Weather status line rather than the exact generated String-builder layout.
+weather_pattern = r'''s \+= checked\(config_->severeWeatherEnabled\);\s*s \+= F\(\">NWS severe alerts</label><p class='status'>Weather status: \"\);\s*s \+= htmlEscape\(state_->weather\.condition\);\s*s \+= F\(\"</p><hr>\"\);'''
+weather_repl = '''s += checked(config_->severeWeatherEnabled); s += F(">NWS severe alerts</label><p class='status'>Weather status: "); s += htmlEscape(state_->weather.condition); s += F("</p><div class='row'><button type='submit' formaction='/weather/save'>Save weather</button><button type='submit' formaction='/weather/save' name='resolve' value='1' class='muted'>Save & resolve now</button></div><hr>");'''
+svc = regex_replace_once(svc, weather_pattern, weather_repl, 'weather save controls')
 
-# The exact generated Weather section ends with this status element.
-status_needle = '''s += F("</details><label><input type='checkbox' name='weatherAlerts'"); s += checked(config_->severeWeatherEnabled); s += F(">NWS severe alerts</label><p class='status'>Weather status: "); s += htmlEscape(state_->weather.condition); s += F("</p><hr>");'''
-status_repl = '''s += F("</details><label><input type='checkbox' name='weatherAlerts'"); s += checked(config_->severeWeatherEnabled); s += F(">NWS severe alerts</label><p class='status'>Weather status: "); s += htmlEscape(state_->weather.condition); s += F("</p><div class='row'><button type='submit' formaction='/weather/save'>Save weather</button><button type='submit' formaction='/weather/save' name='resolve' value='1' class='muted'>Save & resolve now</button></div><hr>");'''
-svc = replace_once(svc, status_needle, status_repl, 'weather save controls')
-
-# Dedicated Weather save route. It clears stale coordinates whenever the named
-# location changes so the resolver cannot silently keep using an old place.
 route_anchor = '''  server_.on("/settings", HTTP_POST, [this]() { handleSettingsSave(); });
 '''
 route_code = route_anchor + r'''  server_.on("/weather/save", HTTP_POST, [this]() {
@@ -132,9 +131,6 @@ route_code = route_anchor + r'''  server_.on("/weather/save", HTTP_POST, [this](
 '''
 svc = replace_once(svc, route_anchor, route_code, 'weather save route')
 
-# Replace release-selection logic. Preview always queries the release list and
-# chooses the highest semantic Waveshare version. Stable uses /latest but treats
-# the absence of a stable release as a normal state rather than a transport error.
 old_release_block = r'''  String api = config_->updateChannel == 0
     ? "https://api.github.com/repos/azmusgb/filamentinventory/releases/latest"
     : "https://api.github.com/repos/azmusgb/filamentinventory/releases?per_page=8";
@@ -231,7 +227,6 @@ svc = replace_once(
     '  sys.updateAvailable = compareFirmwareVersions(version, String(FW_VERSION)) > 0;\n',
     'version comparison')
 
-# Make updater status explicit when remote release is older/equal.
 svc = replace_once(
     svc,
     '  strlcpy(sys.updateStatus, sys.updateAvailable ? "Update available" : "Up to date", sizeof(sys.updateStatus));\n',
@@ -263,7 +258,6 @@ new_today = '''static void refreshToday() {
 ino = replace_once(ino, old_today, new_today, 'Today weather semantics')
 INO.write_text(ino)
 
-# Sanity checks -------------------------------------------------------------
 for path in (APP, SVC, INO):
     text = path.read_text()
     if '1.0.0-rc8' in text and path == APP:
