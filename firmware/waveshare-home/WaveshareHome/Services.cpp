@@ -619,18 +619,12 @@ void BambuPlugin::sendDiscoveryProbe() {
     for (const char *target : targets) {
       String probe;
       probe.reserve(180);
-      probe += "M-SEARCH * HTTP/1.1
-";
+      probe += "M-SEARCH * HTTP/1.1\r\n";
       probe += "HOST: 239.255.255.250:";
       probe += String(port);
-      probe += "
-MAN: \"ssdp:discover\"
-MX: 2
-ST: ";
+      probe += "\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\nST: ";
       probe += target;
-      probe += "
-
-";
+      probe += "\r\n\r\n";
 
       transmit(BAMBU_DISCOVERY_GROUP, port, probe);
       if (validMask) transmit(directedBroadcast, port, probe);
