@@ -1,7 +1,12 @@
 name: Fix Waveshare Home 1.0.7 OTA Redirect Handling
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/waveshare-1-0-7-redirect-fix.yml'
 
 permissions:
   contents: write
