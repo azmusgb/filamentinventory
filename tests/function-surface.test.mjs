@@ -7,14 +7,14 @@ import { fileURLToPath } from 'node:url';
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(testDir, '..');
 
-test('Netlify exposes only the three intended function modules', async () => {
+test('Netlify exposes only the four intended function modules', async () => {
   const functionDir = path.join(rootDir, 'netlify', 'functions');
   const entries = (await readdir(functionDir, { withFileTypes: true }))
     .filter(entry => entry.isFile() && entry.name.endsWith('.mts'))
     .map(entry => entry.name)
     .sort();
 
-  assert.deepEqual(entries, ['qr.mts', 'sync-admin.mts', 'sync.mts']);
+  assert.deepEqual(entries, ['display-feed.mts', 'qr.mts', 'sync-admin.mts', 'sync.mts']);
 });
 
 test('sync reconciliation lives outside the callable function directory', async () => {
