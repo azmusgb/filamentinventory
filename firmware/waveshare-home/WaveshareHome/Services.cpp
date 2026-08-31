@@ -207,7 +207,7 @@ bool ConfigStore::load(AppConfig &config) {
   config.calendarEnabled = doc["calendar"]["enabled"] | false;
   copyText(config.calendarIcsUrl, sizeof(config.calendarIcsUrl), doc["calendar"]["icsUrl"] | "");
   config.audioEnabled = doc["audio"]["enabled"] | true;
-  config.audioVolume = constrain((int)(doc["audio"]["volume"] | 55), 0, 100);
+  config.audioVolume = constrain((int)(doc["audio"]["volume"] | DEFAULT_AUDIO_VOLUME), 0, 100);
   config.workshopEnabled = doc["workshop"]["enabled"] | true;
   config.workshopSensorEnabled = doc["workshop"]["sensorEnabled"] | false;
   config.presenceEnabled = doc["workshop"]["presenceEnabled"] | false;
@@ -1717,16 +1717,32 @@ void WebDashboard::installRoutes() {
       server_.send(503, "text/plain", "Audio hardware initialization failed. Restart after enabling audio; if this persists, inspect ES8311/I2S diagnostics.");
       return;
     }
-    const uint8_t savedVolume = config_->audioVolume;
-    const uint8_t testVolume = max<uint8_t>(savedVolume, 85);
-    audio_.setVolume(testVolume);
+    if (config_->audioVolume == 0) {
+      server_.send(409, "text/plain", "Speaker is muted (0%). Raise volume before testing.");
+      return;
+    }
+    audio_.setVolume(config_->audioVolume);
     audio_.chirp(523, 500);
     delay(100);
     audio_.chirp(659, 500);
     delay(100);
     audio_.chirp(784, 650);
-    audio_.setVolume(savedVolume);
-    server_.send(200, "text/plain", "Speaker diagnostic sent at 48 kHz: C5/E5/G5. Confirm audible output.");
+    server_.send(200, "text/plain", String("Speaker diagnostic sent at ") + config_->audioVolume + "% volume: C5/E5/G5. Confirm audible output.");
+  });
+  server_.on("/audio/volume", HTTP_POST, [this]() {
+    const uint8_t volume = constrain(server_.arg("volume").toInt(), 0, 100);
+    config_->audioVolume = volume;
+    audio_.setVolume(volume);
+    store_.save(*config_);
+    server_.sendHeader("Location", "/#integrations", true);
+    server_.send(303, "text/plain", String("Volume set to ") + volume + "%");
+  });
+  server_.on("/audio/default", HTTP_POST, [this]() {
+    config_->audioVolume = DEFAULT_AUDIO_VOLUME;
+    audio_.setVolume(DEFAULT_AUDIO_VOLUME);
+    store_.save(*config_);
+    server_.sendHeader("Location", "/#integrations", true);
+    server_.send(303, "text/plain", String("Volume reset to default ") + DEFAULT_AUDIO_VOLUME + "%");
   });
   server_.on("/timer/start", HTTP_POST, [this]() {
     uint32_t sec = constrain(server_.arg("seconds").toInt(), 1, 86400);
@@ -1857,11 +1873,11 @@ void WebDashboard::sendRoot() {
 
   s += F("<h3>Updates</h3><div class='row'><div><label>Mode</label><select name='updateMode'><option value='0'"); s += selected(config_->updateMode==0); s += F(">Manual</option><option value='1'"); s += selected(config_->updateMode==1); s += F(">Notify me</option><option value='2'"); s += selected(config_->updateMode==2); s += F(">Auto-install stable</option></select></div><div><label>Channel</label><select name='updateChannel'><option value='0'"); s += selected(config_->updateChannel==0); s += F(">Stable</option><option value='1'"); s += selected(config_->updateChannel==1); s += F(">Preview / RC</option></select></div></div><label>Check interval (minutes)</label><input type='number' min='15' max='1440' name='updateCheckMinutes' value='"); s += config_->updateCheckMinutes; s += F("'><p><small>Preview builds can notify and install manually. Automatic installation is intentionally limited to the stable channel.</small></p><hr>");
 
-  s += F("<h3>Calendar</h3><label><input type='checkbox' name='calendarEnabled'"); s += checked(config_->calendarEnabled); s += F(">Enable ICS calendar</label><input name='calendarIcsUrl' placeholder='Private ICS URL' value='"); s += htmlEscape(config_->calendarIcsUrl); s += F("'><hr><h3>Audio</h3><label><input type='checkbox' name='audioEnabled'"); s += checked(config_->audioEnabled); s += F(">Enable ES8311 speaker</label><label>Volume</label><input type='number' min='0' max='100' name='audioVolume' value='"); s += config_->audioVolume; s += F("'><button type='submit'>Save settings</button></div></form>");
+  s += F("<h3>Calendar</h3><label><input type='checkbox' name='calendarEnabled'"); s += checked(config_->calendarEnabled); s += F(">Enable ICS calendar</label><input name='calendarIcsUrl' placeholder='Private ICS URL' value='"); s += htmlEscape(config_->calendarIcsUrl); s += F("'><hr><h3>Audio</h3><label><input type='checkbox' name='audioEnabled'"); s += checked(config_->audioEnabled); s += F(">Enable ES8311 speaker</label><p><small>Persistent default volume. Changes are applied immediately when the codec is active.</small></p><label>Volume <strong id='audioVolumeValue'>"); s += config_->audioVolume; s += F("%</strong></label><input id='audioVolume' type='range' min='0' max='100' step='1' name='audioVolume' value='"); s += config_->audioVolume; s += F("' oninput="document.getElementById('audioVolumeValue').textContent=this.value+'%'"><div class='grid'><button type='button' class='muted' onclick="document.getElementById('audioVolume').value=0;document.getElementById('audioVolume').dispatchEvent(new Event('input'))">Mute 0%</button><button type='button' class='muted' onclick="document.getElementById('audioVolume').value=25;document.getElementById('audioVolume').dispatchEvent(new Event('input'))">Low 25%</button><button type='button' class='muted' onclick="document.getElementById('audioVolume').value=55;document.getElementById('audioVolume').dispatchEvent(new Event('input'))">Default 55%</button><button type='button' class='muted' onclick="document.getElementById('audioVolume').value=75;document.getElementById('audioVolume').dispatchEvent(new Event('input'))">High 75%</button><button type='button' class='muted' onclick="document.getElementById('audioVolume').value=100;document.getElementById('audioVolume').dispatchEvent(new Event('input'))">Max 100%</button></div><button type='submit'>Save settings</button></div></form>");
 
   s += F("<div class='card panel' id='workshop'><div class='section-head'><div><span class='eyebrow'>AMBIENT WORKSHOP</span><h2>Workshop status</h2></div><span class='section-chip'>LIVE STATE</span></div><div class='grid'><div><h3>Environment</h3><p>"); if(state_->workshop.environment.online){auto &e=state_->workshop.environment;s+=String(e.temperatureC,1)+" C • "+String(e.humidity,0)+"% RH<br>PM2.5 "+String(e.pm25,1)+" • VOC "+String(e.voc,0)+" • CO2 "+String(e.co2,0)+" ppm<br>Presence "+(e.presence?"yes":"no")+(e.stale?" • STALE":" • LIVE");} else s+=F("No sensor connected"); s+=F("</p></div><div><h3>Air management</h3><p>Mode "); const char *airNow[]={"Off","Manual","Auto","Post-print"};s+=airNow[(int)config_->airMode];s+=F("<br>Filter request: ");s+=state_->workshop.filterRequested?"ON":"idle";if(strlen(state_->workshop.filterReason)){s+=F("<br>");s+=htmlEscape(state_->workshop.filterReason);}s+=F("</p></div></div><div class='grid'>"); for(int i=0;i<4;i++){s+=F("<form method='post' action='/air/mode'><input type='hidden' name='mode' value='");s+=i;s+=F("'><button class='muted'>");s+=airNow[i];s+=F("</button></form>");}s+=F("</div><hr><h3>Dryer</h3><p>");if(state_->workshop.dryer.running){s+=htmlEscape(state_->workshop.dryer.material);s+=F(" • ");s+=state_->workshop.dryer.targetC;s+=F(" C • ");s+=state_->workshop.dryer.remainingSec/60UL;s+=F(" min remaining");}else s+=state_->workshop.dryer.completed?"Complete":"Idle";s+=F("</p><form method='post' action='/dryer/start'><div class='row'><input name='material' value='PETG' placeholder='Material'><input type='number' name='temperatureC' value='55' min='30' max='90'></div><label>Duration minutes</label><input type='number' name='minutes' value='360' min='1' max='1440'><button>Start dryer timer</button></form><form method='post' action='/dryer/stop'><button class='danger' data-confirm='Stop the active dryer timer?'>Stop dryer</button></form><hr><h3>External sensor ingest</h3><p><small>POST telemetry to <code>/api/sensor</code> with source, temperatureC, humidity, pm25, voc, co2 and presence.</small></p><h3>Voice / command framework</h3><p>");s+=htmlEscape(state_->voice.status);s+=F("</p><form method='post' action='/api/voice'><input name='command' placeholder='e.g. pause printer, air auto, start 5 minute timer'><button class='muted'>Run command</button></form><hr><h3>Recent activity</h3>");if(!state_->activityCount)s+=F("<p>No activity yet.</p>");else{for(int i=0;i<state_->activityCount && i<6;i++){auto &a=state_->activity[i];if(!a.valid)continue;s+=F("<p><strong>");s+=htmlEscape(a.title);s+=F("</strong><br><small>");s+=htmlEscape(a.source);if(strlen(a.detail)){s+=F(" • ");s+=htmlEscape(a.detail);}s+=F("</small></p>");}}s+=F("</div>");
 
-  s += F("<div class='card panel' id='actions'><div class='section-head'><div><span class='eyebrow'>QUICK CONTROL</span><h2>Actions</h2></div><span class='section-chip'>SHORTCUTS</span></div><div class='grid'><form method='post' action='/audio/test'><button class='muted'>Test speaker</button></form><form method='post' action='/timer/start'><input type='hidden' name='seconds' value='300'><input type='hidden' name='label' value='5 minute timer'><button class='muted'>Start 5 min timer</button></form><form method='post' action='/ha/scene'><button class='muted'>Run configured scene</button></form><form method='post' action='/ha/automation'><button class='muted'>Trigger automation</button></form></div></div>");
+  s += F("<div class='card panel' id='actions'><div class='section-head'><div><span class='eyebrow'>QUICK CONTROL</span><h2>Actions</h2></div><span class='section-chip'>SHORTCUTS</span></div><p><small>Speaker "); s += state_->system.audioReady ? "ready" : "not initialized"; s += F(" • volume "); s += config_->audioVolume; s += F("%</small></p><div class='grid'><form method='post' action='/audio/test'><button class='muted'>Test speaker</button></form><form method='post' action='/audio/volume'><input type='hidden' name='volume' value='0'><button class='muted'>Mute</button></form><form method='post' action='/audio/volume'><input type='hidden' name='volume' value='55'><button class='muted'>Default 55%</button></form><form method='post' action='/audio/volume'><input type='hidden' name='volume' value='100'><button class='muted'>Max 100%</button></form><form method='post' action='/timer/start'><input type='hidden' name='seconds' value='300'><input type='hidden' name='label' value='5 minute timer'><button class='muted'>Start 5 min timer</button></form><form method='post' action='/ha/scene'><button class='muted'>Run configured scene</button></form><form method='post' action='/ha/automation'><button class='muted'>Trigger automation</button></form></div></div>");
 
   {
     const esp_partition_t *running = esp_ota_get_running_partition();
@@ -2088,6 +2104,7 @@ void WebDashboard::handleSettingsSave() {
   copyText(config_->calendarIcsUrl, sizeof(config_->calendarIcsUrl), server_.arg("calendarIcsUrl"));
   config_->audioEnabled = server_.hasArg("audioEnabled");
   config_->audioVolume = constrain(server_.arg("audioVolume").toInt(), 0, 100);
+  audio_.setVolume(config_->audioVolume);
   config_->workshopEnabled = server_.hasArg("workshopEnabled");
   config_->workshopSensorEnabled = server_.hasArg("workshopSensorEnabled");
   config_->presenceEnabled = server_.hasArg("presenceEnabled");
