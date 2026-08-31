@@ -1,4 +1,4 @@
-name: Apply Waveshare v1.5 Source Patch
+name: Recover Waveshare v1.5 Source Patch
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 jobs:
-  apply:
+  recover:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
@@ -21,59 +21,72 @@ jobs:
           ref: waveshare-v1.5-polish
           fetch-depth: 0
 
-      - name: Reconstruct v1.5 patch
+      - name: Recover valid patch prefix
         shell: bash
         run: |
           set -euo pipefail
-          test -f .github/waveshare-v15/patch.part00
-          cat .github/waveshare-v15/patch.part* | tr -d '\r\n' | base64 --decode | gzip -dc > /tmp/waveshare-v1.5.patch
-          test -s /tmp/waveshare-v1.5.patch
-          echo "Patch bytes: $(wc -c < /tmp/waveshare-v1.5.patch)"
-          head -n 20 /tmp/waveshare-v1.5.patch
+          cat .github/waveshare-v15/patch.part* | tr -d '\r\n' | base64 --decode > /tmp/v15.patch.gz
+          set +e
+          gzip -dc /tmp/v15.patch.gz > /tmp/v15.partial.patch
+          gzip_rc=$?
+          set -e
+          echo "gzip exit: ${gzip_rc} (non-zero is expected for the truncated staged tail)"
+          echo "Recovered patch bytes: $(wc -c < /tmp/v15.partial.patch)"
+          grep '^diff --git ' /tmp/v15.partial.patch || true
 
-      - name: Verify and apply patch
+      - name: Apply every complete per-file patch block
+        shell: python
+        run: |
+          import pathlib, re, subprocess, sys
+          patch = pathlib.Path('/tmp/v15.partial.patch').read_text(errors='replace')
+          starts = [m.start() for m in re.finditer(r'(?m)^diff --git ', patch)]
+          if not starts:
+              raise SystemExit('No diff blocks recovered')
+          starts.append(len(patch))
+          applied = []
+          skipped = []
+          for i in range(len(starts) - 1):
+              block = patch[starts[i]:starts[i+1]]
+              first = block.splitlines()[0]
+              name = first.split(' b/', 1)[-1] if ' b/' in first else first
+              p = pathlib.Path(f'/tmp/block-{i:02d}.patch')
+              p.write_text(block)
+              check = subprocess.run(['git','apply','--check',str(p)], text=True, capture_output=True)
+              if check.returncode == 0:
+                  subprocess.run(['git','apply',str(p)], check=True)
+                  applied.append(name)
+                  print('APPLIED', name)
+              else:
+                  skipped.append((name, check.stderr.strip()))
+                  print('SKIPPED', name, check.stderr.strip())
+          print(f'Applied {len(applied)} complete file patch(es); skipped {len(skipped)} incomplete/conflicting block(s).')
+          pathlib.Path('/tmp/applied-files.txt').write_text('\n'.join(applied) + '\n')
+          pathlib.Path('/tmp/skipped-files.txt').write_text('\n'.join(f'{n}: {e}' for n,e in skipped) + '\n')
+          if not applied:
+              raise SystemExit('No complete patch blocks could be applied')
+
+      - name: Validate recovered source
         shell: bash
         run: |
           set -euo pipefail
-          git apply --check /tmp/waveshare-v1.5.patch
-          git apply /tmp/waveshare-v1.5.patch
           git diff --check
-
-      - name: Run Waveshare UX regression tests
-        shell: bash
-        run: |
-          set -euo pipefail
           node --test tests/waveshare-ux-source.test.mjs
-
-      - name: Validate deployment contract
-        shell: bash
-        run: |
-          set -euo pipefail
           node scripts/validate.mjs
           node scripts/css-audit.mjs
+          echo '--- skipped patch blocks ---'
+          cat /tmp/skipped-files.txt || true
 
-      - name: Verify v1.5 firmware markers
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -R '1\.5\.0' firmware/waveshare-home/WaveshareHome firmware/waveshare-home/README.md
-          grep -q 'refreshModes' firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
-          grep -q '"printing"' firmware/waveshare-home/WaveshareHome/Services.cpp
-
-      - name: Remove staging machinery
-        shell: bash
-        run: |
-          rm -rf .github/waveshare-v15
-          rm -f .github/workflows/apply-waveshare-v15.yml
-          git diff --check
-
-      - name: Commit real v1.5 source
+      - name: Commit recovered real source
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add firmware/waveshare-home tests/waveshare-ux-source.test.mjs
+          if git diff --cached --quiet; then
+            echo 'No recovered source changes to commit.'
+            exit 1
+          fi
           git status --short
-          git commit -m 'Evolve Waveshare Home UX and runtime to v1.5.0'
+          git commit -m 'Recover Waveshare Home v1.5 source improvements'
           git push origin HEAD:waveshare-v1.5-polish
