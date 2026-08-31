@@ -1,0 +1,73 @@
+name: Apply Waveshare Home 1.0.11 Audio Controls
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/waveshare-1-0-11-audio-controls.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  patch-build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Apply 1.0.11 audio controls patch
+        run: python3 tools/apply_waveshare_1_0_11_audio_controls.py
+
+      - name: Validate patch markers
+        run: |
+          grep -q 'FW_VERSION\[\] = "1.0.11"' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -q 'DEFAULT_AUDIO_VOLUME = 55' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -q '/audio/volume' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'Default 55%' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'Speaker diagnostic sent at ' firmware/waveshare-home/WaveshareHome/Services.cpp
+
+      - name: Commit source patch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add firmware/waveshare-home/WaveshareHome/AppModel.h firmware/waveshare-home/WaveshareHome/Services.cpp
+          git commit -m 'Add persistent audio volume controls in 1.0.11'
+          git push origin HEAD:main
+
+      - name: Dispatch firmware build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run waveshare-home.yml --repo '${{ github.repository }}' --ref main
+          sleep 8
+
+      - name: Wait for validated firmware build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUN_ID=$(gh run list --repo '${{ github.repository }}' --workflow waveshare-home.yml --event workflow_dispatch --limit 5 --json databaseId,status --jq 'map(select(.status != "completed"))[0].databaseId // .[0].databaseId')
+          test -n "$RUN_ID"
+          gh run watch "$RUN_ID" --repo '${{ github.repository }}' --exit-status
+          echo "$RUN_ID" > /tmp/build_run_id
+
+      - name: Verify 1.0.11 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_ID=$(cat /tmp/build_run_id)
+          NAME=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts" --jq '.artifacts[0].name')
+          test "$NAME" = 'WaveshareHome-ESP32S3-1.0.11-fullflash'
+
+      - name: Dispatch release publisher
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run waveshare-release.yml --repo '${{ github.repository }}' --ref main
