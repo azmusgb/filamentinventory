@@ -1,0 +1,23 @@
+name: Publish Stable Waveshare Home 1.0
+
+on:
+  push:
+    paths:
+      - '.github/workflows/waveshare-1-0-release-kick.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch firmware release publisher
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run waveshare-release.yml \
+            --repo "${{ github.repository }}" \
+            --ref main
