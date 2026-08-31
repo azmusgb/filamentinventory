@@ -1,0 +1,50 @@
+name: Apply rc13 Recovery Guard Hardening
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/rc13_recovery_guard_fix.py'
+      - '.github/workflows/rc13-recovery-guard.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply rc13 recovery guard hardening
+        run: python3 tools/rc13_recovery_guard_fix.py
+
+      - name: Validate generated source
+        run: |
+          grep -q 'FW_VERSION\[\].*1.0.0-rc13' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -q 'void clearRecovery(AppState &state);' firmware/waveshare-home/WaveshareHome/Services.h
+          grep -q 'getBool("pending"' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'getString("fw"' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q '!state.system.recoveryMode' firmware/waveshare-home/WaveshareHome/Services.cpp
+          grep -q 'Try normal boot' firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+
+      - name: Commit firmware source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add firmware/waveshare-home/WaveshareHome/AppModel.h \
+                  firmware/waveshare-home/WaveshareHome/Services.h \
+                  firmware/waveshare-home/WaveshareHome/Services.cpp \
+                  firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+          git commit -m 'Harden recovery boot guard for rc13'
+          git push origin HEAD:main
+
+      - name: Trigger firmware validation build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run waveshare-home.yml --repo '${{ github.repository }}' --ref main
