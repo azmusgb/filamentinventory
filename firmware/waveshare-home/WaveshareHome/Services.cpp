@@ -3,6 +3,7 @@
 #include <math.h>
 #include <esp_err.h>
 #include <esp_heap_caps.h>
+#include <esp_heap_caps.h>
 #include <mbedtls/sha256.h>
 
 namespace {
@@ -1796,6 +1797,8 @@ void WebDashboard::sendStatusJson() {
   doc["updater"]["mode"] = config_->updateMode;
   doc["updater"]["channel"] = config_->updateChannel;
   doc["updater"]["available"] = state_->system.updateAvailable;
+  doc["updater"]["checkInProgress"] = state_->system.updateCheckInProgress || updateCheckRequested_;
+  doc["updater"]["installQueued"] = updateInstallRequested_;
   doc["updater"]["checkInProgress"] = state_->system.updateCheckInProgress || updateCheckRequested_;
   doc["updater"]["installQueued"] = updateInstallRequested_;
   doc["updater"]["latestVersion"] = state_->system.updateVersion;
