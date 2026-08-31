@@ -1,5 +1,8 @@
 #include "Services.h"
 #include <Wire.h>
+#include "TCA9554.h"
+
+extern TCA9554 ioExpander;
 #include <math.h>
 #include <esp_err.h>
 #include <esp_heap_caps.h>
@@ -449,16 +452,26 @@ void ConnectivityService::stopSetupAp(AppState &state) {
 
 bool AudioService::begin(const AppConfig &config, AppState &state) {
   volume_ = config.audioVolume;
+  state.system.audioReady = false;
+
+  // Waveshare's board support enables the external speaker amplifier through
+  // the TCA9554 expander before attempting codec playback. The previous Home
+  // firmware configured ES8311/I2S but left the physical output stage off.
+  ioExpander.pinMode1(2, OUTPUT);
+  ioExpander.write1(2, config.audioEnabled ? 1 : 0);
+  delay(20);
+
   if (!config.audioEnabled) {
-    state.system.audioReady = false;
+    ready_ = false;
     return false;
   }
 
   handle_ = es8311_create(I2C_NUM_0, ES8311_ADDRRES_0);
   if (!handle_) {
-    state.system.audioReady = false;
+    ready_ = false;
     return false;
   }
+
   const es8311_clock_config_t clockCfg = {
     .mclk_inverted = false,
     .sclk_inverted = false,
@@ -467,11 +480,15 @@ bool AudioService::begin(const AppConfig &config, AppState &state) {
     .sample_frequency = AUDIO_SAMPLE_RATE
   };
   if (es8311_init(handle_, &clockCfg, ES8311_RESOLUTION_16, ES8311_RESOLUTION_16) != ESP_OK) {
-    state.system.audioReady = false;
+    ready_ = false;
     return false;
   }
-  es8311_voice_volume_set(handle_, volume_, nullptr);
-  es8311_microphone_config(handle_, false);
+  if (es8311_voice_volume_set(handle_, volume_, nullptr) != ESP_OK ||
+      es8311_microphone_config(handle_, false) != ESP_OK ||
+      es8311_voice_mute(handle_, false) != ESP_OK) {
+    ready_ = false;
+    return false;
+  }
 
   i2s_.setPins(I2S_BCLK, I2S_LRCK, I2S_DOUT, I2S_DIN, I2S_MCLK);
   ready_ = i2s_.begin(I2S_MODE_STD, AUDIO_SAMPLE_RATE, I2S_DATA_BIT_WIDTH_16BIT,
@@ -494,14 +511,24 @@ void AudioService::chirp(uint16_t frequency, uint16_t durationMs) {
   while (produced < totalFrames) {
     const int frames = min<uint32_t>(FRAMES, totalFrames - produced);
     for (int i = 0; i < frames; ++i) {
-      const float phase = 2.0f * PI * frequency * (produced + i) / AUDIO_SAMPLE_RATE;
-      int16_t sample = static_cast<int16_t>(sinf(phase) * 7000.0f);
+      const uint32_t frame = produced + i;
+      const float phase = 2.0f * PI * frequency * frame / AUDIO_SAMPLE_RATE;
+      const float attack = min(1.0f, frame / (AUDIO_SAMPLE_RATE * 0.012f));
+      const float remaining = static_cast<float>(totalFrames - frame);
+      const float release = min(1.0f, remaining / (AUDIO_SAMPLE_RATE * 0.018f));
+      const float envelope = min(attack, release);
+      const int16_t sample = static_cast<int16_t>(sinf(phase) * 16000.0f * envelope);
       samples[i * 2] = sample;
       samples[i * 2 + 1] = sample;
     }
     i2s_.write(reinterpret_cast<uint8_t *>(samples), frames * 2 * sizeof(int16_t));
     produced += frames;
+    delay(0);
   }
+
+  // Push a short silence tail so the codec/I2S DMA drains the entire tone.
+  memset(samples, 0, sizeof(samples));
+  i2s_.write(reinterpret_cast<uint8_t *>(samples), sizeof(samples));
 }
 
 void AudioService::alarm() {
@@ -552,17 +579,21 @@ void WeatherPlugin::fetchWeather(AppConfig &config, AppState &state) {
     copyText(state.weather.lastError, sizeof(state.weather.lastError), "Could not open Open-Meteo forecast endpoint");
     return;
   }
-  http.addHeader("User-Agent", "WaveshareHome/1.0.8 ESP32-S3");
+  http.addHeader("User-Agent", "WaveshareHome/1.0.9 ESP32-S3");
   http.addHeader("Accept", "application/json");
   http.addHeader("Accept-Encoding", "identity");
+  http.addHeader("Connection", "close");
   esp_task_wdt_reset();
   delay(0);
   int code = http.GET();
   esp_task_wdt_reset();
   delay(0);
+  String body = http.getString();
+  body.trim();
+  esp_task_wdt_reset();
   if (code == HTTP_CODE_OK) {
     JsonDocument doc;
-    DeserializationError error = deserializeJson(doc, http.getStream());
+    DeserializationError error = body.length() ? deserializeJson(doc, body) : DeserializationError::EmptyInput;
     if (!error && !doc["current"].isNull() && !doc["daily"].isNull()) {
       state.weather.temperatureC = doc["current"]["temperature_2m"] | 0.0f;
       state.weather.apparentC = doc["current"]["apparent_temperature"] | 0.0f;
@@ -584,12 +615,30 @@ void WeatherPlugin::fetchWeather(AppConfig &config, AppState &state) {
       state.weather.updatedMs = millis();
     } else {
       state.weather.online = false;
-      String message = String("Forecast JSON error: ") + (error ? error.c_str() : "missing current/daily data");
+      String message;
+      if (!body.length()) {
+        message = "Forecast response was empty";
+      } else if (body[0] != '{' && body[0] != '[') {
+        message = "Forecast response was not JSON";
+      } else {
+        JsonDocument errorDoc;
+        if (!deserializeJson(errorDoc, body) && errorDoc["reason"].is<const char *>()) {
+          message = String("Open-Meteo: ") + errorDoc["reason"].as<const char *>();
+        } else {
+          message = String("Forecast JSON error: ") + (error ? error.c_str() : "missing current/daily data");
+        }
+      }
       copyText(state.weather.lastError, sizeof(state.weather.lastError), message);
     }
   } else {
     state.weather.online = false;
     String message = String("Open-Meteo HTTP ") + code;
+    if (body.length() && body[0] == '{') {
+      JsonDocument errorDoc;
+      if (!deserializeJson(errorDoc, body) && errorDoc["reason"].is<const char *>()) {
+        message += String(": ") + errorDoc["reason"].as<const char *>();
+      }
+    }
     copyText(state.weather.lastError, sizeof(state.weather.lastError), message);
   }
   http.end();
@@ -1680,7 +1729,16 @@ void WebDashboard::installRoutes() {
     if (server_.arg("confirm") != "ERASE") { server_.send(400, "text/plain", "Confirmation required"); return; }
     store_.factoryReset(); connectivity_.forget(); server_.send(200, "text/plain", "Factory settings cleared. Restarting."); scheduleRestart();
   });
-  server_.on("/audio/test", HTTP_POST, [this]() { audio_.chirp(); server_.send(200, "text/plain", "Audio test played"); });
+  server_.on("/audio/test", HTTP_POST, [this]() {
+    if (!audio_.ready()) {
+      server_.send(503, "text/plain", "Speaker is not initialized. Ensure ES8311 speaker is enabled, save settings, then restart the device.");
+      return;
+    }
+    audio_.chirp(660, 220);
+    delay(70);
+    audio_.chirp(880, 260);
+    server_.send(200, "text/plain", "Speaker test played: two-tone 660/880 Hz");
+  });
   server_.on("/timer/start", HTTP_POST, [this]() {
     uint32_t sec = constrain(server_.arg("seconds").toInt(), 1, 86400);
     int slot = timers_.start(*state_, sec, server_.arg("label").length() ? server_.arg("label").c_str() : "Timer");
