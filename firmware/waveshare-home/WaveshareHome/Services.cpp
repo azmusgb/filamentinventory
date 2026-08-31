@@ -513,9 +513,21 @@ void AudioService::alarm() {
 // ---------- Weather ----------
 
 void WeatherPlugin::begin(AppConfig &config, AppState &state) {
-  state.weather.configured = config.weatherEnabled &&
-    (fabsf(config.weatherLatitude) > 0.0001f || fabsf(config.weatherLongitude) > 0.0001f);
+  state.weather.configured = config.weatherEnabled && hasCoordinates(config);
   state.weather.online = false;
+  state.weather.locationResolved = state.weather.configured;
+  state.weather.lastError[0] = '\0';
+  if (!config.weatherEnabled) {
+    copyText(state.weather.condition, sizeof(state.weather.condition), "Off");
+  } else if (state.weather.configured) {
+    copyText(state.weather.condition, sizeof(state.weather.condition), "Refreshing weather...");
+    copyText(state.weather.locationName, sizeof(state.weather.locationName),
+             strlen(config.weatherLocation) ? config.weatherLocation : "Manual coordinates");
+  } else if (strlen(config.weatherLocation)) {
+    copyText(state.weather.condition, sizeof(state.weather.condition), "Resolving location...");
+  } else {
+    copyText(state.weather.condition, sizeof(state.weather.condition), "Enter ZIP or City, State");
+  }
   lastFetchMs_ = 0;
   lastAlertFetchMs_ = 0;
 }
@@ -528,28 +540,57 @@ void WeatherPlugin::loop(AppConfig &config, AppState &state) {
 
 void WeatherPlugin::fetchWeather(AppConfig &config, AppState &state) {
   lastFetchMs_ = millis();
+  state.weather.lastError[0] = '\0';
   String url = "https://api.open-meteo.com/v1/forecast?latitude=" + String(config.weatherLatitude, 5) +
     "&longitude=" + String(config.weatherLongitude, 5) +
-    "&current=temperature_2m,apparent_temperature,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=1&timezone=auto";
+    "&current=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m" +
+    "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=1&timezone=auto";
   WiFiClientSecure secure;
   HTTPClient http;
-  if (!beginHttp(http, secure, url)) return;
+  if (!beginHttp(http, secure, url)) {
+    state.weather.online = false;
+    copyText(state.weather.lastError, sizeof(state.weather.lastError), "Could not open Open-Meteo forecast endpoint");
+    return;
+  }
+  http.addHeader("User-Agent", "WaveshareHome/1.0.8 ESP32-S3");
+  http.addHeader("Accept", "application/json");
+  http.addHeader("Accept-Encoding", "identity");
+  esp_task_wdt_reset();
+  delay(0);
   int code = http.GET();
+  esp_task_wdt_reset();
+  delay(0);
   if (code == HTTP_CODE_OK) {
     JsonDocument doc;
-    if (!deserializeJson(doc, http.getStream())) {
+    DeserializationError error = deserializeJson(doc, http.getStream());
+    if (!error && !doc["current"].isNull() && !doc["daily"].isNull()) {
       state.weather.temperatureC = doc["current"]["temperature_2m"] | 0.0f;
       state.weather.apparentC = doc["current"]["apparent_temperature"] | 0.0f;
+      state.weather.humidityPercent = doc["current"]["relative_humidity_2m"] | 0.0f;
+      state.weather.precipitationMm = doc["current"]["precipitation"] | 0.0f;
+      state.weather.windKph = doc["current"]["wind_speed_10m"] | 0.0f;
+      state.weather.windGustKph = doc["current"]["wind_gusts_10m"] | 0.0f;
+      state.weather.windDirectionDegrees = doc["current"]["wind_direction_10m"] | 0;
       state.weather.weatherCode = doc["current"]["weather_code"] | -1;
       state.weather.highC = doc["daily"]["temperature_2m_max"][0] | 0.0f;
       state.weather.lowC = doc["daily"]["temperature_2m_min"][0] | 0.0f;
-      state.weather.precipitationPercent = doc["daily"]["precipitation_probability_max"][0] | 0;
+      state.weather.precipitationPercent = constrain((int)(doc["daily"]["precipitation_probability_max"][0] | 0), 0, 100);
       copyText(state.weather.condition, sizeof(state.weather.condition), weatherCodeText(state.weather.weatherCode));
+      copyText(state.weather.locationName, sizeof(state.weather.locationName),
+               strlen(config.weatherLocation) ? config.weatherLocation : "Manual coordinates");
+      state.weather.configured = true;
+      state.weather.locationResolved = true;
       state.weather.online = true;
       state.weather.updatedMs = millis();
+    } else {
+      state.weather.online = false;
+      String message = String("Forecast JSON error: ") + (error ? error.c_str() : "missing current/daily data");
+      copyText(state.weather.lastError, sizeof(state.weather.lastError), message);
     }
   } else {
     state.weather.online = false;
+    String message = String("Open-Meteo HTTP ") + code;
+    copyText(state.weather.lastError, sizeof(state.weather.lastError), message);
   }
   http.end();
 }
@@ -561,10 +602,18 @@ void WeatherPlugin::fetchAlerts(AppConfig &config, AppState &state) {
   String url = "https://api.weather.gov/alerts/active?point=" + String(config.weatherLatitude, 5) + "," + String(config.weatherLongitude, 5);
   WiFiClientSecure secure;
   HTTPClient http;
-  if (!beginHttp(http, secure, url)) return;
-  http.addHeader("User-Agent", "WaveshareHome/1.0 (ESP32 Home Hub)");
+  if (!beginHttp(http, secure, url)) {
+    copyText(state.weather.lastError, sizeof(state.weather.lastError), "Could not open NWS alerts endpoint");
+    return;
+  }
+  http.addHeader("User-Agent", "WaveshareHome/1.0.8 (https://github.com/azmusgb/filamentinventory)");
   http.addHeader("Accept", "application/geo+json");
+  http.addHeader("Accept-Encoding", "identity");
+  esp_task_wdt_reset();
+  delay(0);
   int code = http.GET();
+  esp_task_wdt_reset();
+  delay(0);
   if (code == HTTP_CODE_OK) {
     JsonDocument doc;
     if (!deserializeJson(doc, http.getStream())) {
@@ -1547,17 +1596,35 @@ void WebDashboard::installRoutes() {
     }
 
     state_->weather.online = false;
+    state_->weather.lastError[0] = '\0';
     if (!config_->weatherEnabled) {
       state_->weather.configured = false;
+      state_->weather.locationResolved = false;
       copyText(state_->weather.condition, sizeof(state_->weather.condition), "Off");
     } else if ((fabsf(config_->weatherLatitude) > 0.0001f || fabsf(config_->weatherLongitude) > 0.0001f)) {
       state_->weather.configured = true;
+      state_->weather.locationResolved = true;
       copyText(state_->weather.condition, sizeof(state_->weather.condition), "Saved; refreshing weather");
+    } else if (strlen(config_->weatherLocation) && server_.arg("resolve") == "1") {
+      copyText(state_->weather.condition, sizeof(state_->weather.condition), "Resolving location...");
+      if (WeatherPlugin::resolveLocationNow(*config_)) {
+        state_->weather.configured = true;
+        state_->weather.locationResolved = true;
+        copyText(state_->weather.locationName, sizeof(state_->weather.locationName), config_->weatherLocation);
+        copyText(state_->weather.condition, sizeof(state_->weather.condition), "Location resolved; refreshing weather");
+      } else {
+        state_->weather.configured = false;
+        state_->weather.locationResolved = false;
+        copyText(state_->weather.condition, sizeof(state_->weather.condition), "Location lookup failed");
+        copyText(state_->weather.lastError, sizeof(state_->weather.lastError), "Could not resolve ZIP or City, State. Check spelling or use manual coordinates.");
+      }
     } else if (strlen(config_->weatherLocation)) {
       state_->weather.configured = false;
-      copyText(state_->weather.condition, sizeof(state_->weather.condition), "Resolving location...");
+      state_->weather.locationResolved = false;
+      copyText(state_->weather.condition, sizeof(state_->weather.condition), "Saved; location will resolve automatically");
     } else {
       state_->weather.configured = false;
+      state_->weather.locationResolved = false;
       copyText(state_->weather.condition, sizeof(state_->weather.condition), "Enter ZIP or City, State");
     }
 
@@ -1706,7 +1773,7 @@ void WebDashboard::sendRoot() {
   for (int c = 0; c < 3; ++c) { s += F("<div><label>Home card "); s += c + 1; s += F("</label><select name='card"); s += c; s += F("'>"); for (int i = 0; i < 8; ++i) { s += F("<option value='"); s += i; s += F("'"); s += selected((int)config_->homeCards[c] == i); s += F(">"); s += homeCardName((HomeCard)i); s += F("</option>"); } s += F("</select></div>"); }
   s += F("</div></div>");
 
-  s += F("<div class='card panel' id='integrations'><div class='section-head'><div><span class='eyebrow'>CONNECTED SERVICES</span><h2>Integrations</h2></div><span class='section-chip'>LOCAL + CLOUD</span></div><h3>Weather</h3><label><input type='checkbox' name='weatherEnabled'"); s += checked(config_->weatherEnabled); s += F(">Enable weather</label><label>Location</label><input name='weatherLocation' placeholder='ZIP or City, State — e.g. 29710 or Lake Wylie, SC' value='"); s += htmlEscape(config_->weatherLocation); s += F("'><p><small>Latitude/longitude are no longer required. Waveshare Home resolves the location automatically. Manual coordinates remain available below as an advanced fallback.</small></p><details><summary>Advanced: manual coordinates</summary><div class='row'><div><label>Latitude</label><input name='weatherLat' placeholder='Auto' value='"); if (fabsf(config_->weatherLatitude) > 0.0001f) s += String(config_->weatherLatitude, 5); s += F("'></div><div><label>Longitude</label><input name='weatherLon' placeholder='Auto' value='"); if (fabsf(config_->weatherLongitude) > 0.0001f) s += String(config_->weatherLongitude, 5); s += F("'></div></div></details><label><input type='checkbox' name='weatherAlerts'"); s += checked(config_->severeWeatherEnabled); s += F(">NWS severe alerts</label><p class='status'>Weather status: "); s += htmlEscape(state_->weather.condition); s += F("</p><div class='row'><button type='submit' formaction='/weather/save'>Save weather</button><button type='submit' formaction='/weather/save' name='resolve' value='1' class='muted'>Save & resolve now</button></div><hr>");
+  s += F("<div class='card panel' id='integrations'><div class='section-head'><div><span class='eyebrow'>CONNECTED SERVICES</span><h2>Integrations</h2></div><span class='section-chip'>LOCAL + CLOUD</span></div><h3>Weather</h3><label><input type='checkbox' name='weatherEnabled'"); s += checked(config_->weatherEnabled); s += F(">Enable weather</label><label>Location</label><input name='weatherLocation' placeholder='ZIP or City, State — e.g. 29710 or Lake Wylie, SC' value='"); s += htmlEscape(config_->weatherLocation); s += F("'><p><small>Latitude/longitude are no longer required. Waveshare Home resolves the location automatically. Manual coordinates remain available below as an advanced fallback.</small></p><details><summary>Advanced: manual coordinates</summary><div class='row'><div><label>Latitude</label><input name='weatherLat' placeholder='Auto' value='"); if (fabsf(config_->weatherLatitude) > 0.0001f) s += String(config_->weatherLatitude, 5); s += F("'></div><div><label>Longitude</label><input name='weatherLon' placeholder='Auto' value='"); if (fabsf(config_->weatherLongitude) > 0.0001f) s += String(config_->weatherLongitude, 5); s += F("'></div></div></details><label><input type='checkbox' name='weatherAlerts'"); s += checked(config_->severeWeatherEnabled); s += F(">NWS severe alerts</label><p class='status'>Weather status: "); s += htmlEscape(state_->weather.condition); if (strlen(state_->weather.lastError)) { s += F("<br><span class='warn'>"); s += htmlEscape(state_->weather.lastError); s += F("</span>"); } s += F("</p>"); if (state_->weather.online) { s += F("<div class='grid'><div><small>Now</small><div class='metric'>"); s += String(state_->weather.temperatureC * 9.0f / 5.0f + 32.0f, 0); s += F("°F</div><p>"); s += htmlEscape(state_->weather.condition); s += F(" • feels "); s += String(state_->weather.apparentC * 9.0f / 5.0f + 32.0f, 0); s += F("°</p></div><div><small>Today</small><div class='metric'>H "); s += String(state_->weather.highC * 9.0f / 5.0f + 32.0f, 0); s += F("° • L "); s += String(state_->weather.lowC * 9.0f / 5.0f + 32.0f, 0); s += F("°</div><p>Rain "); s += state_->weather.precipitationPercent; s += F("% • RH "); s += String(state_->weather.humidityPercent, 0); s += F("%</p></div><div><small>Wind</small><div class='metric'>"); s += String(state_->weather.windKph * 0.621371f, 0); s += F(" mph</div><p>Gusts "); s += String(state_->weather.windGustKph * 0.621371f, 0); s += F(" mph</p></div></div>"); } s += F("<div class='row'><button type='submit' formaction='/weather/save'>Save weather</button><button type='submit' formaction='/weather/save' name='resolve' value='1' class='muted'>Save & resolve now</button></div><hr>");
 
   s += F("<h3 id='bambu'>Bambu Lab</h3>");
   s += F("<div class='card' style='margin:8px 0;background:#071015'><div class='top'><div><strong>");
@@ -1813,9 +1880,29 @@ void WebDashboard::sendStatusJson() {
   doc["updater"]["error"] = state_->system.updateError;
   doc["updater"]["size"] = state_->system.updateSize;
   }
+  doc["weather"]["enabled"] = config_->weatherEnabled;
+  doc["weather"]["configured"] = state_->weather.configured;
   doc["weather"]["online"] = state_->weather.online;
+  doc["weather"]["locationResolved"] = state_->weather.locationResolved;
+  doc["weather"]["location"] = strlen(state_->weather.locationName) ? state_->weather.locationName : config_->weatherLocation;
+  doc["weather"]["latitude"] = config_->weatherLatitude;
+  doc["weather"]["longitude"] = config_->weatherLongitude;
   doc["weather"]["temperatureC"] = state_->weather.temperatureC;
+  doc["weather"]["apparentC"] = state_->weather.apparentC;
+  doc["weather"]["highC"] = state_->weather.highC;
+  doc["weather"]["lowC"] = state_->weather.lowC;
+  doc["weather"]["humidityPercent"] = state_->weather.humidityPercent;
+  doc["weather"]["precipitationMm"] = state_->weather.precipitationMm;
+  doc["weather"]["precipitationPercent"] = state_->weather.precipitationPercent;
+  doc["weather"]["windKph"] = state_->weather.windKph;
+  doc["weather"]["windGustKph"] = state_->weather.windGustKph;
+  doc["weather"]["windDirectionDegrees"] = state_->weather.windDirectionDegrees;
+  doc["weather"]["weatherCode"] = state_->weather.weatherCode;
   doc["weather"]["condition"] = state_->weather.condition;
+  doc["weather"]["updatedMs"] = state_->weather.updatedMs;
+  doc["weather"]["error"] = state_->weather.lastError;
+  doc["weather"]["severeAlert"] = state_->weather.severeAlert;
+  doc["weather"]["alertSeverity"] = state_->weather.alertSeverity;
   doc["weather"]["alert"] = state_->weather.severeAlert ? state_->weather.alertHeadline : "";
   doc["printer"]["configured"] = state_->printer.configured;
   doc["printer"]["online"] = state_->printer.online;
@@ -1907,9 +1994,26 @@ void WebDashboard::handleSettingsSave() {
 
   config_->weatherEnabled = server_.hasArg("weatherEnabled");
   config_->severeWeatherEnabled = server_.hasArg("weatherAlerts");
-  config_->weatherLatitude = server_.arg("weatherLat").toFloat();
-  config_->weatherLongitude = server_.arg("weatherLon").toFloat();
-  copyText(config_->weatherLocation, sizeof(config_->weatherLocation), server_.arg("weatherLocation"));
+  const String previousWeatherLocation = config_->weatherLocation;
+  const float previousWeatherLat = config_->weatherLatitude;
+  const float previousWeatherLon = config_->weatherLongitude;
+  const String weatherLocationArg = server_.arg("weatherLocation");
+  const String weatherLatArg = server_.arg("weatherLat");
+  const String weatherLonArg = server_.arg("weatherLon");
+  copyText(config_->weatherLocation, sizeof(config_->weatherLocation), weatherLocationArg);
+  if (weatherLatArg.length() && weatherLonArg.length()) {
+    config_->weatherLatitude = weatherLatArg.toFloat();
+    config_->weatherLongitude = weatherLonArg.toFloat();
+  } else if (weatherLocationArg == previousWeatherLocation) {
+    // Do not erase coordinates that were resolved and persisted by the dedicated
+    // Weather form merely because the general Settings form leaves advanced
+    // latitude/longitude inputs blank.
+    config_->weatherLatitude = previousWeatherLat;
+    config_->weatherLongitude = previousWeatherLon;
+  } else {
+    config_->weatherLatitude = 0.0f;
+    config_->weatherLongitude = 0.0f;
+  }
 
   config_->bambuEnabled = server_.hasArg("bambuEnabled");
   copyText(config_->bambuHost, sizeof(config_->bambuHost), server_.arg("bambuHost"));

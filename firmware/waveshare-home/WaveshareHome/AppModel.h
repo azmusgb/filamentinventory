@@ -22,7 +22,7 @@ inline time_t waveshareTimegm(struct tm *tmv) {
 #endif
 
 static constexpr uint32_t CONFIG_SCHEMA_VERSION = 4;
-static constexpr char FW_VERSION[] = "1.0.7";
+static constexpr char FW_VERSION[] = "1.0.8";
 static constexpr char DEFAULT_DEVICE_NAME[] = "Waveshare Home";
 static constexpr char SETUP_AP_NAME[] = "WaveshareHome-Setup";
 
@@ -117,13 +117,21 @@ struct AppConfig {
 struct WeatherState {
   bool configured = false;
   bool online = false;
+  bool locationResolved = false;
   float temperatureC = 0;
   float apparentC = 0;
   float highC = 0;
   float lowC = 0;
+  float humidityPercent = 0;
+  float precipitationMm = 0;
+  float windKph = 0;
+  float windGustKph = 0;
+  int windDirectionDegrees = 0;
   int precipitationPercent = 0;
   int weatherCode = -1;
   char condition[32] = "Not configured";
+  char locationName[64] = "";
+  char lastError[96] = "";
   bool severeAlert = false;
   char alertSeverity[20] = "";
   char alertHeadline[120] = "";

@@ -129,6 +129,7 @@ public:
 
   void begin(AppConfig &config, AppState &state) override;
   void loop(AppConfig &config, AppState &state) override;
+  static bool resolveLocationNow(AppConfig &config) { return resolveLocation(config); }
 
 private:
   static constexpr uint32_t LOCATION_RETRY_MS = 15UL * 60UL * 1000UL;
@@ -138,7 +139,10 @@ private:
   uint32_t lastAlertFetchMs_ = 0;
 
   static bool hasCoordinates(const AppConfig &config) {
-    return fabsf(config.weatherLatitude) > 0.0001f || fabsf(config.weatherLongitude) > 0.0001f;
+    return isfinite(config.weatherLatitude) && isfinite(config.weatherLongitude) &&
+           config.weatherLatitude >= -90.0f && config.weatherLatitude <= 90.0f &&
+           config.weatherLongitude >= -180.0f && config.weatherLongitude <= 180.0f &&
+           (fabsf(config.weatherLatitude) > 0.0001f || fabsf(config.weatherLongitude) > 0.0001f);
   }
 
   static String urlEncode(const char *value) {
@@ -176,10 +180,16 @@ private:
     http.setConnectTimeout(5000);
     http.setTimeout(7000);
     if (!http.begin(secure, url)) return false;
-    http.addHeader("User-Agent", "WaveshareHome/1.0 ESP32 weather location resolver");
+    http.addHeader("User-Agent", "WaveshareHome/1.0.8 (https://github.com/azmusgb/filamentinventory)");
     http.addHeader("Accept", "application/json");
+    http.addHeader("Accept-Language", "en-US,en;q=0.8");
+    http.addHeader("Accept-Encoding", "identity");
 
+    esp_task_wdt_reset();
+    delay(0);
     const int code = http.GET();
+    esp_task_wdt_reset();
+    delay(0);
     if (code != HTTP_CODE_OK) {
       http.end();
       return false;

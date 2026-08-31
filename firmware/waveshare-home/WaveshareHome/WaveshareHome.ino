@@ -678,13 +678,13 @@ static void refreshToday() {
   if(todayWeather){
     char b[180];
     if(state.weather.online) {
-      snprintf(b,sizeof(b),"%.0f°F  %s\nFeels %.0f° • H %.0f° / L %.0f°\nPrecipitation %d%%",state.weather.temperatureC*9/5+32,state.weather.condition,state.weather.apparentC*9/5+32,state.weather.highC*9/5+32,state.weather.lowC*9/5+32,state.weather.precipitationPercent);
+      snprintf(b,sizeof(b),"%.0f°F  %s\nFeels %.0f° • H %.0f° / L %.0f°\nRain %d%% • RH %.0f%% • Wind %.0f mph",state.weather.temperatureC*9/5+32,state.weather.condition,state.weather.apparentC*9/5+32,state.weather.highC*9/5+32,state.weather.lowC*9/5+32,state.weather.precipitationPercent,state.weather.humidityPercent,state.weather.windKph*0.621371f);
     } else if(!config.weatherEnabled) {
       snprintf(b,sizeof(b),"Weather off\nEnable it in the web dashboard");
     } else if(!state.weather.configured) {
       snprintf(b,sizeof(b),"Weather not configured\n%s", strlen(state.weather.condition) ? state.weather.condition : "Set ZIP or City, State in dashboard");
     } else {
-      snprintf(b,sizeof(b),"Weather temporarily unavailable\nWi-Fi is %s • retrying automatically", WiFi.status()==WL_CONNECTED?"online":"offline");
+      snprintf(b,sizeof(b),"Weather temporarily unavailable\n%s", strlen(state.weather.lastError) ? state.weather.lastError : (WiFi.status()==WL_CONNECTED?"Online • retrying automatically":"Wi-Fi offline"));
     }
     lv_label_set_text(todayWeather,b);
   }
