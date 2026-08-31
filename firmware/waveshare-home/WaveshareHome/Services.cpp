@@ -2,6 +2,7 @@
 #include <Wire.h>
 #include <math.h>
 #include <esp_err.h>
+#include <esp_heap_caps.h>
 #include <mbedtls/sha256.h>
 
 namespace {
@@ -1487,6 +1488,19 @@ void WebDashboard::begin(AppConfig &config, AppState &state) {
 
 void WebDashboard::loop(AppConfig &config, AppState &state) {
   if (started_) server_.handleClient();
+
+  // Run slow GitHub/TLS work only after the HTTP response has been returned.
+  // This keeps Safari/curl from interpreting a long synchronous handler as a
+  // dropped connection and keeps the WebServer request stack out of OTA work.
+  if (updateCheckRequested_ && !state.system.updateCheckInProgress && !state.system.otaInProgress) {
+    updateCheckRequested_ = false;
+    checkForSelfUpdate(true);
+  }
+  if (updateInstallRequested_ && !state.system.updateCheckInProgress && !state.system.otaInProgress) {
+    updateInstallRequested_ = false;
+    if (installSelfUpdate()) scheduleRestart(1500);
+  }
+
   if (rebootAfterResponse_ && (int32_t)(millis() - rebootAtMs_) >= 0) ESP.restart();
 
   if (state.system.stableBoot && WiFi.status() == WL_CONNECTED && config.updateMode != 0 && !state.system.otaInProgress) {
@@ -1604,12 +1618,14 @@ void WebDashboard::installRoutes() {
   server_.on("/ha/automation", HTTP_POST, [this]() { server_.send(homeAssistant_.callAutomation(*config_) ? 200 : 502, "text/plain", "Automation request sent"); });
   server_.on("/update", HTTP_POST, [this]() { handleUpdateFinished(); }, [this]() { handleUpdateUpload(); });
   server_.on("/update/check", HTTP_POST, [this]() {
-    const bool ok = checkForSelfUpdate(true);
-    // Always return to the rich dashboard. The updater card already exposes
-    // the detailed success/error state, so users never land on a dead-end
-    // plain-text HTTP error page.
-    server_.sendHeader("Location", "/#ota", true);
-    server_.send(303, "text/plain", ok ? "Update check complete" : state_->system.updateError);
+    if (!state_ || state_->system.updateCheckInProgress || state_->system.otaInProgress) {
+      server_.send(409, "text/plain", "Updater is busy");
+      return;
+    }
+    updateCheckRequested_ = true;
+    copyText(state_->system.updateStatus, sizeof(state_->system.updateStatus), "Check queued");
+    state_->system.updateError[0] = '\0';
+    server_.send(202, "text/plain", "Update check queued");
   });
   server_.on("/update/install", HTTP_POST, [this]() {
     if (!state_->system.updateAvailable) {
@@ -1618,9 +1634,10 @@ void WebDashboard::installRoutes() {
       server_.send(303, "text/plain", state_->system.updateError);
       return;
     }
-    server_.send(200, "text/plain", "Downloading and installing update. Device will restart when validation succeeds.");
-    delay(60);
-    if (installSelfUpdate()) scheduleRestart(1500);
+    updateInstallRequested_ = true;
+    copyText(state_->system.updateStatus, sizeof(state_->system.updateStatus), "Install queued");
+    state_->system.updateError[0] = '\0';
+    server_.send(202, "text/plain", "Update install queued. Device will restart after validation.");
   });
   server_.on("/generate_204", HTTP_ANY, [this]() { sendRoot(); });
   server_.on("/hotspot-detect.html", HTTP_ANY, [this]() { sendRoot(); });
@@ -1779,6 +1796,8 @@ void WebDashboard::sendStatusJson() {
   doc["updater"]["mode"] = config_->updateMode;
   doc["updater"]["channel"] = config_->updateChannel;
   doc["updater"]["available"] = state_->system.updateAvailable;
+  doc["updater"]["checkInProgress"] = state_->system.updateCheckInProgress || updateCheckRequested_;
+  doc["updater"]["installQueued"] = updateInstallRequested_;
   doc["updater"]["latestVersion"] = state_->system.updateVersion;
   doc["updater"]["status"] = state_->system.updateStatus;
   doc["updater"]["error"] = state_->system.updateError;
@@ -2053,74 +2072,101 @@ bool WebDashboard::installSelfUpdate() {
   if (!state_ || WiFi.status() != WL_CONNECTED) return false;
   auto &sys = state_->system;
   if (!sys.updateAvailable || !strlen(sys.updateFirmwareUrl) || strlen(sys.updateSha256) != 64) return false;
+
   const esp_partition_t *next = esp_ota_get_next_update_partition(nullptr);
   if (!next || sys.updateSize == 0 || sys.updateSize > next->size) {
     strlcpy(sys.updateError, "Update does not fit inactive OTA slot", sizeof(sys.updateError));
     return false;
   }
 
-  WiFiClientSecure secure;
-  secure.setInsecure();
-  HTTPClient http;
-  http.setConnectTimeout(12000);
-  http.setTimeout(30000);
-  http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-  if (!http.begin(secure, sys.updateFirmwareUrl)) {
-    strlcpy(sys.updateError, "Could not open firmware URL", sizeof(sys.updateError));
+  // 1.0.1 deliberately separates TLS download from flash writing. On 1.0.0-rc14
+  // real hardware, streaming HTTPS bytes directly into Update.write() panicked
+  // the ESP32-S3. The board has 8 MB PSRAM, so stage the validated application
+  // image there first, close TLS, then write the inactive OTA partition.
+  uint8_t *image = static_cast<uint8_t *>(heap_caps_malloc(sys.updateSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  if (!image) image = static_cast<uint8_t *>(malloc(sys.updateSize));
+  if (!image) {
+    strlcpy(sys.updateError, "Not enough memory to stage firmware", sizeof(sys.updateError));
     return false;
-  }
-  http.addHeader("User-Agent", "WaveshareHome-ESP32-Updater");
-  http.addHeader("Accept", "application/octet-stream");
-  http.addHeader("X-GitHub-Api-Version", "2022-11-28");
-  http.addHeader("Accept-Encoding", "identity");
-  int code = http.GET();
-  if (code != HTTP_CODE_OK) {
-    snprintf(sys.updateError, sizeof(sys.updateError), "Firmware HTTP %d", code);
-    http.end(); return false;
-  }
-
-  int length = http.getSize();
-  if (length <= 0 || (uint32_t)length != sys.updateSize || (uint32_t)length > next->size) {
-    strlcpy(sys.updateError, "Firmware size differs from GitHub release metadata", sizeof(sys.updateError));
-    http.end(); return false;
-  }
-
-  if (Update.isRunning()) Update.abort();
-  Update.clearError();
-  if (!Update.begin((size_t)length, U_FLASH)) {
-    String e = String("Update.begin: ") + Update.errorString();
-    strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));
-    http.end(); return false;
   }
 
   sys.otaInProgress = true;
+  sys.otaReadyToReboot = false;
   sys.otaBytes = 0;
-  sys.otaTotal = length;
+  sys.otaTotal = sys.updateSize;
   strlcpy(sys.otaStatus, "Downloading", sizeof(sys.otaStatus));
   sys.otaError[0] = '\0';
+  sys.updateError[0] = '\0';
+
+  WiFiClientSecure secure;
+  secure.setInsecure();
+  HTTPClient http;
+  http.setConnectTimeout(7000);
+  http.setTimeout(15000);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  if (!http.begin(secure, sys.updateFirmwareUrl)) {
+    strlcpy(sys.updateError, "Could not open firmware URL", sizeof(sys.updateError));
+    free(image);
+    sys.otaInProgress = false;
+    return false;
+  }
+  http.addHeader("User-Agent", "WaveshareHome/1.0.1 ESP32-S3");
+  int code = http.GET();
+  if (code != HTTP_CODE_OK) {
+    String e = String("Firmware HTTP ") + code;
+    strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));
+    http.end();
+    free(image);
+    sys.otaInProgress = false;
+    return false;
+  }
+
+  int length = http.getSize();
+  if (length > 0 && static_cast<uint32_t>(length) != sys.updateSize) {
+    strlcpy(sys.updateError, "Firmware size differs from manifest", sizeof(sys.updateError));
+    http.end();
+    free(image);
+    sys.otaInProgress = false;
+    return false;
+  }
 
   mbedtls_sha256_context shaCtx;
   mbedtls_sha256_init(&shaCtx);
   mbedtls_sha256_starts(&shaCtx, 0);
   WiFiClient *stream = http.getStreamPtr();
-  uint8_t buffer[4096];
-  uint32_t remaining = (uint32_t)length;
+  uint32_t offset = 0;
+  uint32_t idleStarted = millis();
   bool ok = true;
-  while (remaining > 0) {
+  while (offset < sys.updateSize) {
     size_t available = stream->available();
     if (!available) {
-      if (!http.connected()) { ok = false; strlcpy(sys.updateError, "Firmware download ended early", sizeof(sys.updateError)); break; }
-      delay(2); esp_task_wdt_reset(); continue;
+      if (!http.connected() && offset < sys.updateSize) {
+        strlcpy(sys.updateError, "Firmware download ended early", sizeof(sys.updateError));
+        ok = false;
+        break;
+      }
+      if (millis() - idleStarted > 15000UL) {
+        strlcpy(sys.updateError, "Firmware download timed out", sizeof(sys.updateError));
+        ok = false;
+        break;
+      }
+      delay(2);
+      esp_task_wdt_reset();
+      continue;
     }
-    size_t want = min<size_t>(sizeof(buffer), min<size_t>(available, remaining));
-    int got = stream->readBytes(buffer, want);
-    if (got <= 0) { ok = false; strlcpy(sys.updateError, "Firmware stream read failed", sizeof(sys.updateError)); break; }
-    mbedtls_sha256_update(&shaCtx, buffer, got);
-    size_t written = Update.write(buffer, got);
-    if (written != (size_t)got) { ok = false; strlcpy(sys.updateError, Update.errorString(), sizeof(sys.updateError)); break; }
-    remaining -= got;
-    sys.otaBytes += got;
+    idleStarted = millis();
+    size_t want = min<size_t>(4096, min<size_t>(available, sys.updateSize - offset));
+    int got = stream->readBytes(image + offset, want);
+    if (got <= 0) {
+      strlcpy(sys.updateError, "Firmware download read failed", sizeof(sys.updateError));
+      ok = false;
+      break;
+    }
+    mbedtls_sha256_update(&shaCtx, image + offset, got);
+    offset += static_cast<uint32_t>(got);
+    sys.otaBytes = offset;
     esp_task_wdt_reset();
+    yield();
   }
   http.end();
 
@@ -2130,27 +2176,63 @@ bool WebDashboard::installSelfUpdate() {
   char digestHex[65];
   for (int i = 0; i < 32; ++i) sprintf(digestHex + i * 2, "%02x", digest[i]);
   digestHex[64] = '\0';
-  String expected = sys.updateSha256; expected.toLowerCase();
-  String actual = digestHex; actual.toLowerCase();
-  if (ok && actual != expected) { ok = false; strlcpy(sys.updateError, "SHA-256 verification failed", sizeof(sys.updateError)); }
-
-  if (!ok) {
-    Update.abort();
+  String expected = sys.updateSha256;
+  expected.toLowerCase();
+  String actual = digestHex;
+  actual.toLowerCase();
+  if (!ok || offset != sys.updateSize || actual != expected) {
+    if (ok) strlcpy(sys.updateError, "Firmware SHA-256 verification failed", sizeof(sys.updateError));
+    free(image);
     sys.otaInProgress = false;
     strlcpy(sys.otaStatus, "Failed", sizeof(sys.otaStatus));
     return false;
   }
-  strlcpy(sys.otaStatus, "Validating", sizeof(sys.otaStatus));
+
+  strlcpy(sys.otaStatus, "Writing", sizeof(sys.otaStatus));
+  sys.otaBytes = 0;
+  if (Update.isRunning()) Update.abort();
+  Update.clearError();
+  if (!Update.begin(sys.updateSize, U_FLASH)) {
+    String e = String("Update.begin: ") + Update.errorString();
+    strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));
+    free(image);
+    sys.otaInProgress = false;
+    strlcpy(sys.otaStatus, "Failed", sizeof(sys.otaStatus));
+    return false;
+  }
+
+  uint32_t writtenTotal = 0;
+  while (writtenTotal < sys.updateSize) {
+    size_t chunk = min<size_t>(4096, sys.updateSize - writtenTotal);
+    size_t written = Update.write(image + writtenTotal, chunk);
+    if (written != chunk) {
+      strlcpy(sys.updateError, Update.errorString(), sizeof(sys.updateError));
+      Update.abort();
+      free(image);
+      sys.otaInProgress = false;
+      strlcpy(sys.otaStatus, "Failed", sizeof(sys.otaStatus));
+      return false;
+    }
+    writtenTotal += written;
+    sys.otaBytes = writtenTotal;
+    esp_task_wdt_reset();
+    yield();
+  }
+  free(image);
+
   if (!Update.end(true)) {
-    String e = String("Validation: ") + Update.errorString();
+    String e = String("Update.end: ") + Update.errorString();
     strlcpy(sys.updateError, e.c_str(), sizeof(sys.updateError));
     sys.otaInProgress = false;
     strlcpy(sys.otaStatus, "Failed", sizeof(sys.otaStatus));
     return false;
   }
+
   sys.otaInProgress = false;
   sys.otaReadyToReboot = true;
-  strlcpy(sys.otaStatus, "Installed", sizeof(sys.otaStatus));
+  sys.updateAvailable = false;
+  strlcpy(sys.otaStatus, "Verified - restarting", sizeof(sys.otaStatus));
+  strlcpy(sys.updateStatus, "Installed - restarting", sizeof(sys.updateStatus));
   return true;
 }
 

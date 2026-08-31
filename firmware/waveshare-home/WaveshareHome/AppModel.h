@@ -22,7 +22,7 @@ inline time_t waveshareTimegm(struct tm *tmv) {
 #endif
 
 static constexpr uint32_t CONFIG_SCHEMA_VERSION = 4;
-static constexpr char FW_VERSION[] = "1.0.0";
+static constexpr char FW_VERSION[] = "1.0.1";
 static constexpr char DEFAULT_DEVICE_NAME[] = "Waveshare Home";
 static constexpr char SETUP_AP_NAME[] = "WaveshareHome-Setup";
 

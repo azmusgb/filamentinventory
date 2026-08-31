@@ -388,6 +388,8 @@ private:
   AppConfig *config_ = nullptr;
   AppState *state_ = nullptr;
   bool started_ = false;
+  bool updateCheckRequested_ = false;
+  bool updateInstallRequested_ = false;
   bool configChanged_ = false;
   bool rebootAfterResponse_ = false;
   uint32_t rebootAtMs_ = 0;
