@@ -1,0 +1,55 @@
+name: Apply rc10 Product Evolution
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/rc10_product_evolution.py'
+      - '.github/workflows/rc10-product-evolution.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  evolve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Apply rc10 evolution
+        run: python3 tools/rc10_product_evolution.py
+
+      - name: Validate evolution
+        run: |
+          grep -q 'FW_VERSION\[\] = "1.0.0-rc10"' firmware/waveshare-home/WaveshareHome/AppModel.h
+          grep -q 'QUICK CONTROL' firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+          grep -q 'updated %lum ago' firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+          grep -q 'WORKSHOP STATUS' firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+          grep -q 'Updater        %s%s%s' firmware/waveshare-home/WaveshareHome/WaveshareHome.ino
+          grep -q 'github.sha' .github/workflows/waveshare-home.yml
+
+      - name: Commit rc10 firmware
+        id: commit
+        run: |
+          if git diff --quiet; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add firmware/waveshare-home/WaveshareHome .github/workflows/waveshare-home.yml
+          git commit -m 'Evolve Waveshare Home product experience for rc10'
+          git push
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+
+      - name: Trigger validated firmware build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # workflow_dispatch events created with GITHUB_TOKEN are allowed to trigger workflows.
+          gh workflow run waveshare-home.yml --repo "${{ github.repository }}" --ref main
+          echo 'Triggered Build Waveshare Home Firmware for rc10'
