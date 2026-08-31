@@ -21,6 +21,17 @@ jobs:
           ref: waveshare-v1.5-polish
           fetch-depth: 0
 
+      - name: Narrow the RSSI migration assertion
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('.github/waveshare-v15/evolve_v15.py')
+          s = p.read_text()
+          start = s.index('# Offline RSSI:')
+          end = s.index('write(SERVICES, services)', start)
+          replacement = '''# Offline RSSI: do not call a disconnected device with RSSI=0 excellent.\nservices = replace_once(services, "const sig=signal(rssi);", "const sig=d.network?.connected?signal(rssi):'Offline';", 'offline RSSI')\n'''
+          p.write_text(s[:start] + replacement + s[end:])
+
       - name: Apply asserted v1.5 transformations
         run: python .github/waveshare-v15/evolve_v15.py
 
