@@ -25,6 +25,7 @@ echo
 echo "Downloading firmware artifact..."
 
 TEMP_DIR=$(mktemp -d)
+trap "rm -rf \$TEMP_DIR" EXIT
 
 echo "Downloading artifact into:"
 echo "$TEMP_DIR"
