@@ -24,9 +24,16 @@ PY
 echo
 echo "Downloading firmware artifact..."
 
-gh run download "$RUN_ID" --repo "$REPO"
+TEMP_DIR=$(mktemp -d)
 
-BIN=$(find . -name "WaveshareHome-firmware.bin" | head -1)
+echo "Downloading artifact into:"
+echo "$TEMP_DIR"
+
+gh run download "$RUN_ID" \
+    --repo "$REPO" \
+    --dir "$TEMP_DIR"
+
+BIN=$(find "$TEMP_DIR" -name "WaveshareHome-firmware.bin" | head -1)
 
 if [ -z "$BIN" ]; then
     echo "ERROR: Firmware file not found"
