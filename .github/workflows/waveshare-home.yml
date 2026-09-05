@@ -2,10 +2,21 @@ name: Build Waveshare Home Firmware
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     paths:
       - 'firmware/waveshare-home/**'
       - '.github/workflows/waveshare-home.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'firmware/waveshare-home/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: waveshare-home-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
