@@ -24,6 +24,35 @@ async function seed(page) {
       static now(){ return data.fixedTime; }
     }
     globalThis.Date = FixedDate;
+
+    // Keep the application sync stack real while replacing only the HTTP transport.
+    // Playwright WebKit drops route interception when its context toggles offline/online,
+    // so an in-page fetch stub is the deterministic cross-browser boundary for this test.
+    const nativeFetch = globalThis.fetch.bind(globalThis);
+    globalThis.__fiOfflineSyncPosts = [];
+    globalThis.fetch = async (input, init={}) => {
+      const sourceUrl = typeof input === 'string' ? input : input?.url;
+      const url = new URL(sourceUrl, location.href);
+      if (url.pathname !== '/api/sync') return nativeFetch(input, init);
+
+      const method = String(init.method || input?.method || 'GET').toUpperCase();
+      if (method === 'POST') {
+        const rawBody = init.body ?? (input instanceof Request ? await input.clone().text() : '');
+        const body = JSON.parse(String(rawBody || '{}'));
+        globalThis.__fiOfflineSyncPosts.push(body);
+        const revision = `r${globalThis.__fiOfflineSyncPosts.length + 1}`;
+        return new Response(JSON.stringify({
+          state:body.state,
+          meta:{revision,updatedAt:'2026-09-05T16:30:00.000Z',devices:[],activity:[]},
+          merge:{concurrent:false,conflictedSpools:0},
+        }), {status:200,headers:{'Content-Type':'application/json'}});
+      }
+
+      return new Response(JSON.stringify({
+        meta:{revision:'r1',updatedAt:'2026-09-05T16:00:00.000Z',devices:[],activity:[]},
+      }), {status:200,headers:{'Content-Type':'application/json'}});
+    };
+
     if (sessionStorage.getItem('fi-offline-smoke-seeded') === '1') return;
     localStorage.clear();
     localStorage.setItem('filament-current-user-v1','Bill');
@@ -46,31 +75,6 @@ async function navigate(page, view) {
 }
 
 test('offline keeps local inventory editable and reconnect resumes private sync', async ({page,context}) => {
-  const posts = [];
-  // Context-level routing survives WebKit's context offline/online transition; page-level routing does not reliably do so.
-  await context.route('**/api/sync*', async route => {
-    const request = route.request();
-    if (request.method() === 'POST') {
-      const body = request.postDataJSON();
-      posts.push(body);
-      await route.fulfill({
-        status:200,
-        contentType:'application/json',
-        body:JSON.stringify({
-          state:body.state,
-          meta:{revision:`r${posts.length + 1}`,updatedAt:'2026-09-05T16:30:00.000Z',devices:[],activity:[]},
-          merge:{concurrent:false,conflictedSpools:0},
-        }),
-      });
-      return;
-    }
-    await route.fulfill({
-      status:200,
-      contentType:'application/json',
-      body:JSON.stringify({meta:{revision:'r1',updatedAt:'2026-09-05T16:00:00.000Z',devices:[],activity:[]}}),
-    });
-  });
-
   await seed(page);
   await page.goto('/');
   await expect.poll(() => page.evaluate(() => Boolean(globalThis.FilamentInventorySync?.connected?.()))).toBe(true);
@@ -86,7 +90,7 @@ test('offline keeps local inventory editable and reconnect resumes private sync'
   await expect(page.locator('#syncNowBtn')).toBeDisabled();
   await expect(page.locator('#loadSnapshotsBtn')).toBeDisabled();
 
-  const postsBeforeOfflineEdit = posts.length;
+  const postsBeforeOfflineEdit = await page.evaluate(() => globalThis.__fiOfflineSyncPosts.length);
   await navigate(page,'inventory');
   await expect(page.locator('#inventoryGrid .spool-card')).toHaveCount(1);
   await page.locator('#inventoryAddBtn').click();
@@ -115,17 +119,23 @@ test('offline keeps local inventory editable and reconnect resumes private sync'
 
   // Give the normal debounce window time to elapse. Offline edits must not attempt a cloud POST.
   await page.waitForTimeout(1700);
-  expect(posts.length).toBe(postsBeforeOfflineEdit);
+  expect(await page.evaluate(() => globalThis.__fiOfflineSyncPosts.length)).toBe(postsBeforeOfflineEdit);
   await navigate(page,'sync');
   await expect(page.locator('#syncStatusTitle')).toHaveText('Offline');
 
   await context.setOffline(false);
-  await expect.poll(() => posts.slice(postsBeforeOfflineEdit).some(body =>
-    (body?.state?.spools||[]).some(row => row.id === offlineSpoolId)
+  await expect.poll(() => page.evaluate(({start,id}) =>
+    globalThis.__fiOfflineSyncPosts.slice(start).some(body =>
+      (body?.state?.spools||[]).some(row => row.id === id)
+    ), {start:postsBeforeOfflineEdit,id:offlineSpoolId}
   ), {timeout:6000}).toBe(true);
+
   await expect(page.locator('#syncStatusTitle')).toHaveText('Devices are connected');
   await expect(page.locator('#syncNowBtn')).toBeEnabled();
-  await expect(page.locator('#lastSyncText')).toContainText('Last successful sync');
+  await expect.poll(() => page.evaluate(() => {
+    const settings=JSON.parse(localStorage.getItem('filament-sync-settings-v1')||'{}');
+    return `${settings.lastRevision}|${settings.lastSyncedAt}`;
+  })).not.toBe('r1|2026-09-05T16:00:00.000Z');
   await expect.poll(() => page.evaluate(id => {
     const state=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}');
     return (state.spools||[]).some(row => row.id === id);
