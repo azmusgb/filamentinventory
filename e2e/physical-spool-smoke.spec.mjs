@@ -116,6 +116,36 @@ test('scan Load move opens authoritative Printer AMS dialog and supports load th
   })).toBe('Stored|||');
 });
 
+test('scan lifecycle action archives then restores the same physical spool with audit evidence', async ({page}) => {
+  await scan(page,'T001');
+  const physical=page.locator('#spoolActionDialog[open]'); await expect(physical).toBeVisible();
+  const archive=physical.locator('[data-spool-sheet-action="archive"]'); await expect(archive).toHaveText('Archive');
+  page.once('dialog', async dialog => {
+    expect(dialog.message()).toContain('Archive T001?');
+    await dialog.accept();
+  });
+  await archive.click();
+  await expect.poll(() => page.evaluate(() => {
+    const s=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}');
+    return (s.spools||[]).find(x=>x.id==='T001')?.archivedAt ? 'archived' : 'active';
+  })).toBe('archived');
+  await expectActiveView(page,'#inventoryView');
+  await expect(page.locator('#inventoryGrid .spool-card[data-id="T001"]')).toContainText('ARCHIVED');
+
+  await scan(page,'T001');
+  const archivedPhysical=page.locator('#spoolActionDialog[open]'); await expect(archivedPhysical).toBeVisible();
+  const restore=archivedPhysical.locator('[data-spool-sheet-action="restore"]'); await expect(restore).toHaveText('Restore');
+  await restore.click();
+  await expect.poll(() => page.evaluate(() => {
+    const s=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}');
+    const row=(s.spools||[]).find(x=>x.id==='T001');
+    const types=(s.auditLog||[]).filter(x=>x.spoolId==='T001').map(x=>x.type);
+    return `${row?.archivedAt ? 'archived' : 'active'}|${types.includes('lifecycle.archived')}|${types.includes('lifecycle.restored')}`;
+  })).toBe('active|true|true');
+  await expectActiveView(page,'#inventoryView');
+  await expect(page.locator('#inventoryGrid .spool-card[data-id="T001"]')).not.toContainText('ARCHIVED');
+});
+
 test('scan QR-label handoff selects only the scanned spool', async ({page}) => {
   await scan(page,'T001'); await page.locator('#spoolActionDialog[open]').getByRole('button',{name:'QR label'}).click();
   await expectActiveView(page,'#labelsView'); await expect(page.locator('#labelSearch')).toHaveValue('T001');
