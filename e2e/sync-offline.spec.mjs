@@ -89,7 +89,7 @@ test('offline keeps local inventory editable and reconnect resumes private sync'
   await navigate(page,'inventory');
   await expect(page.locator('#inventoryGrid .spool-card')).toHaveCount(1);
   await page.locator('#inventoryAddBtn').click();
-  const dialog = page.locator('#spoolDialog[open]');
+  const dialog = page.locator('#spoolDialog');
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('.spool-intake-summary')).toBeVisible();
 
