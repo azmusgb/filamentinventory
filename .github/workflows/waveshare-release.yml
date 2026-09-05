@@ -90,7 +90,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          git fetch origin main --no-tags
+          git fetch --no-tags origin main
           git merge-base --is-ancestor "$SOURCE_SHA" origin/main
 
       - name: Determine version and expected artifact
@@ -119,7 +119,7 @@ jobs:
           mkdir -p dist/source
 
           COUNT=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts" \
-            --jq --arg name "$ARTIFACT" '[.artifacts[] | select(.name == $name and .expired == false)] | length')
+            --jq '[.artifacts[] | select(.name == env.ARTIFACT and .expired == false)] | length')
           test "$COUNT" -eq 1
 
           gh run download "$RUN_ID" \
