@@ -73,6 +73,7 @@ test('offline keeps local inventory editable and reconnect resumes private sync'
   await seed(page);
   await page.goto('/');
   await expect.poll(() => page.evaluate(() => Boolean(globalThis.FilamentInventorySync?.connected?.()))).toBe(true);
+  await expect.poll(() => page.evaluate(() => Boolean(globalThis.FilamentInventorySpoolIntakeUI))).toBe(true);
   await navigate(page,'sync');
   await expect(page.locator('#syncStatusTitle')).toHaveText('Devices are connected');
   await expect(page.locator('#syncNowBtn')).toBeEnabled();
@@ -88,18 +89,27 @@ test('offline keeps local inventory editable and reconnect resumes private sync'
   await navigate(page,'inventory');
   await expect(page.locator('#inventoryGrid .spool-card')).toHaveCount(1);
   await page.locator('#inventoryAddBtn').click();
-  await expect(page.locator('#spoolDialog[open]')).toBeVisible();
-  await page.locator('#spoolId').fill('OFF1');
-  await page.locator('#brand').fill('Offline Test');
-  await page.locator('#material').fill('PETG');
-  await page.locator('#colorName').fill('Reconnect Orange');
-  await page.locator('#location').fill('Offline Rack');
-  await page.getByRole('button',{name:'Save spool'}).click();
-  await expect(page.locator('#spoolDialog')).not.toHaveAttribute('open','');
-  await expect.poll(() => page.evaluate(() => {
+  const dialog = page.locator('#spoolDialog[open]');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('.spool-intake-summary')).toBeVisible();
+
+  const offlineSpoolId = await dialog.locator('#spoolId').inputValue();
+  expect(offlineSpoolId).toMatch(/^S\d+$/);
+  await dialog.locator('#brandChoice').selectOption('__custom__');
+  await dialog.locator('#brand').fill('Offline Test');
+  await dialog.locator('#materialChoice').selectOption('PETG');
+  await dialog.locator('#colorNameChoice').selectOption('Orange');
+  await dialog.locator('#locationChoice').selectOption('__custom__');
+  await dialog.locator('#location').fill('Offline Rack');
+  await expect(dialog.locator('[data-intake-state]')).toHaveText('Ready');
+  await dialog.locator('[data-spool-save-another]').click();
+
+  await expect.poll(() => page.evaluate(id => {
     const state=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}');
-    return (state.spools||[]).some(row => row.id === 'OFF1');
-  })).toBe(true);
+    return (state.spools||[]).some(row => row.id === id && row.brand === 'Offline Test' && row.material === 'PETG' && row.location === 'Offline Rack');
+  }, offlineSpoolId)).toBe(true);
+  await dialog.locator('#dialogCloseBtn').click();
+  await expect(dialog).not.toHaveAttribute('open','');
   await expect(page.locator('#inventoryGrid .spool-card')).toHaveCount(2);
 
   // Give the normal debounce window time to elapse. Offline edits must not attempt a cloud POST.
@@ -110,13 +120,13 @@ test('offline keeps local inventory editable and reconnect resumes private sync'
 
   await context.setOffline(false);
   await expect.poll(() => posts.slice(postsBeforeOfflineEdit).some(body =>
-    (body?.state?.spools||[]).some(row => row.id === 'OFF1')
+    (body?.state?.spools||[]).some(row => row.id === offlineSpoolId)
   ), {timeout:6000}).toBe(true);
   await expect(page.locator('#syncStatusTitle')).toHaveText('Devices are connected');
   await expect(page.locator('#syncNowBtn')).toBeEnabled();
   await expect(page.locator('#lastSyncText')).toContainText('Last successful sync');
-  await expect.poll(() => page.evaluate(() => {
+  await expect.poll(() => page.evaluate(id => {
     const state=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}');
-    return (state.spools||[]).some(row => row.id === 'OFF1');
-  })).toBe(true);
+    return (state.spools||[]).some(row => row.id === id);
+  }, offlineSpoolId)).toBe(true);
 });
