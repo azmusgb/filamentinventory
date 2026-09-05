@@ -25,9 +25,10 @@ async function seed(page) {
     }
     globalThis.Date = FixedDate;
 
-    // Keep the application sync stack real while replacing only the HTTP transport.
-    // Playwright WebKit drops route interception when its context toggles offline/online,
-    // so an in-page fetch stub is the deterministic cross-browser boundary for this test.
+    // Keep profile isolation, local persistence, online/offline events, reconnect scheduling,
+    // sync payload construction, merge application, and UI state in the real application.
+    // Replace only the /api/sync transport because Playwright WebKit drops route interception
+    // when its browser context toggles offline/online.
     const nativeFetch = globalThis.fetch.bind(globalThis);
     globalThis.__fiOfflineSyncPosts = [];
     globalThis.fetch = async (input, init={}) => {
