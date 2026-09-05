@@ -52,6 +52,13 @@ async function scan(page,id){
   await page.locator('#qrManualId').fill(id); await page.getByRole('button',{name:'Find spool'}).click();
 }
 
+async function expectActiveView(page, selector) {
+  const view = page.locator(selector);
+  await expect(view).toBeVisible();
+  await expect(view).toHaveAttribute('aria-hidden','false');
+  await expect(view).not.toHaveAttribute('inert','');
+}
+
 test.beforeEach(async ({page}) => boot(page));
 
 test('known scan opens Physical Spool controls and Scan another returns to one scanner dialog', async ({page}) => {
@@ -67,10 +74,10 @@ test('known scan opens Physical Spool controls and Scan another returns to one s
 
 test('scan Weigh handoff selects spool and saved scale reading becomes measured evidence', async ({page}) => {
   await scan(page,'T001'); await page.locator('#spoolActionDialog[open]').getByRole('button',{name:'Weigh now'}).click();
-  await expect(page.locator('#weighView')).toHaveClass(/active/); await expect(page.locator('#weighSpool')).toHaveValue('T001');
+  await expectActiveView(page,'#weighView'); await expect(page.locator('#weighSpool')).toHaveValue('T001');
   await expect(page.locator('#weighEvidenceStatus')).toContainText('currently estimated');
   await page.locator('#grossWeight').fill('760'); await page.locator('#tareWeight').fill('200');
-  await page.getByRole('button',{name:'Save measurement'}).click();
+  await page.locator('#weighForm button[type="submit"]').click();
   await expect.poll(() => page.evaluate(() => {
     const s=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}'); const row=(s.spools||[]).find(x=>x.id==='T001'); const log=(s.weighLog||[]).at(-1);
     return `${row?.gross}|${row?.tare}|${log?.remaining}`;
@@ -83,7 +90,7 @@ test('scan Load move opens authoritative Printer AMS dialog and supports load th
   const physical=page.locator('#spoolActionDialog[open]'); await expect(physical).toBeVisible();
   const placement=physical.locator('[data-spool-sheet-action="placement"]');
   await expect(placement).toHaveText('Load / move'); await placement.click();
-  await expect(page.locator('#householdView')).toHaveClass(/active/);
+  await expectActiveView(page,'#householdView');
   const load=page.locator('.printer-load-dialog[open]'); await expect(load).toBeVisible();
   await expect(load.locator('#moveSpoolV8')).toHaveValue('T001');
   await load.locator('#movePrinterV8').selectOption({label:'P1S'});
@@ -98,6 +105,7 @@ test('scan Load move opens authoritative Printer AMS dialog and supports load th
   await scan(page,'T001'); const loadedPhysical=page.locator('#spoolActionDialog[open]'); await expect(loadedPhysical).toBeVisible();
   const loadedPlacement=loadedPhysical.locator('[data-spool-sheet-action="placement"]');
   await expect(loadedPlacement).toHaveText('Move / unload'); await loadedPlacement.click();
+  await expectActiveView(page,'#householdView');
   const loadedDialog=page.locator('.printer-load-dialog[open]'); await expect(loadedDialog).toBeVisible(); await expect(loadedDialog.locator('#moveSpoolV8')).toHaveValue('T001');
   await loadedDialog.locator('[data-printer-unload-selected]').click();
   await expect.poll(() => page.evaluate(() => {
@@ -108,15 +116,22 @@ test('scan Load move opens authoritative Printer AMS dialog and supports load th
 
 test('scan QR-label handoff selects only the scanned spool', async ({page}) => {
   await scan(page,'T001'); await page.locator('#spoolActionDialog[open]').getByRole('button',{name:'QR label'}).click();
-  await expect(page.locator('#labelsView')).toHaveClass(/active/); await expect(page.locator('#labelSearch')).toHaveValue('T001');
+  await expectActiveView(page,'#labelsView'); await expect(page.locator('#labelSearch')).toHaveValue('T001');
   await expect(page.locator('#spoolPickList [data-label-id="T001"]')).toBeChecked();
   await expect(page.locator('#labelPreviewGrid')).toContainText('T001'); await expect(page.locator('#labelSelectionCount')).toContainText('1 selected');
 });
 
-test('private link preserves scan/profile and deep-link boot reopens Physical Spool', async ({page,context}) => {
-  await context.grantPermissions(['clipboard-read','clipboard-write']); await scan(page,'T001');
+test('private link preserves scan/profile and deep-link boot reopens Physical Spool', async ({page}) => {
+  await page.evaluate(() => {
+    Object.defineProperty(navigator,'clipboard',{
+      configurable:true,
+      value:{writeText:async value => { globalThis.__fiPhysicalCopiedLink=String(value); }},
+    });
+  });
+  await scan(page,'T001');
   await page.locator('#spoolActionDialog[open]').getByRole('button',{name:'Copy link'}).click();
-  const copied=await page.evaluate(() => navigator.clipboard.readText()); const url=new URL(copied);
+  const copied=await expect.poll(() => page.evaluate(() => globalThis.__fiPhysicalCopiedLink || '')).not.toBe('');
+  const url=new URL(await page.evaluate(() => globalThis.__fiPhysicalCopiedLink));
   expect(url.searchParams.get('spool')).toBe('T001'); expect(url.searchParams.get('scan')).toBe('1');
   expect(new URLSearchParams(url.hash.slice(1)).get('filament-user')).toBe('Bill');
   await page.goto(`${url.pathname}${url.search}${url.hash}`);
@@ -126,7 +141,7 @@ test('private link preserves scan/profile and deep-link boot reopens Physical Sp
 });
 
 test('cross-profile scan routes to owning private inventory', async ({page}) => {
-  await scan(page,'A001'); await page.waitForLoadState('load');
+  await scan(page,'A001');
   await expect(page.locator('body')).toHaveAttribute('data-inventory-user','Aimee'); await expect(page.locator('#spoolActionDialog[open]')).toBeVisible();
   await expect(page.locator('#spoolActionTitle')).toContainText('A001 · Ocean Blue');
   expect(await page.evaluate(() => (JSON.parse(localStorage.getItem('filament-user-v1:bill:inventory')||'{}').spools||[]).some(x=>x.id==='A001'))).toBe(false);
