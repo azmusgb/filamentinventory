@@ -94,7 +94,9 @@ test('scan Load move opens authoritative Printer AMS dialog and supports load th
   const load=page.locator('.printer-load-dialog[open]'); await expect(load).toBeVisible();
   await expect(load.locator('#moveSpoolV8')).toHaveValue('T001');
   await load.locator('#movePrinterV8').selectOption({label:'P1S'});
-  await load.locator('#moveFeederV8').selectOption({label:'AMS 1'});
+  const feeder = load.locator('#moveFeederV8');
+  await expect(feeder.locator('option[value="AMS 1"]')).toHaveText('AMS 1 · AMS · 4 slots');
+  await feeder.selectOption('AMS 1');
   await load.locator('#moveSlotV8').selectOption('1');
   await load.locator('[data-printer-load-save]').click();
   await expect.poll(() => page.evaluate(() => {
@@ -130,7 +132,7 @@ test('private link preserves scan/profile and deep-link boot reopens Physical Sp
   });
   await scan(page,'T001');
   await page.locator('#spoolActionDialog[open]').getByRole('button',{name:'Copy link'}).click();
-  const copied=await expect.poll(() => page.evaluate(() => globalThis.__fiPhysicalCopiedLink || '')).not.toBe('');
+  await expect.poll(() => page.evaluate(() => globalThis.__fiPhysicalCopiedLink || '')).not.toBe('');
   const url=new URL(await page.evaluate(() => globalThis.__fiPhysicalCopiedLink));
   expect(url.searchParams.get('spool')).toBe('T001'); expect(url.searchParams.get('scan')).toBe('1');
   expect(new URLSearchParams(url.hash.slice(1)).get('filament-user')).toBe('Bill');
