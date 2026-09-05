@@ -5,35 +5,95 @@ on:
     workflows: ["Build Waveshare Home Firmware"]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      run_id:
+        description: Optional successful main-branch firmware build run ID to publish
+        required: false
+        type: string
 
 permissions:
   contents: write
   actions: read
 
+concurrency:
+  group: waveshare-release
+  cancel-in-progress: false
+
 jobs:
   publish:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event.workflow_run.conclusion == 'success' &&
+           github.event.workflow_run.event == 'push' &&
+           github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve source run
+      - name: Resolve validated source run
         id: src
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MANUAL_RUN_ID: ${{ inputs.run_id }}
         run: |
+          set -euo pipefail
+
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            RUN_ID=$(gh run list --repo "${{ github.repository }}" --workflow "Build Waveshare Home Firmware" --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+            if [ -n "${MANUAL_RUN_ID:-}" ]; then
+              RUN_ID="$MANUAL_RUN_ID"
+            else
+              RUN_ID=$(gh run list \
+                --repo "${{ github.repository }}" \
+                --workflow "Build Waveshare Home Firmware" \
+                --branch main \
+                --limit 1 \
+                --json databaseId \
+                --jq '.[0].databaseId')
+            fi
           else
             RUN_ID='${{ github.event.workflow_run.id }}'
           fi
-          test -n "$RUN_ID"
-          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout firmware source
+          test -n "$RUN_ID"
+          META=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID")
+          NAME=$(jq -r '.name' <<<"$META")
+          CONCLUSION=$(jq -r '.conclusion // ""' <<<"$META")
+          HEAD_BRANCH=$(jq -r '.head_branch // ""' <<<"$META")
+          SOURCE_EVENT=$(jq -r '.event // ""' <<<"$META")
+          SOURCE_SHA=$(jq -r '.head_sha // ""' <<<"$META")
+
+          test "$NAME" = 'Build Waveshare Home Firmware'
+          test "$CONCLUSION" = 'success'
+          test "$HEAD_BRANCH" = 'main'
+          test -n "$SOURCE_SHA"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            case "$SOURCE_EVENT" in
+              push|workflow_dispatch) ;;
+              *) echo "Manual publishing only accepts main push/workflow_dispatch firmware builds; received $SOURCE_EVENT" >&2; exit 1 ;;
+            esac
+          else
+            test "$SOURCE_EVENT" = 'push'
+          fi
+
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "Resolved validated firmware build run $RUN_ID at $SOURCE_SHA"
+
+      - name: Checkout validated firmware source
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+          ref: ${{ steps.src.outputs.source_sha }}
+          fetch-depth: 0
 
-      - name: Determine version
+      - name: Verify source is in main lineage
+        env:
+          SOURCE_SHA: ${{ steps.src.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git fetch origin main --no-tags
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/main
+
+      - name: Determine version and expected artifact
         id: ver
         run: |
           VERSION=$(python3 - <<'PY'
@@ -46,18 +106,32 @@ jobs:
           )
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=waveshare-v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "artifact=WaveshareHome-ESP32S3-$VERSION-fullflash" >> "$GITHUB_OUTPUT"
           if [[ "$VERSION" == *-* ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
 
-      - name: Download validated firmware artifact
+      - name: Download exact validated firmware artifact
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ steps.src.outputs.run_id }}
+          ARTIFACT: ${{ steps.ver.outputs.artifact }}
         run: |
-          mkdir -p dist
-          gh run download "${{ steps.src.outputs.run_id }}" --repo "${{ github.repository }}" --dir dist
-          find dist -maxdepth 3 -type f -print
-          FW=$(find dist -name WaveshareHome-firmware.bin -print -quit)
-          MERGED=$(find dist -name WaveshareHome-merged.bin -print -quit)
+          set -euo pipefail
+          mkdir -p dist/source
+
+          COUNT=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts" \
+            --jq --arg name "$ARTIFACT" '[.artifacts[] | select(.name == $name and .expired == false)] | length')
+          test "$COUNT" -eq 1
+
+          gh run download "$RUN_ID" \
+            --repo "${{ github.repository }}" \
+            --name "$ARTIFACT" \
+            --dir dist/source
+
+          FW=$(find dist/source -name WaveshareHome-firmware.bin -print -quit)
+          MERGED=$(find dist/source -name WaveshareHome-merged.bin -print -quit)
           test -n "$FW" -a -n "$MERGED"
+          test -s "$FW"
+          test "$(stat -c%s "$MERGED")" -eq 16777216
           cp "$FW" dist/WaveshareHome-firmware.bin
           cp "$MERGED" dist/WaveshareHome-merged.bin
 
@@ -77,27 +151,47 @@ jobs:
           EOF
           cat dist/update-manifest.json
 
-      - name: Publish GitHub release
+      - name: Publish SHA-bound GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ steps.src.outputs.source_sha }}
         run: |
+          set -euo pipefail
           TAG='${{ steps.ver.outputs.tag }}'
           VERSION='${{ steps.ver.outputs.version }}'
-          FLAGS=''
-          if [ '${{ steps.ver.outputs.prerelease }}' = 'true' ]; then FLAGS='--prerelease'; fi
+          FLAGS=()
+          if [ '${{ steps.ver.outputs.prerelease }}' = 'true' ]; then FLAGS+=(--prerelease); fi
+
+          git fetch origin "refs/tags/$TAG:refs/tags/$TAG" --force 2>/dev/null || true
+
           if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            TAG_SHA=$(git rev-list -n 1 "$TAG")
+            test "$TAG_SHA" = "$SOURCE_SHA"
             gh release upload "$TAG" \
               dist/WaveshareHome-firmware.bin \
               dist/WaveshareHome-merged.bin \
               dist/update-manifest.json \
               --clobber --repo "${{ github.repository }}"
+          elif git show-ref --verify --quiet "refs/tags/$TAG"; then
+            TAG_SHA=$(git rev-list -n 1 "$TAG")
+            test "$TAG_SHA" = "$SOURCE_SHA"
+            gh release create "$TAG" \
+              dist/WaveshareHome-firmware.bin \
+              dist/WaveshareHome-merged.bin \
+              dist/update-manifest.json \
+              --verify-tag \
+              --repo "${{ github.repository }}" \
+              --title "Waveshare Home $VERSION" \
+              --notes "Validated Waveshare Home firmware release. Device-managed OTA should use WaveshareHome-firmware.bin only; WaveshareHome-merged.bin is for USB recovery/provisioning." \
+              "${FLAGS[@]}"
           else
             gh release create "$TAG" \
               dist/WaveshareHome-firmware.bin \
               dist/WaveshareHome-merged.bin \
               dist/update-manifest.json \
+              --target "$SOURCE_SHA" \
               --repo "${{ github.repository }}" \
               --title "Waveshare Home $VERSION" \
               --notes "Validated Waveshare Home firmware release. Device-managed OTA should use WaveshareHome-firmware.bin only; WaveshareHome-merged.bin is for USB recovery/provisioning." \
-              $FLAGS
+              "${FLAGS[@]}"
           fi
