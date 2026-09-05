@@ -27,6 +27,14 @@ test('physical spool mode adapts existing mutation surfaces instead of creating 
   assert.doesNotMatch(client, /injectStyles|createElement\(['"]style['"]\)/, 'presentation belongs to ui-system.css');
 });
 
+test('physical spool handoffs use V11 navigation before the legacy tab fallback', async () => {
+  const client = await read('spool-actions-client.js');
+  assert.match(client, /globalThis\.FilamentInventoryNavigation/);
+  assert.match(client, /navigation\?\.navigate\?\.\(view,\{historyMode:'push',focus:true\}\)/);
+  assert.match(client, /\.tab\[data-view=/, 'cached legacy documents retain a tab fallback');
+  assert.ok(client.indexOf('navigation?.navigate?.') < client.indexOf('.tab[data-view='), 'V11 navigation must be attempted before the legacy tab fallback');
+});
+
 test('physical spool mode progressively replaces card clutter while preserving native controls in the DOM', async () => {
   const client = await read('spool-actions-client.js');
   const css = await read('ui-system.css');
