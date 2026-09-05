@@ -154,3 +154,29 @@ test('foreign labels are rejected with an explicit recovery message', async ({pa
   await page.evaluate(() => globalThis.FilamentInventoryScanner.process('https://example.com/?spool=T001&scan=1'));
   await expect(page.locator('#qrScanStatus')).toContainText('Not a Filament Inventory label'); await expect(page.locator('#qrScanStatus')).toContainText('different site');
 });
+
+test('Physical Spool archive preserves the spool and scan can restore it', async ({page}) => {
+  await scan(page,'T001');
+  const active = page.locator('#spoolActionDialog[open]');
+  await expect(active.locator('[data-spool-sheet-action="archive"]')).toHaveText('Archive');
+  page.once('dialog', async dialog => {
+    expect(dialog.message()).toContain('Archive T001?');
+    await dialog.accept();
+  });
+  await active.locator('[data-spool-sheet-action="archive"]').click();
+  await expect.poll(() => page.evaluate(() => {
+    const s=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}');
+    return Boolean((s.spools||[]).find(x=>x.id==='T001')?.archivedAt);
+  })).toBe(true);
+
+  await scan(page,'T001');
+  const archived = page.locator('#spoolActionDialog[open]');
+  await expect(archived).toBeVisible();
+  await expect(archived.locator('[data-spool-sheet-action="restore"]')).toHaveText('Restore');
+  await expect(archived.locator('[data-physical-spool="T001"]')).toContainText('Archived');
+  await archived.locator('[data-spool-sheet-action="restore"]').click();
+  await expect.poll(() => page.evaluate(() => {
+    const s=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}');
+    return (s.spools||[]).find(x=>x.id==='T001')?.archivedAt || null;
+  })).toBe(null);
+});
