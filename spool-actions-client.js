@@ -37,7 +37,12 @@
   }
 
   function switchView(view) {
-    document.querySelector(`.tab[data-view="${view}"]`)?.click();
+    const navigation = globalThis.FilamentInventoryNavigation;
+    if (navigation?.navigate?.(view,{historyMode:'push',focus:true})) return true;
+    const tab = document.querySelector(`.tab[data-view="${view}"]`);
+    if (!tab) return false;
+    tab.click();
+    return true;
   }
 
   function ensureDialog() {
