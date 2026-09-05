@@ -14,9 +14,11 @@ test('browser loads contextual spool actions before app mutations', async () => 
 
 test('physical spool mode adapts existing mutation surfaces instead of creating a second inventory engine', async () => {
   const client = await read('spool-actions-client.js');
-  for (const contract of ['button[data-action','moveSpoolV8','movePrinterV8','labelSearch','data-label-id','printLabelsBtn','printer-slot-actions']) {
+  for (const contract of ['button[data-action','FilamentInventoryPrinterUI','openLoad(id','moveSpoolV8','labelSearch','data-label-id','printLabelsBtn','printer-slot-actions']) {
     assert.ok(client.includes(contract), `missing authoritative UI adapter contract: ${contract}`);
   }
+  assert.doesNotMatch(client, /\$\('movePrinterV8'\)|\$\('moveFeederV8'\)|\$\('moveSlotV8'\)/,
+    'Physical Spool must delegate placement targeting to the authoritative Printer UI instead of manipulating hidden placement fields');
   assert.match(client, /Physical spool/);
   assert.match(client, /Physical location/);
   assert.match(client, /This physical-spool view reuses the authoritative inventory/);
@@ -44,6 +46,8 @@ test('recommended card actions use the authoritative dispatcher so placement ope
   assert.match(client, /runAction\(primary\.dataset\.spoolId, primary\.dataset\.spoolPrimary\)/);
   assert.doesNotMatch(client, /triggerNative\(primary\.dataset\.spoolId, primary\.dataset\.spoolPrimary\)/);
   assert.match(client, /if \(action === 'placement'\) \{ openPlacement\(id\); return; \}/);
+  assert.match(client, /FilamentInventoryPrinterUI/);
+  assert.match(client, /printerUi\.openLoad\(id,/);
 });
 
 test('QR arrivals for known spools open physical spool mode and consume one-shot scan intent', async () => {
