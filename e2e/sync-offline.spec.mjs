@@ -47,7 +47,8 @@ async function navigate(page, view) {
 
 test('offline keeps local inventory editable and reconnect resumes private sync', async ({page,context}) => {
   const posts = [];
-  await page.route('**/api/sync*', async route => {
+  // Context-level routing survives WebKit's context offline/online transition; page-level routing does not reliably do so.
+  await context.route('**/api/sync*', async route => {
     const request = route.request();
     if (request.method() === 'POST') {
       const body = request.postDataJSON();
