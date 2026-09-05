@@ -2,32 +2,15 @@ name: Build Waveshare Home Firmware
 
 on:
   workflow_dispatch:
-  pull_request:
+  push:
     paths:
       - 'firmware/waveshare-home/**'
       - '.github/workflows/waveshare-home.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'firmware/waveshare-home/**'
-
-permissions:
-  contents: read
-
-concurrency:
-  group: waveshare-home-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Temporary PR publication fence
-        if: ${{ github.event_name == 'pull_request' }}
-        run: |
-          echo 'PR firmware builds remain fenced until the main-branch release publisher guard is merged.' >&2
-          exit 1
-
       - name: Checkout
         uses: actions/checkout@v7
 
