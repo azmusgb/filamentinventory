@@ -5,6 +5,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const workflowsDir = path.join(root, '.github', 'workflows');
+const buildWorkflow = fs.readFileSync(path.join(workflowsDir, 'waveshare-home.yml'), 'utf8');
 const releaseWorkflow = fs.readFileSync(path.join(workflowsDir, 'waveshare-release.yml'), 'utf8');
 
 test('Actions surface contains only durable validation, smoke, build and release workflows', () => {
@@ -18,6 +19,28 @@ test('Actions surface contains only durable validation, smoke, build and release
     'waveshare-home.yml',
     'waveshare-release.yml',
   ]);
+});
+
+test('firmware builder validates PRs but auto-builds pushed firmware only from main', () => {
+  const pullStart = buildWorkflow.indexOf('  pull_request:');
+  const pushStart = buildWorkflow.indexOf('  push:');
+  const permissionsStart = buildWorkflow.indexOf('\npermissions:', pushStart);
+
+  assert.notEqual(pullStart, -1, 'pull_request firmware validation trigger should exist');
+  assert.notEqual(pushStart, -1, 'push firmware build trigger should exist');
+  assert.notEqual(permissionsStart, -1, 'workflow permissions block should follow triggers');
+
+  const pullBlock = buildWorkflow.slice(pullStart, pushStart);
+  const pushBlock = buildWorkflow.slice(pushStart, permissionsStart);
+
+  assert.match(pullBlock, /firmware\/waveshare-home\/\*\*/);
+  assert.match(pullBlock, /\.github\/workflows\/waveshare-home\.yml/);
+  assert.match(pushBlock, /branches:\s*\[main\]/);
+  assert.match(pushBlock, /firmware\/waveshare-home\/\*\*/);
+  assert.doesNotMatch(pushBlock, /\.github\/workflows\/waveshare-home\.yml/);
+  assert.match(buildWorkflow, /permissions:\s*\n\s+contents:\s+read/);
+  assert.match(buildWorkflow, /group: waveshare-home-\$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}/);
+  assert.match(buildWorkflow, /cancel-in-progress: true/);
 });
 
 test('automatic firmware publishing accepts only successful main push builds', () => {
