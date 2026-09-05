@@ -79,7 +79,10 @@ test('scan Weigh handoff selects spool and saved scale reading becomes measured 
 });
 
 test('scan Load move opens authoritative Printer AMS dialog and supports load then unload', async ({page}) => {
-  await scan(page,'T001'); await page.locator('#spoolActionDialog[open]').getByRole('button',{name:'Load / move'}).click();
+  await scan(page,'T001');
+  const physical=page.locator('#spoolActionDialog[open]'); await expect(physical).toBeVisible();
+  const placement=physical.locator('[data-spool-sheet-action="placement"]');
+  await expect(placement).toHaveText('Load / move'); await placement.click();
   await expect(page.locator('#householdView')).toHaveClass(/active/);
   const load=page.locator('.printer-load-dialog[open]'); await expect(load).toBeVisible();
   await expect(load.locator('#moveSpoolV8')).toHaveValue('T001');
@@ -92,8 +95,9 @@ test('scan Load move opens authoritative Printer AMS dialog and supports load th
     return `${row?.placementState}|${row?.printerName}|${row?.feederName}|${row?.feederSlot}`;
   })).toBe('Loaded|P1S|AMS 1|1');
 
-  await scan(page,'T001'); const physical=page.locator('#spoolActionDialog[open]');
-  await expect(physical.getByRole('button',{name:'Move / unload'})).toBeVisible(); await physical.getByRole('button',{name:'Move / unload'}).click();
+  await scan(page,'T001'); const loadedPhysical=page.locator('#spoolActionDialog[open]'); await expect(loadedPhysical).toBeVisible();
+  const loadedPlacement=loadedPhysical.locator('[data-spool-sheet-action="placement"]');
+  await expect(loadedPlacement).toHaveText('Move / unload'); await loadedPlacement.click();
   const loadedDialog=page.locator('.printer-load-dialog[open]'); await expect(loadedDialog).toBeVisible(); await expect(loadedDialog.locator('#moveSpoolV8')).toHaveValue('T001');
   await loadedDialog.locator('[data-printer-unload-selected]').click();
   await expect.poll(() => page.evaluate(() => {
