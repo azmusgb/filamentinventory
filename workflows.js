@@ -4,6 +4,8 @@
   const esc = value => globalThis.CSS?.escape ? CSS.escape(String(value)) : String(value).replace(/["\\]/g, '\\$&');
 
   function switchView(view) {
+    const navigation = globalThis.FilamentInventoryNavigation;
+    if (navigation?.navigate?.(view, {historyMode:'push'})) return true;
     const tab = document.querySelector(`.tab[data-view="${view}"]`);
     if (!tab) return false;
     tab.click();

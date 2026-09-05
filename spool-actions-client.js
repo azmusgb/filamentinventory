@@ -37,7 +37,12 @@
   }
 
   function switchView(view) {
-    document.querySelector(`.tab[data-view="${view}"]`)?.click();
+    const navigation = globalThis.FilamentInventoryNavigation;
+    if (navigation?.navigate?.(view,{historyMode:'push',focus:true})) return true;
+    const tab = document.querySelector(`.tab[data-view="${view}"]`);
+    if (!tab) return false;
+    tab.click();
+    return true;
   }
 
   function ensureDialog() {
@@ -150,6 +155,11 @@
     close();
     switchView('household');
     setTimeout(() => {
+      const printerUi = globalThis.FilamentInventoryPrinterUI;
+      if (printerUi?.openLoad) {
+        printerUi.openLoad(id, spool?.placementState === 'Loaded' ? String(spool?.printerId || spool?.printerName || '') : '');
+        return;
+      }
       const select = $('moveSpoolV8');
       if (!select) { toast('Printer / AMS controls are not ready yet.'); return; }
       const option = [...select.options].find(row => String(row.value).toLowerCase() === String(id).toLowerCase());
@@ -157,15 +167,8 @@
         select.value = option.value;
         select.dispatchEvent(new Event('change', {bubbles:true}));
       }
-      const loaded = spool?.placementState === 'Loaded';
-      const printer = $('movePrinterV8');
-      const feeder = $('moveFeederV8');
-      const slot = $('moveSlotV8');
-      if (printer) printer.value = loaded ? String(spool?.printerName || '') : '';
-      if (feeder) feeder.value = loaded ? String(spool?.feederName || '') : '';
-      if (slot) slot.value = loaded ? String(spool?.feederSlot || '') : '';
       select.scrollIntoView({behavior:'smooth', block:'center'});
-      (printer || select).focus({preventScroll:true});
+      select.focus({preventScroll:true});
     }, 100);
   }
 

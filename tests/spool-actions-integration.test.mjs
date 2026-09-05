@@ -14,15 +14,25 @@ test('browser loads contextual spool actions before app mutations', async () => 
 
 test('physical spool mode adapts existing mutation surfaces instead of creating a second inventory engine', async () => {
   const client = await read('spool-actions-client.js');
-  for (const contract of ['button[data-action','moveSpoolV8','movePrinterV8','labelSearch','data-label-id','printLabelsBtn','printer-slot-actions']) {
+  for (const contract of ['button[data-action','FilamentInventoryPrinterUI','openLoad(id','moveSpoolV8','labelSearch','data-label-id','printLabelsBtn','printer-slot-actions']) {
     assert.ok(client.includes(contract), `missing authoritative UI adapter contract: ${contract}`);
   }
+  assert.doesNotMatch(client, /\$\('movePrinterV8'\)|\$\('moveFeederV8'\)|\$\('moveSlotV8'\)/,
+    'Physical Spool must delegate placement targeting to the authoritative Printer UI instead of manipulating hidden placement fields');
   assert.match(client, /Physical spool/);
   assert.match(client, /Physical location/);
   assert.match(client, /This physical-spool view reuses the authoritative inventory/);
   assert.match(client, /\['weigh','empty','edit','archive','restore','delete'\]/, 'physical lifecycle mutations must route through native inventory controls');
   assert.doesNotMatch(client, /localStorage\.setItem\(/, 'feature must not write inventory state directly');
   assert.doesNotMatch(client, /injectStyles|createElement\(['"]style['"]\)/, 'presentation belongs to ui-system.css');
+});
+
+test('physical spool handoffs use V11 navigation before the legacy tab fallback', async () => {
+  const client = await read('spool-actions-client.js');
+  assert.match(client, /globalThis\.FilamentInventoryNavigation/);
+  assert.match(client, /navigation\?\.navigate\?\.\(view,\{historyMode:'push',focus:true\}\)/);
+  assert.match(client, /\.tab\[data-view=/, 'cached legacy documents retain a tab fallback');
+  assert.ok(client.indexOf('navigation?.navigate?.') < client.indexOf('.tab[data-view='), 'V11 navigation must be attempted before the legacy tab fallback');
 });
 
 test('physical spool mode progressively replaces card clutter while preserving native controls in the DOM', async () => {
@@ -44,6 +54,8 @@ test('recommended card actions use the authoritative dispatcher so placement ope
   assert.match(client, /runAction\(primary\.dataset\.spoolId, primary\.dataset\.spoolPrimary\)/);
   assert.doesNotMatch(client, /triggerNative\(primary\.dataset\.spoolId, primary\.dataset\.spoolPrimary\)/);
   assert.match(client, /if \(action === 'placement'\) \{ openPlacement\(id\); return; \}/);
+  assert.match(client, /FilamentInventoryPrinterUI/);
+  assert.match(client, /printerUi\.openLoad\(id,/);
 });
 
 test('QR arrivals for known spools open physical spool mode and consume one-shot scan intent', async () => {
