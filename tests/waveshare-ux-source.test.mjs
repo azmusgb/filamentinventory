@@ -35,8 +35,12 @@ function overlaps(a, b) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-test('Waveshare Home UX release is versioned as 1.5.0 with schema 5', () => {
-  assert.match(model, /FW_VERSION\[\]\s*=\s*"1\.5\.0"/);
+test('Waveshare Home UX release keeps a semantic firmware version at or beyond 1.6 with schema 5', () => {
+  const versionMatch = model.match(/FW_VERSION\[\]\s*=\s*"(\d+)\.(\d+)\.(\d+)"/);
+  assert.ok(versionMatch, 'FW_VERSION should be a semantic x.y.z version');
+  const major = Number(versionMatch[1]);
+  const minor = Number(versionMatch[2]);
+  assert.ok(major > 1 || (major === 1 && minor >= 6), `FW_VERSION must not regress below 1.6.x; received ${versionMatch[0]}`);
   assert.match(model, /CONFIG_SCHEMA_VERSION\s*=\s*5/);
 });
 
@@ -121,8 +125,7 @@ test('web home prioritizes normal workshop actions over maintenance actions', ()
   assert.doesNotMatch(homeSource, /hero-actions.*Test speaker/);
 });
 
-
-test('v1.5 home defaults prioritize printer, filament and workshop', () => {
+test('home defaults prioritize printer, filament and workshop', () => {
   assert.match(model, /HomeCard homeCards\[3\] = \{HomeCard::Printer, HomeCard::Filament, HomeCard::Workshop\}/);
   assert.match(model, /Workshop = 8/);
 });

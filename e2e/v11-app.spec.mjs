@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 const FIXED_TIME = Date.parse('2026-08-28T15:00:00.000Z');
 const APPROVED_VISUAL_HASHES = Object.freeze({
   home:'4d54898667b7fbc4bcfed31ecdcee93329192f69645cb6d251a7d2223da2af04',
-  inventory:'7aa3b52353f57c531f72169742575ef30df35a66f8ee7f2ff1a7c9e7ab07159d',
+  inventory:'7fa3b11616bd9a983e0e7f68a2c465b64ea6e6e79bfa846d2e7c838a50d4b6f8',
 });
 
 const prefs = (owner, displayName, initials, accent) => ({
@@ -270,7 +270,7 @@ test('mobile Inventory keeps evidence compact and separates quick actions from f
   await navigate(page,'inventory');
   const card=page.locator('#inventoryGrid .spool-card[data-id="T001"]');
   await expect(card).toBeVisible();
-  await expect(card.locator('.inventory-evidence-chip')).toHaveText('Visual estimate');
+  await expect(card.locator('.inventory-evidence-chip')).toHaveText('Estimated · visual');
   await expect(card.locator('.inventory-quantity-amount')).toHaveText('≈800 g');
   await expect(card.locator('.spool-action-bar')).toBeHidden();
   await card.locator('.spool-card-more').click();

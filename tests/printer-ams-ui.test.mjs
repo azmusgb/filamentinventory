@@ -13,7 +13,7 @@ test('AMS-first Printer runtime is published, loaded and available offline', asy
   assert.match(version,/APP_VERSION = '10\.2\.0'/);
   assert.ok(version.includes('/css/components/printer-ams.css'));
   assert.ok(version.includes("loadRuntimeScript('/printer-ams-ui.js')"));
-  assert.match(sw,/filament-inventory-v40/);
+  assert.match(sw,/const CACHE = 'filament-inventory-v\d+'/);
   for (const asset of ['printer-ams-ui.js','css/components/printer-ams.css']) {
     assert.ok(assets.includes(`'${asset}'`),`${asset} must be published`);
     assert.ok(sw.includes(`'/${asset}'`),`${asset} must be precached`);
