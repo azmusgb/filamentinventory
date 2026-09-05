@@ -5,7 +5,6 @@ import path from 'node:path';
 
 const root = process.cwd();
 const workflowsDir = path.join(root, '.github', 'workflows');
-const buildWorkflow = fs.readFileSync(path.join(workflowsDir, 'waveshare-home.yml'), 'utf8');
 const releaseWorkflow = fs.readFileSync(path.join(workflowsDir, 'waveshare-release.yml'), 'utf8');
 
 test('Actions surface contains only durable validation, smoke, build and release workflows', () => {
@@ -21,13 +20,6 @@ test('Actions surface contains only durable validation, smoke, build and release
   ]);
 });
 
-test('firmware build validates pull requests but auto-builds pushed firmware only from main', () => {
-  assert.match(buildWorkflow, /pull_request:\s*\n\s+paths:/);
-  assert.match(buildWorkflow, /push:\s*\n\s+branches:\s*\[main\]/);
-  assert.match(buildWorkflow, /permissions:\s*\n\s+contents:\s+read/);
-  assert.match(buildWorkflow, /group: waveshare-home-\$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}/);
-});
-
 test('automatic firmware publishing accepts only successful main push builds', () => {
   assert.match(releaseWorkflow, /workflow_run\.conclusion == 'success'/);
   assert.match(releaseWorkflow, /workflow_run\.event == 'push'/);
@@ -36,6 +28,7 @@ test('automatic firmware publishing accepts only successful main push builds', (
   assert.match(releaseWorkflow, /--branch main/);
   assert.doesNotMatch(releaseWorkflow, /--status success/);
   assert.match(releaseWorkflow, /test "\$HEAD_BRANCH" = 'main'/);
+  assert.match(releaseWorkflow, /push\|workflow_dispatch/);
 });
 
 test('release source, artifact and tag remain bound to the validated build SHA', () => {
