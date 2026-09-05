@@ -8,9 +8,15 @@ const spool = (overrides = {}) => ({
   lastDriedDate:'', notes:'Physical workflow smoke spool.', createdAt:'2026-09-01T12:00:00.000Z',
   updatedAt:'2026-09-04T12:00:00.000Z', archivedAt:null, ...overrides,
 });
-const state = (owner, spools) => ({
+const printer = {
+  id:'printer-p1s', owner:'Bill', name:'P1S', manufacturer:'Bambu Lab', model:'P1S', location:'Workshop',
+  nozzleSize:'0.4 mm', nozzleMaterial:'Hardened steel', buildPlate:'Textured PEI',
+  feeders:[{id:'feeder-ams-1',name:'AMS 1',type:'AMS',slotCount:4}],
+  createdAt:'2026-09-01T12:00:00.000Z', updatedAt:'2026-09-04T12:00:00.000Z',
+};
+const state = (owner, spools, printers = []) => ({
   version:10, appVersion:'10.2.0', profile:owner, savedAt:'2026-09-05T14:00:00.000Z',
-  meta:{lastBackupAt:null}, spools, weighLog:[], auditLog:[], printJobs:[], tombstones:{},
+  meta:{lastBackupAt:null}, spools, printers, weighLog:[], auditLog:[], printJobs:[], tombstones:{},
 });
 
 async function seed(page) {
@@ -29,7 +35,7 @@ async function seed(page) {
     sessionStorage.setItem('fi-physical-smoke-seeded','1');
   }, {
     fixedTime:FIXED_TIME,
-    bill:state('Bill',[spool(),spool({id:'T002',material:'PETG',colorName:'Carbon Black',colorHex:'#171a22',visualPercent:20,location:'Rack B'})]),
+    bill:state('Bill',[spool(),spool({id:'T002',material:'PETG',colorName:'Carbon Black',colorHex:'#171a22',visualPercent:20,location:'Rack B'})],[printer]),
     aimee:state('Aimee',[spool({id:'A001',owner:'Aimee',colorName:'Ocean Blue',colorHex:'#2563eb',visualPercent:65,location:'Aimee Rack'})]),
   });
 }
@@ -70,6 +76,30 @@ test('scan Weigh handoff selects spool and saved scale reading becomes measured 
     return `${row?.gross}|${row?.tare}|${log?.remaining}`;
   })).toBe('760|200|560');
   await expect(page.locator('#weighEvidenceStatus')).toContainText('currently measured');
+});
+
+test('scan Load move opens authoritative Printer AMS dialog and supports load then unload', async ({page}) => {
+  await scan(page,'T001'); await page.locator('#spoolActionDialog[open]').getByRole('button',{name:'Load / move'}).click();
+  await expect(page.locator('#householdView')).toHaveClass(/active/);
+  const load=page.locator('.printer-load-dialog[open]'); await expect(load).toBeVisible();
+  await expect(load.locator('#moveSpoolV8')).toHaveValue('T001');
+  await load.locator('#movePrinterV8').selectOption({label:'P1S'});
+  await load.locator('#moveFeederV8').selectOption({label:'AMS 1'});
+  await load.locator('#moveSlotV8').selectOption('1');
+  await load.locator('[data-printer-load-save]').click();
+  await expect.poll(() => page.evaluate(() => {
+    const s=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}'); const row=(s.spools||[]).find(x=>x.id==='T001');
+    return `${row?.placementState}|${row?.printerName}|${row?.feederName}|${row?.feederSlot}`;
+  })).toBe('Loaded|P1S|AMS 1|1');
+
+  await scan(page,'T001'); const physical=page.locator('#spoolActionDialog[open]');
+  await expect(physical.getByRole('button',{name:'Move / unload'})).toBeVisible(); await physical.getByRole('button',{name:'Move / unload'}).click();
+  const loadedDialog=page.locator('.printer-load-dialog[open]'); await expect(loadedDialog).toBeVisible(); await expect(loadedDialog.locator('#moveSpoolV8')).toHaveValue('T001');
+  await loadedDialog.locator('[data-printer-unload-selected]').click();
+  await expect.poll(() => page.evaluate(() => {
+    const s=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}'); const row=(s.spools||[]).find(x=>x.id==='T001');
+    return `${row?.placementState}|${row?.printerName||''}|${row?.feederName||''}|${row?.feederSlot||''}`;
+  })).toBe('Stored|||');
 });
 
 test('scan QR-label handoff selects only the scanned spool', async ({page}) => {
