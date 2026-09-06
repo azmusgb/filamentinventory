@@ -8,21 +8,23 @@
   let scheduled = false;
 
   function ensurePresentationAssets() {
-    const stylesheet = '/css/components/inventory-mobile.css';
-    if (!document.querySelector(`link[href="${stylesheet}"]`)) {
+    const stylesheets = ['/css/components/inventory-mobile.css', '/css/components/llm.css'];
+    for (const stylesheet of stylesheets) {
+      if (document.querySelector(`link[href="${stylesheet}"]`)) continue;
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = stylesheet;
-      link.dataset.fiPresentation = 'inventory-mobile';
+      link.dataset.fiPresentation = stylesheet.includes('llm') ? 'llm' : 'inventory-mobile';
       document.head.appendChild(link);
     }
 
-    const script = '/inventory-card-client.js';
-    if (!document.querySelector(`script[src="${script}"]`)) {
+    const scripts = ['/inventory-card-client.js', '/llm-core.js', '/llm-client.js'];
+    for (const script of scripts) {
+      if (document.querySelector(`script[src="${script}"]`)) continue;
       const node = document.createElement('script');
       node.src = script;
       node.defer = true;
-      node.dataset.fiPresentation = 'inventory-cards';
+      node.dataset.fiPresentation = script.includes('llm') ? 'llm' : 'inventory-cards';
       document.head.appendChild(node);
     }
   }
@@ -72,14 +74,15 @@
 
   function refineSidebar() {
     const sidebar = $('fiDesktopSidebar');
-    if (!sidebar || sidebar.dataset.navigationArchitecture === '2') return;
-    sidebar.dataset.navigationArchitecture = '2';
+    if (!sidebar || sidebar.dataset.navigationArchitecture === '3') return;
+    sidebar.dataset.navigationArchitecture = '3';
     sidebar.innerHTML = `
       <div class="fi-sidebar-group-label">Workspace</div>
       <nav class="fi-secondary-nav" aria-label="Primary destinations">
         ${shellButton({view:'dashboard', icon:'⌂', label:'Home'})}
         ${shellButton({view:'inventory', icon:'▦', label:'Inventory'})}
         ${shellButton({view:'household', icon:'◉', label:'Printer'})}
+        ${shellButton({action:'assistant', icon:'✦', label:'Assistant'})}
         ${shellButton({view:'history', icon:'↺', label:'Activity'})}
       </nav>
       <div class="fi-sidebar-spacer"></div>
@@ -115,8 +118,8 @@
 
   function refineMoreSheet() {
     const dialog = qs('.fi-more-sheet');
-    if (!dialog || dialog.dataset.navigationArchitecture === '2') return;
-    dialog.dataset.navigationArchitecture = '2';
+    if (!dialog || dialog.dataset.navigationArchitecture === '3') return;
+    dialog.dataset.navigationArchitecture = '3';
     if (!dialog.id) dialog.id = 'fiMoreSheet';
     dialog.setAttribute('aria-labelledby', 'fiMoreSheetTitle');
     dialog.innerHTML = `
@@ -126,6 +129,12 @@
       </div>
       <div class="dialog-body">
         <div class="fi-more-groups">
+          <section class="fi-more-group">
+            <h4>Intelligence</h4>
+            <div class="fi-more-actions">
+              ${moreAction({action:'assistant', label:'Inventory assistant'})}
+            </div>
+          </section>
           <section class="fi-more-group">
             <h4>Filament workflow</h4>
             <div class="fi-more-actions">
