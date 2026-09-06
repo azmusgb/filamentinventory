@@ -49,16 +49,28 @@
     return Math.max(0, Math.floor((now - stamp) / 86400000));
   }
 
+  function requirementQuantityState(value) {
+    if (value === '' || value === null || value === undefined) return 'missing';
+    const parsed = number(value);
+    if (parsed === null) return 'invalid';
+    if (parsed <= 0) return 'non-positive';
+    return 'known';
+  }
+
   function normalizeRequirement(query = {}) {
-    const needed = Math.max(0, number(query.grams) || 0);
+    const quantityState = requirementQuantityState(query.grams);
+    const parsedGrams = number(query.grams);
+    const needed = quantityState === 'known' ? parsedGrams : quantityState === 'non-positive' ? parsedGrams : null;
     const safetyMargin = clamp(Math.max(0, number(query.safetyMargin) || 0), 0, 100);
     return Object.freeze({
       jobName:clean(query.jobName, 100),
       material:clean(query.material, 80),
       color:clean(query.color, 80),
       grams:needed,
+      quantityState,
+      quantityKnown:quantityState === 'known',
       safetyMargin,
-      required:Math.ceil(needed * (1 + safetyMargin / 100)),
+      required:quantityState === 'known' ? Math.ceil(parsedGrams * (1 + safetyMargin / 100)) : null,
       printer:clean(query.printer, 60),
       feeder:clean(query.feeder, 60),
       slot:clean(query.slot, 24),
@@ -211,8 +223,31 @@
     return score;
   }
 
+  function undeterminedResult(requirement) {
+    const reason = requirement.quantityState === 'invalid'
+      ? 'required-quantity-invalid'
+      : requirement.quantityState === 'non-positive'
+        ? 'required-quantity-non-positive'
+        : 'required-quantity-missing';
+    return Object.freeze({
+      status:'undetermined',
+      reason,
+      message:'Enter a positive slicer or model filament estimate in grams before checking print readiness.',
+      needed:requirement.grams,
+      safetyMargin:requirement.safetyMargin,
+      required:null,
+      requirement,
+      recommended:null,
+      alternatives:[],
+      candidates:[],
+      counts:Object.freeze({matches:0, measuredReady:0, estimatedReady:0, unknown:0, reserved:0}),
+    });
+  }
+
   function evaluate(spools = [], query = {}, now = Date.now(), options = {}) {
     const requirement = normalizeRequirement(query);
+    if (!requirement.quantityKnown) return undeterminedResult(requirement);
+
     const printJobs = Array.isArray(options?.printJobs) ? options.printJobs : [];
     const excludeJobId = clean(options?.excludeJobId, 120);
     const candidates = (Array.isArray(spools) ? spools : []).filter(spool => matches(spool, requirement)).map(spool => {
@@ -304,7 +339,7 @@
   function planJob(stateRaw = {}, query = {}, spoolId = '', at = new Date().toISOString()) {
     const state = cloneState(stateRaw);
     const requirement = normalizeRequirement(query);
-    if (requirement.grams <= 0) return {changed:false, reason:'grams-required', state};
+    if (!requirement.quantityKnown) return {changed:false, reason:'grams-required', state, requirement};
     const result = evaluate(state.spools, requirement, Date.parse(at) || Date.now(), {printJobs:state.printJobs});
     const row = result.candidates.find(candidate => clean(candidate.spool.id, 64).toLowerCase() === clean(spoolId, 64).toLowerCase()) || null;
     if (!row) return {changed:false, reason:'spool-not-matching', state, result};
@@ -459,6 +494,7 @@
     measurement,
     remaining,
     freshness,
+    requirementQuantityState,
     normalizeRequirement,
     normalizeColor,
     normalizeMaterial,
