@@ -1,0 +1,61 @@
+name: Acceptance / release gate
+description: Record runtime, production, migration, or physical acceptance without overstating evidence.
+title: "[Acceptance] "
+body:
+  - type: dropdown
+    id: gate
+    attributes:
+      label: Gate being evaluated
+      options:
+        - Runtime validation
+        - Production validation
+        - Migration / recovery validation
+        - WS350 physical validation
+        - Release acceptance
+    validations:
+      required: true
+  - type: input
+    id: sha
+    attributes:
+      label: Exact source SHA
+      placeholder: 40-character Git SHA
+    validations:
+      required: true
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Build / deployment / artifact identity
+      description: CI run, deploy ID, artifact name/hash, firmware image/hash, or release candidate identity.
+  - type: textarea
+    id: procedure
+    attributes:
+      label: Procedure executed
+      description: Record the actual steps that ran. Do not mark an inferred or planned step as executed.
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - Pass
+        - Fail
+        - Blocked / not run
+        - Partial — further gate required
+    validations:
+      required: true
+  - type: textarea
+    id: observations
+    attributes:
+      label: Observations / defects
+      description: Include touch, accessibility, state accuracy, recovery, stale/offline behavior, and data-integrity findings where relevant.
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Rollback / recovery path verified
+      description: Describe what is actually known-good. For cross-line WS350 migration, preserve the approved full-image-at-0x0 recovery path.
+  - type: textarea
+    id: next
+    attributes:
+      label: Next gate
+      description: State the highest release state actually reached and what remains.
