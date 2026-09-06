@@ -38,15 +38,22 @@ async function seed(page){
       confidence:'high',
       model:'gpt-5.6-luna',
     };
+    globalThis.__fiAssistantHealth={
+      status:200,
+      body:{
+        ok:true,service:'inventory-assistant',contractVersion:1,
+        transport:{configured:true,model:'gpt-5.6-luna',provider:'openai-responses',storesResponses:false},
+      },
+    };
     globalThis.fetch=async(input,init={})=>{
       const source=typeof input==='string'?input:input?.url;
       const url=new URL(source,location.href);
       const method=String(init.method||input?.method||'GET').toUpperCase();
       if(url.pathname==='/api/inventory-assistant'){
-        if(method==='GET')return new Response(JSON.stringify({
-          ok:true,service:'inventory-assistant',contractVersion:1,
-          transport:{configured:true,model:'gpt-5.6-luna',provider:'openai-responses',storesResponses:false},
-        }),{status:200,headers:{'Content-Type':'application/json'}});
+        if(method==='GET')return new Response(JSON.stringify(globalThis.__fiAssistantHealth.body),{
+          status:globalThis.__fiAssistantHealth.status,
+          headers:{'Content-Type':'application/json'},
+        });
         const rawBody=init.body??(input instanceof Request?await input.clone().text():'');
         globalThis.__fiAssistantPosts.push({
           body:JSON.parse(String(rawBody||'{}')),
@@ -76,16 +83,42 @@ async function boot(page){
   await expect(page.locator('#assistantView')).toBeVisible();
 }
 
+test('linked browser is Cloud ready until a validated model response succeeds',async({page})=>{
+  await boot(page);
+  await expect(page.locator('[data-llm-mode]')).toHaveText('Cloud ready');
+  await expect(page.locator('[data-llm-owner]')).toContainText('ask to verify');
+  expect(await page.evaluate(()=>globalThis.FilamentInventoryLLMTransport.state().verifiedForCurrentProfile)).toBe(false);
+});
+
 test('valid grounded model answer is accepted and request remains profile-scoped',async({page})=>{
   await boot(page);
+  await expect(page.locator('[data-llm-mode]')).toHaveText('Cloud ready');
   await page.evaluate(()=>globalThis.FilamentInventoryAssistantUI.ask('How much black PLA is left?'));
   await expect(page.locator('#fiLlmTranscript')).toContainText('S1 has 400 g remaining');
   await expect(page.locator('[data-llm-mode]')).toHaveText('Grounded model');
+  await expect(page.locator('[data-llm-owner]')).toContainText('verified');
+  const transportState=await page.evaluate(()=>globalThis.FilamentInventoryLLMTransport.state());
+  expect(transportState.phase).toBe('model');
+  expect(transportState.verifiedForCurrentProfile).toBe(true);
+  expect(transportState.lastSuccessProfile).toBe('Bill');
   const post=await page.evaluate(()=>globalThis.__fiAssistantPosts.at(-1));
   expect(post.profile).toBe('Bill');
   expect(post.body.profile).toBe('Bill');
   expect(post.body.inventory.map(row=>row.id)).toEqual(['S1']);
   expect(post.body.inventory.every(row=>row.owner===undefined)).toBe(true);
+});
+
+test('failed readiness check never advertises Grounded model without a successful response',async({page})=>{
+  await boot(page);
+  await page.evaluate(async()=>{
+    globalThis.__fiAssistantHealth={status:503,body:{ok:false,error:'Readiness unavailable.'}};
+    await globalThis.FilamentInventoryLLMTransport.checkHealth(true);
+  });
+  await expect(page.locator('[data-llm-mode]')).toHaveText('Grounded local');
+  await expect(page.locator('[data-llm-owner]')).toContainText('cloud status unavailable');
+  const state=await page.evaluate(()=>globalThis.FilamentInventoryLLMTransport.state());
+  expect(state.phase).toBe('health-error');
+  expect(state.verifiedForCurrentProfile).toBe(false);
 });
 
 test('client rejects numerically fabricated model output and falls back locally',async({page})=>{
