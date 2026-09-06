@@ -33,6 +33,19 @@ test('display feed aggregates active inventory without exposing spool identity',
     },
   ], now);
 
+  assert.equal(feed.contractVersion, 1);
+  assert.deepEqual(feed.capabilities, [
+    'inventory-summary',
+    'queue-summary',
+    'staleness',
+  ]);
+  assert.deepEqual(feed.summary, {
+    spools:3,
+    loaded:1,
+    low:1,
+    unknown:0,
+    queue:1,
+  });
   assert.deepEqual(feed.metrics, [
     {label:'Spools', value:'3'},
     {label:'Loaded', value:'1'},
@@ -46,6 +59,26 @@ test('display feed aggregates active inventory without exposing spool identity',
 
   const serialized = JSON.stringify(feed);
   assert.doesNotMatch(serialized, /Person A|Person B|A1|A2|B1|Secret Brand|Black|Blue/);
+});
+
+test('display feed preserves unknown remaining quantity without classifying it low', () => {
+  const feed = buildDisplayFeed([
+    {
+      key:'inventory-alpha',
+      updatedAt:'2026-08-30T02:25:00.000Z',
+      state:{
+        spools:[
+          {id:'A1', placementState:'Stored', material:'PLA'},
+          {id:'A2', placementState:'Stored', gross:350, tare:200, reorderThreshold:250},
+        ],
+        printJobs:[],
+      },
+    },
+  ], new Date('2026-08-30T02:30:00.000Z'));
+
+  assert.equal(feed.summary.spools, 2);
+  assert.equal(feed.summary.unknown, 1);
+  assert.equal(feed.summary.low, 1);
 });
 
 test('display feed marks old cloud data stale', () => {
@@ -66,7 +99,15 @@ test('display feed marks old cloud data stale', () => {
 
 test('display feed handles an empty cloud store', () => {
   const feed = buildDisplayFeed([], new Date('2026-08-30T02:30:00.000Z'));
+  assert.equal(feed.contractVersion, 1);
   assert.equal(feed.status, 'No synced inventory');
+  assert.deepEqual(feed.summary, {
+    spools:0,
+    loaded:0,
+    low:0,
+    unknown:0,
+    queue:0,
+  });
   assert.deepEqual(feed.metrics.map(metric => metric.value), ['0','0','0','0']);
   assert.equal(feed.stale, true);
 });
