@@ -5,12 +5,20 @@
   const SYNC_KEY_STORAGE='filament-sync-key-v1';
   const CURRENT_USER_STORAGE='filament-current-user-v1';
   const TIMEOUT_MS=16000;
+  const HEALTH_TIMEOUT_MS=5000;
+  const HEALTH_TTL_MS=60000;
   const validKey=key=>/^[A-Za-z0-9_-]{32,128}$/.test(String(key||'').trim());
   const profile=()=>globalThis.FilamentInventoryUsers?.currentUser?.()||localStorage.getItem(CURRENT_USER_STORAGE)||'Bill';
   const readKey=()=>String(localStorage.getItem(SYNC_KEY_STORAGE)||'').trim();
   let lastError='';
   let lastModel='';
   let previousConfigured=null;
+  let serverChecked=false;
+  let serverConfigured=null;
+  let serverModel='';
+  let serverError='';
+  let lastHealthAt=0;
+  let healthInFlight=null;
 
   function state(){
     const configured=validKey(readKey());
@@ -20,6 +28,12 @@
       enabled:configured,
       lastError,
       model:lastModel,
+      server:Object.freeze({
+        checked:serverChecked,
+        configured:serverConfigured,
+        model:serverModel,
+        error:serverError,
+      }),
     });
   }
 
@@ -29,9 +43,14 @@
     let detail=`${profile()} inventory`;
     let note='Model transport is not connected. The deterministic grounded engine remains authoritative.';
 
-    if(!current.configured){
-      detail+= ' · connect Sync devices for model';
-      note='Cloud-enhanced answers require this browser to be linked to your private inventory. Open More → Sync devices, then connect or create the private sync key.';
+    if(current.server.checked&&current.server.configured===false){
+      detail+=' · model service not configured';
+      note='The production Assistant endpoint is online, but its server-side model transport is not configured. Local grounded answers remain authoritative.';
+    }else if(!current.configured){
+      detail+=current.server.configured===true?' · cloud ready · link Sync devices':' · connect Sync devices for model';
+      note=current.server.configured===true
+        ? `Cloud model transport is ready${current.server.model?` on ${current.server.model}`:''}. Link this browser through More → Sync devices to enable grounded model answers.`
+        : 'Cloud-enhanced answers require this browser to be linked to your private inventory. Open More → Sync devices, then connect or create the private sync key.';
     }else if(!current.online){
       detail+= ' · offline';
       note='Private sync is linked, but this device is offline. Local grounded answers remain available.';
@@ -42,8 +61,9 @@
     }else{
       mode='Grounded model';
       detail+= ' · private sync linked';
-      note=current.model
-        ? `Connected through ${current.model}. Model output is accepted only when its evidence IDs exist in the current inventory.`
+      const model=current.model||current.server.model;
+      note=model
+        ? `Connected through ${model}. Model output is accepted only when its evidence IDs exist in the current inventory.`
         : 'Model transport is connected. Responses are accepted only when their evidence IDs exist in the current inventory.';
     }
 
@@ -57,6 +77,44 @@
     const current=state();
     document.dispatchEvent(new CustomEvent('fi:llm-transport',{detail:{type,...current}}));
     updateUi();
+  }
+
+  async function checkHealth(force=false){
+    if(!navigator.onLine){
+      serverError='Offline';
+      updateUi();
+      return state().server;
+    }
+    const now=Date.now();
+    if(!force&&serverChecked&&now-lastHealthAt<HEALTH_TTL_MS)return state().server;
+    if(healthInFlight)return healthInFlight;
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),HEALTH_TIMEOUT_MS);
+    healthInFlight=(async()=>{
+      try{
+        const response=await fetch(API,{method:'GET',headers:{Accept:'application/json'},cache:'no-store',signal:controller.signal});
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(result.error||`Assistant health failed (${response.status}).`);
+        serverChecked=true;
+        serverConfigured=result?.transport?.configured===true;
+        serverModel=String(result?.transport?.model||'').trim().slice(0,100);
+        serverError='';
+        lastHealthAt=Date.now();
+        emit('health');
+        return state().server;
+      }catch(error){
+        serverChecked=true;
+        serverConfigured=null;
+        serverError=controller.signal.aborted?'Assistant health check timed out.':(error instanceof Error?error.message:String(error));
+        lastHealthAt=Date.now();
+        emit('health-error');
+        return state().server;
+      }finally{
+        clearTimeout(timeout);
+        healthInFlight=null;
+      }
+    })();
+    return healthInFlight;
   }
 
   async function transport(payload,{signal}={}){
@@ -88,6 +146,10 @@
       if(!response.ok)throw new Error(result.error||`Grounded model failed (${response.status}).`);
       lastError='';
       lastModel=String(result.model||'').trim().slice(0,100);
+      serverChecked=true;
+      serverConfigured=true;
+      if(lastModel)serverModel=lastModel;
+      lastHealthAt=Date.now();
       emit('success');
       return result;
     }catch(error){
@@ -113,13 +175,14 @@
     previousConfigured=configured;
     core.setTransport(configured?transport:null);
     emit('refresh');
+    void checkHealth();
     return configured;
   }
 
   function init(){
     if(!globalThis.FilamentInventoryLLM){setTimeout(init,25);return;}
     refresh();
-    window.addEventListener('online',refresh);
+    window.addEventListener('online',()=>{refresh();void checkHealth(true);});
     window.addEventListener('offline',refresh);
     window.addEventListener('focus',refresh);
     window.addEventListener('storage',event=>{
@@ -131,9 +194,10 @@
     document.addEventListener('click',event=>{
       if(!event.target.closest?.('[data-shell-action="assistant"],[data-llm-open]'))return;
       refresh();
+      void checkHealth();
       setTimeout(updateUi,0);
     },true);
-    globalThis.FilamentInventoryLLMTransport=Object.freeze({refresh,configured:()=>validKey(readKey()),state});
+    globalThis.FilamentInventoryLLMTransport=Object.freeze({refresh,checkHealth,configured:()=>validKey(readKey()),state});
     setTimeout(updateUi,100);
   }
 
