@@ -45,9 +45,14 @@ test('Activity, Labels, Weigh and Sync expose the consolidated V11 workflow cont
   assert.match(sync, /sync-advanced/);
 });
 
-test('V11 compatibility bridge only bootstraps workflow styles for cached documents', async () => {
+test('V11 compatibility bridge guarantees workflow styles before the native-document short circuit', async () => {
   const bridge = await read('ui-v10-client.js');
   assert.match(bridge, /\/css\/components\/v11-workflows\.css/);
+  const init = bridge.indexOf('function init()');
+  const workflowStyles = bridge.indexOf('ensureWorkflowStyles();', init);
+  const nativeReturn = bridge.indexOf('if (isNativeV11Document()) return;', init);
+  assert.ok(init >= 0 && workflowStyles > init, 'workflow styles must be bootstrapped from init');
+  assert.ok(nativeReturn > workflowStyles, 'native V11 documents must not skip workflow styles');
   assert.match(bridge, /FilamentInventoryNavigation\?\.sync/);
   assert.doesNotMatch(bridge, /localStorage\.setItem\(/);
   assert.doesNotMatch(bridge, /createElement\(['"]dialog['"]\)/);
