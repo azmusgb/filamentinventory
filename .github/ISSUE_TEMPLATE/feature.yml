@@ -1,0 +1,56 @@
+name: Feature / evolution
+description: Propose a product or engineering change without creating a competing authority.
+title: "[Feature] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / decision to improve
+      description: Describe the user or engineering problem before prescribing the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What should the product be able to answer or do after this change?
+    validations:
+      required: true
+  - type: dropdown
+    id: authority
+    attributes:
+      label: Authoritative owner
+      options:
+        - Filament Inventory — inventory/domain/cloud/PWA/grounded AI
+        - Workshop OS — WS350 firmware/device UX/hardware controls
+        - Cross-repository contract change
+        - Unsure — requires architecture review
+    validations:
+      required: true
+  - type: textarea
+    id: facts
+    attributes:
+      label: Facts and evidence available today
+      description: Identify current code, tests, schemas, runtime behavior, physical evidence, or explicit unknowns.
+  - type: textarea
+    id: invariants
+    attributes:
+      label: Integrity constraints
+      description: Consider spool identity, quantity provenance, placement, user isolation, grounded AI, least privilege, recovery, and release-state semantics.
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Migration / compatibility impact
+      description: Schema, backup/import, sync, API/device contract, PWA cache, or firmware/recovery implications.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Separate deterministic tests, runtime/production validation, and physical acceptance where relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: State what this change must not broaden or silently redefine.
