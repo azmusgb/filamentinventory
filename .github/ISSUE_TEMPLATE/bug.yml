@@ -1,0 +1,75 @@
+name: Bug / regression
+description: Report incorrect runtime behavior, data integrity risk, or regression.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report observed behavior only. Do not infer spool identity, quantity, placement, ownership, device state, or model success without evidence.
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: What actually happened?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Inventory / spool identity
+        - Quantity evidence / weighing
+        - Printer / AMS placement
+        - QR / physical spool workflow
+        - Print readiness / print jobs
+        - Sync / recovery / backup
+        - Profile isolation / permissions
+        - Assistant / grounded LLM
+        - PWA / mobile / accessibility
+        - Device contract
+        - CI / deployment / release
+        - Legacy Waveshare migration / recovery
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: profile
+    attributes:
+      label: Profile scope
+      description: Bill, Aimee, both, or N/A. Do not paste private sync keys.
+      placeholder: "Bill / Aimee / both / N/A"
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Exact SHA, URL, screenshots, logs, CI run, deployment identity, device firmware/build, or other reproducible evidence. Redact credentials.
+  - type: textarea
+    id: impact
+    attributes:
+      label: Integrity / safety impact
+      description: Note any source-of-truth, provenance, isolation, placement, recovery, or physical-control implications.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Confirmation
+      options:
+        - label: I did not include passwords, sync keys, API keys, LAN access codes, or other credentials.
+          required: true

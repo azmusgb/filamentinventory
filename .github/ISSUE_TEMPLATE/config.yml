@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Repository boundaries
+    url: https://github.com/azmusgb/filamentinventory/blob/main/docs/REPOSITORY_BOUNDARIES.md
+    about: Check which repository is authoritative before filing cross-device or firmware work.
+  - name: Current roadmap status
+    url: https://github.com/azmusgb/filamentinventory/blob/main/docs/ROADMAP_STATUS_2026-09-06.md
+    about: Review current implementation, acceptance state, and remaining architecture gaps.

@@ -1,157 +1,163 @@
 # Filament Inventory
 
-A mobile-first, local-first filament inventory PWA for iPhone, iPad, and desktop. The app provides **separate private inventory workspaces for Bill and Aimee**, profile-scoped cloud sync, physical QR spool labels, printer/AMS placement tracking, bulk spool operations, recovery snapshots, audit history, and per-user experience customization.
+Filament Inventory is a mobile-first, local-first workshop inventory system for physical 3D-printing filament. Its job is to answer, from evidence:
 
-## Current highlights
+> What filament exists, where is it, who can use it, what is loaded, how much remains, what needs attention, and can a print run now?
 
-- Private Bill and Aimee inventory workspaces
-- Separate spool records, measurement history, audit history, backups, sync settings, and cloud namespaces per user
-- One-tap user workspace switching with routed local storage
-- Migration of legacy owner-tagged inventory into isolated user states
-- Mobile-first inventory command surface
-- Multi-select bulk actions for moving, storing, QR labeling, archiving, and restoring spools
-- Printer / AMS placement tracking
-- Physical QR spool lookup and labels
-- Secure cloud merge/snapshot synchronization
-- Per-user themes, density, text sizing, filters, sorting, dashboard options, and default views
-- CI, weekly grouped dependency maintenance, and production smoke verification
+The PWA runs on iPhone, iPad, and desktop, with profile-scoped cloud sync, QR spool identity, Printer / AMS placement, quantity evidence, print readiness, activity/audit history, recovery snapshots, and a grounded inventory Assistant.
 
-## Private user model
+## Authority
 
-The app has two supported inventory profiles:
+This repository, `azmusgb/filamentinventory`, is authoritative for inventory-domain truth:
+
+- spool identity and lifecycle;
+- quantity evidence and remaining-filament calculations;
+- private profile/household semantics;
+- QR/intake and physical-spool workflows;
+- Printer / AMS inventory relationships;
+- sync, backup, recovery, audit, and usage history;
+- print readiness and print-job planning;
+- grounded inventory Assistant behavior;
+- versioned device-facing inventory APIs.
+
+WS350 / Workshop OS firmware is authoritative in `azmusgb/bambuhelper-smart-display`.
+
+The legacy `firmware/waveshare-home` tree retained here is historical/migration/recovery material. It is **not** a second active firmware product line.
+
+See [`docs/REPOSITORY_BOUNDARIES.md`](docs/REPOSITORY_BOUNDARIES.md).
+
+## Product invariants
+
+The application must not silently invent physical truth.
+
+- Unknown remains `Unknown`.
+- A spool is not assigned to an AMS slot merely because color/material matches telemetry.
+- Each physical spool has one durable canonical ID; QR codes resolve to that ID rather than encoding mutable state.
+- One physical spool may occupy at most one `Printer -> Feeder/AMS -> Slot` placement.
+- Archived/empty/inactive spools cannot remain loaded.
+- Scale-backed quantity evidence is stronger than estimates; estimates must remain visibly estimated.
+- Conflicting or stale evidence should be surfaced rather than silently discarded.
+- Private inventory is private by default; cross-profile data leakage is a zero-tolerance defect.
+- The LLM explains authoritative data; it does not create authoritative facts.
+
+## Current implementation
+
+### Private profile isolation
+
+The live application currently supports two isolated private workspaces:
 
 - `Bill`
 - `Aimee`
 
-They are **not two filters over one live shared inventory**. The active profile is an isolation boundary.
+They are separate routed local/cloud states, not filters over one combined live inventory. Each profile has isolated spool records, measurement history, audit history, backups, sync settings/keys, printer relationships, and cloud namespace.
 
-`user-isolation.js` routes the logical inventory and sync storage keys to profile-specific physical keys. It also filters inventory, measurement history, audit history, and ownership-sensitive state so the active workspace contains only that user's records.
+This Bill/Aimee implementation is **transitional**. The target domain model is:
 
-The UI reflects that boundary directly:
+`Household -> Member -> Private/Shared Resources`
 
-- separate spools;
-- separate measurement and audit history;
-- separate backups;
-- separate sync key/settings storage;
-- separate printer / AMS assignments;
-- no cross-user ownership-transfer controls in the active private workspace.
+Future sharing and ownership transfer must be explicit and auditable; the current hard isolation must not be weakened during that migration.
 
-Switching between Bill and Aimee changes the active routed workspace and reloads the application so data from the previous user is not retained as the working state.
+### Quantity evidence
 
-## Legacy migration
+Current effective quantity is evidence-oriented and follows the canonical spool contract:
 
-Older releases could contain one owner-tagged inventory. On first migration to user isolation, the app splits that state into Bill and Aimee partitions using the recorded spool/audit ownership evidence.
+1. valid gross minus tare -> measured quantity;
+2. usage-derived remaining estimate when available;
+3. visual estimate;
+4. otherwise `Unknown`.
 
-Legacy data is not treated as proof that the two current workspaces should remain combined. After migration, each user operates through their own routed state.
+Measurement history is retained separately. The target architecture is a first-class additive `QuantityEvidence` history with stable evidence IDs, provenance, source/observed timestamps, confidence, staleness, and conflict-safe synchronization. Until that migration is authoritative, legacy quantity fields and measurement logs remain compatibility inputs.
 
-## Cloud isolation
+### Printer / AMS placement
 
-Cloud sync is profile-scoped as well as key-protected.
+Loaded placement is explicit and profile-scoped. Spools can be stored or loaded into a configured printer/feed path, including external/direct-spool feeders.
 
-The browser sends both:
+Placement writes are explicit physical actions. Slot conflicts are validated, and placement fields are reconciled atomically during concurrent sync so a merge cannot create a hybrid assignment.
+
+### Physical spool workflow
+
+QR labels contain a public application URL plus spool identity only; they do not contain private sync credentials.
+
+Scanning/opening a spool converges on one physical-object workflow for:
+
+- identify/verify;
+- weigh;
+- load/move/unload;
+- QR labels;
+- edit/details;
+- archive/restore;
+- print-related actions.
+
+Existing authoritative mutation paths are reused rather than duplicated behind the physical-spool UI.
+
+### Print readiness
+
+Print Readiness is deterministic and answers `Can I print this now?` only when the requirement is evidenced.
+
+Missing, blank, invalid, zero, or negative required grams return **Undetermined**. The engine does not invent required quantity from model name, material, color, or inventory state.
+
+When a requirement is known, readiness considers quantity confidence, safety margin, material/color constraints, loaded state, reservations, and current print-job commitments.
+
+### Grounded Assistant
+
+The Assistant uses deterministic inventory evidence as its grounding boundary.
+
+- provider credentials stay server-side;
+- model output is validated against the active profile's evidence slice;
+- fabricated evidence IDs and unsupported numeric claims are rejected;
+- a configured transport is not reported as a successful grounded model response;
+- deterministic local fallback remains authoritative when model transport or grounding fails;
+- the WS350 never stores an OpenAI/provider key.
+
+Grounded LLM behavioral acceptance remains a separate gate from implementation/configuration.
+
+## Cloud sync and recovery
+
+Cloud sync is both key-protected and profile-scoped. Requests include:
 
 - `X-Filament-Sync-Key`
-- `X-Filament-Profile` (`Bill` or `Aimee`)
+- `X-Filament-Profile`
 
-The production sync function validates the profile and derives the cloud storage identity from **profile + private sync key**. Therefore Bill and Aimee remain in different cloud namespaces even when a migrated setup begins with the same legacy private sync key.
+The server derives cloud identity from profile + private key, keeping current private workspaces separate even when migrated devices began with the same legacy key value.
 
-Cloud state includes the active user's:
+The sync path supports:
 
-- spools;
-- measurement history;
-- audit history;
-- tombstones;
-- device activity;
-- recovery snapshots.
+- concurrent spool reconciliation;
+- atomic placement reconciliation;
+- tombstone-aware deletion;
+- measurement/audit/print-job history merge;
+- bounded recovery snapshots;
+- restore by snapshot revision;
+- device activity metadata.
 
-The sync service uses strong-consistency Netlify Blobs storage, bounded state/log sizes, profile-bound snapshots, and merge reconciliation for concurrent device updates.
+Recovery and rollback paths are part of correctness, not optional maintenance features.
 
-## Printer / AMS model
+## PWA / UX direction
 
-Each spool can be physically:
+Primary navigation stays compact and task-oriented. The product currently emphasizes Home, Inventory, Printer, Assistant, and Activity, with lower-frequency tools behind contextual actions or More.
 
-- `Stored`
-- `Loaded`
+UI changes are reviewed for hierarchy, density, touch targets, keyboard/focus behavior, accessibility, reduced motion, loading/empty/error states, offline/reconnect behavior, and stale-client recovery.
 
-Loaded spools can include:
+## Quality and release gates
 
-- `printerName`
-- `feederName` — AMS, AMS Lite, external holder, or another feed system
-- `feederSlot` — slot/bay identifier
-- `loadedAt`
+Pull requests and pushes to `main` run the repository CI gate, including static validation, automated tests, production build/deploy-output validation, and browser interaction/visual regression. Successful `main` CI is followed by Production Smoke against the exact deployed commit.
 
-These assignments remain inside the active user's private inventory state and are synchronized with that user's cloud namespace.
+Keep release states distinct:
 
-## Bulk spool workflow
+`implemented -> built -> tested -> runtime validated -> production validated -> physically validated -> accepted -> stable`
 
-The inventory supports explicit multi-select operations for common physical-management tasks. Selected spools can be handled together for actions such as:
+CI does not prove WS350 physical acceptance. Deployment/configuration does not prove Grounded LLM behavioral success.
 
-- moving to a printer/feed location;
-- marking stored;
-- producing QR labels;
-- archiving;
-- restoring archived records.
+Repository governance still tracks enforcement of a protected/ruleset-gated `main`; until that GitHub setting is active, use PR-based changes and the existing `Validate` gate as the working discipline.
 
-Bulk actions continue through the same user-isolation and audit paths as single-spool changes.
+## Current roadmap / engineering docs
 
-## Customization model
-
-UX preferences are local to the browser and independently maintained for Bill and Aimee. They are intentionally separate from cloud inventory state.
-
-Available preferences include:
-
-- Midnight, Light, OLED Black, High Contrast, and Follow System themes;
-- Cyan, Violet, Green, Amber, and Rose accents;
-- Compact, Comfortable, and Roomy information density;
-- Small, Standard, Large, and Extra Large text sizes;
-- reduced-motion mode;
-- optional larger touch targets;
-- Inventory Cards or List layout;
-- default landing view;
-- default sort and lifecycle filters;
-- remembered inventory filters;
-- preferred QR label size;
-- dashboard visibility controls;
-- local app title.
-
-Preferences can be exported/imported separately from inventory backups.
-
-## Physical QR workflow
-
-QR labels contain only the public application URL and spool ID. They do **not** contain the private cloud sync key.
-
-The `/qr` function validates spool IDs and produces read-only QR SVG output.
-
-## Backup and recovery
-
-Backups operate on the active user's routed inventory state. Cloud sync also maintains bounded recovery snapshots before cloud-changing sync/restore operations.
-
-UX preference export remains separate from inventory backup so device-specific presentation choices are not mixed with inventory evidence.
-
-## Inventory rule
-
-Measured `gross - tare` weight is authoritative. Visual estimates are used only when a complete measurement is unavailable. Unknown remains unknown.
-
-## Cloud architecture
-
-- `/api/sync` — profile-scoped merge, device activity, and recovery snapshots
-- `/api/sync-admin` — profile-scoped key rotation and cloud deletion
-- `/qr` — read-only QR SVG generation from a validated spool ID
-
-## Quality gates
-
-Pull requests and pushes to `main` run the repository CI gate:
-
-1. dependency installation;
-2. static validation;
-3. tests;
-4. production build;
-5. deploy-output verification;
-6. deploy-artifact upload.
-
-After successful `main` CI, **Production Smoke** verifies the live Netlify deployment. It checks that production has caught up to the committed app version, critical public assets are reachable, and the deployed security/cache headers match the repository contract. The same smoke check also runs once daily.
-
-Dependabot checks npm and GitHub Actions dependencies weekly with minor/patch updates grouped to reduce maintenance noise.
+- [`docs/ROADMAP_STATUS_2026-09-06.md`](docs/ROADMAP_STATUS_2026-09-06.md) — current implementation vs acceptance state
+- [`docs/REPOSITORY_BOUNDARIES.md`](docs/REPOSITORY_BOUNDARIES.md) — repository authority and firmware boundary
+- [`docs/DEVICE_API_CONTRACT_V1.md`](docs/DEVICE_API_CONTRACT_V1.md) — current device-facing inventory contract
+- [`docs/GROUNDED_LLM_ACCEPTANCE_V1.md`](docs/GROUNDED_LLM_ACCEPTANCE_V1.md) — grounded-model acceptance protocol
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — engineering and release discipline
+- [`SECURITY.md`](SECURITY.md) — credential/security handling
 
 ## Development
 
@@ -160,8 +166,10 @@ npm install
 npx netlify dev
 ```
 
-Run the full local repository gate with:
+Run the complete local repository gate with:
 
 ```bash
 npm run ci
 ```
+
+Do not report a validation stage as passed unless it actually ran and passed on the source/build/deployment being described.
