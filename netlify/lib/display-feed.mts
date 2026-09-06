@@ -6,7 +6,18 @@ export type InventoryEnvelope = {
 
 type Metric = {label:string; value:string};
 
+type DisplaySummary = {
+  spools:number;
+  loaded:number;
+  low:number;
+  unknown:number;
+  queue:number;
+};
+
 export type DisplayFeed = {
+  contractVersion:1;
+  capabilities:string[];
+  summary:DisplaySummary;
   title:string;
   subtitle:string;
   status:string;
@@ -125,6 +136,19 @@ export function buildDisplayFeed(
   ].filter(Boolean);
 
   return {
+    contractVersion:1,
+    capabilities:[
+      'inventory-summary',
+      'queue-summary',
+      'staleness',
+    ],
+    summary:{
+      spools:spools.length,
+      loaded,
+      low,
+      unknown,
+      queue:queue.length,
+    },
     title:'Filament Inventory',
     subtitle:'Workshop',
     status:stale && spools.length ? `${status} · data may be stale` : status,
