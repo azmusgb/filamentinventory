@@ -7,6 +7,7 @@
   const TIMEOUT_MS=16000;
   const HEALTH_TIMEOUT_MS=5000;
   const HEALTH_TTL_MS=60000;
+  const MAX_MODEL_ANSWER=1200;
   const validKey=key=>/^[A-Za-z0-9_-]{32,128}$/.test(String(key||'').trim());
   const profile=()=>globalThis.FilamentInventoryUsers?.currentUser?.()||localStorage.getItem(CURRENT_USER_STORAGE)||'Bill';
   const readKey=()=>String(localStorage.getItem(SYNC_KEY_STORAGE)||'').trim();
@@ -19,6 +20,35 @@
   let serverError='';
   let lastHealthAt=0;
   let healthInFlight=null;
+
+  function numericClaims(text){
+    return [...String(text||'').matchAll(/\b\d+(?:\.\d+)?\s*(?:g|%|spools?)\b/gi)]
+      .map(match=>match[0].replace(/\s+/g,'').toLowerCase());
+  }
+
+  function validateGroundedResult(result,payload){
+    if(!result||typeof result!=='object'||result.ok!==true)return null;
+    const answer=String(result.answer||'').trim();
+    const confidence=String(result.confidence||'').trim();
+    if(!answer||answer.length>MAX_MODEL_ANSWER||!['high','medium','low'].includes(confidence))return null;
+
+    const allowedIds=new Set(Array.isArray(payload?.localGrounding?.evidenceIds)
+      ? payload.localGrounding.evidenceIds.map(id=>String(id||'').trim()).filter(Boolean)
+      : []);
+    const evidenceIds=Array.isArray(result.evidenceIds)
+      ? result.evidenceIds.map(id=>String(id||'').trim()).filter(Boolean)
+      : null;
+    if(!evidenceIds||evidenceIds.some(id=>!allowedIds.has(id)))return null;
+    if(allowedIds.size>0&&evidenceIds.length===0)return null;
+
+    const fallback=String(payload?.localGrounding?.fallbackAnswer||'');
+    const rows=Array.isArray(payload?.inventory)?payload.inventory:[];
+    const corpus=[fallback,...rows.filter(row=>allowedIds.has(String(row?.id||'').trim())).map(row=>JSON.stringify(row))]
+      .join(' ').toLowerCase().replace(/\s+/g,'');
+    if(numericClaims(answer).some(claim=>!corpus.includes(claim)))return null;
+
+    return result;
+  }
 
   function state(){
     const configured=validKey(readKey());
@@ -144,6 +174,7 @@
       });
       const result=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(result.error||`Grounded model failed (${response.status}).`);
+      if(!validateGroundedResult(result,payload))throw new Error('Grounded model response failed client validation.');
       lastError='';
       lastModel=String(result.model||'').trim().slice(0,100);
       serverChecked=true;
@@ -197,7 +228,13 @@
       void checkHealth();
       setTimeout(updateUi,0);
     },true);
-    globalThis.FilamentInventoryLLMTransport=Object.freeze({refresh,checkHealth,configured:()=>validKey(readKey()),state});
+    globalThis.FilamentInventoryLLMTransport=Object.freeze({
+      refresh,
+      checkHealth,
+      configured:()=>validKey(readKey()),
+      state,
+      validateResponse:validateGroundedResult,
+    });
     setTimeout(updateUi,100);
   }
 
