@@ -1,13 +1,13 @@
 name: Publish Waveshare Firmware Release
 
+# The independent Waveshare Home line is frozen at v1.7.0.
+# Keep this workflow only for deliberate recovery/republication of the existing
+# validated release. New WS350 releases belong to azmusgb/bambuhelper-smart-display.
 on:
-  workflow_run:
-    workflows: ["Build Waveshare Home Firmware"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       run_id:
-        description: Optional successful main-branch firmware build run ID to publish
+        description: Optional successful main-branch firmware build run ID to republish v1.7.0
         required: false
         type: string
 
@@ -21,11 +21,6 @@ concurrency:
 
 jobs:
   publish:
-    if: >-
-      ${{ github.event_name == 'workflow_dispatch' ||
-          (github.event.workflow_run.conclusion == 'success' &&
-           github.event.workflow_run.event == 'push' &&
-           github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     steps:
       - name: Resolve validated source run
@@ -36,20 +31,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            if [ -n "${MANUAL_RUN_ID:-}" ]; then
-              RUN_ID="$MANUAL_RUN_ID"
-            else
-              RUN_ID=$(gh run list \
-                --repo "${{ github.repository }}" \
-                --workflow "Build Waveshare Home Firmware" \
-                --branch main \
-                --limit 1 \
-                --json databaseId \
-                --jq '.[0].databaseId')
-            fi
+          if [ -n "${MANUAL_RUN_ID:-}" ]; then
+            RUN_ID="$MANUAL_RUN_ID"
           else
-            RUN_ID='${{ github.event.workflow_run.id }}'
+            RUN_ID=$(gh run list \
+              --repo "${{ github.repository }}" \
+              --workflow "Build Waveshare Home Firmware" \
+              --branch main \
+              --limit 1 \
+              --json databaseId \
+              --jq '.[0].databaseId')
           fi
 
           test -n "$RUN_ID"
@@ -64,15 +55,10 @@ jobs:
           test "$CONCLUSION" = 'success'
           test "$HEAD_BRANCH" = 'main'
           test -n "$SOURCE_SHA"
-
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            case "$SOURCE_EVENT" in
-              push|workflow_dispatch) ;;
-              *) echo "Manual publishing only accepts main push/workflow_dispatch firmware builds; received $SOURCE_EVENT" >&2; exit 1 ;;
-            esac
-          else
-            test "$SOURCE_EVENT" = 'push'
-          fi
+          case "$SOURCE_EVENT" in
+            push|workflow_dispatch) ;;
+            *) echo "Manual publishing only accepts main push/workflow_dispatch firmware builds; received $SOURCE_EVENT" >&2; exit 1 ;;
+          esac
 
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
@@ -93,9 +79,10 @@ jobs:
           git fetch --no-tags origin main
           git merge-base --is-ancestor "$SOURCE_SHA" origin/main
 
-      - name: Determine version and expected artifact
+      - name: Determine frozen version and expected artifact
         id: ver
         run: |
+          set -euo pipefail
           VERSION=$(python3 - <<'PY'
           import re
           text=open('firmware/waveshare-home/WaveshareHome/AppModel.h').read()
@@ -104,10 +91,14 @@ jobs:
           print(m.group(1))
           PY
           )
+          if [ "$VERSION" != '1.7.0' ]; then
+            echo "Waveshare Home is frozen at v1.7.0; refusing to publish $VERSION from this repository." >&2
+            exit 1
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=waveshare-v$VERSION" >> "$GITHUB_OUTPUT"
           echo "artifact=WaveshareHome-ESP32S3-$VERSION-fullflash" >> "$GITHUB_OUTPUT"
-          if [[ "$VERSION" == *-* ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
+          echo "prerelease=false" >> "$GITHUB_OUTPUT"
 
       - name: Download exact validated firmware artifact
         env:
@@ -143,7 +134,7 @@ jobs:
           {
             "product": "Waveshare Home",
             "version": "${{ steps.ver.outputs.version }}",
-            "channel": "${{ steps.ver.outputs.prerelease == 'true' && 'preview' || 'stable' }}",
+            "channel": "stable",
             "firmware": "WaveshareHome-firmware.bin",
             "size": $SIZE,
             "sha256": "$SHA"
@@ -151,7 +142,7 @@ jobs:
           EOF
           cat dist/update-manifest.json
 
-      - name: Publish SHA-bound GitHub release
+      - name: Republish SHA-bound v1.7.0 GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SOURCE_SHA: ${{ steps.src.outputs.source_sha }}
@@ -159,8 +150,6 @@ jobs:
           set -euo pipefail
           TAG='${{ steps.ver.outputs.tag }}'
           VERSION='${{ steps.ver.outputs.version }}'
-          FLAGS=()
-          if [ '${{ steps.ver.outputs.prerelease }}' = 'true' ]; then FLAGS+=(--prerelease); fi
 
           git fetch origin "refs/tags/$TAG:refs/tags/$TAG" --force 2>/dev/null || true
 
@@ -182,16 +171,8 @@ jobs:
               --verify-tag \
               --repo "${{ github.repository }}" \
               --title "Waveshare Home $VERSION" \
-              --notes "Validated Waveshare Home firmware release. Device-managed OTA should use WaveshareHome-firmware.bin only; WaveshareHome-merged.bin is for USB recovery/provisioning." \
-              "${FLAGS[@]}"
+              --notes "Frozen historical Waveshare Home firmware release. Device-managed OTA should use WaveshareHome-firmware.bin only; WaveshareHome-merged.bin is for USB recovery/provisioning. New WS350 releases are owned by Waveshare Workshop OS."
           else
-            gh release create "$TAG" \
-              dist/WaveshareHome-firmware.bin \
-              dist/WaveshareHome-merged.bin \
-              dist/update-manifest.json \
-              --target "$SOURCE_SHA" \
-              --repo "${{ github.repository }}" \
-              --title "Waveshare Home $VERSION" \
-              --notes "Validated Waveshare Home firmware release. Device-managed OTA should use WaveshareHome-firmware.bin only; WaveshareHome-merged.bin is for USB recovery/provisioning." \
-              "${FLAGS[@]}"
+            echo "Frozen release tag $TAG does not exist at the validated source SHA; refusing to create a new legacy release." >&2
+            exit 1
           fi

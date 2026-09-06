@@ -43,18 +43,24 @@ test('firmware builder validates PRs but auto-builds pushed firmware only from m
   assert.match(buildWorkflow, /cancel-in-progress: true/);
 });
 
-test('automatic firmware publishing accepts only successful main push builds', () => {
-  assert.match(releaseWorkflow, /workflow_run\.conclusion == 'success'/);
-  assert.match(releaseWorkflow, /workflow_run\.event == 'push'/);
-  assert.match(releaseWorkflow, /workflow_run\.head_branch == 'main'/);
-  assert.match(releaseWorkflow, /run_id:\s*\n\s+description: Optional successful main-branch firmware build run ID to publish/);
+test('legacy firmware publishing is manual-only and frozen at v1.7.0', () => {
+  const triggerStart = releaseWorkflow.indexOf('on:');
+  const permissionsStart = releaseWorkflow.indexOf('\npermissions:', triggerStart);
+  const triggerBlock = releaseWorkflow.slice(triggerStart, permissionsStart);
+
+  assert.match(triggerBlock, /workflow_dispatch:/);
+  assert.doesNotMatch(triggerBlock, /workflow_run:/);
+  assert.match(releaseWorkflow, /description: Optional successful main-branch firmware build run ID to republish v1\.7\.0/);
   assert.match(releaseWorkflow, /--branch main/);
-  assert.doesNotMatch(releaseWorkflow, /--status success/);
+  assert.match(releaseWorkflow, /test "\$CONCLUSION" = 'success'/);
   assert.match(releaseWorkflow, /test "\$HEAD_BRANCH" = 'main'/);
   assert.match(releaseWorkflow, /push\|workflow_dispatch/);
+  assert.match(releaseWorkflow, /if \[ "\$VERSION" != '1\.7\.0' \]; then/);
+  assert.match(releaseWorkflow, /Waveshare Home is frozen at v1\.7\.0/);
+  assert.doesNotMatch(releaseWorkflow, /workflow_run\.conclusion|workflow_run\.event|workflow_run\.head_branch/);
 });
 
-test('release source, artifact and tag remain bound to the validated build SHA', () => {
+test('manual republish remains bound to a validated main build and the existing frozen tag', () => {
   assert.match(releaseWorkflow, /echo "source_sha=\$SOURCE_SHA" >> "\$GITHUB_OUTPUT"/);
   assert.match(releaseWorkflow, /ref: \$\{\{ steps\.src\.outputs\.source_sha \}\}/);
   assert.match(releaseWorkflow, /git merge-base --is-ancestor "\$SOURCE_SHA" origin\/main/);
@@ -63,5 +69,6 @@ test('release source, artifact and tag remain bound to the validated build SHA',
   assert.match(releaseWorkflow, /test "\$COUNT" -eq 1/);
   assert.match(releaseWorkflow, /TAG_SHA=\$\(git rev-list -n 1 "\$TAG"\)/);
   assert.match(releaseWorkflow, /test "\$TAG_SHA" = "\$SOURCE_SHA"/);
-  assert.match(releaseWorkflow, /--target "\$SOURCE_SHA"/);
+  assert.doesNotMatch(releaseWorkflow, /--target "\$SOURCE_SHA"/);
+  assert.match(releaseWorkflow, /refusing to create a new legacy release/);
 });
