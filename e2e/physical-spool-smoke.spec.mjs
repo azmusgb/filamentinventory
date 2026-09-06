@@ -155,7 +155,7 @@ test('foreign labels are rejected with an explicit recovery message', async ({pa
   await expect(page.locator('#qrScanStatus')).toContainText('Not a Filament Inventory label'); await expect(page.locator('#qrScanStatus')).toContainText('different site');
 });
 
-test('Physical Spool archive preserves the spool and scan can restore it', async ({page}) => {
+test('Physical Spool archive preserves the spool, records audit evidence, and scan can restore it', async ({page}) => {
   await scan(page,'T001');
   const active = page.locator('#spoolActionDialog[open]');
   await expect(active.locator('[data-spool-sheet-action="archive"]')).toHaveText('Archive');
@@ -166,8 +166,10 @@ test('Physical Spool archive preserves the spool and scan can restore it', async
   await active.locator('[data-spool-sheet-action="archive"]').click();
   await expect.poll(() => page.evaluate(() => {
     const s=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}');
-    return Boolean((s.spools||[]).find(x=>x.id==='T001')?.archivedAt);
-  })).toBe(true);
+    const archived=Boolean((s.spools||[]).find(x=>x.id==='T001')?.archivedAt);
+    const types=(s.auditLog||[]).filter(x=>x.spoolId==='T001').map(x=>x.type);
+    return `${archived}|${types.includes('lifecycle.archived')}`;
+  })).toBe('true|true');
 
   await scan(page,'T001');
   const archived = page.locator('#spoolActionDialog[open]');
@@ -177,6 +179,8 @@ test('Physical Spool archive preserves the spool and scan can restore it', async
   await archived.locator('[data-spool-sheet-action="restore"]').click();
   await expect.poll(() => page.evaluate(() => {
     const s=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}');
-    return (s.spools||[]).find(x=>x.id==='T001')?.archivedAt || null;
-  })).toBe(null);
+    const row=(s.spools||[]).find(x=>x.id==='T001');
+    const types=(s.auditLog||[]).filter(x=>x.spoolId==='T001').map(x=>x.type);
+    return `${row?.archivedAt ? 'archived' : 'active'}|${types.includes('lifecycle.archived')}|${types.includes('lifecycle.restored')}`;
+  })).toBe('active|true|true');
 });
