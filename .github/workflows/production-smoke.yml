@@ -171,6 +171,27 @@ jobs:
             -H 'X-Filament-Sync-Key: 00000000000000000000000000000000' \
             -H 'X-Filament-Profile: Invalid'
 
+          # Assistant readiness is deliberately non-billable: GET must report
+          # server-side configuration without sending a sync key or calling the model.
+          curl --silent --show-error --fail --location \
+            --connect-timeout 10 --max-time 20 \
+            -D "${tmp_dir}/assistant-health.headers" \
+            -o "${tmp_dir}/assistant-health.json" \
+            "${SITE_URL}/api/inventory-assistant?${cache_buster}"
+          require_header "${tmp_dir}/assistant-health.headers" '^cache-control:[[:space:]]*no-store' 'Assistant health Cache-Control'
+          node - "${tmp_dir}/assistant-health.json" <<'NODE'
+          const fs=require('node:fs');
+          const body=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          if(body?.ok!==true)throw new Error('Assistant health did not report ok=true');
+          if(body?.service!=='inventory-assistant')throw new Error('Unexpected Assistant health service identity');
+          if(body?.contractVersion!==1)throw new Error('Unexpected Assistant health contract version');
+          if(body?.transport?.configured!==true)throw new Error('OPENAI_API_KEY is not active in production Functions runtime');
+          if(body?.transport?.model!=='gpt-5.6-luna')throw new Error(`Unexpected Assistant model: ${body?.transport?.model||'missing'}`);
+          if(body?.transport?.provider!=='openai-responses')throw new Error('Unexpected Assistant provider contract');
+          if(body?.transport?.storesResponses!==false)throw new Error('Assistant provider storage contract regressed');
+          if('apiKey' in (body?.transport||{})||'key' in (body?.transport||{}))throw new Error('Assistant health must never expose credentials');
+          NODE
+
           # The QR function is intentionally public/read-only. Verify both its
           # successful SVG security contract and its profile validation boundary.
           curl --silent --show-error --fail --location \
