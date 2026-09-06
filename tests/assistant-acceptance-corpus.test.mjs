@@ -24,7 +24,7 @@ test('Grounded LLM acceptance corpus v1 contains the locked 120-case distributio
 test('every acceptance case is uniquely identified, versioned, profile-scoped and non-mutating', () => {
   const ids = new Set();
   for (const row of ACCEPTANCE_CASES) {
-    assert.match(row.id,/^[FQPN UAI]-\d{3}$/.source.replace(' ',''));
+    assert.match(row.id,/^[FQPNUAI]-\d{3}$/);
     assert.ok(!ids.has(row.id),`duplicate case id ${row.id}`);
     ids.add(row.id);
     assert.ok(row.profileScope === 'Bill' || row.profileScope === 'Aimee');
