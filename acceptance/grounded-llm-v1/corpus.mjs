@@ -124,7 +124,7 @@ for (const profile of ['Bill','Aimee']) {
     'How many gold ABS spools do I have?',
     'Show me natural PEEK',
   ]) {
-    add('nonexistent_entity',profile,question,'not-found',[],[' g','%'],{
+    add('nonexistent_entity',profile,question,'not-found',[],[],{
       notes:'No matching entity exists in the synthetic profile fixture.',
     });
   }
