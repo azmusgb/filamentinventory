@@ -4,7 +4,8 @@
   // V11 owns navigation, profile switching, page hierarchy, filters, dialogs,
   // Activity presentation and responsive shell behavior. This file remains as
   // a compatibility bridge for older cached documents and as the bootstrap for
-  // presentation-only cohesion assets shared by the current shell.
+  // presentation-only assets shared by the current shell. Workflow styles are
+  // required by both native V11 documents and cached pre-V11 documents.
   const isNativeV11Document = () => Boolean(document.querySelector('link[href="/css/components/v11.css"]'));
 
   function ensureStyle(href, datasetKey) {
@@ -38,9 +39,9 @@
   }
 
   function init() {
+    ensureWorkflowStyles();
     ensureCohesionAssets();
     if (isNativeV11Document()) return;
-    ensureWorkflowStyles();
     document.documentElement.classList.remove('fi-v10');
     document.documentElement.classList.add('fi-v11');
     globalThis.FilamentInventoryNavigation?.sync?.();
