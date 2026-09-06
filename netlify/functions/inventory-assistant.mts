@@ -43,6 +43,20 @@ function modelName():string {
   return /^[A-Za-z0-9._:-]{1,100}$/.test(configured) ? configured : 'gpt-5.6-luna';
 }
 
+function transportHealth() {
+  return {
+    ok:true,
+    service:'inventory-assistant',
+    contractVersion:1,
+    transport:{
+      configured:Boolean(String(process.env.OPENAI_API_KEY || '').trim()),
+      model:modelName(),
+      provider:'openai-responses',
+      storesResponses:false,
+    },
+  };
+}
+
 async function hasLinkedInventory(key:string, owner:'Bill' | 'Aimee'):Promise<boolean> {
   const hash = hashKey(key, owner);
   const store = getStore(STORE_NAME, {consistency:'strong'});
@@ -64,7 +78,8 @@ async function callProvider(body:unknown, apiKey:string, signal:AbortSignal):Pro
 export default async (req:Request) => {
   if (!isProduction()) return json({ok:false,error:'Model assistance is available only on the production site.'},403);
   if (!validOrigin(req)) return json({ok:false,error:'Invalid request origin.'},403);
-  if (req.method !== 'POST') return json({ok:false,error:'Method not allowed.'},405,{Allow:'POST'});
+  if (req.method === 'GET') return json(transportHealth());
+  if (req.method !== 'POST') return json({ok:false,error:'Method not allowed.'},405,{Allow:'GET, POST'});
 
   const key = syncKey(req);
   if (!key) return json({ok:false,error:'A valid private sync key is required.'},401);
