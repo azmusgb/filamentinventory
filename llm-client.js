@@ -9,6 +9,7 @@
   let initialized=false;
 
   function api(){return globalThis.FilamentInventoryLLM;}
+  function transportApi(){return globalThis.FilamentInventoryLLMTransport;}
   function owner(){return globalThis.FilamentInventoryUsers?.currentUser?.()||localStorage.getItem('filament-current-user-v1')||'Bill';}
   function historyKey(){return `filament-llm-session-v1:${owner().toLowerCase()}`;}
 
@@ -110,6 +111,7 @@
       document.querySelectorAll('[data-shell-view],[data-bottom-view]').forEach(node=>node.setAttribute('aria-current','false'));
       document.querySelectorAll('[data-shell-action="assistant"],[data-llm-open]').forEach(node=>node.setAttribute('aria-current','page'));
       renderConversation();
+      transportApi()?.refresh?.();
       syncMode();
       requestAnimationFrame(()=>$('fiLlmTitle')?.focus({preventScroll:true}));
       window.scrollTo({top:0,behavior:'auto'});
@@ -119,11 +121,23 @@
   function open(){setSurface(true);}
 
   function syncMode(){
+    const transport=transportApi();
+    const view=transport?.presentation?.();
+    if(view){
+      document.querySelectorAll('[data-llm-mode]').forEach(node=>node.textContent=view.mode);
+      document.querySelectorAll('[data-llm-owner]').forEach(node=>node.textContent=view.detail);
+      document.querySelectorAll('.fi-llm-mode').forEach(node=>node.dataset.modeState=view.phase||'local');
+      const note=document.querySelector('[data-llm-transport-note]');
+      if(note)note.textContent=view.note;
+      return;
+    }
     const has=Boolean(api()?.hasTransport?.());
-    document.querySelectorAll('[data-llm-mode]').forEach(node=>node.textContent=has?'Grounded model':'Grounded local');
+    document.querySelectorAll('[data-llm-mode]').forEach(node=>node.textContent=has?'Cloud ready':'Grounded local');
     document.querySelectorAll('[data-llm-owner]').forEach(node=>node.textContent=`${owner()} inventory`);
     const note=document.querySelector('[data-llm-transport-note]');
-    if(note)note.textContent=has?'A model transport is connected. Responses are accepted only when their evidence IDs exist in the current inventory.':'Model transport is not connected. The UI is using the deterministic grounded engine.';
+    if(note)note.textContent=has
+      ? 'A model transport is available, but no validated model response has completed for this profile yet.'
+      : 'Model transport is not connected. The UI is using the deterministic grounded engine.';
   }
 
   function renderConversation(){
@@ -183,11 +197,13 @@
       renderConversation();
       renderEvidence(result);
       renderTrace(result,elapsed);
+      syncMode();
       if(result.transportRejected)showTransient('Model response rejected because its evidence was invalid; local grounded answer used.');
       else if(result.transportError)showTransient('Model transport failed; local grounded answer used.');
     }catch(error){
       conversation.push({role:'assistant',text:`The assistant could not complete that request: ${error instanceof Error?error.message:String(error)}`,at:new Date().toISOString(),modeLabel:'Error',evidenceCount:0});
       renderConversation();
+      syncMode();
     }finally{
       running=false;
       if(send){send.disabled=false;send.textContent='Ask';}
@@ -200,7 +216,7 @@
     if(!node)return;
     const original=node.textContent;
     node.textContent=message;
-    setTimeout(()=>{if(node.textContent===message)node.textContent=original;},5000);
+    setTimeout(()=>{if(node.textContent===message)syncMode();},5000);
   }
 
   function runSuite(){
@@ -242,6 +258,7 @@
     document.addEventListener('fi:navigation',event=>{
       if(event.detail?.view!=='assistant')document.querySelectorAll('[data-shell-action="assistant"]').forEach(node=>node.setAttribute('aria-current','false'));
     });
+    document.addEventListener('fi:llm-transport',syncMode);
     document.addEventListener('fi:profile-updated',()=>{loadConversation();syncMode();renderConversation();});
     window.addEventListener('storage',event=>{
       if(event.key==='filament-current-user-v1'){loadConversation();syncMode();renderConversation();}
@@ -257,7 +274,7 @@
     bind();
     syncMode();
     renderConversation();
-    globalThis.FilamentInventoryAssistantUI=Object.freeze({open,ask,runSuite,clear:clearConversation});
+    globalThis.FilamentInventoryAssistantUI=Object.freeze({open,ask,runSuite,clear:clearConversation,syncMode});
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init,0),{once:true});

@@ -39,10 +39,13 @@ test('browser health probing never sends the private sync key and is rate-consci
   assert.match(clientSource,/serverConfigured=result\?\.transport\?\.configured===true/);
 });
 
-test('authenticated model requests still carry profile-scoped private sync credentials',()=>{
+test('authenticated model requests still carry one captured profile-scoped private sync credential set',()=>{
   const start=clientSource.indexOf('async function transport');
   const transport=clientSource.slice(start);
   assert.match(transport,/method:'POST'/);
+  assert.match(transport,/const requestProfile=profile\(\)/);
   assert.match(transport,/'X-Filament-Sync-Key':key/);
-  assert.match(transport,/'X-Filament-Profile':profile\(\)/);
+  assert.match(transport,/'X-Filament-Profile':requestProfile/);
+  assert.match(transport,/String\(payload\?\.profile\|\|''\)!==requestProfile/);
+  assert.match(transport,/profile\(\)!==requestProfile/);
 });
