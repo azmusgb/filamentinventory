@@ -7,14 +7,14 @@ import { fileURLToPath } from 'node:url';
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(testDir, '..');
 
-test('Netlify exposes only the four intended function modules', async () => {
+test('Netlify exposes only the five intended function modules', async () => {
   const functionDir = path.join(rootDir, 'netlify', 'functions');
   const entries = (await readdir(functionDir, { withFileTypes: true }))
     .filter(entry => entry.isFile() && entry.name.endsWith('.mts'))
     .map(entry => entry.name)
     .sort();
 
-  assert.deepEqual(entries, ['display-feed.mts', 'qr.mts', 'sync-admin.mts', 'sync.mts']);
+  assert.deepEqual(entries, ['display-feed.mts', 'inventory-assistant.mts', 'qr.mts', 'sync-admin.mts', 'sync.mts']);
 });
 
 test('sync reconciliation lives outside the callable function directory', async () => {
@@ -25,6 +25,16 @@ test('sync reconciliation lives outside the callable function directory', async 
   const syncSource = await readFile(path.join(rootDir, 'netlify', 'functions', 'sync.mts'), 'utf8');
   assert.match(syncSource, /from ['"]\.\.\/lib\/sync-reconcile\.mts['"]/);
   assert.doesNotMatch(syncSource, /from ['"]\.\/sync-reconcile\.mts['"]/);
+});
+
+test('grounded model validation lives in a private library module', async () => {
+  const libraryPath = path.join(rootDir, 'netlify', 'lib', 'inventory-assistant.mts');
+  const libraryStat = await stat(libraryPath);
+  assert.equal(libraryStat.isFile(), true);
+
+  const functionSource = await readFile(path.join(rootDir, 'netlify', 'functions', 'inventory-assistant.mts'), 'utf8');
+  assert.match(functionSource, /from ['"]\.\.\/lib\/inventory-assistant\.mts['"]/);
+  assert.match(functionSource, /path:\s*['"]\/api\/inventory-assistant['"]/);
 });
 
 test('reconciliation tests exercise the private library module', async () => {

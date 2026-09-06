@@ -47,6 +47,7 @@ export const PUBLIC_ASSETS = Object.freeze([
   'print-readiness-core.js',
   'workflows.js',
   'llm-core.js',
+  'llm-transport-client.js',
   'sync-client.js',
   'security-client.js',
   'labels-client.js',

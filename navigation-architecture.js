@@ -18,12 +18,12 @@
       document.head.appendChild(link);
     }
 
-    const scripts = ['/inventory-card-client.js', '/llm-core.js', '/llm-client.js'];
+    const scripts = ['/inventory-card-client.js', '/llm-core.js', '/llm-transport-client.js', '/llm-client.js'];
     for (const script of scripts) {
       if (document.querySelector(`script[src="${script}"]`)) continue;
       const node = document.createElement('script');
       node.src = script;
-      node.defer = true;
+      node.async = false;
       node.dataset.fiPresentation = script.includes('llm') ? 'llm' : 'inventory-cards';
       document.head.appendChild(node);
     }

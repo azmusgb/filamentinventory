@@ -112,7 +112,7 @@ String loadedDetails(const AppState &state) {
   String out;
   int shown = 0;
   const uint8_t count = state.printer.amsSlotCount < 16 ? state.printer.amsSlotCount : 16;
-  for (uint8_t i = 0; i < count && shown < 5; ++i) {
+  for (uint8_t i = 0; i < count && shown < 3; ++i) {
     const auto &slot = state.printer.amsSlots[i];
     if (!slot.loaded) continue;
     if (out.length()) out += "\n";
@@ -228,7 +228,7 @@ void createAssistantScreen() {
   assistantButton(assistantUi.screen, "Loaded now", 166, 254, 142, 52, promptEvent, reinterpret_cast<void *>(1), surface, border, text, blue);
   assistantButton(assistantUi.screen, "Inventory", 12, 316, 142, 52, promptEvent, reinterpret_cast<void *>(2), surface, border, text, green);
   assistantButton(assistantUi.screen, "Attention", 166, 316, 142, 52, promptEvent, reinterpret_cast<void *>(3), surface, border, text, purple);
-  assistantButton(assistantUi.screen, "Back", 12, 380, 296, 38, closeAssistant, nullptr, surface, border, text, blue);
+  assistantButton(assistantUi.screen, "Back", 12, 380, 296, 52, closeAssistant, nullptr, surface, border, text, blue);
 }
 
 void openAssistant(lv_event_t *) {

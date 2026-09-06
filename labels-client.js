@@ -224,24 +224,47 @@
   }
 
   function bind() {
-    document.getElementById('labelSearch')?.addEventListener('input',renderPicker);
-    document.getElementById('labelSize')?.addEventListener('change',event => { labelSize=event.target.value; });
-    document.getElementById('selectActiveLabelsBtn')?.addEventListener('click',selectActive);
-    document.getElementById('clearLabelsBtn')?.addEventListener('click',clearSelection);
-    document.getElementById('printLabelsBtn')?.addEventListener('click',printLabels);
-    document.getElementById('spoolPickList')?.addEventListener('change',event => {
-      const input=event.target.closest('[data-label-id]');
+    document.addEventListener('input',event => {
+      if (event.target?.id === 'labelSearch') renderPicker();
+    });
+    document.addEventListener('change',event => {
+      if (event.target?.id === 'labelSize') {
+        labelSize=event.target.value;
+        return;
+      }
+      const input=event.target?.closest?.('[data-label-id]');
       if (!input) return;
       if (input.checked) selected.add(input.dataset.labelId); else selected.delete(input.dataset.labelId);
       updateSelectionState();
       renderPreview();
     });
+    document.addEventListener('click',event => {
+      const target=event.target?.closest?.('button');
+      if (!target) return;
+      if (target.id === 'selectActiveLabelsBtn') { selectActive(); return; }
+      if (target.id === 'clearLabelsBtn') { clearSelection(); return; }
+      if (target.id === 'printLabelsBtn') { printLabels(); return; }
+      if (target.id === 'scanCloseBtn' || target.id === 'scanDoneBtn') { document.getElementById('scanSpoolDialog')?.close(); return; }
+      if (target.id === 'scanWeighBtn') {
+        const dialog=document.getElementById('scanSpoolDialog');
+        const id=dialog?.dataset.spoolId;
+        dialog?.close();
+        if(id) navigateWeigh(id);
+        return;
+      }
+      if (target.id === 'scanInventoryBtn') {
+        const dialog=document.getElementById('scanSpoolDialog');
+        const id=dialog?.dataset.spoolId;
+        dialog?.close();
+        if(id) navigateInventory(id);
+        return;
+      }
+      if (target.id === 'scanCopyLinkBtn') {
+        const id=document.getElementById('scanSpoolDialog')?.dataset.spoolId;
+        if(id) copySpoolLink(id);
+      }
+    });
     window.addEventListener('afterprint',cleanupPrintMode);
-    document.getElementById('scanCloseBtn')?.addEventListener('click',() => document.getElementById('scanSpoolDialog')?.close());
-    document.getElementById('scanDoneBtn')?.addEventListener('click',() => document.getElementById('scanSpoolDialog')?.close());
-    document.getElementById('scanWeighBtn')?.addEventListener('click',() => { const dialog=document.getElementById('scanSpoolDialog'); const id=dialog?.dataset.spoolId; dialog?.close(); if(id) navigateWeigh(id); });
-    document.getElementById('scanInventoryBtn')?.addEventListener('click',() => { const dialog=document.getElementById('scanSpoolDialog'); const id=dialog?.dataset.spoolId; dialog?.close(); if(id) navigateInventory(id); });
-    document.getElementById('scanCopyLinkBtn')?.addEventListener('click',() => { const id=document.getElementById('scanSpoolDialog')?.dataset.spoolId; if(id) copySpoolLink(id); });
   }
 
   function scheduleIncomingScanFallback() {
@@ -261,6 +284,8 @@
     bind();
     renderPicker();
     scheduleIncomingScanFallback();
+    globalThis.FilamentInventoryLabels=Object.freeze({refresh:renderPicker,selectActive,clear:clearSelection,selectedCount:()=>selected.size});
+    document.dispatchEvent(new CustomEvent('fi:labels-ready'));
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',init,{once:true});

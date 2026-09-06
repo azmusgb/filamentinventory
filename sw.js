@@ -1,4 +1,4 @@
-const CACHE = 'filament-inventory-v43';
+const CACHE = 'filament-inventory-v44';
 const CORE = [
   '/', '/index.html', '/styles.css', '/ui-system.css',
   '/css/tokens.css', '/css/base.css', '/css/layout.css', '/css/foundation.css',
@@ -6,7 +6,7 @@ const CORE = [
   '/css/components/weigh.css', '/css/components/physical-spool.css', '/css/components/physical-workflow.css', '/css/components/print-job.css', '/css/components/profile-preferences.css', '/css/components/spool-intake.css',
   '/app-version.js', '/events.js', '/user-isolation.js', '/pwa-client.js', '/state-merge.js', '/audit-core.js', '/personal-core.js',
   '/spool-contract-core.js', '/spool-contract-client.js', '/physical-workflow-core.js', '/physical-workflow-client.js', '/profile-preferences-core.js', '/intake-core.js', '/scan-core.js', '/printer-core.js', '/inventory-command-core.js',
-  '/spool-actions-core.js', '/smart-weigh-core.js', '/bulk-actions-core.js', '/print-readiness-core.js', '/workflows.js', '/llm-core.js',
+  '/spool-actions-core.js', '/smart-weigh-core.js', '/bulk-actions-core.js', '/print-readiness-core.js', '/workflows.js', '/llm-core.js', '/llm-transport-client.js',
   '/sync-client.js', '/security-client.js', '/labels-client.js', '/household-client.js', '/ux-client.js', '/audit-client.js',
   '/personal-dashboard.js', '/profile-preferences-client.js', '/spool-intake-client.js', '/intake-client.js', '/scan-client.js', '/printer-dashboard.js', '/printer-ams-ui.js',
   '/inventory-command-client.js', '/inventory-card-client.js', '/spool-actions-client.js', '/smart-weigh-client.js', '/bulk-actions-client.js',
