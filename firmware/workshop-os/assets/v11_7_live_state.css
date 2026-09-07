@@ -1,0 +1,5 @@
+/* Smart Home v11.7 Live State Integrity */
+.wk116.is-stale #wkUpdated{color:var(--warn);font-weight:700}
+.wk116.is-stale .wk116-progress>span{opacity:.58;filter:saturate(.45)}
+.wk116.is-stale .wk116-control:disabled{opacity:.34}
+@media(forced-colors:active){.wk116.is-stale #wkUpdated{forced-color-adjust:auto}.wk116.is-stale .wk116-progress>span{opacity:1;filter:none}}

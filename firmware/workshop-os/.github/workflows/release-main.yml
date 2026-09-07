@@ -1,0 +1,67 @@
+name: Validate accepted static installer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'release.json'
+      - 'build.py'
+      - 'index.html'
+      - 'app.js'
+      - 'firmware/**'
+      - 'scripts/validate_release.py'
+      - '.github/workflows/release-main.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release.json'
+      - 'build.py'
+      - 'index.html'
+      - 'app.js'
+      - 'firmware/**'
+      - 'scripts/validate_release.py'
+      - '.github/workflows/release-main.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate repository release policy
+        run: python3 scripts/validate_release.py
+      - name: Validate installer and retained firmware assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app.js
+          python3 build.py
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          r = json.loads(Path('release.json').read_text())
+          assert r['release'] == 'production-workshop-os-v11.19.1'
+          assert r['board']['id'] == 'ws_lcd_350'
+          assert set(r['profiles']) == {'workshop-os-v11.19.1', 'smart-home-v7.2'}
+          assert r['profiles']['workshop-os-v11.19.1']['recommended'] is True
+          assert r['profiles']['smart-home-v7.2']['recommended'] is False
+          for pid, p in r['profiles'].items():
+              for path_key, size_key, sha_key in [('file','size','sha256'), ('otaFile','otaSize','otaSha256')]:
+                  raw = Path(p[path_key]).read_bytes()
+                  assert len(raw) == p[size_key], (pid, path_key, len(raw), p[size_key])
+                  assert hashlib.sha256(raw).hexdigest() == p[sha_key], (pid, path_key)
+                  published = (Path('dist') / p[path_key]).read_bytes()
+                  assert hashlib.sha256(published).hexdigest() == p[sha_key], (pid, path_key, 'dist')
+          assert len(list(Path('firmware').glob('*.bin'))) == 4
+          assert len(list((Path('dist') / 'firmware').glob('*.bin'))) == 4
+          print('Accepted static installer integrity: PASS')
+          PY
+          grep -Fq "EXPECTED_RELEASE='production-workshop-os-v11.19.1'" app.js
+          grep -Fq "selectedProfile='workshop-os-v11.19.1'" app.js
+          grep -Fq 'Workshop OS v11.19.1 — recommended' index.html
+          grep -Fq 'Smart Home v7.2 — rollback' index.html
+          grep -Fq 'Workshop OS v11.19.1 OTA' index.html
+          echo 'accepted Workshop OS v11.19.1 static portal contract: PASS'

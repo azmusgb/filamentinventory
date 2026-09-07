@@ -1,0 +1,43 @@
+{
+  "name": "BambuHelper ws_lcd_350 Smart Home v9.6 Printer Workspace RC1",
+  "channel": "physical-test-candidate",
+  "core": "BambuHelper v3.8.1",
+  "target": "ws_lcd_350",
+  "recoveryFoundation": "Smart Home v9.4 Recovery Foundation RC3",
+  "experienceLayer": "Smart Home v9.5 smooth-render",
+  "printerWorkspace": "Smart Home v9.6 RC1",
+  "validatedCodeHead": "574bbd5cbc4ad30648e5af03af893da37976ff4e",
+  "githubActionsRunId": 33638721743,
+  "artifactId": 9850038888,
+  "artifactName": "bambuhelper-ws_lcd_350-smart-home-v9.6-printer-workspace-rc1",
+  "artifactExpiresAt": "2026-09-16T13:59:11Z",
+  "files": {
+    "ota": {
+      "name": "BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v9.6-Printer-Workspace-RC1-OTA.bin",
+      "sha256": "2acd8c73b0d9f76fa4a78a4dc6ea47a361cd022eb2906eb449b61ca813c397f4"
+    },
+    "full": {
+      "name": "BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v9.6-Printer-Workspace-RC1-Full.bin",
+      "sha256": "fee08462c80d4c10a5fd748a2ba2a1f274106b44b36415265bbbc88c441246f3"
+    },
+    "recoveryOtaAlias": {
+      "name": "WaveshareHome-firmware.bin",
+      "sha256": "2acd8c73b0d9f76fa4a78a4dc6ea47a361cd022eb2906eb449b61ca813c397f4"
+    }
+  },
+  "validation": {
+    "printerWorkspace": "PASS",
+    "printerOverview": "PASS",
+    "connectionSubview": "PASS",
+    "touchscreenPreview": "PASS",
+    "widgetLibrary": "PASS",
+    "automationRules": "PASS",
+    "stickyUnsavedChanges": "PASS",
+    "actionableHealth": "PASS",
+    "browserJavaScript": "PASS",
+    "ws350Build": "PASS",
+    "jc3248w535Regression": "PASS",
+    "recoveryFoundationPreserved": "PASS",
+    "physicalAcceptance": "REQUIRED"
+  }
+}

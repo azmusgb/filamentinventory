@@ -1,0 +1,17 @@
+BambuHelper ws_lcd_350 Smart Home v9.6 Printer Workspace RC1 validation
+recovery_foundation=v9.4_RC3_PRESERVED
+printer_workspace=PASS
+printer_overview=PASS
+connection_subview=PASS
+touchscreen_preview=PASS
+widget_library=PASS
+automation_rules=PASS
+sticky_unsaved_changes=PASS
+actionable_health=PASS
+browser_js=PASS
+ws350_build=PASS
+jc3248w535_regression=PASS
+physical_acceptance=REQUIRED
+fee08462c80d4c10a5fd748a2ba2a1f274106b44b36415265bbbc88c441246f3  BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v9.6-Printer-Workspace-RC1-Full.bin
+2acd8c73b0d9f76fa4a78a4dc6ea47a361cd022eb2906eb449b61ca813c397f4  BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v9.6-Printer-Workspace-RC1-OTA.bin
+2acd8c73b0d9f76fa4a78a4dc6ea47a361cd022eb2906eb449b61ca813c397f4  WaveshareHome-firmware.bin

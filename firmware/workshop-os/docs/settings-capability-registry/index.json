@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "target": "ws_lcd_350",
+  "purpose": "Machine-enforced inventory of writable browser settings and their WS350 physical/portal disposition.",
+  "allowedClassifications": [
+    "PHYSICAL",
+    "PHYSICAL-EXPERT",
+    "PORTAL-INPUT",
+    "BOARD-N/A"
+  ],
+  "routeMetaFields": {
+    "/light/config": [
+      "slot"
+    ],
+    "/save/gaugelayout": [
+      "slot"
+    ],
+    "/save/power": [
+      "plug"
+    ],
+    "/save/printer": [
+      "slot"
+    ],
+    "/save/toggle": [
+      "key",
+      "val"
+    ],
+    "/save/wifi": [
+      "has_showip",
+      "has_mdns"
+    ]
+  },
+  "nonSettingMutationRoutes": {
+    "/audio/mic/echo": "hardware command/test",
+    "/audio/mic/test": "hardware command/test",
+    "/buzzer/test": "hardware preview/test",
+    "/cloud/login": "credential flow",
+    "/cloud/login/code": "credential flow",
+    "/cloud/logout": "credential flow",
+    "/debug/toggle": "diagnostic runtime toggle",
+    "/glow/test": "visual preview/test",
+    "/hub/show": "physical-view navigation/capture support",
+    "/hub/timer/cancel": "timer command",
+    "/hub/timer/start": "timer command",
+    "/lan/scan": "discovery command",
+    "/led/preview": "LED preview",
+    "/led/test": "LED test command",
+    "/light/set": "printer command",
+    "/login": "portal authentication",
+    "/logout": "portal authentication",
+    "/ota/auto": "OTA command",
+    "/ota/rollback": "OTA/recovery command",
+    "/power/control": "guarded power command",
+    "/printer/clear": "destructive printer-config action",
+    "/printer/control": "guarded printer command",
+    "/printer/power": "guarded mapped-power command",
+    "/reboot": "device command",
+    "/recovery/reboot": "recovery command",
+    "/recovery/reset-auth": "recovery command",
+    "/recovery/reset-ui": "recovery command",
+    "/recovery/reset-wifi": "recovery command",
+    "/recovery/rollback": "recovery command",
+    "/recovery/safe": "recovery command",
+    "/recovery/touch": "recovery command",
+    "/reset": "factory-reset command"
+  },
+  "categoryFiles": [
+    "display.json",
+    "hardware.json",
+    "power.json",
+    "printer.json",
+    "system.json",
+    "workshop.json"
+  ]
+}

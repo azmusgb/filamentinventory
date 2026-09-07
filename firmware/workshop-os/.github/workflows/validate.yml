@@ -1,0 +1,72 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate JSON
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for p in Path('.').rglob('*.json'):
+              try:
+                  json.loads(p.read_text())
+              except Exception as e:
+                  raise SystemExit(f'Invalid JSON: {p}: {e}')
+          print('JSON validation passed')
+          PY
+
+      - name: Validate settings capability registry
+        run: python3 scripts/validate_settings_parity.py
+
+      - name: Validate Workshop Companion protocol
+        run: python3 scripts/validate_companion_protocol.py
+
+      - name: Validate shell helpers
+        run: |
+          bash -n scripts/waveshare-usb.sh
+
+      - name: Check ignored build output
+        run: |
+          if git ls-files | grep -q '^firmware/build/'; then
+            echo 'firmware/build must not be tracked'
+            exit 1
+          fi
+
+  companion-ios:
+    name: Workshop Companion iOS
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: companion/ios
+        run: xcodegen generate --spec project.yml
+
+      - name: Compile iOS Simulator app
+        working-directory: companion/ios
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project WorkshopCompanion.xcodeproj \
+            -scheme WorkshopCompanion \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build

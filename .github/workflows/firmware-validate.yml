@@ -1,0 +1,182 @@
+name: Workshop OS Firmware Validate
+
+on:
+  pull_request:
+    paths:
+      - 'firmware/workshop-os/**'
+      - '.github/workflows/firmware-validate.yml'
+  push:
+    branches:
+      - main
+      - migration/unified-workshop-monorepo
+    paths:
+      - 'firmware/workshop-os/**'
+      - '.github/workflows/firmware-validate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workshop-os-monorepo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Reconstruct and Build WS350
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+
+    steps:
+      - name: Check out unified repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check out pinned BambuHelper baseline
+        uses: actions/checkout@v4
+        with:
+          repository: Keralots/BambuHelper
+          ref: 8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4
+          path: firmware/workshop-os/upstream
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate Workshop OS tooling
+        working-directory: firmware/workshop-os
+        run: |
+          set -euo pipefail
+          python -m py_compile apply_smart_home_physical_fit_v11_19_1.py
+          python -m py_compile apply_smart_home_portal_auth_v11_20.py
+          python -m py_compile apply_smart_home_display_expert_v11_22.py
+          python -m py_compile scripts/validate_device_contracts.py
+          python -m py_compile scripts/validate_visual_contracts_v11_19.py
+          python -m py_compile scripts/validate_rendered_fit_v11_19_1.py
+          python -m py_compile scripts/validate_portal_auth_v11_20.py
+          python -m py_compile scripts/validate_display_expert_v11_22.py
+          python -m py_compile scripts/validate_settings_parity.py
+          bash -n scripts/apply_workshop_os_v11_19.sh
+          bash -n scripts/capture-ws350-views.zsh
+
+      - name: Reconstruct accepted v11.19 baseline
+        working-directory: firmware/workshop-os
+        run: bash scripts/apply_workshop_os_v11_19.sh upstream
+
+      - name: Validate inherited device contracts
+        working-directory: firmware/workshop-os
+        run: python scripts/validate_device_contracts.py
+
+      - name: Validate v11.19 visual contracts
+        working-directory: firmware/workshop-os
+        run: python scripts/validate_visual_contracts_v11_19.py upstream
+
+      - name: Apply accepted v11.19.1 physical-fit delta
+        working-directory: firmware/workshop-os
+        run: python apply_smart_home_physical_fit_v11_19_1.py --repo upstream --apply
+
+      - name: Validate accepted v11.19.1 rendered fit
+        working-directory: firmware/workshop-os
+        run: python scripts/validate_rendered_fit_v11_19_1.py upstream
+
+      - name: Apply v11.20 Portal Auth
+        working-directory: firmware/workshop-os
+        run: python apply_smart_home_portal_auth_v11_20.py --repo upstream --apply
+
+      - name: Validate v11.20 portal authentication
+        working-directory: firmware/workshop-os
+        run: python scripts/validate_portal_auth_v11_20.py upstream
+
+      - name: Apply v11.22 Display Expert
+        working-directory: firmware/workshop-os
+        run: python apply_smart_home_display_expert_v11_22.py --repo upstream --apply
+
+      - name: Validate v11.22 Display Expert
+        working-directory: firmware/workshop-os
+        run: python scripts/validate_display_expert_v11_22.py upstream
+
+      - name: Validate settings parity
+        working-directory: firmware/workshop-os
+        run: python scripts/validate_settings_parity.py --repo upstream
+
+      - name: Validate final authenticated boundary
+        working-directory: firmware/workshop-os
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          build = Path('upstream/include/smart_home_build.h').read_text()
+          security = Path('upstream/src/security_manager.cpp').read_text()
+          app = Path('upstream/web/app.js').read_text()
+          combined = build + security + app
+          for needle in (
+              'WORKSHOP_OS_TEMP_LAN_OPEN',
+              'TEMPORARY TRUSTED-LAN MODE',
+              'if (!isAPMode()) return true;',
+              'v1123Rc2LanOpenBanner',
+          ):
+              if needle in combined:
+                  raise SystemExit(f'forbidden security bypass marker present: {needle}')
+          if 'return cookieMatches(server);' not in security:
+              raise SystemExit('portal session validation missing')
+          if 'if (mutating && !sameOrigin(server))' not in security:
+              raise SystemExit('same-origin mutation protection missing')
+          print('Authenticated Workshop OS boundary: PASS')
+          PY
+
+      - name: Validate browser JavaScript
+        working-directory: firmware/workshop-os
+        run: node --check upstream/web/app.js
+
+      - name: Install PlatformIO
+        run: python -m pip install --upgrade platformio
+
+      - name: Build WS350
+        working-directory: firmware/workshop-os/upstream
+        run: pio run -e ws_lcd_350
+
+      - name: Regression build shared 320x480 target
+        working-directory: firmware/workshop-os/upstream
+        run: pio run -e jc3248w535
+
+      - name: Merge Full image
+        working-directory: firmware/workshop-os/upstream
+        run: python merge_bins.py --board ws_lcd_350 --full
+
+      - name: Package monorepo firmware evidence
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          FW='firmware/workshop-os'
+          FULL="$(find "$FW/upstream/firmware" -type f -name 'BambuHelper-ws_lcd_350-*-Full.bin' | sort | tail -1)"
+          APP="$FW/upstream/.pio/build/ws_lcd_350/firmware.bin"
+          OUT='firmware-validation-artifacts'
+          mkdir -p "$OUT/tools" "$OUT/docs"
+          cp "$FULL" "$OUT/Workshop-OS-Accepted-Line-Full.bin"
+          cp "$APP" "$OUT/Workshop-OS-Accepted-Line-OTA.bin"
+          cp "$FW/scripts/capture-ws350-views.zsh" "$OUT/tools/"
+          cp "$FW/docs/physical-settings-parity.md" "$OUT/docs/"
+          cp "$FW/releases/current.json" "$OUT/docs/release-state.json"
+          {
+            echo 'Unified Filament Inventory + Workshop OS monorepo firmware validation'
+            echo "monorepo_source_sha=${SOURCE_SHA}"
+            echo 'firmware_path=firmware/workshop-os'
+            echo 'imported_workshop_os_main=e914958478810bcd10417d27058aee1c14539a85'
+            echo 'release_state=BUILT_TEST_EVIDENCE_ONLY'
+            echo 'physical_acceptance=NOT_GRANTED_BY_MIGRATION'
+            echo 'ws350_build=PASS'
+            echo 'jc3248w535_regression=PASS'
+            sha256sum "$OUT"/*.bin
+          } | tee "$OUT/validation-report.txt"
+
+      - name: Upload firmware evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: workshop-os-monorepo-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: error
+          path: firmware-validation-artifacts/

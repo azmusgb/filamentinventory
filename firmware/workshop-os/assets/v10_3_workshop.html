@@ -1,0 +1,41 @@
+
+<!-- ===== Workshop workspace ===== -->
+<div class="section" id="sec-workshop" hidden>
+  <div class="wk-hero">
+    <div>
+      <span class="wk-eyebrow">WORKSHOP</span>
+      <h2>Filament, AMS and printer context in one place.</h2>
+      <p>See what is loaded, what the printer is doing, and what needs attention without opening configuration pages.</p>
+      <div class="wk-actions">
+        <button type="button" class="btn btn-primary" onclick="loadSection('printer')">Open printer workspace</button>
+        <button type="button" class="btn btn-ghost" onclick="loadSection('display')">Customize touchscreen</button>
+        <button type="button" class="btn btn-ghost" onclick="v103RefreshWorkshop(true)">Refresh</button>
+      </div>
+    </div>
+    <div class="wk-hero-state"><span id="wkDot"></span><strong id="wkState">Checking…</strong><small id="wkUpdated">Reading printer state</small></div>
+  </div>
+
+  <div class="wk-metrics">
+    <div class="wk-metric"><span>PROGRESS</span><strong id="wkProgress">—</strong><small id="wkProgressSub">Current job</small></div>
+    <div class="wk-metric"><span>REMAINING</span><strong id="wkRemaining">—</strong><small>Estimated time</small></div>
+    <div class="wk-metric"><span>LAYER</span><strong id="wkLayer">—</strong><small>Current / total</small></div>
+    <div class="wk-metric"><span>CHAMBER</span><strong id="wkChamber">—</strong><small>Live temperature</small></div>
+  </div>
+
+  <div class="wk-layout">
+    <div class="card wk-material-card">
+      <div class="wk-card-head"><div><span class="wk-eyebrow">AMS / FILAMENT</span><h3>Loaded materials</h3></div><span class="wk-chip" id="wkAmsState">Checking…</span></div>
+      <div class="wk-loaded" id="wkLoaded"><span class="wk-spool" id="wkLoadedSpool"></span><div><small>ACTIVE MATERIAL</small><strong id="wkLoadedName">None loaded</strong><span id="wkLoadedDetail">Waiting for AMS data</span></div></div>
+      <div class="wk-trays" id="wkTrays"><div class="wk-empty">Reading AMS slots…</div></div>
+    </div>
+
+    <div class="card wk-control-card">
+      <div class="wk-card-head"><div><span class="wk-eyebrow">QUICK CONTROL</span><h3>Workshop actions</h3></div></div>
+      <button type="button" class="wk-row" id="wkLightBtn" onclick="v103ToggleWorkshopLight()"><span><strong>Chamber light</strong><small id="wkLightState">Reading state…</small></span><span>›</span></button>
+      <button type="button" class="wk-row" onclick="loadSection('hardware')"><span><strong>Sound &amp; microphone</strong><small>Speaker, mic test and event audio</small></span><span>›</span></button>
+      <button type="button" class="wk-row" onclick="loadSection('wifi')"><span><strong>Network &amp; updates</strong><small>Wi-Fi, firmware and backup</small></span><span>›</span></button>
+      <button type="button" class="wk-row" onclick="location.href='/recovery'"><span><strong>Recovery console</strong><small>Rollback, repair and reset</small></span><span>›</span></button>
+    </div>
+  </div>
+</div>
+

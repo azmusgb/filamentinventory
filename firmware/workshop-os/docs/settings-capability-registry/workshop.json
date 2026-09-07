@@ -1,0 +1,107 @@
+{
+  "settings": [
+    {
+      "id": "workshop.custom-dashboard-url",
+      "classification": "PORTAL-INPUT",
+      "implementedOnDevice": false,
+      "surface": "Portal \u2192 Workshop",
+      "browserBindings": [
+        {
+          "route": "/hub/config",
+          "keys": [
+            "url"
+          ]
+        }
+      ],
+      "reason": "Custom dashboard endpoint is a URL/free-text value."
+    },
+    {
+      "id": "workshop.custom-dashboard-policy",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": false,
+      "surface": "Workshop \u2192 Expert \u2192 Custom Dashboard",
+      "browserBindings": [
+        {
+          "route": "/hub/config",
+          "keys": [
+            "enabled",
+            "refresh",
+            "return"
+          ]
+        }
+      ],
+      "reason": "Enable/refresh/return behavior is applicable but not yet exposed as a complete physical settings surface.",
+      "plannedRelease": "v11.24"
+    },
+    {
+      "id": "workshop.accent",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": false,
+      "surface": "Display \u2192 Expert \u2192 Theme",
+      "browserBindings": [
+        {
+          "route": "/hub/experience",
+          "keys": [
+            "accent"
+          ]
+        }
+      ],
+      "reason": "Workshop accent belongs with curated physical theme palettes.",
+      "plannedRelease": "v11.22"
+    },
+    {
+      "id": "workshop.ambient",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "More \u2192 Tools / Workshop",
+      "browserBindings": [
+        {
+          "route": "/hub/experience",
+          "keys": [
+            "ambient"
+          ]
+        }
+      ],
+      "physicalEvidence": [
+        "ambient"
+      ]
+    },
+    {
+      "id": "workshop.note",
+      "classification": "PORTAL-INPUT",
+      "implementedOnDevice": false,
+      "surface": "Portal \u2192 Workshop",
+      "browserBindings": [
+        {
+          "route": "/hub/experience",
+          "keys": [
+            "note"
+          ]
+        }
+      ],
+      "reason": "Workshop note is free text."
+    },
+    {
+      "id": "workshop.timer-presets",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "More \u2192 Tools \u2192 Timer",
+      "browserBindings": [
+        {
+          "route": "/hub/experience",
+          "keys": [
+            "timer1",
+            "timer2",
+            "timer3",
+            "timer4",
+            "timerMinutes"
+          ]
+        }
+      ],
+      "physicalEvidence": [
+        "timerPreset",
+        "TIMER"
+      ]
+    }
+  ]
+}

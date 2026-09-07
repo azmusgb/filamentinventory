@@ -2,9 +2,13 @@ name: CI
 
 on:
   pull_request:
+    paths-ignore:
+      - 'firmware/workshop-os/**'
   push:
     branches:
       - main
+    paths-ignore:
+      - 'firmware/workshop-os/**'
   workflow_dispatch:
 
 permissions:

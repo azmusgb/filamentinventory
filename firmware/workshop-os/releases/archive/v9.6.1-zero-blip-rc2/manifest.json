@@ -1,0 +1,46 @@
+{
+  "release": "Smart Home v9.6.1 Zero-Blip RC2",
+  "target": "ws_lcd_350",
+  "core": "BambuHelper v3.8.1",
+  "status": "physical-acceptance-required",
+  "recovery_foundation": "Smart Home v9.4 Recovery Foundation RC3",
+  "git": {
+    "repository": "azmusgb/bambuhelper-smart-display",
+    "branch": "fix/v9-4-rc3-recovery-entry",
+    "build_head": "1ec8d190be91705f7f0d4bcdfc03ba30b13219eb",
+    "pull_request": 17
+  },
+  "ci": {
+    "workflow_run": 33641404096,
+    "result": "success",
+    "artifact_id": 9851101064,
+    "artifact_name": "bambuhelper-ws_lcd_350-smart-home-v9.6.1-zero-blip-rc2",
+    "artifact_zip_sha256": "e8c892fe923bf8e60e017027fa4974131eaf088a0811f796d77b8bc238b00738"
+  },
+  "artifacts": {
+    "ota": {
+      "filename": "BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v9.6.1-Zero-Blip-RC2-OTA.bin",
+      "sha256": "c290bb942662023de00cd622b90a85945af3c08a6d3bf31976ecebb25eefe760"
+    },
+    "full": {
+      "filename": "BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v9.6.1-Zero-Blip-RC2-Full.bin",
+      "sha256": "c19f6e7f144d4ee9b172ee84d56f4a2beed8587148cde6e7fcb5ce446fba6dd0"
+    },
+    "recovery_ota_alias": {
+      "filename": "WaveshareHome-firmware.bin",
+      "sha256": "c290bb942662023de00cd622b90a85945af3c08a6d3bf31976ecebb25eefe760"
+    }
+  },
+  "changes": [
+    "PSRAM LGFX_Sprite compositor for Smart Home pages",
+    "Smart Home page-entry physical panel pre-clear suppressed",
+    "Completed frames committed after off-screen composition",
+    "Dirty-only Smart Home frame commit preserved",
+    "v9.6 Printer Workspace retained",
+    "v9.4 RC3 recovery foundation preserved"
+  ],
+  "physical_finding": {
+    "v9.6_rc1": "rejected-visible-blipping",
+    "v9.6.1_rc2": "awaiting-physical-validation"
+  }
+}

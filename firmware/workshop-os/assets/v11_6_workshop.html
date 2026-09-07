@@ -1,0 +1,70 @@
+<!-- ===== Workshop workspace ===== -->
+<div class="section wk116" id="sec-workshop" hidden>
+  <div class="wk116-head">
+    <div class="wk116-title">
+      <span class="wk-eyebrow">WORKSHOP</span>
+      <h2>Everything you need for the next print.</h2>
+      <p id="wk116Summary">Printer, material and controls — live and local.</p>
+    </div>
+    <div class="wk116-head-actions">
+      <button type="button" class="btn btn-primary" onclick="loadSection('printer')">Printer controls</button>
+      <button type="button" class="btn btn-ghost" onclick="v103RefreshWorkshop(true)">Refresh</button>
+    </div>
+  </div>
+
+  <div class="wk116-grid">
+    <section class="wk116-printer" aria-label="Printer status and quick controls">
+      <div class="wk116-printer-head">
+        <div class="wk116-state">
+          <span id="wkDot" aria-hidden="true"></span>
+          <div><small>PRINTER</small><strong id="wkState">Checking…</strong><span id="wkUpdated">Reading printer state</span></div>
+        </div>
+        <span class="wk116-live-chip warn" id="wk116Connection">LOCAL</span>
+      </div>
+
+      <div class="wk116-job">
+        <div><small id="wkProgressSub">CURRENT JOB</small><strong id="wk116Job">Waiting for printer</strong></div>
+        <strong class="wk116-percent" id="wkProgress">—</strong>
+      </div>
+      <div class="wk116-progress" role="progressbar" aria-label="Print progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Checking printer state"><span id="wk116ProgressBar"></span></div>
+
+      <div class="wk116-telemetry">
+        <div><small>TIME LEFT</small><strong id="wkRemaining">—</strong></div>
+        <div><small>LAYER</small><strong id="wkLayer">—</strong></div>
+        <div><small>CHAMBER</small><strong id="wkChamber">—</strong></div>
+      </div>
+
+      <div class="wk116-control-strip">
+        <button type="button" class="wk116-control" id="wkLightBtn" onclick="v103ToggleWorkshopLight()">
+          <span class="wk116-control-icon" aria-hidden="true">☼</span><span><strong id="wk116LightLabel">Light</strong><small id="wkLightState">Reading…</small></span>
+        </button>
+        <button type="button" class="wk116-control" id="wk116PauseBtn" onclick="v116PauseResume()" disabled>
+          <span class="wk116-control-icon" aria-hidden="true">Ⅱ</span><span><strong id="wk116PauseLabel">Pause</strong><small id="wk116PauseHint">No active print</small></span>
+        </button>
+        <button type="button" class="wk116-control" id="wk116PowerBtn" onclick="v116TogglePower()" disabled>
+          <span class="wk116-control-icon" aria-hidden="true">⌁</span><span><strong id="wk116PowerLabel">Printer power</strong><small id="wk116PowerHint">Checking mapping…</small></span>
+        </button>
+      </div>
+      <div class="wk116-feedback" id="wk116Feedback" role="status" aria-live="polite" aria-atomic="true"></div>
+    </section>
+
+    <section class="wk116-materials" aria-label="AMS and loaded materials">
+      <div class="wk-card-head">
+        <div><span class="wk-eyebrow">MATERIALS</span><h3>AMS</h3></div>
+        <span class="wk-chip" id="wkAmsState">Checking…</span>
+      </div>
+      <div class="wk116-active" id="wkLoaded">
+        <span class="wk-spool" id="wkLoadedSpool" aria-hidden="true"></span>
+        <div><small id="wkLoadedEyebrow">MATERIAL STATUS</small><strong id="wkLoadedName">Checking materials</strong><span id="wkLoadedDetail">Waiting for AMS data</span></div>
+      </div>
+      <div class="wk116-trays" id="wkTrays" aria-live="polite"><div class="wk-empty">Reading AMS slots…</div></div>
+    </section>
+  </div>
+
+  <nav class="wk116-dock" aria-label="Workshop utilities">
+    <button type="button" onclick="loadSection('hardware')"><span>Sound &amp; mic</span><small>Test audio</small></button>
+    <button type="button" onclick="loadSection('display')"><span>Display</span><small>Home &amp; standby</small></button>
+    <button type="button" onclick="loadSection('wifi')"><span>Network</span><small>Wi-Fi &amp; updates</small></button>
+    <button type="button" onclick="location.href='/recovery'"><span>Recovery</span><small>Rollback &amp; repair</small></button>
+  </nav>
+</div>

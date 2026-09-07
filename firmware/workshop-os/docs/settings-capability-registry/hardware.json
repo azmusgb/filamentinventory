@@ -1,0 +1,188 @@
+{
+  "settings": [
+    {
+      "id": "audio.event-and-quiet",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "Hardware \u2192 Sound",
+      "browserBindings": [
+        {
+          "route": "/hub/experience",
+          "keys": [
+            "eventSounds",
+            "quietStart",
+            "quietEnd"
+          ]
+        }
+      ],
+      "physicalEvidence": [
+        "\"EVENTS\"",
+        "quietStartHour",
+        "quietEndHour"
+      ]
+    },
+    {
+      "id": "rotation.mode",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": false,
+      "surface": "Display \u2192 Expert \u2192 Layout",
+      "browserBindings": [
+        {
+          "route": "/save/rotation",
+          "keys": [
+            "rotmode",
+            "rotinterval",
+            "rotsplit",
+            "rotsplitf"
+          ]
+        }
+      ],
+      "reason": "Printer rotation/split policy is dense and low-frequency.",
+      "plannedRelease": "v11.23"
+    },
+    {
+      "id": "hardware.button-wiring",
+      "classification": "BOARD-N/A",
+      "implementedOnDevice": false,
+      "surface": "Not shown on WS350",
+      "browserBindings": [
+        {
+          "route": "/save/rotation",
+          "keys": [
+            "btntype",
+            "btnpin"
+          ]
+        }
+      ],
+      "boardReason": "WS350 integrated FT6336 touch is forced on and does not use configurable GPIO button wiring."
+    },
+    {
+      "id": "audio.core",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "Hardware \u2192 Sound / Cooldown",
+      "browserBindings": [
+        {
+          "route": "/save/rotation",
+          "keys": [
+            "buzzen",
+            "buzqs",
+            "buzqe",
+            "buzclick",
+            "buzbeden",
+            "buzbedtemp"
+          ]
+        }
+      ],
+      "physicalEvidence": [
+        "\"EVENT SOUNDS\"",
+        "\"BUTTON CLICKS\"",
+        "\"QUIET START\"",
+        "\"QUIET END\"",
+        "\"BED COOLDOWN\""
+      ]
+    },
+    {
+      "id": "audio.pin",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": false,
+      "surface": "Hardware \u2192 Expert \u2192 Sound",
+      "browserBindings": [
+        {
+          "route": "/save/rotation",
+          "keys": [
+            "buzpin"
+          ]
+        }
+      ],
+      "reason": "Audio pin is wiring-sensitive and belongs on an expert hardware page.",
+      "plannedRelease": "v11.25"
+    },
+    {
+      "id": "hardware.battery-indicator",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": false,
+      "surface": "Hardware \u2192 Expert \u2192 Power",
+      "browserBindings": [
+        {
+          "route": "/save/rotation",
+          "keys": [
+            "batshow"
+          ]
+        }
+      ],
+      "reason": "Battery/PMIC presentation should be capability-gated with AXP2101 work.",
+      "plannedRelease": "v11.25"
+    },
+    {
+      "id": "led.core",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "Hardware \u2192 LED / Finish / Error",
+      "browserBindings": [
+        {
+          "route": "/save/rotation",
+          "keys": [
+            "leden",
+            "ledbr",
+            "ledfxmd",
+            "ledfxsec",
+            "ledfxbr",
+            "ledauto",
+            "ledpause",
+            "lederr",
+            "lederrsec"
+          ]
+        }
+      ],
+      "physicalEvidence": [
+        "\"LED\"",
+        "\"FINISH\"",
+        "\"ERROR\""
+      ]
+    },
+    {
+      "id": "led.wiring-and-colors",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": false,
+      "surface": "Hardware \u2192 Expert \u2192 LED",
+      "browserBindings": [
+        {
+          "route": "/save/rotation",
+          "keys": [
+            "leddrv",
+            "ledpin",
+            "ledping",
+            "ledpinb",
+            "ledanode",
+            "ledcidl",
+            "ledcprn",
+            "ledcpau",
+            "ledcfin",
+            "ledcerr"
+          ]
+        }
+      ],
+      "reason": "Driver/pins/common-anode/RGB state colors are wiring-sensitive expert configuration.",
+      "plannedRelease": "v11.25"
+    },
+    {
+      "id": "board.cyd-round-settings",
+      "classification": "BOARD-N/A",
+      "implementedOnDevice": false,
+      "surface": "Not shown on WS350",
+      "browserBindings": [
+        {
+          "route": "/save/toggle",
+          "keys": [
+            "invcol",
+            "cydcls",
+            "cyd32e",
+            "rskin"
+          ]
+        }
+      ],
+      "boardReason": "CYD/round-panel controls are not applicable to WS350."
+    }
+  ]
+}

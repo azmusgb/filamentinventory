@@ -1,0 +1,13 @@
+dist/
+__pycache__/
+*.py[cod]
+.DS_Store
+.pio/
+.vscode/
+.idea/
+.env
+.env.*
+!.env.example
+firmware/build/
+v*-artifacts/
+*.zip

@@ -1,0 +1,157 @@
+{
+  "settings": [
+    {
+      "id": "display.main-brightness",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "Display → Quick → Main Brightness",
+      "browserBindings": [{"route": "/apply", "keys": ["bright"]}, {"route": "/brightness", "keys": ["val"]}],
+      "physicalEvidence": ["\"MAIN BRIGHTNESS\"", "brightness=hubStepPreset"]
+    },
+    {
+      "id": "display.standby-brightness",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "Display → Quick → Standby Brightness",
+      "browserBindings": [{"route": "/apply", "keys": ["ssbright"]}],
+      "physicalEvidence": ["\"STANDBY BRIGHTNESS\"", "screensaverBrightness=hubStepPreset"]
+    },
+    {
+      "id": "display.night-mode",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "Display → Quick → Night Mode",
+      "browserBindings": [{"route": "/apply", "keys": ["nighten"]}, {"route": "/save/toggle", "keys": ["nighten"]}],
+      "physicalEvidence": ["\"NIGHT MODE\"", "nightModeEnabled=!dpSettings.nightModeEnabled"]
+    },
+    {
+      "id": "display.night-schedule",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "Display → Schedule",
+      "browserBindings": [{"route": "/apply", "keys": ["nstart", "nend", "nbright"]}],
+      "physicalEvidence": ["\"NIGHT BRIGHTNESS\"", "nightStartHour=hubStepHour", "nightEndHour=hubStepHour"]
+    },
+    {
+      "id": "display.finish-timeout",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "Display → Schedule → Finish Timeout",
+      "browserBindings": [{"route": "/apply", "keys": ["fmins"]}],
+      "physicalEvidence": ["\"FINISH TIMEOUT\"", "finishDisplayMins=hubStepFinishDelay"]
+    },
+    {
+      "id": "display.after-print",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "Display → Quick → After Print",
+      "browserBindings": [{"route": "/apply", "keys": ["keepon", "clock"]}, {"route": "/save/toggle", "keys": ["keepon", "clock"]}],
+      "physicalEvidence": ["\"AFTER PRINT\"", "hubCycleAfterPrint"]
+    },
+    {
+      "id": "display.behavior",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "Display → Behavior",
+      "browserBindings": [{"route": "/apply", "keys": ["dack", "kps", "fintm", "timem"]}, {"route": "/save/toggle", "keys": ["dack", "kps", "fintm", "timem"]}],
+      "physicalEvidence": ["\"DOOR ACK\"", "\"KEEP PRINT SCREEN\"", "\"FINISH TIMESTAMP\"", "\"TIME DISPLAY\""]
+    },
+    {
+      "id": "display.visual",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "Display → Visual",
+      "browserBindings": [{"route": "/apply", "keys": ["abar", "slbl", "fanmp"]}, {"route": "/save/toggle", "keys": ["abar", "slbl", "fanmp", "hidelp"]}],
+      "physicalEvidence": ["\"ANIMATED PROGRESS\"", "\"SMALL LABELS\"", "\"FAN DISPLAY\"", "\"STATUS READOUT\""]
+    },
+    {
+      "id": "display.clock",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "Display → Clock",
+      "browserBindings": [{"route": "/apply", "keys": ["pong", "clk_size", "clk_dsize", "clk_hidedate"]}, {"route": "/save/toggle", "keys": ["pong", "clkhd"]}],
+      "physicalEvidence": ["\"PONG CLOCK\"", "\"TIME SIZE\"", "\"DATE SIZE\"", "\"DATE VISIBILITY\""]
+    },
+    {
+      "id": "display.clock-info",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": true,
+      "surface": "Display → Expert → Extras → Clock Info",
+      "browserBindings": [{"route": "/save/toggle", "keys": ["clkinfo"]}],
+      "physicalEvidence": ["\"CLOCK INFO\"", "showClockInfo=!dispSettings.showClockInfo"]
+    },
+    {
+      "id": "display.theme-colors",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": true,
+      "surface": "Display → Expert → Theme",
+      "browserBindings": [{"route": "/apply", "keys": ["clr_bg", "clr_track", "clr_pbar", "clr_eta", "clr_fin", "clr_stok", "clr_pname", "clr_txt", "clr_txtd", "clr_dorc", "clr_doro", "clk_time", "clk_date"]}],
+      "physicalEvidence": ["\"THEME PALETTE\"", "hubApplyThemePreset", "clockTimeColor=hubCycleExpertColor", "clockDateColor=hubCycleExpertColor"]
+    },
+    {
+      "id": "display.rotation",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": false,
+      "surface": "Display → Expert → Layout",
+      "browserBindings": [{"route": "/apply", "keys": ["rotation"]}],
+      "reason": "Rotation changes touch mapping and requires guarded expert handling with recovery semantics.",
+      "plannedRelease": "v11.23"
+    },
+    {
+      "id": "display.gauge-colors",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": true,
+      "surface": "Display → Expert → Gauge Colors",
+      "browserBindings": [{"route": "/apply", "keys": ["prg_a", "prg_l", "prg_v", "noz_a", "noz_l", "noz_v", "bed_a", "bed_l", "bed_v", "pfn_a", "pfn_l", "pfn_v", "afn_a", "afn_l", "afn_v", "afr_a", "afr_l", "afr_v", "cfn_a", "cfn_l", "cfn_v", "exh_a", "exh_l", "exh_v", "cht_a", "cht_l", "cht_v", "hbk_a", "hbk_l", "hbk_v", "pwr_a", "pwr_l", "pwr_v", "lyr_a", "lyr_l", "lyr_v"]}],
+      "physicalEvidence": ["\"GAUGE COLORS\"", "hubSelectedGaugeColors", "gc->arc=hubCycleExpertColor", "gc->label=hubCycleExpertColor", "gc->value=hubCycleExpertColor"]
+    },
+    {
+      "id": "display.gauge-labels",
+      "classification": "PORTAL-INPUT",
+      "implementedOnDevice": false,
+      "surface": "Portal → Display → Gauge Labels",
+      "browserBindings": [{"route": "/apply", "keys": ["prg_lbl", "noz_lbl", "nzr_lbl", "nzl_lbl", "bed_lbl", "pfn_lbl", "afn_lbl", "afr_lbl", "cfn_lbl", "exh_lbl", "cht_lbl", "hbk_lbl", "pwr_lbl", "lyr_lbl", "clk_lbl", "ams_lbl", "dor_lbl"]}],
+      "reason": "Custom labels require free-text input; no on-device keyboard is planned."
+    },
+    {
+      "id": "display.gauge-scales",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": true,
+      "surface": "Display → Expert → Gauge Scales",
+      "browserBindings": [{"route": "/apply", "keys": ["noz_max", "bed_max", "cht_max", "pwr_max"]}],
+      "physicalEvidence": ["\"NOZZLE SCALE\"", "nozzleScaleMax=hubStepPreset16", "bedScaleMax=hubStepPreset16", "chamberScaleMax=hubStepPreset16", "powerScaleW=hubStepPreset16"]
+    },
+    {
+      "id": "display.gauge-behavior",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": true,
+      "surface": "Display → Expert → Gauge Behavior",
+      "browserBindings": [{"route": "/apply", "keys": ["gsmooth", "warn_thr", "warn_clr"]}],
+      "physicalEvidence": ["\"SMOOTHING\"", "gaugeSmoothing=", "warnThresholdPct=hubStepPreset", "warnColor=hubCycleExpertColor"]
+    },
+    {
+      "id": "display.edge-glow",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": true,
+      "surface": "Display → Expert → Glow",
+      "browserBindings": [{"route": "/apply", "keys": ["glowm", "glow_clr", "glows", "glowd"]}, {"route": "/save/toggle", "keys": ["glowm", "glows", "glowd"]}],
+      "physicalEvidence": ["\"GLOW MODE\"", "glowMode=", "glowStyle=", "glowDuration=", "glowColor=hubCycleExpertColor"]
+    },
+    {
+      "id": "display.layout-modes",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": true,
+      "surface": "Display → Expert → Layout",
+      "browserBindings": [{"route": "/save/toggle", "keys": ["l8s", "p9s", "rotsplit", "rotsplitf"]}],
+      "physicalEvidence": ["\"8-SLOT LANDSCAPE\"", "landscape8Slots=!dispSettings.landscape8Slots", "portrait9Slots=!dispSettings.portrait9Slots", "splitEnabled=!rotState.splitEnabled", "splitForce=!rotState.splitForce"]
+    },
+    {
+      "id": "display.ams-tray-types",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": true,
+      "surface": "Display → Expert → Extras → AMS Tray Types",
+      "browserBindings": [{"route": "/save/toggle", "keys": ["amst"]}],
+      "physicalEvidence": ["\"AMS TRAY TYPES\"", "amsTrayTypes=!dispSettings.amsTrayTypes"]
+    }
+  ]
+}

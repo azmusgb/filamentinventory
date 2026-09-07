@@ -5,70 +5,57 @@ import path from 'node:path';
 
 const root = process.cwd();
 const workflowsDir = path.join(root, '.github', 'workflows');
-const buildWorkflow = fs.readFileSync(path.join(workflowsDir, 'waveshare-home.yml'), 'utf8');
-const releaseWorkflow = fs.readFileSync(path.join(workflowsDir, 'waveshare-release.yml'), 'utf8');
+const ciWorkflow = fs.readFileSync(path.join(workflowsDir, 'ci.yml'), 'utf8');
+const firmwareWorkflow = fs.readFileSync(path.join(workflowsDir, 'firmware-validate.yml'), 'utf8');
 
-test('Actions surface contains only durable validation, smoke, build and release workflows', () => {
+test('root Actions surface contains only unified web, production and Workshop OS validation workflows', () => {
   const workflows = fs.readdirSync(workflowsDir)
     .filter((name) => /\.ya?ml$/i.test(name))
     .sort();
 
   assert.deepEqual(workflows, [
     'ci.yml',
+    'firmware-validate.yml',
     'production-smoke.yml',
-    'waveshare-home.yml',
-    'waveshare-release.yml',
   ]);
+
+  assert.equal(fs.existsSync(path.join(workflowsDir, 'waveshare-home.yml')), false);
+  assert.equal(fs.existsSync(path.join(workflowsDir, 'waveshare-release.yml')), false);
 });
 
-test('firmware builder validates PRs but auto-builds pushed firmware only from main', () => {
-  const pullStart = buildWorkflow.indexOf('  pull_request:');
-  const pushStart = buildWorkflow.indexOf('  push:');
-  const permissionsStart = buildWorkflow.indexOf('\npermissions:', pushStart);
-
-  assert.notEqual(pullStart, -1, 'pull_request firmware validation trigger should exist');
-  assert.notEqual(pushStart, -1, 'push firmware build trigger should exist');
-  assert.notEqual(permissionsStart, -1, 'workflow permissions block should follow triggers');
-
-  const pullBlock = buildWorkflow.slice(pullStart, pushStart);
-  const pushBlock = buildWorkflow.slice(pushStart, permissionsStart);
-
-  assert.match(pullBlock, /firmware\/waveshare-home\/\*\*/);
-  assert.match(pullBlock, /\.github\/workflows\/waveshare-home\.yml/);
-  assert.match(pushBlock, /branches:\s*\[main\]/);
-  assert.match(pushBlock, /firmware\/waveshare-home\/\*\*/);
-  assert.doesNotMatch(pushBlock, /\.github\/workflows\/waveshare-home\.yml/);
-  assert.match(buildWorkflow, /permissions:\s*\n\s+contents:\s+read/);
-  assert.match(buildWorkflow, /group: waveshare-home-\$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}/);
-  assert.match(buildWorkflow, /cancel-in-progress: true/);
+test('web CI excludes Workshop OS-only changes while retaining normal main validation', () => {
+  assert.match(ciWorkflow, /pull_request:\s*\n\s+paths-ignore:\s*\n\s+- 'firmware\/workshop-os\/\*\*'/);
+  assert.match(ciWorkflow, /push:\s*\n\s+branches:\s*\n\s+- main\s*\n\s+paths-ignore:\s*\n\s+- 'firmware\/workshop-os\/\*\*'/);
+  assert.match(ciWorkflow, /permissions:\s*\n\s+contents:\s+read/);
 });
 
-test('legacy firmware publishing is manual-only and frozen at v1.7.0', () => {
-  const triggerStart = releaseWorkflow.indexOf('on:');
-  const permissionsStart = releaseWorkflow.indexOf('\npermissions:', triggerStart);
-  const triggerBlock = releaseWorkflow.slice(triggerStart, permissionsStart);
-
-  assert.match(triggerBlock, /workflow_dispatch:/);
-  assert.doesNotMatch(triggerBlock, /workflow_run:/);
-  assert.match(releaseWorkflow, /description: Optional successful main-branch firmware build run ID to republish v1\.7\.0/);
-  assert.match(releaseWorkflow, /--branch main/);
-  assert.match(releaseWorkflow, /test "\$CONCLUSION" = 'success'/);
-  assert.match(releaseWorkflow, /test "\$HEAD_BRANCH" = 'main'/);
-  assert.match(releaseWorkflow, /push\|workflow_dispatch/);
-  assert.match(releaseWorkflow, /if \[ "\$VERSION" != '1\.7\.0' \]; then/);
-  assert.match(releaseWorkflow, /Waveshare Home is frozen at v1\.7\.0/);
-  assert.doesNotMatch(releaseWorkflow, /workflow_run\.conclusion|workflow_run\.event|workflow_run\.head_branch/);
+test('Workshop OS validation is rooted at firmware/workshop-os and path-scoped in the monorepo', () => {
+  assert.match(firmwareWorkflow, /name: Workshop OS Firmware Validate/);
+  assert.match(firmwareWorkflow, /pull_request:\s*\n\s+paths:\s*\n\s+- 'firmware\/workshop-os\/\*\*'/);
+  assert.match(firmwareWorkflow, /push:\s*\n\s+branches:\s*\n\s+- main\s*\n\s+- migration\/unified-workshop-monorepo/);
+  assert.match(firmwareWorkflow, /working-directory: firmware\/workshop-os/);
+  assert.match(firmwareWorkflow, /path: firmware\/workshop-os\/upstream/);
+  assert.match(firmwareWorkflow, /group: workshop-os-monorepo-\$\{\{ github\.ref \}\}/);
+  assert.match(firmwareWorkflow, /cancel-in-progress: true/);
 });
 
-test('manual republish remains bound to a validated main build and the existing frozen tag', () => {
-  assert.match(releaseWorkflow, /echo "source_sha=\$SOURCE_SHA" >> "\$GITHUB_OUTPUT"/);
-  assert.match(releaseWorkflow, /ref: \$\{\{ steps\.src\.outputs\.source_sha \}\}/);
-  assert.match(releaseWorkflow, /git merge-base --is-ancestor "\$SOURCE_SHA" origin\/main/);
-  assert.match(releaseWorkflow, /artifact=WaveshareHome-ESP32S3-\$VERSION-fullflash/);
-  assert.match(releaseWorkflow, /--name "\$ARTIFACT"/);
-  assert.match(releaseWorkflow, /test "\$COUNT" -eq 1/);
-  assert.match(releaseWorkflow, /TAG_SHA=\$\(git rev-list -n 1 "\$TAG"\)/);
-  assert.match(releaseWorkflow, /test "\$TAG_SHA" = "\$SOURCE_SHA"/);
-  assert.doesNotMatch(releaseWorkflow, /--target "\$SOURCE_SHA"/);
-  assert.match(releaseWorkflow, /refusing to create a new legacy release/);
+test('Workshop OS validation preserves security, native builds and Full plus OTA evidence', () => {
+  assert.match(firmwareWorkflow, /return cookieMatches\(server\);/);
+  assert.match(firmwareWorkflow, /if \(mutating && !sameOrigin\(server\)\)/);
+  assert.match(firmwareWorkflow, /pio run -e ws_lcd_350/);
+  assert.match(firmwareWorkflow, /pio run -e jc3248w535/);
+  assert.match(firmwareWorkflow, /python merge_bins\.py --board ws_lcd_350 --full/);
+  assert.match(firmwareWorkflow, /Workshop-OS-Accepted-Line-Full\.bin/);
+  assert.match(firmwareWorkflow, /Workshop-OS-Accepted-Line-OTA\.bin/);
+  assert.match(firmwareWorkflow, /physical_acceptance=NOT_GRANTED_BY_MIGRATION/);
+});
+
+test('legacy Waveshare recovery material remains retained but is no longer an active root release authority', () => {
+  const legacyRecovery = path.join(root, 'WaveshareHome-ESP32S3-1.6.0-fullflash');
+  assert.equal(fs.existsSync(legacyRecovery), true);
+  assert.equal(fs.existsSync(path.join(legacyRecovery, 'WaveshareHome-firmware.bin')), true);
+  assert.equal(fs.existsSync(path.join(root, 'firmware', 'workshop-os')), true);
+
+  const nestedWorkflowDir = path.join(root, 'firmware', 'workshop-os', '.github', 'workflows');
+  assert.equal(fs.existsSync(nestedWorkflowDir), true);
 });

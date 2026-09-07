@@ -1,0 +1,50 @@
+{
+  "release": "Smart Home v9.7 Interaction & Layout RC1",
+  "board": "ws_lcd_350",
+  "bambuhelper_core": "v3.8.1",
+  "status": "merged_to_main_physical_acceptance_required",
+  "pre_merge_head": "5825602f6a56c7b274df6744e3c87c23ccc9be6e",
+  "merge_commit": "239b2ea26b57e456cb7ef4c424b361de3d8d55e3",
+  "workflow_run": 33647474577,
+  "artifact": {
+    "github_actions_artifact_id": 9853513778,
+    "name": "bambuhelper-ws_lcd_350-smart-home-v9.7-interaction-layout-rc1",
+    "archive_sha256": "3b371ee210ac5ee0da7722493d578bac5ac26417a71d742e17c8859f71a9ee63"
+  },
+  "firmware": {
+    "ota": {
+      "file": "BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v9.7-Interaction-Layout-RC1-OTA.bin",
+      "sha256": "c27c6c1407fcb18d47394b1f1fa87d86b4881c8541b2a5266d1b0a271fc4d673"
+    },
+    "full": {
+      "file": "BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v9.7-Interaction-Layout-RC1-Full.bin",
+      "sha256": "0c6152c476961b7f40f84409b60224e434e00983d485d3fc23b3f4b653649173"
+    },
+    "recovery_ota_alias": {
+      "file": "WaveshareHome-firmware.bin",
+      "sha256": "c27c6c1407fcb18d47394b1f1fa87d86b4881c8541b2a5266d1b0a271fc4d673"
+    }
+  },
+  "foundations": {
+    "recovery": "v9.4 RC3",
+    "printer_workspace": "v9.6",
+    "zero_blip_compositor": "v9.6.1 RC2"
+  },
+  "validation": {
+    "patch_composition": "PASS",
+    "inherited_device_contracts": "PASS",
+    "secret_safe_recovery_export": "PASS",
+    "zero_blip_compositor": "PASS",
+    "coordinate_touch_navigation": "PASS",
+    "primary_nav_home_printer_workshop_more": "PASS",
+    "native_printer_view": "PASS",
+    "custom_widget_edit": "PASS",
+    "browser_320x480_preview": "PASS",
+    "browser_javascript": "PASS",
+    "ws350_build": "PASS",
+    "jc3248w535_regression": "PASS",
+    "full_image_merge": "PASS",
+    "artifact_packaging": "PASS",
+    "physical_acceptance": "REQUIRED"
+  }
+}

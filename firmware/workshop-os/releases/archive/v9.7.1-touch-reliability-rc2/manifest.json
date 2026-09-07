@@ -1,0 +1,70 @@
+{
+  "release": "Smart Home v9.7.1 Touch Reliability RC2",
+  "board": "ws_lcd_350",
+  "bambuhelper_core": "v3.8.1",
+  "status": "physically_accepted",
+  "pre_merge_head": "bcc935d2723ba5651fa078ab76a89b6df2296923",
+  "merge_commit": "db42d224aff643bb11804d4aae6c389b424241b0",
+  "workflow_run": 33653456108,
+  "artifact": {
+    "github_actions_artifact_id": 9855864419,
+    "name": "bambuhelper-ws_lcd_350-smart-home-v9.7.1-touch-reliability-rc2",
+    "archive_sha256": "896e9df0141c9b20ec69a8637b85d2fa9d85eba0e8ad5c698cbffd310e9813f5"
+  },
+  "firmware": {
+    "ota": {
+      "file": "BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v9.7.1-Touch-Reliability-RC2-OTA.bin",
+      "size": 2186304,
+      "sha256": "2b097c9656cfd5ee743fb66235e1e9dc961227ad56f9949f37d0c37d7de84579"
+    },
+    "full": {
+      "file": "BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v9.7.1-Touch-Reliability-RC2-Full.bin",
+      "size": 2251840,
+      "sha256": "7090e71cec16d2c1d5fca55ee503900d7f8c6d7e1307b5c2c0aeb3af7a312b19"
+    },
+    "recovery_ota_alias": {
+      "file": "WaveshareHome-firmware.bin",
+      "size": 2186304,
+      "sha256": "2b097c9656cfd5ee743fb66235e1e9dc961227ad56f9949f37d0c37d7de84579"
+    }
+  },
+  "foundations": {
+    "recovery": "v9.4 RC3",
+    "printer_workspace": "v9.6",
+    "zero_blip_compositor": "v9.6.1 RC2",
+    "interaction_layout": "v9.7 RC1"
+  },
+  "validation": {
+    "patch_composition": "PASS",
+    "inherited_device_contracts": "PASS",
+    "focaltech_edge_events": "PASS",
+    "generic_50ms_touch_debounce_removed": "PASS",
+    "touch_reinit_state_reset": "PASS",
+    "stale_coordinate_invalidation": "PASS",
+    "ft6336_i2c_self_recovery": "PASS",
+    "recovery_touch_runtime_diagnostics": "PASS",
+    "coordinate_touch_navigation": "PASS",
+    "zero_blip_compositor": "PASS",
+    "browser_javascript": "PASS",
+    "ws350_build": "PASS",
+    "jc3248w535_regression": "PASS",
+    "full_image_merge": "PASS",
+    "artifact_packaging": "PASS",
+    "physical_acceptance": "PASS"
+  },
+  "physical_evidence": {
+    "running_slot": "app0",
+    "known_good_slot": "app1",
+    "touch_responsive": true,
+    "touch_presses_initial": 1,
+    "touch_presses_after_interaction": 26,
+    "touch_read_failures": 0,
+    "touch_recoveries": 0,
+    "candidate_pending": false,
+    "web_ready": true
+  },
+  "promotion": {
+    "production_pointer_updated": false,
+    "reason": "The accepted v9.7.1 binaries currently exist as GitHub Actions artifacts rather than committed firmware/ release assets. release.json is intentionally left on the last fully materialized production package instead of publishing paths that do not exist in the repository."
+  }
+}
