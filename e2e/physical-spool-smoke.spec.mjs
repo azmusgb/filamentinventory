@@ -123,7 +123,7 @@ test('scan QR-label handoff selects only the scanned spool', async ({page}) => {
   await expect(page.locator('#labelPreviewGrid')).toContainText('T001'); await expect(page.locator('#labelSelectionCount')).toContainText('1 selected');
 });
 
-test('private link preserves scan/profile and deep-link boot reopens Physical Spool', async ({page}) => {
+test('private link preserves durable scan identity without encoding profile and deep-link boot reopens Physical Spool', async ({page}) => {
   await page.evaluate(() => {
     Object.defineProperty(navigator,'clipboard',{
       configurable:true,
@@ -135,17 +135,23 @@ test('private link preserves scan/profile and deep-link boot reopens Physical Sp
   await expect.poll(() => page.evaluate(() => globalThis.__fiPhysicalCopiedLink || '')).not.toBe('');
   const url=new URL(await page.evaluate(() => globalThis.__fiPhysicalCopiedLink));
   expect(url.searchParams.get('spool')).toBe('T001'); expect(url.searchParams.get('scan')).toBe('1');
-  expect(new URLSearchParams(url.hash.slice(1)).get('filament-user')).toBe('Bill');
+  expect(new URLSearchParams(url.hash.slice(1)).has('filament-user')).toBe(false);
   await page.goto(`${url.pathname}${url.search}${url.hash}`);
   await expect(page.locator('body')).toHaveAttribute('data-inventory-user','Bill'); await expect(page.locator('#spoolActionDialog[open]')).toBeVisible();
   await expect(page.locator('#spoolActionDialog')).toHaveAttribute('data-source','scan'); await expect(page.locator('#spoolActionTitle')).toContainText('T001 · Matte White');
   await expect(page).not.toHaveURL(/(?:\?|&)scan=1/); await expect(page).not.toHaveURL(/(?:\?|&)spool=T001/);
 });
 
-test('cross-profile scan routes to owning private inventory', async ({page}) => {
+test('cross-profile scan stays in active private inventory and does not disclose foreign spool details', async ({page}) => {
   await scan(page,'A001');
-  await expect(page.locator('body')).toHaveAttribute('data-inventory-user','Aimee'); await expect(page.locator('#spoolActionDialog[open]')).toBeVisible();
-  await expect(page.locator('#spoolActionTitle')).toContainText('A001 · Ocean Blue');
+  await expect(page.locator('body')).toHaveAttribute('data-inventory-user','Bill');
+  await expect(page.locator('#spoolActionDialog[open]')).toHaveCount(0);
+  const unknown=page.locator('.qr-unknown-dialog[open]');
+  await expect(unknown).toBeVisible();
+  await expect(unknown.locator('[data-unknown-title]')).toHaveText("A001 is not in Bill's inventory");
+  await expect(unknown).not.toContainText('Aimee');
+  await expect(unknown).not.toContainText('Ocean Blue');
+  await expect(unknown).not.toContainText('Aimee Rack');
   expect(await page.evaluate(() => (JSON.parse(localStorage.getItem('filament-user-v1:bill:inventory')||'{}').spools||[]).some(x=>x.id==='A001'))).toBe(false);
 });
 
