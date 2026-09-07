@@ -1,8 +1,16 @@
-# Workshop OS subsystem boundaries
+# Workshop OS integration-mirror boundaries
 
-`firmware/workshop-os/` is the authoritative firmware subsystem inside the canonical `azmusgb/filamentinventory` monorepo.
+This subtree is a **history-preserved integration mirror** of Workshop OS inside `azmusgb/filamentinventory`.
 
-## This subsystem owns
+The authoritative Workshop OS firmware repository remains:
+
+- `azmusgb/bambuhelper-smart-display`
+
+Use this subtree for product-level contract checks, reconstruction, integration testing, and recovery planning. Do not treat it as the production firmware release authority unless the project authority model is explicitly changed.
+
+## Authoritative Workshop OS scope
+
+The authoritative firmware repository owns:
 
 - WS350 firmware and hardware-facing runtime behavior;
 - touch/navigation UX and physical interaction contracts;
@@ -13,9 +21,9 @@
 - hardware builds, regression builds, framebuffer capture and physical acceptance;
 - the Workshop Device Companion protocol and hardware orchestration plane.
 
-## This subsystem does not own
+## Inventory boundary
 
-Inventory-domain authority remains outside the firmware subtree in the root Filament Inventory application/cloud/domain layers.
+Filament inventory data, cloud synchronization, evidence provenance, ownership/profile state, print readiness, and inventory LLM behavior are owned by the root Filament Inventory product.
 
 Workshop OS must not become a second inventory database, quantity authority, ownership authority, placement authority, or model provider. In particular, it must not invent:
 
@@ -28,7 +36,7 @@ Workshop OS must not become a second inventory database, quantity authority, own
 
 Unknown remains unknown. Similar color/material telemetry is not enough to assign a spool to an AMS slot.
 
-## Canonical device contract
+## Device contract
 
 Current device-facing inventory endpoint:
 
@@ -39,21 +47,19 @@ Current device-facing inventory endpoint:
 
 Contract v1 is redacted and profile-scoped. The current sync-key reuse is a compatibility bridge; the target is a revocable device-scoped credential with read/assistant capabilities and no broad inventory mutation authority.
 
-## Monorepo relationship
+## Integration-mirror relationship
 
-The former standalone `azmusgb/bambuhelper-smart-display` repository has been history-preserved into this subtree. The canonical active development path is now this monorepo.
+The Workshop OS history was imported here so unified CI can prove that inventory/cloud changes and firmware contracts can coexist without losing source provenance.
 
-The former repository must remain available as historical/recovery provenance until recovery links, accepted artifacts, and cross-line migration evidence are fully verified. Repository relocation itself does not change firmware acceptance state.
+The mirror has successfully reconstructed and built the current firmware candidate stack, but source-of-truth firmware changes and physical acceptance remain anchored in `azmusgb/bambuhelper-smart-display`.
 
-## Candidate sequencing
+Mirrored candidate references:
 
-The current candidate chain remains explicit:
+1. v11.23 RC2 mirror — integration head `7723efad12c5a9f2274ac64df7e1d257cf2a4ad1`; authoritative source PR #76 / `feature/v11-23-network-locale-layout`.
+2. v11.24 Audio mirror — integration head `ad1d7e9c78205be3d90c8ff76eee6d215f2c8ecd`; authoritative source PR #77 / `feature/v11-24-audio-console`.
+3. Instrument UI + Audio + QMI8658 Auto Orient mirror — integration head `87c0af8a959e8f08b2ed29d458bf02c001bc318d`; source design branch `design/workshop-instrument-ui-v11-24`.
 
-1. v11.23 Network / Locale / Layout RC2 — software validated, physical WS350 acceptance pending.
-2. v11.24 Audio Console — software validated, dependent on v11.23 physical acceptance; speaker/microphone physical validation pending.
-3. Workshop Instrument UI + Audio + QMI8658 Auto Orient — software validated, but runtime, four-orientation/touch-axis, speaker/microphone, and physical acceptance remain pending.
-
-Do not merge or promote a later candidate merely because the monorepo can reconstruct and build it.
+Do not merge or promote a later candidate merely because the integration mirror can reconstruct and build it.
 
 ## LLM boundary
 
