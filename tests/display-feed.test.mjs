@@ -81,6 +81,23 @@ test('display feed preserves unknown remaining quantity without classifying it l
   assert.equal(feed.summary.low, 1);
 });
 
+test('visual percentage without known nominal weight stays unknown in the device feed', () => {
+  const feed = buildDisplayFeed([
+    {
+      key:'inventory-alpha',
+      updatedAt:'2026-08-30T02:25:00.000Z',
+      state:{
+        spools:[{id:'A1', placementState:'Stored', visualPercent:20, reorderThreshold:250}],
+        printJobs:[],
+      },
+    },
+  ], new Date('2026-08-30T02:30:00.000Z'));
+
+  assert.equal(feed.summary.unknown, 1);
+  assert.equal(feed.summary.low, 0);
+  assert.match(feed.status, /need verification/);
+});
+
 test('display feed marks old cloud data stale', () => {
   const feed = buildDisplayFeed([
     {

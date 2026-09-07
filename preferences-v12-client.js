@@ -30,7 +30,7 @@
       details.className = 'panel profile-operational-defaults';
       details.innerHTML = `
         <summary>
-          <span><strong>Operational defaults</strong><small>Density, Home detail, print margin and new-spool defaults</small></span>
+          <span><strong>Operational defaults</strong><small>Density, Home detail, print margin and optional new-spool defaults</small></span>
           <span class="profile-disclosure-icon" aria-hidden="true">＋</span>
         </summary>
         <div class="profile-operational-body">
@@ -56,6 +56,15 @@
     const printingCopy = qs('.profile-settings-head p', printing);
     if (printingHead) printingHead.textContent = 'Print & inventory defaults';
     if (printingCopy) printingCopy.textContent = 'Defaults used for readiness checks and newly added spools. Existing measurements and spool facts are unchanged.';
+
+    const startWeight = $('profileStartWeight');
+    const startWeightCard = startWeight?.closest('.profile-number-card');
+    const startWeightHelp = qs('small', startWeightCard || undefined);
+    if (startWeight) {
+      startWeight.placeholder = 'No default';
+      startWeight.setAttribute('inputmode','decimal');
+    }
+    if (startWeightHelp) startWeightHelp.textContent = 'Optional. Leave blank so nominal filament weight stays Unknown until it is actually known.';
 
     return details;
   }

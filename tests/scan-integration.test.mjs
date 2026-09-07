@@ -62,14 +62,16 @@ test('scanner has one direct found-spool path and one explicit unknown-spool rec
   assert.doesNotMatch(client, /core\.resolveProfile/);
 });
 
-test('legacy QR profile hints remain non-secret metadata and never grant scanner access', async () => {
-  const [labels, qr, client] = await Promise.all([read('labels-client.js'), read('netlify/functions/qr.mts'), read('scan-client.js')]);
-  assert.match(labels, /profile=\$\{encodeURIComponent/);
-  assert.match(labels, /filament-user/);
-  assert.match(qr, /searchParams\.get\('profile'\)/);
-  assert.match(qr, /filament-user/);
+test('new QR labels encode durable spool identity only while legacy profile hints remain non-authoritative', async () => {
+  const [labels, qr, core, client] = await Promise.all([read('labels-client.js'), read('netlify/functions/qr.mts'), read('scan-core.js'), read('scan-client.js')]);
+  assert.match(labels, /\/qr\?spool=\$\{encodeURIComponent\(spool\.id\)\}/);
+  assert.doesNotMatch(labels, /profile=\$\{encodeURIComponent/);
+  assert.doesNotMatch(labels, /filament-user/);
+  assert.match(qr, /legacyProfile/);
   assert.match(qr, /\['Bill','Aimee'\]/);
+  assert.doesNotMatch(qr, /target\.hash|filament-user/);
   assert.doesNotMatch(qr, /sync-key|syncKey|filament-sync/i);
+  assert.match(core, /return \{ok:true, spoolId, profile:null, source:'url'/);
   assert.doesNotMatch(client, /parsed\.profile\s*\|\|/);
   assert.doesNotMatch(client, /profile:parsed\.profile/);
 });

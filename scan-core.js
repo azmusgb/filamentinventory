@@ -1,7 +1,10 @@
 (function(root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
-  if (root) root.FilamentInventoryScan = api;
+  if (root) {
+    root.FilamentInventoryScan = api;
+    api.sanitizeLegacyScanProfile(root);
+  }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function() {
   'use strict';
 
@@ -28,16 +31,17 @@
     if (expectedOrigin && url.origin !== new URL(expectedOrigin).origin) return {ok:false, reason:'foreign-origin'};
     const spoolId = String(url.searchParams.get('spool') || '').trim();
     if (!validId(spoolId)) return {ok:false, reason:'missing-spool'};
-    return {ok:true, spoolId, profile:profileFromUrl(url), source:'url', url:url.toString()};
+
+    // A QR resolves durable spool identity only. Profile/owner is mutable private
+    // state and must never be used as scan authority, even on legacy URLs.
+    return {ok:true, spoolId, profile:null, source:'url', url:url.toString()};
   }
 
-  function buildSpoolTarget({spoolId, profile}, origin) {
+  function buildSpoolTarget({spoolId}, origin) {
     if (!validId(spoolId)) throw new Error('Invalid spool ID');
     const url = new URL('/', origin);
     url.searchParams.set('spool', String(spoolId).trim());
     url.searchParams.set('scan', '1');
-    const owner = strictOwner(profile);
-    if (owner) url.hash = new URLSearchParams({'filament-user':owner}).toString();
     return url.toString();
   }
 
@@ -48,9 +52,25 @@
 
   function resolveProfile(spoolId, currentProfile, states = {}) {
     const current = strictOwner(currentProfile) || 'Bill';
-    if (stateHasSpool(states[current], spoolId)) return current;
-    return OWNERS.find(owner => owner !== current && stateHasSpool(states[owner], spoolId)) || null;
+    return stateHasSpool(states[current], spoolId) ? current : null;
   }
 
-  return Object.freeze({OWNERS, ID_RE, strictOwner, validId, profileFromUrl, parseScanValue, buildSpoolTarget, stateHasSpool, resolveProfile});
+  function sanitizeLegacyScanProfile(host) {
+    try {
+      const href = host?.location?.href;
+      if (!href) return false;
+      const url = new URL(href);
+      if (url.searchParams.get('scan') !== '1') return false;
+      const hash = new URLSearchParams(String(url.hash || '').replace(/^#/, ''));
+      if (!hash.has('filament-user')) return false;
+      hash.delete('filament-user');
+      url.hash = hash.toString();
+      host.history?.replaceState?.(host.history.state ?? null, '', url.toString());
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  return Object.freeze({OWNERS, ID_RE, strictOwner, validId, profileFromUrl, parseScanValue, buildSpoolTarget, stateHasSpool, resolveProfile, sanitizeLegacyScanProfile});
 });
