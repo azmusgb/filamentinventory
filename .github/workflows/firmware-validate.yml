@@ -32,13 +32,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check out pinned BambuHelper baseline
-        uses: actions/checkout@v4
-        with:
-          repository: Keralots/BambuHelper
-          ref: 8cb1cbbb6d3c175af919e8ebe1bbdcbe848ac4
-          path: firmware/workshop-os/upstream
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -52,6 +45,7 @@ jobs:
             apply_smart_home_physical_fit_v11_19_1.py
             apply_smart_home_portal_auth_v11_20.py
             apply_smart_home_display_expert_v11_22.py
+            scripts/materialize_pinned_upstream.py
             scripts/validate_device_contracts.py
             scripts/validate_visual_contracts_v11_19.py
             scripts/validate_rendered_fit_v11_19_1.py
@@ -74,7 +68,6 @@ jobs:
             scripts/validate_auth_restore_v11_23_rc2.py
             apply_smart_home_audio_console_v11_24.py
             scripts/validate_audio_console_v11_24.py
-            scripts/materialize_pinned_upstream.py
             apply_workshop_instrument_ui_v1.py
             apply_workshop_instrument_ui_v11_24.py
             apply_workshop_auto_orientation_v1.py
@@ -90,8 +83,7 @@ jobs:
           bash -n scripts/apply_workshop_os_v11_19.sh
           bash -n scripts/capture-ws350-views.zsh
 
-      - name: Materialize exact pinned source for Instrument UI candidates
-        if: ${{ hashFiles('firmware/workshop-os/scripts/materialize_pinned_upstream.py') != '' }}
+      - name: Materialize exact pinned BambuHelper source
         working-directory: firmware/workshop-os
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -104,7 +96,7 @@ jobs:
           git -C upstream config user.name 'Workshop OS Reconstruction'
           git -C upstream config user.email 'workshop-os-reconstruction@localhost'
           git -C upstream add -A
-          git -C upstream commit -q -m 'Materialized pinned BambuHelper 8cb1cbbb source tree'
+          git -C upstream commit -q -m 'Materialized pinned BambuHelper source tree'
 
       - name: Reconstruct accepted v11.19 baseline
         working-directory: firmware/workshop-os
@@ -274,6 +266,8 @@ jobs:
           cp "$FW/scripts/capture-ws350-views.zsh" "$OUT/tools/"
           cp "$FW/docs/physical-settings-parity.md" "$OUT/docs/"
           cp "$FW/releases/current.json" "$OUT/docs/release-state.json"
+          cp "$FW/upstream/.workshop-pinned-upstream.txt" "$OUT/docs/pinned-upstream.txt"
+          cp "$FW/upstream/.workshop-pinned-upstream-excluded.txt" "$OUT/docs/pinned-upstream-excluded.txt"
           for f in \
             "$FW/docs/PHYSICAL_ACCEPTANCE_V11_23_RC2.md" \
             "$FW/docs/audio-console-v11-24.md" \
@@ -293,7 +287,8 @@ jobs:
             echo "monorepo_source_sha=${SOURCE_SHA}"
             echo "build_label=${BUILD_LABEL}"
             echo 'firmware_path=firmware/workshop-os'
-            echo 'upstream_pin=8cb1cbbb6d3c175af919e8ebe1bbdcbe848ac4'
+            echo 'upstream_commit_identity=8cb1cbbb6d3c175af919e8ebe1bbdcbe848ac4'
+            echo 'upstream_tree=754c5506bdac08033f0cdc3439e4814acd2b4294'
             echo 'release_state=BUILT_TEST_EVIDENCE_ONLY'
             echo 'physical_acceptance=NOT_GRANTED_BY_CI'
             echo 'ws350_build=PASS'
