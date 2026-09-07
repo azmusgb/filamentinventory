@@ -1,0 +1,38 @@
+name: Instrument UI Reconstruction Diagnostic
+
+on:
+  push:
+    branches:
+      - design/workshop-instrument-ui-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Inspect embedded v11.1 dependency contract
+        run: |
+          python - <<'PY'
+          import base64, zlib
+          from pathlib import Path
+          for name in ('v11_signature.zlib.b64','v11_1_calm_verified.zlib.b64'):
+              p=Path('.bambuhelper-validation')/name
+              src=zlib.decompress(base64.b64decode(p.read_text().strip())).decode('utf-8')
+              lines=src.splitlines()
+              print(f'===== {name} =====')
+              keywords=('Path(', 'read_text', 'write_text', 'build identity', 'MISSING', 'v11.1', 'SMART_HOME_', 'smart_home_build', 'verify(', 'def apply', 'required', 'exists(', 'subprocess', 'git apply', 'patch')
+              for i,line in enumerate(lines,1):
+                  if any(k in line for k in keywords):
+                      print(f'{i:04d}: {line}')
+              if name.startswith('v11_1'):
+                  print('===== v11.1 application/verification tail =====')
+                  for i in range(max(1,len(lines)-48),len(lines)+1):
+                      print(f'{i:04d}: {lines[i-1]}')
+          PY

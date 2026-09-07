@@ -1,0 +1,230 @@
+name: Workshop Instrument UI v11.24 Prototype Gate
+
+on:
+  push:
+    branches:
+      - design/workshop-instrument-ui-v11-24
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workshop-instrument-ui-v11-24-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Reconstruct Build Package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        name: Checkout combined Workshop OS prototype
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate prototype tooling syntax
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/materialize_pinned_upstream.py
+          python -m py_compile apply_smart_home_audio_console_v11_24.py
+          python -m py_compile scripts/validate_audio_console_v11_24.py
+          python -m py_compile apply_workshop_instrument_ui_v1.py
+          python -m py_compile apply_workshop_instrument_ui_v11_24.py
+          python -m py_compile apply_workshop_auto_orientation_v1.py
+          python -m py_compile apply_workshop_auto_orientation_v1_1.py
+          python -m py_compile scripts/validate_workshop_auto_orientation_v1.py
+
+      - name: Materialize exact pinned BambuHelper tree
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf upstream
+          python scripts/materialize_pinned_upstream.py --dest upstream --workers 8
+          cat upstream/.workshop-pinned-upstream.txt
+          git -C upstream init -q
+          git -C upstream config user.name 'Workshop OS Reconstruction'
+          git -C upstream config user.email 'workshop-os-reconstruction@localhost'
+          git -C upstream add -A
+          git -C upstream commit -q -m 'Materialized pinned BambuHelper 8cb1cbbb source tree'
+
+      - name: Reconstruct accepted v11.19 baseline
+        run: bash scripts/apply_workshop_os_v11_19.sh upstream
+      - name: Validate inherited v11.19 device contracts
+        run: python scripts/validate_device_contracts.py
+      - name: Validate accepted v11.19 visual contracts
+        run: python scripts/validate_visual_contracts_v11_19.py upstream
+      - name: Apply accepted v11.19.1 physical-fit delta
+        run: python apply_smart_home_physical_fit_v11_19_1.py --repo upstream --apply
+      - name: Validate accepted v11.19.1 rendered fit
+        run: python scripts/validate_rendered_fit_v11_19_1.py upstream
+      - name: Apply v11.20 Portal Auth
+        run: python apply_smart_home_portal_auth_v11_20.py --repo upstream --apply
+      - name: Validate v11.20 authenticated baseline
+        run: python scripts/validate_portal_auth_v11_20.py upstream
+      - name: Apply v11.22 Display Expert
+        run: python apply_smart_home_display_expert_v11_22.py --repo upstream --apply
+      - name: Validate v11.22 Display Expert
+        run: python scripts/validate_display_expert_v11_22.py upstream
+      - name: Apply v11.23 Network Locale Layout RC1 base
+        run: python apply_smart_home_network_locale_layout_v11_23.py --repo upstream --apply
+      - name: Validate v11.23 RC1 base contract
+        run: python scripts/validate_network_locale_layout_v11_23.py upstream
+      - name: Apply v11.23 RC2 secure touch UX
+        run: python apply_smart_home_touch_ux_v11_23_rc2_secure.py --repo upstream --apply
+      - name: Validate v11.23 RC2 secure touch UX
+        run: python scripts/validate_touch_ux_v11_23_rc2.py upstream
+      - name: Apply v11.23 RC2 secure physical touch finalization
+        run: python apply_smart_home_touch_ux_v11_23_rc2_finalize_secure.py --repo upstream --apply
+      - name: Validate v11.23 RC2 physical touch finalization
+        run: python scripts/validate_touch_ux_v11_23_rc2_finalize.py upstream
+      - name: Apply v11.23 RC2 guarded-action feedback
+        run: python apply_smart_home_touch_ux_v11_23_rc2_guard_feedback.py --repo upstream --apply
+      - name: Validate v11.23 RC2 guarded-action feedback
+        run: python scripts/validate_touch_ux_v11_23_rc2_guard_feedback.py upstream
+      - name: Normalize final authenticated v11.23 boundary
+        run: python apply_smart_home_auth_restore_v11_23_rc2.py --repo upstream --apply
+      - name: Validate final authenticated v11.23 boundary
+        run: python scripts/validate_auth_restore_v11_23_rc2.py upstream
+
+      - name: Apply v11.24 Audio Console
+        run: python apply_smart_home_audio_console_v11_24.py --repo upstream --apply
+      - name: Validate canonical v11.24 Audio Console
+        run: python scripts/validate_audio_console_v11_24.py upstream
+      - name: Validate settings parity after Audio Console
+        run: python scripts/validate_settings_parity.py --repo upstream
+
+      - name: Apply Workshop Instrument UI on v11.24
+        run: python apply_workshop_instrument_ui_v11_24.py --repo upstream --apply
+      - name: Validate v11.24 Instrument UI synthesis
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          build=Path('upstream/include/smart_home_build.h').read_text()
+          hub=Path('upstream/src/smart_hub.cpp').read_text()
+          security=Path('upstream/src/security_manager.cpp').read_text()
+          app=Path('upstream/web/app.js').read_text()
+          for needle in (
+              'SMART_HOME_VERSION "v11.24"',
+              'SMART_HOME_BUILD_LABEL "Smart Home v11.24 Instrument UI Prototype + Audio Console"',
+              'SMART_HOME_PROFILE "instrument-ui-audio-console-prototype"',
+              'WORKSHOP_OS_INSTRUMENT_UI_PROTOTYPE 1',
+          ):
+              assert needle in build, needle
+          for needle in (
+              'Workshop Instrument UI v1 reference-synthesis prototype',
+              'BambuState::progress', 'Live printer state', 'uiDisplaySettingCard',
+              'hubRc2ButtonRef', 'hubRc2CardRef', 'STAGED - NOT APPLIED',
+              'HOLD APPLY + RESTART', 'PORTAL ACCESS', 'securityPortalCode()',
+              'VOLUME -10', 'ECHO 5 SEC', 'AUTO OFF DELAY',
+          ):
+              assert needle in hub, needle
+          combined=build+security+app
+          for forbidden in (
+              'WORKSHOP_OS_TEMP_LAN_OPEN', 'TEMPORARY TRUSTED-LAN MODE',
+              'if (!isAPMode()) return true;', 'v1123Rc2LanOpenBanner',
+          ):
+              assert forbidden not in combined, forbidden
+          print('v11.24 Instrument UI + Audio synthesis: PASS')
+          PY
+
+      - name: Apply QMI8658 auto orientation
+        run: python apply_workshop_auto_orientation_v1_1.py --repo upstream --apply
+      - name: Validate QMI8658 auto-orientation contracts
+        run: python scripts/validate_workshop_auto_orientation_v1.py upstream
+
+      - name: Revalidate final security boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          build=Path('upstream/include/smart_home_build.h').read_text()
+          security=Path('upstream/src/security_manager.cpp').read_text()
+          app=Path('upstream/web/app.js').read_text()
+          combined=build+security+app
+          assert 'Smart Home v11.24 Instrument UI Prototype + Audio Console' in build
+          for forbidden in (
+              'WORKSHOP_OS_TEMP_LAN_OPEN','TEMPORARY TRUSTED-LAN MODE',
+              'if (!isAPMode()) return true;','v1123Rc2LanOpenBanner',
+          ):
+              assert forbidden not in combined, forbidden
+          assert 'return cookieMatches(server);' in security
+          assert 'if (mutating && !sameOrigin(server))' in security
+          print('Final v11.24 combined security boundary: PASS')
+          PY
+
+      - name: Validate browser JavaScript
+        run: node --check upstream/web/app.js
+
+      - name: Install PlatformIO
+        run: python -m pip install --upgrade platformio
+
+      - name: Build WS350 combined prototype
+        working-directory: upstream
+        run: pio run -e ws_lcd_350
+
+      - name: Regression build shared 320x480 target
+        working-directory: upstream
+        run: pio run -e jc3248w535
+
+      - name: Merge Full image
+        working-directory: upstream
+        run: python merge_bins.py --board ws_lcd_350 --full
+
+      - name: Package next-bin artifacts
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          FULL="$(find upstream/firmware -type f -name 'BambuHelper-ws_lcd_350-*-Full.bin' | sort | tail -1)"
+          APP='upstream/.pio/build/ws_lcd_350/firmware.bin'
+          OUT='next-bin-artifacts'
+          mkdir -p "$OUT/tools" "$OUT/docs"
+          cp "$FULL" "$OUT/BambuHelper-ws_lcd_350-v3.8.1-Workshop-OS-v11.24-Instrument-UI-Audio-Auto-Orient-Prototype-Full.bin"
+          cp "$APP" "$OUT/BambuHelper-ws_lcd_350-v3.8.1-Workshop-OS-v11.24-Instrument-UI-Audio-Auto-Orient-Prototype-OTA.bin"
+          cp "$APP" "$OUT/WaveshareHome-firmware.bin"
+          cp scripts/capture-ws350-views.zsh "$OUT/tools/"
+          cp scripts/validate_audio_console_v11_24.py "$OUT/tools/"
+          cp scripts/validate_workshop_auto_orientation_v1.py "$OUT/tools/"
+          cp docs/WORKSHOP_INSTRUMENT_UI_V1.md "$OUT/docs/"
+          cp docs/audio-console-v11-24.md "$OUT/docs/"
+          cp docs/PHYSICAL_ACCEPTANCE_V11_23_RC2.md "$OUT/docs/"
+          {
+            echo 'Workshop OS v11.24 Instrument UI + Audio Console + Auto Orient Prototype'
+            echo "source_sha=${SOURCE_SHA}"
+            echo 'v11_23_base_candidate=757dd25d3921acd45b5d229c29d090d885914751'
+            echo 'v11_24_audio_source=95d321fcf7a1cb5f1e703fccc196b9cee363d2db'
+            echo 'upstream_pin=8cb1cbbb6d3c175af919e8ebe1bbdcbe848ac4'
+            echo 'upstream_tree=754c5506bdac08033f0cdc3439e4814acd2b4294'
+            cat upstream/.workshop-pinned-upstream.txt
+            echo 'release_state=BUILT_TEST_PROTOTYPE'
+            echo 'physical_acceptance=REQUIRED'
+            echo 'instrument_ui=ENABLED'
+            echo 'audio_console_v11_24=ENABLED'
+            echo 'speaker_volume=PERSISTENT_ES8311_DAC_0_100'
+            echo 'mic_echo=1S_3S_5S_LOCAL_ONLY'
+            echo 'auto_orientation=QMI8658_OPTIONAL_DEFAULT_OFF'
+            echo 'auto_orientation_persistence=RUNTIME_ONLY'
+            echo 'manual_rotation_fallback=PRESERVED'
+            echo 'stable_orientation_ms=600'
+            echo 'touch_hold_rotation_guard=ENABLED'
+            echo 'qmi_axis_mapping=REQUIRES_WS350_PHYSICAL_VALIDATION'
+            echo 'speaker_mic_physical_acceptance=REQUIRED'
+            echo 'portal_redaction_geometry=UNCHANGED'
+            echo 'ws350_build=PASS'
+            echo 'jc3248w535_regression=PASS'
+            sha256sum "$OUT"/*.bin
+          } | tee "$OUT/validation-report.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: workshop-instrument-ui-v11-24-audio-auto-orient-prototype
+          retention-days: 14
+          if-no-files-found: error
+          path: next-bin-artifacts/
