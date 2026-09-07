@@ -28,16 +28,31 @@
   }
 
   function measurement(spool) {
-    const start = validNum(spool?.startWeight) && Number(spool.startWeight) > 0 ? Number(spool.startWeight) : 1000;
+    const contract = globalThis.FilamentInventorySpoolContract;
+    if (contract?.measurement) return contract.measurement(spool);
+    const nominal = validNum(spool?.startWeight) && Number(spool.startWeight) > 0 ? Number(spool.startWeight) : null;
     if (validNum(spool?.gross) && validNum(spool?.tare) && Number(spool.gross) >= Number(spool.tare)) {
-      const grams = Math.min(start, Math.max(0, Number(spool.gross) - Number(spool.tare)));
-      return {grams, percent:Math.round((grams / start) * 1000) / 10, source:'Measured'};
+      const grams = Math.max(0, Number(spool.gross) - Number(spool.tare));
+      return {grams,percent:nominal?Math.round(Math.min(100,Math.max(0,grams/nominal*100))*10)/10:null,source:'Measured',evidence:'scale'};
+    }
+    if (validNum(spool?.estimatedRemainingGrams)) {
+      const grams = Math.max(0,Number(spool.estimatedRemainingGrams));
+      return {grams,percent:nominal?Math.round(Math.min(100,Math.max(0,grams/nominal*100))*10)/10:null,source:'Estimated',evidence:'usage'};
     }
     if (validNum(spool?.visualPercent)) {
-      const percent = Math.max(0, Math.min(100, Number(spool.visualPercent)));
-      return {grams:Math.round(start * percent / 100), percent, source:'Visual'};
+      const percent = Math.max(0,Math.min(100,Number(spool.visualPercent)));
+      return {grams:nominal?Math.round(nominal*percent/100):null,percent,source:'Estimated',evidence:'visual'};
     }
-    return {grams:null, percent:null, source:'Unknown'};
+    return {grams:null,percent:null,source:'Unknown',evidence:'none'};
+  }
+
+  function remainingLabel(spool,{compact=false}={}) {
+    const m=measurement(spool);
+    const source=m.source==='Measured'?'Measured':m.source==='Estimated'?'Estimated':'Unknown';
+    if (m.grams === null && m.percent === null) return compact ? 'Unknown remaining' : 'Remaining unknown';
+    if (m.grams === null) return `${source} ${Math.round(m.percent)}% · grams unknown`;
+    if (m.percent === null) return `${Math.round(m.grams)} g · percent unknown${compact?'':` · ${source}`}`;
+    return `${Math.round(m.grams)} g · ${Math.round(m.percent)}%${compact?'':` · ${source}`}`;
   }
 
   const allSpools = () => readState().spools.filter(spool => String(spool?.id || '').trim());
@@ -45,19 +60,15 @@
 
   function linkFor(id) {
     const url = new URL(location.origin + '/');
-    const profile = globalThis.FilamentInventoryUsers?.currentUser?.() || 'Bill';
     url.searchParams.set('spool', id);
     url.searchParams.set('scan', '1');
-    url.hash = new URLSearchParams({'filament-user':profile}).toString();
     return url.toString();
   }
 
   function labelMarkup(spool, preview = true) {
-    const m = measurement(spool);
-    const remain = m.grams === null ? 'Remaining unknown' : `${Math.round(m.grams)} g · ${Math.round(m.percent)}%`;
+    const remain = remainingLabel(spool,{compact:true});
     const details = [spool.brand || 'Unknown', spool.material || 'Unknown', spool.colorName || 'Unknown'].join(' · ');
-    const profile = globalThis.FilamentInventoryUsers?.currentUser?.() || 'Bill';
-    const qr = `/qr?spool=${encodeURIComponent(spool.id)}&profile=${encodeURIComponent(profile)}`;
+    const qr = `/qr?spool=${encodeURIComponent(spool.id)}`;
     if (preview) {
       return `<article class="label-preview"><img alt="QR for ${esc(spool.id)}" loading="lazy" src="${qr}"><div><strong>${esc(spool.id)}</strong><div class="label-line">${esc(details)}</div><div class="label-line label-remaining">${esc(remain)}</div><div class="label-line">${esc(spool.location || 'Location not set')}</div></div></article>`;
     }
@@ -85,8 +96,7 @@
     const q = String(document.getElementById('labelSearch')?.value || '').trim().toLowerCase();
     const rows = allSpools().filter(spool => !q || [spool.id,spool.brand,spool.material,spool.colorName,spool.location].some(value => String(value || '').toLowerCase().includes(q)));
     list.innerHTML = rows.length ? rows.map(spool => {
-      const m = measurement(spool);
-      const status = spool.archivedAt ? 'Archived' : (m.grams === null ? 'Unknown remaining' : `${Math.round(m.grams)} g`);
+      const status = spool.archivedAt ? 'Archived' : remainingLabel(spool,{compact:true});
       const swatch = /^#[0-9a-f]{6}$/i.test(spool.colorHex || '') ? spool.colorHex : '#64748b';
       return `<label class="spool-pick"><input type="checkbox" data-label-id="${esc(spool.id)}" ${selected.has(spool.id) ? 'checked' : ''}><i class="swatch" style="background:${swatch}"></i><span class="spool-pick-copy"><strong>${esc(spool.id)} · ${esc(spool.colorName || 'Unknown')}</strong><small>${esc(spool.brand || 'Unknown')} · ${esc(spool.material || 'Unknown')} · ${esc(spool.location || 'No location')}</small></span><span class="spool-pick-status">${esc(status)}</span></label>`;
     }).join('') : '<div class="sync-empty">No spools match this search.</div>';
@@ -148,8 +158,7 @@
       dialog.showModal();
       return;
     }
-    const m = measurement(spool);
-    const remain = m.grams === null ? 'Remaining amount unknown' : `${Math.round(m.grams)} g remaining · ${Math.round(m.percent)}% · ${m.source}`;
+    const remain = remainingLabel(spool);
     const swatch = /^#[0-9a-f]{6}$/i.test(spool.colorHex || '') ? spool.colorHex : '#64748b';
     body.innerHTML = `<div class="scan-summary"><i class="scan-swatch" style="background:${swatch}"></i><div><strong>${esc(spool.id)}</strong><span>${esc(spool.brand || 'Unknown')} · ${esc(spool.material || 'Unknown')} · ${esc(spool.colorName || 'Unknown')}</span><span>${esc(remain)}</span><span>${esc(spool.location || 'Location not set')}${spool.archivedAt ? ' · Archived' : ''}</span></div></div>`;
     document.getElementById('scanWeighBtn').hidden = Boolean(spool.archivedAt);
@@ -186,7 +195,7 @@
   }
 
   function markup() {
-    return `<div class="labels-workflow"><section class="panel labels-card labels-select-card"><div class="labels-step-head"><span class="labels-step-number">1</span><div><span class="eyebrow">Select spools</span><h3>Choose what to label</h3><p>Search the physical inventory, then select only the labels you need.</p></div></div><div class="label-controls"><div class="search-wrap"><label class="sr-only" for="labelSearch">Search spools</label><input class="field" id="labelSearch" type="search" placeholder="Search ID, brand, material, color, location…"></div><select class="select" id="labelSize" aria-label="Label size"><option value="2x1">2 × 1 in</option><option value="2.25x1.25">2.25 × 1.25 in</option><option value="1.5-square">1.5 × 1.5 in</option></select></div><div class="label-actions"><button class="btn" id="selectActiveLabelsBtn" type="button">Select active</button><button class="btn" id="clearLabelsBtn" type="button">Clear</button><span class="label-selection-count" id="labelSelectionCount">0 selected</span></div><div class="spool-pick-list" id="spoolPickList"></div></section><section class="panel labels-card labels-preview-card"><div class="labels-step-head"><span class="labels-step-number">2</span><div><span class="eyebrow">Preview & print</span><h3>Check the label sheet</h3><p>QR labels contain the app address, spool ID and private profile name—not the private sync key.</p></div></div><div class="label-preview-grid" id="labelPreviewGrid"></div><div class="labels-print-bar"><span>For reliable QR scanning, print at 100% scale.</span><button class="btn btn-primary" id="printLabelsBtn" type="button" disabled>Print selected</button></div></section></div>`;
+    return `<div class="labels-workflow"><section class="panel labels-card labels-select-card"><div class="labels-step-head"><span class="labels-step-number">1</span><div><span class="eyebrow">Select spools</span><h3>Choose what to label</h3><p>Search the physical inventory, then select only the labels you need.</p></div></div><div class="label-controls"><div class="search-wrap"><label class="sr-only" for="labelSearch">Search spools</label><input class="field" id="labelSearch" type="search" placeholder="Search ID, brand, material, color, location…"></div><select class="select" id="labelSize" aria-label="Label size"><option value="2x1">2 × 1 in</option><option value="2.25x1.25">2.25 × 1.25 in</option><option value="1.5-square">1.5 × 1.5 in</option></select></div><div class="label-actions"><button class="btn" id="selectActiveLabelsBtn" type="button">Select active</button><button class="btn" id="clearLabelsBtn" type="button">Clear</button><span class="label-selection-count" id="labelSelectionCount">0 selected</span></div><div class="spool-pick-list" id="spoolPickList"></div></section><section class="panel labels-card labels-preview-card"><div class="labels-step-head"><span class="labels-step-number">2</span><div><span class="eyebrow">Preview & print</span><h3>Check the label sheet</h3><p>QR labels contain only the app address, durable spool ID and scan intent. Owner, quantity, placement and sync credentials stay out of the code.</p></div></div><div class="label-preview-grid" id="labelPreviewGrid"></div><div class="labels-print-bar"><span>For reliable QR scanning, print at 100% scale.</span><button class="btn btn-primary" id="printLabelsBtn" type="button" disabled>Print selected</button></div></section></div>`;
   }
 
   function injectUi() {
