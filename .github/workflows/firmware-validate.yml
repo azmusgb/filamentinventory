@@ -8,7 +8,6 @@ on:
   push:
     branches:
       - main
-      - migration/unified-workshop-monorepo
     paths:
       - 'firmware/workshop-os/**'
       - '.github/workflows/firmware-validate.yml'
@@ -25,20 +24,13 @@ jobs:
   validate:
     name: Reconstruct and Build WS350
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 80
 
     steps:
       - name: Check out unified repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Check out pinned BambuHelper baseline
-        uses: actions/checkout@v4
-        with:
-          repository: Keralots/BambuHelper
-          ref: 8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4
-          path: firmware/workshop-os/upstream
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -49,17 +41,62 @@ jobs:
         working-directory: firmware/workshop-os
         run: |
           set -euo pipefail
-          python -m py_compile apply_smart_home_physical_fit_v11_19_1.py
-          python -m py_compile apply_smart_home_portal_auth_v11_20.py
-          python -m py_compile apply_smart_home_display_expert_v11_22.py
-          python -m py_compile scripts/validate_device_contracts.py
-          python -m py_compile scripts/validate_visual_contracts_v11_19.py
-          python -m py_compile scripts/validate_rendered_fit_v11_19_1.py
-          python -m py_compile scripts/validate_portal_auth_v11_20.py
-          python -m py_compile scripts/validate_display_expert_v11_22.py
-          python -m py_compile scripts/validate_settings_parity.py
+          required=(
+            apply_smart_home_physical_fit_v11_19_1.py
+            apply_smart_home_portal_auth_v11_20.py
+            apply_smart_home_display_expert_v11_22.py
+            scripts/materialize_pinned_upstream.py
+            scripts/validate_device_contracts.py
+            scripts/validate_visual_contracts_v11_19.py
+            scripts/validate_rendered_fit_v11_19_1.py
+            scripts/validate_portal_auth_v11_20.py
+            scripts/validate_display_expert_v11_22.py
+            scripts/validate_settings_parity.py
+          )
+          optional=(
+            apply_smart_home_network_locale_layout_v11_23.py
+            apply_smart_home_touch_ux_v11_23_rc2.py
+            apply_smart_home_touch_ux_v11_23_rc2_secure.py
+            apply_smart_home_touch_ux_v11_23_rc2_finalize.py
+            apply_smart_home_touch_ux_v11_23_rc2_finalize_secure.py
+            apply_smart_home_touch_ux_v11_23_rc2_guard_feedback.py
+            apply_smart_home_auth_restore_v11_23_rc2.py
+            scripts/validate_network_locale_layout_v11_23.py
+            scripts/validate_touch_ux_v11_23_rc2.py
+            scripts/validate_touch_ux_v11_23_rc2_finalize.py
+            scripts/validate_touch_ux_v11_23_rc2_guard_feedback.py
+            scripts/validate_auth_restore_v11_23_rc2.py
+            apply_smart_home_audio_console_v11_24.py
+            scripts/validate_audio_console_v11_24.py
+            apply_workshop_instrument_ui_v1.py
+            apply_workshop_instrument_ui_v11_24.py
+            apply_workshop_auto_orientation_v1.py
+            apply_workshop_auto_orientation_v1_1.py
+            apply_workshop_auto_orientation_v1_2.py
+            scripts/validate_workshop_instrument_ui_v1.py
+            scripts/validate_workshop_auto_orientation_v1.py
+          )
+          for f in "${required[@]}"; do python -m py_compile "$f"; done
+          for f in "${optional[@]}"; do
+            if [[ -f "$f" ]]; then python -m py_compile "$f"; fi
+          done
           bash -n scripts/apply_workshop_os_v11_19.sh
           bash -n scripts/capture-ws350-views.zsh
+
+      - name: Materialize exact pinned BambuHelper source
+        working-directory: firmware/workshop-os
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf upstream
+          python scripts/materialize_pinned_upstream.py --dest upstream --workers 8
+          cat upstream/.workshop-pinned-upstream.txt
+          git -C upstream init -q
+          git -C upstream config user.name 'Workshop OS Reconstruction'
+          git -C upstream config user.email 'workshop-os-reconstruction@localhost'
+          git -C upstream add -A
+          git -C upstream commit -q -m 'Materialized pinned BambuHelper source tree'
 
       - name: Reconstruct accepted v11.19 baseline
         working-directory: firmware/workshop-os
@@ -97,9 +134,76 @@ jobs:
         working-directory: firmware/workshop-os
         run: python scripts/validate_display_expert_v11_22.py upstream
 
-      - name: Validate settings parity
+      - name: Apply and validate candidate layers present in this PR
         working-directory: firmware/workshop-os
-        run: python scripts/validate_settings_parity.py --repo upstream
+        run: |
+          set -euo pipefail
+
+          if [[ -f apply_smart_home_network_locale_layout_v11_23.py ]]; then
+            echo 'candidate_stage=v11.23-rc2'
+            python apply_smart_home_network_locale_layout_v11_23.py --repo upstream --apply
+            python scripts/validate_network_locale_layout_v11_23.py upstream
+            python apply_smart_home_touch_ux_v11_23_rc2_secure.py --repo upstream --apply
+            python scripts/validate_touch_ux_v11_23_rc2.py upstream
+            python apply_smart_home_touch_ux_v11_23_rc2_finalize_secure.py --repo upstream --apply
+            python scripts/validate_touch_ux_v11_23_rc2_finalize.py upstream
+            python scripts/validate_touch_ux_v11_23_rc2.py upstream
+            python apply_smart_home_touch_ux_v11_23_rc2_guard_feedback.py --repo upstream --apply
+            python scripts/validate_touch_ux_v11_23_rc2_guard_feedback.py upstream
+            python apply_smart_home_auth_restore_v11_23_rc2.py --repo upstream --apply
+            python scripts/validate_auth_restore_v11_23_rc2.py upstream
+          fi
+
+          if [[ -f apply_smart_home_audio_console_v11_24.py ]]; then
+            echo 'candidate_stage=v11.24-audio'
+            python apply_smart_home_audio_console_v11_24.py --repo upstream --apply
+            python scripts/validate_audio_console_v11_24.py upstream
+          fi
+
+          # Registry validation must run after the authoritative candidate layer
+          # represented by the branch has been reconstructed. Running it at
+          # v11.22 against a v11.23/v11.24 registry yields a false failure.
+          python scripts/validate_settings_parity.py --repo upstream
+
+          if [[ -f apply_workshop_instrument_ui_v11_24.py ]]; then
+            echo 'candidate_stage=v11.24-instrument-ui-auto-orient'
+            python apply_workshop_instrument_ui_v11_24.py --repo upstream --apply
+            python - <<'PY'
+          from pathlib import Path
+          build=Path('upstream/include/smart_home_build.h').read_text()
+          hub=Path('upstream/src/smart_hub.cpp').read_text()
+          security=Path('upstream/src/security_manager.cpp').read_text()
+          app=Path('upstream/web/app.js').read_text()
+          for needle in (
+              'SMART_HOME_VERSION "v11.24"',
+              'SMART_HOME_BUILD_LABEL "Smart Home v11.24 Instrument UI Prototype + Audio Console"',
+              'SMART_HOME_PROFILE "instrument-ui-audio-console-prototype"',
+              'WORKSHOP_OS_INSTRUMENT_UI_PROTOTYPE 1',
+          ):
+              assert needle in build, needle
+          for needle in (
+              'Workshop Instrument UI v1 reference-synthesis prototype',
+              'BambuState::progress', 'Live printer state', 'uiDisplaySettingCard',
+              'hubRc2ButtonRef', 'hubRc2CardRef', 'STAGED - NOT APPLIED',
+              'HOLD APPLY + RESTART', 'PORTAL ACCESS', 'securityPortalCode()',
+              'VOLUME -10', 'ECHO 5 SEC', 'AUTO OFF DELAY',
+          ):
+              assert needle in hub, needle
+          combined=build+security+app
+          for forbidden in (
+              'WORKSHOP_OS_TEMP_LAN_OPEN', 'TEMPORARY TRUSTED-LAN MODE',
+              'if (!isAPMode()) return true;', 'v1123Rc2LanOpenBanner',
+          ):
+              assert forbidden not in combined, forbidden
+          print('v11.24 Instrument UI + Audio synthesis: PASS')
+          PY
+            if [[ -f apply_workshop_auto_orientation_v1_2.py ]]; then
+              python apply_workshop_auto_orientation_v1_2.py --repo upstream --apply
+            else
+              python apply_workshop_auto_orientation_v1_1.py --repo upstream --apply
+            fi
+            python scripts/validate_workshop_auto_orientation_v1.py upstream
+          fi
 
       - name: Validate final authenticated boundary
         working-directory: firmware/workshop-os
@@ -148,7 +252,7 @@ jobs:
       - name: Package monorepo firmware evidence
         shell: bash
         env:
-          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           FW='firmware/workshop-os'
@@ -156,18 +260,37 @@ jobs:
           APP="$FW/upstream/.pio/build/ws_lcd_350/firmware.bin"
           OUT='firmware-validation-artifacts'
           mkdir -p "$OUT/tools" "$OUT/docs"
-          cp "$FULL" "$OUT/Workshop-OS-Accepted-Line-Full.bin"
-          cp "$APP" "$OUT/Workshop-OS-Accepted-Line-OTA.bin"
+          cp "$FULL" "$OUT/Workshop-OS-Monorepo-Candidate-Full.bin"
+          cp "$APP" "$OUT/Workshop-OS-Monorepo-Candidate-OTA.bin"
+          cp "$APP" "$OUT/WaveshareHome-firmware.bin"
           cp "$FW/scripts/capture-ws350-views.zsh" "$OUT/tools/"
           cp "$FW/docs/physical-settings-parity.md" "$OUT/docs/"
           cp "$FW/releases/current.json" "$OUT/docs/release-state.json"
+          cp "$FW/upstream/.workshop-pinned-upstream.txt" "$OUT/docs/pinned-upstream.txt"
+          cp "$FW/upstream/.workshop-pinned-upstream-excluded.txt" "$OUT/docs/pinned-upstream-excluded.txt"
+          for f in \
+            "$FW/docs/PHYSICAL_ACCEPTANCE_V11_23_RC2.md" \
+            "$FW/docs/audio-console-v11-24.md" \
+            "$FW/docs/WORKSHOP_INSTRUMENT_UI_V1.md"; do
+            if [[ -f "$f" ]]; then cp "$f" "$OUT/docs/"; fi
+          done
+          BUILD_LABEL="$(python - <<'PY'
+          import re
+          from pathlib import Path
+          text=Path('firmware/workshop-os/upstream/include/smart_home_build.h').read_text()
+          m=re.search(r'SMART_HOME_BUILD_LABEL\s+"([^"]+)"', text)
+          print(m.group(1) if m else 'Unknown')
+          PY
+          )"
           {
             echo 'Unified Filament Inventory + Workshop OS monorepo firmware validation'
             echo "monorepo_source_sha=${SOURCE_SHA}"
+            echo "build_label=${BUILD_LABEL}"
             echo 'firmware_path=firmware/workshop-os'
-            echo 'imported_workshop_os_main=e914958478810bcd10417d27058aee1c14539a85'
+            echo 'upstream_commit_identity=8cb1cbbb6d3c175af919e8ebe1bbdcbe848ac4'
+            echo 'upstream_tree=754c5506bdac08033f0cdc3439e4814acd2b4294'
             echo 'release_state=BUILT_TEST_EVIDENCE_ONLY'
-            echo 'physical_acceptance=NOT_GRANTED_BY_MIGRATION'
+            echo 'physical_acceptance=NOT_GRANTED_BY_CI'
             echo 'ws350_build=PASS'
             echo 'jc3248w535_regression=PASS'
             sha256sum "$OUT"/*.bin
