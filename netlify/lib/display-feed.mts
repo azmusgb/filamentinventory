@@ -28,7 +28,6 @@ export type DisplayFeed = {
   stale:boolean;
 };
 
-const DEFAULT_NOMINAL_GRAMS = 1000;
 const DEFAULT_REORDER_GRAMS = 250;
 const STALE_AFTER_MS = 30 * 60 * 1000;
 
@@ -49,11 +48,14 @@ function remainingGrams(spool:any): number | null {
   if (estimated !== null) return Math.max(0, estimated);
 
   const visual = finite(spool?.visualPercent);
-  if (visual !== null) {
-    const nominal = Math.max(1, finite(spool?.startWeight) ?? DEFAULT_NOMINAL_GRAMS);
-    return Math.max(0, Math.min(nominal, nominal * Math.max(0, Math.min(100, visual)) / 100));
+  const nominal = finite(spool?.startWeight);
+  if (visual !== null && nominal !== null && nominal > 0) {
+    const percent = Math.max(0, Math.min(100, visual));
+    return Math.max(0, Math.min(nominal, nominal * percent / 100));
   }
 
+  // A visual percentage without known nominal filament weight is useful
+  // evidence, but it is not enough to invent authoritative grams.
   return null;
 }
 
