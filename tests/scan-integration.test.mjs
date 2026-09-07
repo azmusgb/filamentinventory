@@ -28,18 +28,26 @@ test('current-workspace scans open physical spool mode without a page reload', a
   assert.match(client, /function openPhysicalSpool\(id\)/);
   assert.match(client, /FilamentInventorySpoolActions/);
   assert.match(client, /actions\.openPhysical/);
-  assert.match(client, /exists&&resolved===current/);
+  assert.match(client, /stateHasSpool\(state,parsed\.spoolId\)/);
   assert.match(client, /Opening spool controls/);
   assert.match(client, /if\(!openPhysicalSpool\(parsed\.spoolId\)\)location\.assign\(target\)/);
 });
 
-test('cross-profile scans still use a profile-aware reload to preserve isolation', async () => {
+test('scanner never searches or switches to another private profile', async () => {
   const client = await read('scan-client.js');
-  assert.match(client, /Switching to .*private inventory/);
-  assert.match(client, /core\.buildSpoolTarget/);
-  assert.match(client, /location\.assign\(target\)/);
-  assert.match(client, /reconcileIncomingLegacyScan/);
-  assert.match(client, /location\.replace\(core\.buildSpoolTarget/);
+  assert.doesNotMatch(client, /allProfileStates/);
+  assert.doesNotMatch(client, /physicalKey\?\./);
+  assert.doesNotMatch(client, /Switching to .*private inventory/);
+  assert.doesNotMatch(client, /resolved!==current/);
+  assert.doesNotMatch(client, /reconcileIncomingLegacyScan/);
+  assert.match(client, /active private inventory/);
+});
+
+test('scanner rejects stale results after active workspace changes', async () => {
+  const client = await read('scan-client.js');
+  assert.match(client, /scanProfile=currentProfile\(\)/);
+  assert.match(client, /scanProfile&&scanProfile!==currentProfile\(\)/);
+  assert.match(client, /Workspace changed/);
 });
 
 test('scanner exposes a small public adapter for shell and physical-spool workflows', async () => {
@@ -57,16 +65,15 @@ test('scanner has one direct found-spool path and one explicit unknown-spool rec
   assert.match(client, /data-unknown-sync/);
   assert.match(client, /data-unknown-add/);
   assert.doesNotMatch(client, /function openEditFromScan|function openPlacementFromScan|scanOpenSpoolBtn|scanEditBtn|scanPlacementBtn/);
-  assert.match(client, /resolveProfile/);
 });
 
-test('new QR labels encode profile while never embedding sync credentials', async () => {
+test('new QR labels encode durable spool identity only and never embed profile or sync credentials', async () => {
   const [labels, qr] = await Promise.all([read('labels-client.js'), read('netlify/functions/qr.mts')]);
-  assert.match(labels, /profile=\$\{encodeURIComponent/);
-  assert.match(labels, /filament-user/);
-  assert.match(qr, /searchParams\.get\('profile'\)/);
-  assert.match(qr, /filament-user/);
-  assert.match(qr, /\['Bill','Aimee'\]/);
+  assert.match(labels, /\/qr\?spool=\$\{encodeURIComponent\(spool\.id\)\}/);
+  assert.doesNotMatch(labels, /profile=\$\{encodeURIComponent/);
+  assert.doesNotMatch(labels, /filament-user/);
+  assert.doesNotMatch(qr, /searchParams\.get\('profile'\)/);
+  assert.doesNotMatch(qr, /filament-user/);
   assert.doesNotMatch(qr, /sync-key|syncKey|filament-sync/i);
 });
 
