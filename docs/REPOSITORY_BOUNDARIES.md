@@ -1,12 +1,12 @@
 # Repository boundaries
 
-`azmusgb/filamentinventory` is the **single canonical repository** for Filament Inventory + Workshop OS.
+This repository is the authoritative product boundary for **Filament Inventory**.
 
-Repository consolidation does not collapse subsystem authority. The monorepo contains distinct authoritative domains with explicit interfaces between them.
+It now also contains a history-preserved Workshop OS integration mirror under `firmware/workshop-os/` so product-level contracts and firmware reconstruction can be tested together. That mirror does **not** replace the current firmware authority.
 
-## Inventory / cloud authority
+## Filament Inventory authority
 
-The root application, cloud functions, domain modules, tests, and inventory-facing documentation own:
+`azmusgb/filamentinventory` owns:
 
 - canonical spool identity and lifecycle;
 - remaining-quantity evidence, measurement precedence, and inventory calculations;
@@ -23,18 +23,17 @@ Bill/Aimee remains a **transitional implementation**, not the permanent househol
 
 ## Workshop OS authority
 
-`firmware/workshop-os/` owns:
+Production Workshop OS firmware for the WS350 remains owned by:
 
-- WS350 firmware and hardware-facing runtime behavior;
-- touchscreen UX and physical interaction contracts;
-- Bambu printer control and mapped smart-plug control;
-- audio, microphone, BLE/device-companion behavior;
-- local portal/session security, networking, device settings, OTA, full-image recovery, and rollback behavior;
-- native WS350 builds, shared-target regression builds, framebuffer/device validation, release artifacts, and physical acceptance evidence.
+- `azmusgb/bambuhelper-smart-display`
 
-Workshop OS is **not** authoritative for spool identity, owner, quantity, inventory placement truth, Grounded Assistant evidence, or cloud profile state. It consumes those facts through explicit versioned interfaces.
+That repository remains authoritative for WS350 firmware, touch/navigation behavior, Bambu and mapped-power controls, audio/microphone/BLE, networking, local portal/session security, OTA/full-image recovery, firmware release provenance, native hardware builds, and physical acceptance.
+
+The imported `firmware/workshop-os/` tree in this repository is an **integration mirror** used for unified contract checks, reconstruction, candidate comparison, and recovery planning. It must not become a competing release authority unless the project authority model is explicitly changed.
 
 ## Device contract
+
+Workshop OS consumes inventory facts through explicit authenticated APIs rather than becoming a second inventory authority.
 
 Current device-facing inventory contract:
 
@@ -45,7 +44,7 @@ Current device-facing inventory contract:
 
 The current sync-key reuse is a compatibility bridge. The target hardening increment is a revocable device-scoped credential with narrower read/assistant permissions and no inventory mutation authority.
 
-The device contract must remain versioned, minimal, redacted, profile-scoped, freshness-aware, and explicit about unknown state.
+The contract must remain versioned, minimal, redacted, profile-scoped, freshness-aware, and explicit about unknown state.
 
 ## Physical-state rule
 
@@ -70,17 +69,17 @@ The LLM interprets and explains authoritative inventory evidence; it does not cr
 - configured transport is not reported as Grounded model success until a validated profile-scoped model response succeeds;
 - deterministic/local fallback remains available.
 
-## Legacy firmware and former repository
+## Legacy firmware and recovery
 
 The historical `firmware/waveshare-home/` tree and `WaveshareHome-ESP32S3-1.6.0-fullflash/` recovery material are retained for migration/reference/recovery only. They are not active competing firmware authorities.
 
-The former `azmusgb/bambuhelper-smart-display` repository is now historical provenance for Workshop OS history and release references. Do not delete or rewrite it until the unified repository's recovery references and physical cross-line migration path are fully verified.
+Waveshare Home and Workshop OS use incompatible partition layouts. Cross-line migration remains a **full-image flash at `0x0`**, not OTA.
 
-Cross-line Waveshare Home -> Workshop OS migration remains a **full-image flash at `0x0`**, not OTA, because the partition layouts differ.
+Do not remove the known-good recovery image, flashing procedure, artifact identity/hash, or rollback documentation until the replacement path is physically proven.
 
 ## Release-state rule
 
-Repository location never promotes release state. Keep these states distinct:
+Repository location and CI do not promote release state. Keep these states distinct:
 
 `implemented -> built -> tested -> runtime validated -> production validated -> physically validated -> accepted -> stable`
 
