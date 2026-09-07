@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
   <meta content="#0D0F14" name="theme-color"/>
-  <meta content="Local-first 3D printer filament inventory dashboard." name="description"/>
+  <meta content="Profile-scoped filament inventory, printer placement, print readiness, sync and workshop decision support." name="description"/>
   <meta content="yes" name="apple-mobile-web-app-capable"/>
   <meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"/>
   <meta content="Filament Inventory" name="apple-mobile-web-app-title"/>
@@ -43,9 +43,9 @@
       <section aria-hidden="false" aria-labelledby="dashboardTitle" class="view active" id="dashboardView">
         <div class="hero">
           <article class="hero-card hero-copy">
-            <span class="eyebrow">Inventory control center</span>
-            <h2 id="dashboardTitle">Know what you have. Use what is low. Reorder with confidence.</h2>
-            <p class="lead">Track brand, material, color, location, storage, drying, purchase details, reorder thresholds, and measured remaining weight. Archive finished spools without losing history, and keep backups portable to Google Sheets or another system later.</p>
+            <span class="eyebrow">Workshop inventory</span>
+            <h2 id="dashboardTitle">Know what exists, what is loaded, and what needs attention.</h2>
+            <p class="lead">Use measured evidence when available, keep uncertain quantities explicit, and move from inventory to printer placement and print readiness without inventing physical state.</p>
             <div class="hero-actions">
               <button class="btn btn-primary" aria-controls="spoolDialog" aria-haspopup="dialog" id="heroAddBtn" type="button">Add a spool</button>
               <button class="btn" data-jump="weigh" type="button">Weigh a spool</button>
@@ -58,21 +58,17 @@
               <h3 class="priority-heading">What needs attention</h3>
               <div class="quick-list" id="priorityList"></div>
             </div>
-            <p class="muted priority-evidence-note">Measured gross − tare weight overrides visual estimates. Unknown stays unknown until verified.</p>
+            <p class="muted priority-evidence-note">Measured gross − tare is strongest. Estimates stay estimates. Unknown stays unknown until verified.</p>
           </aside>
         </div>
         <div class="metrics" id="metrics"></div>
         <div class="grid-2">
           <section class="panel">
-            <header class="panel-head">
-              <div><h3>Fill distribution</h3><p>Active inventory only.</p></div>
-            </header>
+            <header class="panel-head"><div><h3>Fill distribution</h3><p>Active inventory only.</p></div></header>
             <div class="status-bars" id="statusBars"></div>
           </section>
           <section class="panel">
-            <header class="panel-head">
-              <div><h3>Material mix</h3><p>Top active material/type groups.</p></div>
-            </header>
+            <header class="panel-head"><div><h3>Material mix</h3><p>Top active material/type groups.</p></div></header>
             <div class="material-grid" id="materialGrid"></div>
           </section>
         </div>
@@ -85,10 +81,7 @@
             <button class="btn btn-primary" aria-controls="spoolDialog" aria-haspopup="dialog" id="inventoryAddBtn" type="button">+ Add spool</button>
           </header>
           <div class="toolbar toolbar-v3">
-            <div class="search-wrap">
-              <label class="sr-only" for="searchInput">Search inventory</label>
-              <input autocomplete="off" class="field" id="searchInput" placeholder="Search brand, color, type, source, ID…" type="search"/>
-            </div>
+            <div class="search-wrap"><label class="sr-only" for="searchInput">Search inventory</label><input autocomplete="off" class="field" id="searchInput" placeholder="Search brand, color, type, source, ID…" type="search"/></div>
             <select aria-label="Lifecycle" class="select" id="lifecycleFilter"><option value="active">Active</option><option value="all">Active + archived</option><option value="archived">Archived only</option></select>
             <select aria-label="Filter by material" class="select" id="materialFilter"><option value="">All materials</option></select>
             <select aria-label="Filter by stock status" class="select" id="statusFilter"><option value="">All levels</option><option>Reorder needed</option><option>Nearly full</option><option>High</option><option>Good</option><option>Medium</option><option>Low</option><option>Very low</option><option>Unknown</option></select>
@@ -105,7 +98,7 @@
           <section class="panel weigh-card">
             <span class="eyebrow">Smart Weigh</span>
             <h2 class="weigh-page-title" id="weighTitle">Weigh a spool</h2>
-            <p class="muted weigh-intro">Gross scale weight minus empty-spool tare becomes the authoritative remaining amount. Suggested tare values always require explicit acceptance.</p>
+            <p class="muted weigh-intro">Gross scale weight minus empty-spool tare becomes the strongest remaining-quantity evidence. Suggested tare values require explicit acceptance.</p>
             <form class="form-grid weigh-form" id="weighForm">
               <div class="form-field full"><label for="weighSpool">Spool</label><select class="select" id="weighSpool" required></select></div>
               <div class="form-field"><label for="grossWeight">Gross weight (g)</label><input class="field" id="grossWeight" inputmode="decimal" min="0" placeholder="742" required step="1" type="number"/></div>
@@ -116,8 +109,7 @@
             </form>
           </section>
           <aside class="panel weigh-card">
-            <span class="eyebrow">Live calculation</span>
-            <h3 class="weigh-preview-title">Measurement preview</h3>
+            <span class="eyebrow">Live calculation</span><h3 class="weigh-preview-title">Measurement preview</h3>
             <div class="calc" id="calcPreview">
               <div class="calc-row"><span>Gross</span><strong id="calcGross">—</strong></div>
               <div class="calc-row"><span>Tare</span><strong id="calcTare">—</strong></div>
@@ -132,29 +124,23 @@
 
       <section aria-hidden="true" aria-labelledby="historyTitle" class="view" hidden id="historyView" inert>
         <section class="panel">
-          <header class="panel-head">
-            <div><h3 id="historyTitle">Measurement history</h3><p id="historyCount">0 measurements</p></div>
-            <button class="btn" id="exportHistoryBtn" type="button">Export history CSV</button>
-          </header>
-          <div class="history-toolbar"><label class="sr-only" for="historySearch">Search activity</label><input class="field" id="historySearch" type="search" placeholder="Search spool, brand, color, note, location…"/></div>
+          <header class="panel-head"><div><h3 id="historyTitle">Activity</h3><p id="historyCount">0 events</p></div><button class="btn" id="exportHistoryBtn" type="button">Export activity CSV</button></header>
+          <div class="history-toolbar"><label class="sr-only" for="historySearch">Search activity</label><input class="field" id="historySearch" type="search" placeholder="Search spool, action, brand, color, note, location…"/></div>
           <div class="history-list" id="historyList"></div>
         </section>
       </section>
 
       <section aria-hidden="true" aria-labelledby="dataTitle" class="view" hidden id="dataView" inert>
         <section class="panel">
-          <header class="panel-head">
-            <div><h3 id="dataTitle">Data, backup &amp; install</h3><p>Everything stays in this browser until you export it. JSON is the full-fidelity backup.</p></div>
-            <button class="btn" id="installBtn" type="button" disabled>Install app</button>
-          </header>
+          <header class="panel-head"><div><h3 id="dataTitle">Data, sync, backup &amp; install</h3><p>Your active profile keeps a local working copy. When device sync is configured, profile-scoped cloud state can reconcile with it. JSON remains the full-fidelity portable backup.</p></div><button class="btn" id="installBtn" type="button" disabled>Install app</button></header>
           <div class="health-grid" id="dataHealth"></div>
           <div class="data-actions data-actions-spaced">
-            <article class="data-box"><h4>Export JSON</h4><p>Best backup. Includes active + archived spools, purchase metadata, thresholds, drying dates, and measurement history.</p><button class="btn" id="exportJsonBtn" type="button">Download JSON backup</button></article>
-            <article class="data-box"><h4>Export inventory CSV</h4><p>Google Sheets/Excel-ready inventory including remaining weight, archive state, reorder state, storage, and purchase data.</p><button class="btn" id="exportCsvBtn" type="button">Download inventory CSV</button></article>
-            <article class="data-box"><h4>Import JSON</h4><p>Restore or merge a prior app backup. You choose replace vs merge after selecting the file.</p><button class="btn" id="importJsonBtn" type="button">Choose JSON backup</button><input accept="application/json,.json" class="sr-only" id="importJsonFile" type="file"/></article>
-            <article class="data-box"><h4>Import CSV</h4><p>Merge an edited Google Sheets/Excel inventory export back into the app by spool ID.</p><button class="btn" id="importCsvBtn" type="button">Choose inventory CSV</button><input accept="text/csv,.csv" class="sr-only" id="importCsvFile" type="file"/></article>
-            <article class="data-box"><h4>Install on iPhone/iPad</h4><p>In Safari use Share → Add to Home Screen. On supported desktop/mobile browsers, the Install app button above will become available.</p></article>
-            <article class="data-box danger-zone"><h4>Reset starter inventory</h4><p>Replace local data with the conservative 21-spool photo-audited starter inventory.</p><button class="btn btn-danger" id="resetBtn" type="button">Reset local data</button></article>
+            <article class="data-box"><h4>Export JSON</h4><p>Full-fidelity portable backup of this profile, including active and archived spools, evidence, metadata, and activity.</p><button class="btn" id="exportJsonBtn" type="button">Download JSON backup</button></article>
+            <article class="data-box"><h4>Export inventory CSV</h4><p>Google Sheets/Excel-ready inventory. Estimated and measured quantity evidence remain distinguishable.</p><button class="btn" id="exportCsvBtn" type="button">Download inventory CSV</button></article>
+            <article class="data-box"><h4>Import JSON</h4><p>Restore or merge a prior app backup after previewing the operation. Tombstones and newer records remain protected by the merge contract.</p><button class="btn" id="importJsonBtn" type="button">Choose JSON backup</button><input accept="application/json,.json" class="sr-only" id="importJsonFile" type="file"/></article>
+            <article class="data-box"><h4>Import CSV</h4><p>Merge an edited inventory export back by durable spool ID. CSV does not become evidence for fields it does not contain.</p><button class="btn" id="importCsvBtn" type="button">Choose inventory CSV</button><input accept="text/csv,.csv" class="sr-only" id="importCsvFile" type="file"/></article>
+            <article class="data-box"><h4>Install on iPhone/iPad</h4><p>In Safari use Share → Add to Home Screen. Supported browsers may also expose the Install app action above.</p></article>
+            <article class="data-box danger-zone"><h4>Reset starter inventory</h4><p>Replace this profile's local data with the conservative photo-audited starter inventory.</p><button class="btn btn-danger" id="resetBtn" type="button">Reset local data</button></article>
           </div>
         </section>
       </section>
@@ -163,10 +149,7 @@
 
   <dialog aria-labelledby="dialogTitle" id="spoolDialog">
     <form id="spoolForm" method="dialog">
-      <header class="dialog-head">
-        <h3 id="dialogTitle">Add spool</h3>
-        <button aria-label="Close dialog" class="btn icon-btn" id="dialogCloseBtn" type="button" value="cancel">×</button>
-      </header>
+      <header class="dialog-head"><h3 id="dialogTitle">Add spool</h3><button aria-label="Close dialog" class="btn icon-btn" id="dialogCloseBtn" type="button" value="cancel">×</button></header>
       <div class="dialog-body">
         <input id="editOriginalId" type="hidden"/>
         <div class="form-grid">
@@ -176,7 +159,7 @@
           <div class="form-field"><label for="colorName">Color / finish</label><input class="field" id="colorName" maxlength="60" placeholder="White"/></div>
           <div class="form-field"><label for="colorHex">Color swatch</label><input class="field color-field" id="colorHex" type="color" value="#e5e7eb"/></div>
           <div class="form-field"><label for="spoolType">Spool format</label><select class="select" id="spoolType"><option>Cardboard</option><option>Plastic</option><option>Spoolless / refill</option><option>Unknown</option></select></div>
-          <div class="form-field"><label for="startWeight">Starting filament (g)</label><input class="field" id="startWeight" min="1" step="1" type="number" value="1000"/></div>
+          <div class="form-field"><label for="startWeight">Nominal filament weight (g)</label><input class="field" id="startWeight" min="1" step="1" type="number" placeholder="Unknown until entered"/></div>
           <div class="form-field"><label for="visualPercent">Visual estimate (%)</label><input class="field" id="visualPercent" max="100" min="0" placeholder="65" step="1" type="number"/></div>
           <div class="form-field"><label for="grossEdit">Gross weight (g)</label><input class="field" id="grossEdit" min="0" placeholder="Optional" step="1" type="number"/></div>
           <div class="form-field"><label for="tareEdit">Tare weight (g)</label><input class="field" id="tareEdit" min="0" placeholder="Optional" step="1" type="number"/></div>
@@ -184,54 +167,68 @@
           <div class="form-field"><label for="confidence">Identification confidence</label><select class="select" id="confidence"><option>Confirmed</option><option>High</option><option>Medium</option><option>Low</option><option>Unknown</option></select></div>
           <div class="form-field"><label for="opened">Opened</label><select class="select" id="opened"><option>Unknown</option><option>Yes</option><option>No</option></select></div>
           <div class="form-field"><label for="bagged">Bagged / sealed storage</label><select class="select" id="bagged"><option>Unknown</option><option>Yes</option><option>No</option></select></div>
+          <div class="form-field"><label for="purchaseSource">Purchase source</label><input class="field" id="purchaseSource" maxlength="100" placeholder="Micro Center / Bambu Lab / Amazon"/></div>
+          <div class="form-field"><label for="purchasePrice">Purchase price</label><input class="field" id="purchasePrice" min="0" step="0.01" type="number"/></div>
+          <div class="form-field"><label for="purchaseDate">Purchase date</label><input class="field" id="purchaseDate" type="date"/></div>
           <div class="form-field"><label for="reorderThreshold">Reorder threshold (g)</label><input class="field" id="reorderThreshold" min="0" step="1" type="number" value="250"/></div>
           <div class="form-field"><label for="lastDriedDate">Last dried</label><input class="field" id="lastDriedDate" type="date"/></div>
-          <div class="form-field"><label for="purchaseSource">Purchase source</label><input class="field" id="purchaseSource" maxlength="80" placeholder="Micro Center / Amazon"/></div>
-          <div class="form-field"><label for="purchasePrice">Purchase price</label><input class="field" id="purchasePrice" inputmode="decimal" min="0" placeholder="14.99" step="0.01" type="number"/></div>
-          <div class="form-field"><label for="purchaseDate">Purchase date</label><input class="field" id="purchaseDate" type="date"/></div>
-          <div class="form-field full"><label for="notes">Notes</label><textarea class="field" id="notes" maxlength="500" placeholder="Label evidence, drying notes, purchase details…"></textarea></div>
+          <div class="form-field full"><label for="notes">Notes</label><textarea class="field" id="notes" maxlength="1000"></textarea></div>
         </div>
-        <footer class="dialog-actions">
-          <button class="btn" id="cancelSpoolBtn" type="button">Cancel</button>
-          <button class="btn btn-primary" type="submit" value="default">Save spool</button>
-        </footer>
       </div>
+      <footer class="dialog-actions"><button class="btn" id="dialogCancelBtn" type="button" value="cancel">Cancel</button><button class="btn btn-primary" id="dialogSaveBtn" type="submit" value="default">Save spool</button></footer>
     </form>
   </dialog>
 
-  <div aria-live="polite" class="toast" id="toast" role="status"></div>
-
-  <script defer src="/app-version.js"></script>
-  <script defer src="/events.js"></script>
-  <script defer src="/state-merge.js"></script>
-  <script defer src="/audit-core.js"></script>
-  <script defer src="/personal-core.js"></script>
-  <script defer src="/intake-core.js"></script>
-  <script defer src="/scan-core.js"></script>
-  <script defer src="/printer-core.js"></script>
-  <script defer src="/inventory-command-core.js"></script>
-  <script defer src="/spool-actions-core.js"></script>
-  <script defer src="/smart-weigh-core.js"></script>
-  <script defer src="/bulk-actions-core.js"></script>
-  <script defer src="/user-isolation.js"></script>
-  <script defer src="/sync-client.js"></script>
-  <script defer src="/security-client.js"></script>
-  <script defer src="/labels-client.js"></script>
-  <script defer src="/household-client.js"></script>
-  <script defer src="/ux-client.js"></script>
-  <script defer src="/audit-client.js"></script>
-  <script defer src="/personal-dashboard.js"></script>
-  <script defer src="/intake-client.js"></script>
-  <script defer src="/scan-client.js"></script>
-  <script defer src="/printer-dashboard.js"></script>
-  <script defer src="/inventory-command-client.js"></script>
-  <script defer src="/spool-actions-client.js"></script>
-  <script defer src="/smart-weigh-client.js"></script>
-  <script defer src="/bulk-actions-client.js"></script>
-  <script defer src="/workflows.js"></script>
-  <script defer src="/ui-v10-client.js"></script>
-  <script defer src="/app-shell-client.js"></script>
-  <script defer src="/navigation-architecture.js"></script>
-  <script defer src="/app.js"></script>
+  <div aria-live="polite" class="toast" id="toast"></div>
+  <script src="/app-version.js"></script>
+  <script src="/events.js"></script>
+  <script src="/user-isolation.js"></script>
+  <script src="/pwa-client.js"></script>
+  <script src="/state-merge.js"></script>
+  <script src="/trust-core.js"></script>
+  <script src="/audit-core.js"></script>
+  <script src="/personal-core.js"></script>
+  <script src="/spool-contract-core.js"></script>
+  <script src="/spool-contract-client.js"></script>
+  <script src="/physical-workflow-core.js"></script>
+  <script src="/physical-workflow-client.js"></script>
+  <script src="/profile-preferences-core.js"></script>
+  <script src="/intake-core.js"></script>
+  <script src="/scan-core.js"></script>
+  <script src="/printer-core.js"></script>
+  <script src="/inventory-command-core.js"></script>
+  <script src="/spool-actions-core.js"></script>
+  <script src="/smart-weigh-core.js"></script>
+  <script src="/bulk-actions-core.js"></script>
+  <script src="/print-readiness-core.js"></script>
+  <script src="/workflows.js"></script>
+  <script src="/llm-core.js"></script>
+  <script src="/llm-transport-client.js"></script>
+  <script src="/sync-client.js"></script>
+  <script src="/security-client.js"></script>
+  <script src="/labels-client.js"></script>
+  <script src="/household-client.js"></script>
+  <script src="/ux-client.js"></script>
+  <script src="/audit-client.js"></script>
+  <script src="/personal-dashboard.js"></script>
+  <script src="/profile-preferences-client.js"></script>
+  <script src="/spool-intake-client.js"></script>
+  <script src="/intake-client.js"></script>
+  <script src="/scan-client.js"></script>
+  <script src="/printer-dashboard.js"></script>
+  <script src="/printer-ams-ui.js"></script>
+  <script src="/inventory-command-client.js"></script>
+  <script src="/inventory-card-client.js"></script>
+  <script src="/spool-actions-client.js"></script>
+  <script src="/smart-weigh-client.js"></script>
+  <script src="/bulk-actions-client.js"></script>
+  <script src="/print-readiness-client.js"></script>
+  <script src="/ux-cohesion-client.js"></script>
+  <script src="/preferences-v12-client.js"></script>
+  <script src="/ui-v10-client.js"></script>
+  <script src="/app-shell-client.js"></script>
+  <script src="/navigation-architecture.js"></script>
+  <script src="/llm-client.js"></script>
+  <script src="/app.js"></script>
 </body>
 </html>
