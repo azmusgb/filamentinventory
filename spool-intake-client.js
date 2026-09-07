@@ -368,7 +368,9 @@
       swatch.setAttribute('aria-hidden','true');
       swatch.style.backgroundColor = /^#[0-9a-f]{6}$/i.test(spool.colorHex || '') ? spool.colorHex : '#64748b';
       const copy = document.createElement('span');
-      copy.innerHTML = `<strong>${esc(spool.brand)} · ${esc(spool.material)}</strong><small>${esc(spool.colorName)} · ${Math.round(Number(spool.startWeight) || 1000)} g</small>`;
+      const nominal = Number(spool.startWeight);
+      const nominalLabel = Number.isFinite(nominal) && nominal > 0 ? `${Math.round(nominal)} g` : 'Nominal unknown';
+      copy.innerHTML = `<strong>${esc(spool.brand)} · ${esc(spool.material)}</strong><small>${esc(spool.colorName)} · ${esc(nominalLabel)}</small>`;
       button.append(swatch,copy);
       return button;
     }));
@@ -430,10 +432,17 @@
   function applyProfileDefaults() {
     if (text($('editOriginalId')?.value)) return;
     const printing = profilePreferences()?.printing || {};
-    const startWeight = Number(printing.defaultStartWeight);
     const reorder = Number(printing.defaultReorderGrams);
-    if (Number.isFinite(startWeight) && startWeight > 0 && $('startWeight')) $('startWeight').value = String(startWeight);
+    // Nominal filament weight is evidence, not a profile default. The preferred
+    // weight remains available as an explicit quick-choice, but is never
+    // silently written into a new spool.
     if (Number.isFinite(reorder) && reorder >= 0 && $('reorderThreshold')) $('reorderThreshold').value = String(reorder);
+  }
+
+  function nominalQuickChoices() {
+    const preferred = Number(profilePreferences()?.printing?.defaultStartWeight);
+    const values = [preferred,250,500,750,1000,2000,3000].filter(value => Number.isFinite(value) && value > 0);
+    return [...new Set(values)];
   }
 
   function markLegacyPlacementFields() {
@@ -579,8 +588,9 @@
     helper('spoolId','Assigned automatically. Change it only when matching a physical label ID.');
     helper('brand','Choose a common brand or use Other / custom.');
     helper('material','Common materials are standardized; custom specialty types stay supported.');
+    helper('startWeight','Leave nominal weight unknown unless it is known from the spool or product. A shortcut below becomes authoritative only when you tap it.');
     helper('location','Optional for stored filament. Use the Printer page for loaded AMS / feeder placement.');
-    ensureNumberChoices('startWeight',[250,500,750,1000,2000,3000],value => value >= 1000 ? `${value/1000} kg` : `${value} g`,'Starting filament quick choices');
+    ensureNumberChoices('startWeight',nominalQuickChoices(),value => value >= 1000 ? `${value/1000} kg` : `${value} g`,'Nominal filament quick choices');
     ensureNumberChoices('reorderThreshold',[100,200,250,500],value => `${value} g`,'Reorder threshold quick choices');
     ensurePercentChoices();
     ensureColorSwatches();
