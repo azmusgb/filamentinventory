@@ -11,6 +11,9 @@
   const strictOwner = value => OWNERS.includes(String(value)) ? String(value) : null;
   const validId = value => ID_RE.test(String(value || '').trim());
 
+  // Transitional compatibility only: older links may contain a profile hint.
+  // The hint is never authoritative and is never used to discover or switch
+  // into another private workspace.
   function profileFromUrl(url) {
     const hash = new URLSearchParams(String(url.hash || '').replace(/^#/, ''));
     return strictOwner(hash.get('filament-user')) || strictOwner(url.searchParams.get('profile'));
@@ -31,13 +34,14 @@
     return {ok:true, spoolId, profile:profileFromUrl(url), source:'url', url:url.toString()};
   }
 
-  function buildSpoolTarget({spoolId, profile}, origin) {
+  // Canonical physical-spool links contain only stable identity + scan intent.
+  // Owner/profile, placement, quantity and other mutable state are intentionally
+  // excluded from the durable QR contract.
+  function buildSpoolTarget({spoolId}, origin) {
     if (!validId(spoolId)) throw new Error('Invalid spool ID');
     const url = new URL('/', origin);
     url.searchParams.set('spool', String(spoolId).trim());
     url.searchParams.set('scan', '1');
-    const owner = strictOwner(profile);
-    if (owner) url.hash = new URLSearchParams({'filament-user':owner}).toString();
     return url.toString();
   }
 
@@ -46,10 +50,11 @@
     return Boolean(id && Array.isArray(state?.spools) && state.spools.some(spool => String(spool?.id || '').trim().toLowerCase() === id));
   }
 
+  // A scan resolves only inside the already-active private workspace. It must
+  // never disclose that another private member has the same durable ID.
   function resolveProfile(spoolId, currentProfile, states = {}) {
     const current = strictOwner(currentProfile) || 'Bill';
-    if (stateHasSpool(states[current], spoolId)) return current;
-    return OWNERS.find(owner => owner !== current && stateHasSpool(states[owner], spoolId)) || null;
+    return stateHasSpool(states[current], spoolId) ? current : null;
   }
 
   return Object.freeze({OWNERS, ID_RE, strictOwner, validId, profileFromUrl, parseScanValue, buildSpoolTarget, stateHasSpool, resolveProfile});
