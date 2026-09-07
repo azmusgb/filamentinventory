@@ -1,27 +1,32 @@
-# Repository boundaries
+# Workshop OS subsystem boundaries
 
-This repository is the authoritative product boundary for **Waveshare Workshop OS** on the WS350.
+`firmware/workshop-os/` is the authoritative firmware subsystem inside the canonical `azmusgb/filamentinventory` monorepo.
 
-## This repository owns
+## This subsystem owns
 
 - WS350 firmware and hardware-facing runtime behavior;
 - touch/navigation UX and physical interaction contracts;
 - Bambu printer control and mapped smart-plug power control;
-- audio, microphone and BLE/device-companion behavior;
-- local portal/session security, device management and recovery;
+- audio, microphone, BLE/device-companion behavior;
+- local portal/session security, networking, device management and recovery;
 - OTA/full-flash packaging and firmware release provenance;
 - hardware builds, regression builds, framebuffer capture and physical acceptance;
 - the Workshop Device Companion protocol and hardware orchestration plane.
 
-## This repository does not own
+## This subsystem does not own
 
-Filament inventory data, cloud synchronization or inventory LLM behavior are owned by:
+Inventory-domain authority remains outside the firmware subtree in the root Filament Inventory application/cloud/domain layers.
 
-- `azmusgb/filamentinventory` — **Filament Inventory**
+Workshop OS must not become a second inventory database, quantity authority, ownership authority, placement authority, or model provider. In particular, it must not invent:
 
-That repository is authoritative for Bill/Aimee profile isolation, spool state, remaining-quantity evidence, cloud sync, QR/audit workflows, inventory Assistant grounding and server-side model transport.
+- spool identity;
+- owner/profile scope;
+- remaining quantity;
+- printer/AMS/slot placement;
+- measured weight;
+- inventory recommendations presented as facts.
 
-Workshop OS consumes inventory facts through versioned authenticated device APIs. It must not become a second inventory database or model provider.
+Unknown remains unknown. Similar color/material telemetry is not enough to assign a spool to an AMS slot.
 
 ## Canonical device contract
 
@@ -32,46 +37,40 @@ Current device-facing inventory endpoint:
 - `X-Filament-Profile: Bill | Aimee`
 - response contract version: `1`
 
-Contract v1 returns aggregate inventory/queue/staleness data only. Record-level Assistant evidence requires a separately designed least-privilege endpoint.
+Contract v1 is redacted and profile-scoped. The current sync-key reuse is a compatibility bridge; the target is a revocable device-scoped credential with read/assistant capabilities and no broad inventory mutation authority.
 
-The current sync-key reuse is a compatibility bridge. The target design is a device-scoped credential with read/assistant capabilities and no sync-mutation authority.
+## Monorepo relationship
 
-## Filament Inventory firmware consolidation
+The former standalone `azmusgb/bambuhelper-smart-display` repository has been history-preserved into this subtree. The canonical active development path is now this monorepo.
 
-`azmusgb/filamentinventory` previously evolved an independent **Waveshare Home** firmware line through v1.7.0. That line is now frozen and retained only as migration/reference material.
-
-Workshop OS must preserve the valuable behavior without importing the duplicate firmware architecture wholesale.
-
-Unique migration targets include:
-
-- profile-aware inventory summary;
-- compact Inventory Assistant launcher;
-- quick questions for Low stock, Loaded now, Inventory and Attention;
-- explicit evidence/unknown-data language;
-- refusal to infer AMS assignment from color or material;
-- 52–60 px physical touch-target standard where applicable.
-
-Workshop OS remains authoritative for the underlying printer, power, network, audio, BLE, OTA/recovery and security implementations.
+The former repository must remain available as historical/recovery provenance until recovery links, accepted artifacts, and cross-line migration evidence are fully verified. Repository relocation itself does not change firmware acceptance state.
 
 ## Candidate sequencing
 
-Do not mix repository consolidation into the active hardware acceptance deltas.
+The current candidate chain remains explicit:
 
-1. Complete v11.23 Network / Locale / Layout RC2 physical acceptance.
-2. Complete the dependent v11.24 Audio Console candidate acceptance.
-3. Create a separate Workshop OS inventory/Assistant migration candidate from the then-accepted source line.
-4. Run exact-head CI, native WS350 build, shared-display regression and real-device physical acceptance.
-5. Only then may the duplicate active firmware/tooling tree be removed from Filament Inventory.
+1. v11.23 Network / Locale / Layout RC2 — software validated, physical WS350 acceptance pending.
+2. v11.24 Audio Console — software validated, dependent on v11.23 physical acceptance; speaker/microphone physical validation pending.
+3. Workshop Instrument UI + Audio + QMI8658 Auto Orient — software validated, but runtime, four-orientation/touch-axis, speaker/microphone, and physical acceptance remain pending.
+
+Do not merge or promote a later candidate merely because the monorepo can reconstruct and build it.
 
 ## LLM boundary
 
 The WS350 never stores an OpenAI/provider API key.
 
-If Workshop OS later requests cloud-generated inventory answers, it must call a narrow Filament Inventory server endpoint with profile-scoped, least-privilege authorization. Local printer/AMS state and Filament Inventory data remain evidence; model output never becomes inventory source-of-truth state.
+If Workshop OS requests cloud-generated inventory answers, it must call a narrow Filament Inventory server endpoint with profile-scoped, least-privilege authorization. Local printer/device telemetry and Filament Inventory data remain evidence; model output never becomes inventory source-of-truth state.
 
-## Companion terminology
+## Recovery rule
 
-- **Workshop Device Companion**: hardware orchestration, BLE presence/handoff, device capabilities.
-- **Filament Inventory Assistant**: inventory interpretation, recommendations and grounded LLM behavior.
+Waveshare Home and Workshop OS use incompatible partition layouts. Cross-line migration uses the approved full image at `0x0`, not OTA.
 
-These are related product surfaces but have different authority and security boundaries.
+Preserve the known-good recovery image, flashing procedure, artifact identity/hash, and rollback documentation until the replacement path is physically proven.
+
+## Release-state rule
+
+Keep these states distinct:
+
+`implemented -> built -> tested -> runtime validated -> production validated -> physically validated -> accepted -> stable`
+
+GitHub Actions passing native builds and packaging is software evidence only. It is not physical acceptance of the WS350.
