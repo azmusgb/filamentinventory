@@ -5,7 +5,6 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function() {
   'use strict';
 
-  const DEFAULT_NOMINAL_GRAMS = 1000;
   const DEFAULT_REORDER_GRAMS = 250;
   const OWNERS = Object.freeze(['Bill', 'Aimee']);
   const PLACEMENT_STATES = Object.freeze(['Stored', 'Loaded']);
@@ -26,15 +25,11 @@
   const lowerId = value => safeText(value, 24).toLowerCase();
 
   function normalizeSpool(input = {}, {owner = 'Bill'} = {}) {
-    const nominal = isFiniteNumber(input.startWeight) && Number(input.startWeight) > 0
-      ? Number(input.startWeight)
-      : DEFAULT_NOMINAL_GRAMS;
+    const nominal = isFiniteNumber(input.startWeight) && Number(input.startWeight) > 0 ? Number(input.startWeight) : null;
     const gross = isFiniteNumber(input.gross) ? Math.max(0, Number(input.gross)) : null;
     const tare = isFiniteNumber(input.tare) ? Math.max(0, Number(input.tare)) : null;
     const visualPercent = isFiniteNumber(input.visualPercent) ? clamp(Number(input.visualPercent), 0, 100) : null;
-    const estimatedRemainingGrams = isFiniteNumber(input.estimatedRemainingGrams)
-      ? Math.max(0, Number(input.estimatedRemainingGrams))
-      : null;
+    const estimatedRemainingGrams = isFiniteNumber(input.estimatedRemainingGrams) ? Math.max(0, Number(input.estimatedRemainingGrams)) : null;
     const archivedAt = validIso(input.archivedAt);
     let placementState = PLACEMENT_STATES.includes(String(input.placementState)) ? String(input.placementState) : '';
     const printerName = safeText(input.printerName, 60);
@@ -84,14 +79,12 @@
   }
 
   function measurement(spool = {}) {
-    const nominal = isFiniteNumber(spool.startWeight) && Number(spool.startWeight) > 0
-      ? Number(spool.startWeight)
-      : DEFAULT_NOMINAL_GRAMS;
+    const nominal = isFiniteNumber(spool.startWeight) && Number(spool.startWeight) > 0 ? Number(spool.startWeight) : null;
     if (isFiniteNumber(spool.gross) && isFiniteNumber(spool.tare) && Number(spool.gross) >= Number(spool.tare)) {
       const grams = Math.max(0, Number(spool.gross) - Number(spool.tare));
       return {
         grams,
-        percent: Math.round(clamp(grams / nominal * 100, 0, 100) * 10) / 10,
+        percent: nominal ? Math.round(clamp(grams / nominal * 100, 0, 100) * 10) / 10 : null,
         source: 'Measured',
         evidence: 'scale',
         measured: true,
@@ -101,7 +94,7 @@
       const grams = Math.max(0, Number(spool.estimatedRemainingGrams));
       return {
         grams,
-        percent: Math.round(clamp(grams / nominal * 100, 0, 100) * 10) / 10,
+        percent: nominal ? Math.round(clamp(grams / nominal * 100, 0, 100) * 10) / 10 : null,
         source: 'Estimated',
         evidence: 'usage',
         measured: false,
@@ -110,7 +103,7 @@
     if (isFiniteNumber(spool.visualPercent)) {
       const percent = clamp(Number(spool.visualPercent), 0, 100);
       return {
-        grams: Math.round(nominal * percent / 100),
+        grams: nominal ? Math.round(nominal * percent / 100) : null,
         percent,
         source: 'Estimated',
         evidence: 'visual',
@@ -145,27 +138,20 @@
   }
 
   function productLabel(spool = {}) {
-    return [spool.brand, spool.productLine, spool.material]
-      .map(value => safeText(value, 80))
-      .filter(value => value && value !== 'Unknown')
-      .join(' · ') || 'Unknown filament';
+    return [spool.brand, spool.productLine, spool.material].map(value => safeText(value, 80)).filter(value => value && value !== 'Unknown').join(' · ') || 'Unknown filament';
   }
 
   function placementLabel(spool = {}) {
     if (spool.archivedAt) return 'Archived';
     if (String(spool.placementState) !== 'Loaded') return safeText(spool.location, 80) || 'Stored / unassigned';
-    return [
-      safeText(spool.printerName, 60) || 'Loaded',
-      safeText(spool.feederName, 60),
-      safeText(spool.feederSlot, 24) ? `Slot ${safeText(spool.feederSlot, 24)}` : '',
-    ].filter(Boolean).join(' · ');
+    return [safeText(spool.printerName, 60) || 'Loaded', safeText(spool.feederName, 60), safeText(spool.feederSlot, 24) ? `Slot ${safeText(spool.feederSlot, 24)}` : ''].filter(Boolean).join(' · ');
   }
 
   function evidenceLabel(spool = {}) {
     const remaining = measurement(spool);
     if (remaining.source === 'Measured') return 'Measured · scale';
-    if (remaining.evidence === 'usage') return 'Estimated · usage';
-    if (remaining.evidence === 'visual') return 'Estimated · visual';
+    if (remaining.evidence === 'usage') return remaining.grams === null ? 'Estimated · usage · amount unknown' : 'Estimated · usage';
+    if (remaining.evidence === 'visual') return remaining.grams === null ? 'Estimated · visual · nominal unknown' : 'Estimated · visual';
     return 'Unknown · verify';
   }
 
@@ -174,19 +160,7 @@
     const remaining = measurement(spool);
     const stock = stockState(spool);
     const life = lifecycle(spool);
-    return Object.freeze({
-      spool,
-      productLabel:productLabel(spool),
-      placementLabel:placementLabel(spool),
-      lifecycle:life,
-      stock,
-      measurement:remaining,
-      evidenceLabel:evidenceLabel(spool),
-      reorderNeeded:reorderNeeded(spool),
-      needsMeasurement:remaining.grams === null || remaining.source !== 'Measured',
-      loaded:spool.placementState === 'Loaded' && !spool.archivedAt,
-      archived:Boolean(spool.archivedAt),
-    });
+    return Object.freeze({spool, productLabel:productLabel(spool), placementLabel:placementLabel(spool), lifecycle:life, stock, measurement:remaining, evidenceLabel:evidenceLabel(spool), reorderNeeded:reorderNeeded(spool), needsMeasurement:remaining.grams === null || remaining.source !== 'Measured', loaded:spool.placementState === 'Loaded' && !spool.archivedAt, archived:Boolean(spool.archivedAt)});
   }
 
   function validateSpool(input = {}, options = {}) {
@@ -194,27 +168,17 @@
     const errors = [];
     const warnings = [];
     if (!spool.id) errors.push({code:'id-required', field:'id', message:'Spool ID is required.'});
-    if (spool.gross !== null && spool.tare !== null && spool.gross < spool.tare) {
-      errors.push({code:'gross-below-tare', field:'gross', message:'Gross weight cannot be less than tare weight.'});
-    }
+    if (spool.gross !== null && spool.tare !== null && spool.gross < spool.tare) errors.push({code:'gross-below-tare', field:'gross', message:'Gross weight cannot be less than tare weight.'});
     const remaining = measurement(spool);
-    if (remaining.measured && remaining.grams > spool.startWeight) {
-      warnings.push({code:'remaining-above-nominal', field:'gross', message:'Measured filament remaining exceeds the nominal filament weight; verify tare and nominal weight.'});
-    }
-    if (spool.diameterMm !== null && (spool.diameterMm < 1 || spool.diameterMm > 3)) {
-      warnings.push({code:'diameter-unusual', field:'diameterMm', message:'Filament diameter is outside the typical 1–3 mm range.'});
-    }
-    if (spool.placementState === 'Loaded' && !spool.printerName) {
-      warnings.push({code:'loaded-without-printer', field:'printerName', message:'Loaded spool does not identify a printer.'});
-    }
+    if (remaining.measured && spool.startWeight !== null && remaining.grams > spool.startWeight) warnings.push({code:'remaining-above-nominal', field:'gross', message:'Measured filament remaining exceeds the nominal filament weight; verify tare and nominal weight.'});
+    if (spool.diameterMm !== null && (spool.diameterMm < 1 || spool.diameterMm > 3)) warnings.push({code:'diameter-unusual', field:'diameterMm', message:'Filament diameter is outside the typical 1–3 mm range.'});
+    if (spool.placementState === 'Loaded' && !spool.printerName) warnings.push({code:'loaded-without-printer', field:'printerName', message:'Loaded spool does not identify a printer.'});
     return {spool, errors, warnings, valid:errors.length === 0};
   }
 
   function normalizeState(input = {}, {owner} = {}) {
     const profile = normalizeOwner(owner || input.profile, owner || 'Bill');
-    const spools = Array.isArray(input.spools)
-      ? input.spools.map(spool => normalizeSpool(spool, {owner:profile})).filter(spool => spool.id)
-      : [];
+    const spools = Array.isArray(input.spools) ? input.spools.map(spool => normalizeSpool(spool, {owner:profile})).filter(spool => spool.id) : [];
     return {...input, profile, spools};
   }
 
@@ -224,48 +188,22 @@
     const warnings = [];
     const ids = new Map();
     const assignments = new Map();
-
     for (const spool of state.spools) {
       const result = validateSpool(spool, {owner:state.profile});
       result.errors.forEach(issue => errors.push({...issue, spoolId:spool.id}));
       result.warnings.forEach(issue => warnings.push({...issue, spoolId:spool.id}));
       const id = lowerId(spool.id);
-      if (ids.has(id)) errors.push({code:'duplicate-id', spoolId:spool.id, message:`Duplicate spool ID: ${spool.id}.`});
-      else ids.set(id, spool.id);
+      if (ids.has(id)) errors.push({code:'duplicate-id', spoolId:spool.id, message:`Duplicate spool ID: ${spool.id}.`}); else ids.set(id, spool.id);
       if (!spool.archivedAt && spool.placementState === 'Loaded') {
         const key = [spool.printerName, spool.feederName, spool.feederSlot].map(value => safeText(value).toLowerCase()).join('|');
         if (key !== '||') {
-          if (assignments.has(key)) {
-            errors.push({code:'slot-conflict', spoolId:spool.id, message:`${spool.id} conflicts with ${assignments.get(key)} in the same printer/feeder/slot assignment.`});
-          } else assignments.set(key, spool.id);
+          if (assignments.has(key)) errors.push({code:'slot-conflict', spoolId:spool.id, message:`${spool.id} conflicts with ${assignments.get(key)} in the same printer/feeder/slot assignment.`});
+          else assignments.set(key, spool.id);
         }
       }
     }
     return {state, errors, warnings, valid:errors.length === 0};
   }
 
-  return Object.freeze({
-    DEFAULT_NOMINAL_GRAMS,
-    DEFAULT_REORDER_GRAMS,
-    OWNERS,
-    PLACEMENT_STATES,
-    LIFECYCLE_STATES,
-    STOCK_STATES,
-    CONFIDENCE_LEVELS,
-    isFiniteNumber,
-    numberOrNull,
-    normalizeOwner,
-    normalizeSpool,
-    normalizeState,
-    measurement,
-    stockState,
-    lifecycle,
-    reorderNeeded,
-    productLabel,
-    placementLabel,
-    evidenceLabel,
-    workflowSummary,
-    validateSpool,
-    validateState,
-  });
+  return Object.freeze({DEFAULT_REORDER_GRAMS, OWNERS, PLACEMENT_STATES, LIFECYCLE_STATES, STOCK_STATES, CONFIDENCE_LEVELS, isFiniteNumber, numberOrNull, normalizeOwner, normalizeSpool, normalizeState, measurement, stockState, lifecycle, reorderNeeded, productLabel, placementLabel, evidenceLabel, workflowSummary, validateSpool, validateState});
 });
