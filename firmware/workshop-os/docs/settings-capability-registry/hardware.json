@@ -4,7 +4,7 @@
       "id": "audio.event-and-quiet",
       "classification": "PHYSICAL",
       "implementedOnDevice": true,
-      "surface": "Hardware \u2192 Sound",
+      "surface": "Hardware → Audio Console → Output / Quiet",
       "browserBindings": [
         {
           "route": "/hub/experience",
@@ -25,7 +25,7 @@
       "id": "rotation.mode",
       "classification": "PHYSICAL-EXPERT",
       "implementedOnDevice": false,
-      "surface": "Display \u2192 Expert \u2192 Layout",
+      "surface": "Display → Expert → Layout",
       "browserBindings": [
         {
           "route": "/save/rotation",
@@ -60,7 +60,7 @@
       "id": "audio.core",
       "classification": "PHYSICAL",
       "implementedOnDevice": true,
-      "surface": "Hardware \u2192 Sound / Cooldown",
+      "surface": "Hardware → Audio Console",
       "browserBindings": [
         {
           "route": "/save/rotation",
@@ -70,23 +70,31 @@
             "buzqe",
             "buzclick",
             "buzbeden",
-            "buzbedtemp"
+            "buzbedtemp",
+            "buzvol"
           ]
         }
       ],
       "physicalEvidence": [
+        "\"VOLUME -10\"",
+        "\"VOLUME +10\"",
         "\"EVENT SOUNDS\"",
+        "\"SPEAKER TEST\"",
+        "\"MIC LEVEL\"",
+        "\"ECHO 1 SEC\"",
+        "\"ECHO 3 SEC\"",
+        "\"ECHO 5 SEC\"",
         "\"BUTTON CLICKS\"",
-        "\"QUIET START\"",
-        "\"QUIET END\"",
-        "\"BED COOLDOWN\""
+        "\"BED COOLDOWN\"",
+        "\"QUIET START -1\"",
+        "\"QUIET END +1\""
       ]
     },
     {
       "id": "audio.pin",
       "classification": "PHYSICAL-EXPERT",
       "implementedOnDevice": false,
-      "surface": "Hardware \u2192 Expert \u2192 Sound",
+      "surface": "Hardware → Expert → Sound",
       "browserBindings": [
         {
           "route": "/save/rotation",
@@ -102,7 +110,7 @@
       "id": "hardware.battery-indicator",
       "classification": "PHYSICAL-EXPERT",
       "implementedOnDevice": false,
-      "surface": "Hardware \u2192 Expert \u2192 Power",
+      "surface": "Hardware → Expert → Power",
       "browserBindings": [
         {
           "route": "/save/rotation",
@@ -118,7 +126,7 @@
       "id": "led.core",
       "classification": "PHYSICAL",
       "implementedOnDevice": true,
-      "surface": "Hardware \u2192 LED / Finish / Error",
+      "surface": "Hardware → LED / Finish / Error",
       "browserBindings": [
         {
           "route": "/save/rotation",
@@ -136,16 +144,16 @@
         }
       ],
       "physicalEvidence": [
-        "\"LED\"",
-        "\"FINISH\"",
-        "\"ERROR\""
+        "\"STATUS LED\"",
+        "\"FINISH EFFECT\"",
+        "\"ERROR STROBE\""
       ]
     },
     {
       "id": "led.wiring-and-colors",
       "classification": "PHYSICAL-EXPERT",
       "implementedOnDevice": false,
-      "surface": "Hardware \u2192 Expert \u2192 LED",
+      "surface": "Hardware → Expert → LED",
       "browserBindings": [
         {
           "route": "/save/rotation",
