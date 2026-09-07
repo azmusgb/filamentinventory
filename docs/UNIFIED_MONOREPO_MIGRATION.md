@@ -1,123 +1,107 @@
 # Unified Filament Inventory + Workshop OS Monorepo Migration
 
-Status: **MIGRATION PLAN — NOT YET AUTHORITATIVE**
+Status: **SOFTWARE CUTOVER COMPLETE — PHYSICAL/RECOVERY RETIREMENT GATES REMAIN**
 
-This document records the deliberate migration from two active repositories to one canonical product repository without weakening inventory truth, firmware recovery, evidence provenance, household isolation, or physical acceptance discipline.
+This document records the completed repository consolidation from two active repositories to one canonical product repository while preserving inventory truth, firmware history, evidence provenance, user isolation, recovery, and release-state discipline.
 
-## Canonical target
+## Canonical repository
 
-`azmusgb/filamentinventory` becomes the single canonical repository for the complete workshop product.
+`azmusgb/filamentinventory` is now the single canonical repository for the complete workshop product.
 
-The existing PWA/cloud application remains at the repository root during the first migration stage so the current Netlify production path is not disrupted.
+- Existing Filament Inventory PWA/cloud remains at the repository root.
+- Workshop OS is history-preserved under `firmware/workshop-os/`.
+- Root `.github/workflows/` is the active GitHub Actions authority.
+- Historical Waveshare Home and former standalone Workshop OS materials remain retained for provenance/recovery.
 
-Workshop OS is imported under:
+The repository consolidation does **not** collapse subsystem authority:
 
-`firmware/workshop-os/`
-
-The former `azmusgb/bambuhelper-smart-display` repository remains intact and writable during migration, then becomes read-only/archive material only after the cutover gates below pass.
-
-## Authority after cutover
-
-One repository does not mean one undifferentiated subsystem. Authority remains explicit by directory:
-
-- root application / cloud / domain modules: inventory, spool identity, evidence, household/member semantics, ownership/sharing, placement, usage/activity, print readiness, forecasting, Grounded Assistant, PWA and device-facing data contract;
-- `firmware/workshop-os/`: WS350 firmware, touchscreen UX, printer controls, hardware integrations, audio/mic/BLE, networking, OTA, recovery and physical acceptance;
-- `contracts/` or equivalent shared package: versioned redacted device contract between inventory/cloud and firmware;
-- `docs/`: product-wide architecture, release and recovery documentation.
+- root inventory/cloud/domain code owns spool identity, quantity evidence, household/profile semantics, ownership/sharing, placement, usage/activity, print readiness, forecasting, Grounded Assistant behavior, PWA, and device-facing inventory data;
+- `firmware/workshop-os/` owns WS350 firmware, touchscreen UX, printer/device controls, hardware integrations, audio/mic/BLE, networking, OTA/recovery, firmware artifacts, and physical acceptance;
+- shared contracts/documentation define the narrow boundary between those domains.
 
 No firmware code may become authoritative for inventory truth. No cloud/PWA code may invent physical device state.
 
-## Migration principles
+## Completed migration evidence
 
-1. Preserve Git history from both repositories. Do not copy files into a new folder and discard provenance.
-2. Preserve the currently deployed Filament Inventory root layout until Netlify/build-path migration is explicitly validated.
-3. Import Workshop OS into `firmware/workshop-os/` without changing its accepted/candidate release state.
-4. Preserve the current Workshop OS recovery/full-image process and all accepted artifact identities.
-5. Preserve candidate separation. v11.23 RC2, v11.24 Audio, and later Instrument UI/auto-orientation work remain candidates until their own exact-head and physical gates pass.
-6. Recreate firmware CI at the monorepo root because nested `.github/workflows` files do not execute as repository workflows.
-7. Add path filters so PWA-only changes do not unnecessarily build firmware and firmware-only changes do not unnecessarily run production web smoke tests.
-8. Do not archive the former firmware repository until the monorepo can reconstruct, build and package the same firmware from exact source and the rollback path has been proven.
-9. Do not delete historical Waveshare Home/recovery material during the migration.
-10. Keep release states distinct: implemented -> built -> tested -> runtime validated -> production validated -> physically validated -> accepted -> stable.
+Software cutover completed through merged monorepo changes including:
 
-## Proposed top-level shape
+- history-preserving Workshop OS import under `firmware/workshop-os/`;
+- removal of obsolete active Waveshare Home root release workflows;
+- root Workshop OS firmware validation with candidate-aware reconstruction;
+- immutable pinned upstream materialization;
+- native `ws_lcd_350` build validation;
+- shared `jc3248w535` regression validation;
+- Full and OTA evidence packaging with SHA-backed artifacts;
+- preservation of legacy recovery material;
+- explicit candidate branches for v11.23 RC2, v11.24 Audio, and Instrument UI + Audio + Auto Orient.
 
-```text
-filamentinventory/
-  .github/workflows/
-    ci.yml
-    production-smoke.yml
-    firmware-validate.yml
-    firmware-candidate.yml
-    firmware-release-gate.yml
+Canonical `main` after the candidate-validation fix:
 
-  firmware/
-    workshop-os/
-      [preserved Workshop OS source/history]
+`4f96ed5f6ead22bba5e1cb399511557b6fb87a69`
 
-  contracts/
-    device/
+## Current candidate evidence
 
-  docs/
-    architecture/
-    recovery/
-    release/
+### v11.23 RC2
 
-  [existing PWA/cloud files remain at root initially]
-```
+- monorepo head: `7723efad12c5a9f2274ac64df7e1d257cf2a4ad1`
+- CI: PASS
+- Workshop OS Firmware Validate: PASS — run `34083309936`
+- artifact digest: `sha256:fd3d98cd2ed8c84b7697d91a9366bad0f7a0051f1b14a8fd7f710bdda7404c78`
+- physical WS350 acceptance: **pending**
 
-A later cleanup may move the web application under `apps/web/`, but only after Netlify, service-worker paths, offline behavior, production smoke, and deployed routing are proven against the new location.
+### v11.24 Audio
 
-## Required cutover gates
+- monorepo head: `ad1d7e9c78205be3d90c8ff76eee6d215f2c8ecd`
+- CI: PASS
+- Workshop OS Firmware Validate: PASS — run `34083331594`
+- artifact digest: `sha256:01cc4347b69ee5be1e2dfb528772867b2e5957c6b52418efe063172009e9a1b1`
+- speaker/microphone physical validation: **pending**
+- v11.23 physical acceptance remains prerequisite
 
-The migration is not complete until all of the following are evidenced:
+### Instrument UI + Audio + Auto Orient
 
-- both repository histories are reachable from the unified repository history;
-- the current Filament Inventory production build and Netlify deployment remain unchanged or are intentionally migrated and revalidated;
-- the current PWA CI passes from the monorepo;
-- firmware reconstruction passes from `firmware/workshop-os/`;
-- native `ws_lcd_350` build passes;
-- shared `jc3248w535` regression build passes;
-- Full and OTA artifacts are reproduced and hashed;
-- firmware release/acceptance documentation points to the monorepo exact SHA;
-- current accepted WS350 recovery image and rollback procedure are preserved;
-- candidate physical-acceptance state is not promoted by the repository move itself;
-- source-of-truth tests confirm no inventory authority moved into firmware;
-- device contract remains versioned, redacted and profile-scoped;
-- former firmware repository is marked superseded/read-only only after the preceding gates pass.
+- imported design merge: `1741ea263fd346d59b43165280267801ecd43eb8`
+- current monorepo head: `87c0af8a959e8f08b2ed29d458bf02c001bc318d`
+- CI: PASS
+- Workshop OS Firmware Validate: PASS — run `34083353520`
+- artifact digest: `sha256:b1fd823621ac13daddbbcf8f5775ab66bf104a068eba556b784beffc1808e6a5`
+- runtime/axis/touch/speaker/microphone physical validation: **pending**
 
-## Candidate preservation
+## Gates still open
 
-The repository merge must not flatten the Workshop OS release train into `main` merely because code is being relocated.
+The repository migration is complete as a software/source-control cutover, but the following are deliberately **not** claimed complete:
 
-At migration time:
+- real-device v11.23 RC2 physical acceptance;
+- v11.24 speaker/microphone physical acceptance;
+- QMI8658 four-orientation and touch-axis physical validation;
+- cross-line Waveshare Home -> Workshop OS full-image migration validation on real hardware;
+- final verification of rollback/recovery links and procedures from the unified repository;
+- Grounded Assistant behavioral acceptance against real profile-scoped production execution;
+- device-scoped least-privilege credential replacement for the compatibility sync key;
+- archival/read-only retirement of `azmusgb/bambuhelper-smart-display`.
 
-- import the accepted/current Workshop OS `main` lineage into the unified `main` migration branch;
-- preserve v11.23 RC2 and v11.24 Audio as explicit candidate branches in the unified repository;
-- preserve the Instrument UI + Audio + QMI8658 auto-orientation work as a later prototype/candidate branch until its physical acceptance scope is defined and passed.
+The former firmware repository should be marked superseded/read-only only after the recovery and physical migration gates above are evidenced. It should not be deleted or have history rewritten.
 
-## Recommended cutover sequence
+## Recovery invariant
 
-1. Freeze unrelated repository cleanup during the migration window.
-2. Create a migration branch from `filamentinventory/main`.
-3. Import `bambuhelper-smart-display` history under `firmware/workshop-os/` using a history-preserving subtree/filter-repo migration, not a squash/copy.
-4. Re-home and adapt Workshop OS workflows to root `.github/workflows/` with `working-directory: firmware/workshop-os` and path filters.
-5. Update repository-boundary and roadmap documents to identify this repository as the only active authority after cutover.
-6. Recreate the current firmware candidate branches in the unified repository against the imported firmware subtree.
-7. Run PWA, cloud, firmware, security, artifact, recovery and candidate validation.
-8. Merge the migration only after the exact migration head is green.
-9. Validate production web deployment from unified `main`.
-10. Validate that future Workshop OS candidate builds originate from unified `main`/candidate branches.
-11. Mark `azmusgb/bambuhelper-smart-display` superseded/read-only and keep it for historical links and recovery provenance.
+Waveshare Home and Workshop OS use incompatible partition layouts. Cross-line migration uses the approved **full-image flash at `0x0`**, not OTA.
 
-## Non-goals
+Preserve:
 
-The repository migration itself does not:
+- known-good recovery image;
+- exact artifact identity/hash;
+- flashing procedure;
+- rollback documentation;
+- accepted physical baseline.
 
-- accept v11.23 RC2 or v11.24;
-- prove QMI8658 physical axis mapping;
-- change spool identity, quantity, ownership, placement or evidence;
-- migrate Bill/Aimee directly to the final Household/Member model;
-- change Grounded Assistant acceptance state;
-- change WS350 credentials, recovery layout or OTA semantics;
-- delete historical recovery artifacts.
+Do not remove legacy recovery capability until the replacement path is physically proven.
+
+## Release-state invariant
+
+Repository migration itself does not accept or stabilize firmware.
+
+Keep these states distinct:
+
+`implemented -> built -> tested -> runtime validated -> production validated -> physically validated -> accepted -> stable`
+
+Current candidate CI proves reconstruction/build/test/artifact evidence. It does not grant runtime, physical, accepted, or stable status.
