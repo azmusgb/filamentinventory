@@ -1,7 +1,13 @@
 (function(root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
-  if (root) root.FilamentInventoryScan = api;
+  if (root) {
+    root.FilamentInventoryScan = api;
+    if (root.location && root.history?.replaceState) {
+      const sanitized = api.neutralizeLegacyProfileHint(root.location.href);
+      if (sanitized.changed) root.history.replaceState(null, '', sanitized.url.pathname + sanitized.url.search + sanitized.url.hash);
+    }
+  }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function() {
   'use strict';
 
@@ -17,6 +23,21 @@
   function profileFromUrl(url) {
     const hash = new URLSearchParams(String(url.hash || '').replace(/^#/, ''));
     return strictOwner(hash.get('filament-user')) || strictOwner(url.searchParams.get('profile'));
+  }
+
+  // scan-core loads before user-isolation.js in the browser. Strip only the
+  // legacy scan-time profile hint before isolation bootstraps so an old QR
+  // cannot silently change the active private workspace. Non-scan profile
+  // deep links are left untouched.
+  function neutralizeLegacyProfileHint(value) {
+    const url = value instanceof URL ? new URL(value.toString()) : new URL(String(value));
+    if (url.searchParams.get('scan') !== '1') return {url, changed:false};
+    const hash = new URLSearchParams(String(url.hash || '').replace(/^#/, ''));
+    if (!hash.has('filament-user')) return {url, changed:false};
+    hash.delete('filament-user');
+    const nextHash = hash.toString();
+    url.hash = nextHash ? `#${nextHash}` : '';
+    return {url, changed:true};
   }
 
   function parseScanValue(value, expectedOrigin) {
@@ -57,5 +78,5 @@
     return stateHasSpool(states[current], spoolId) ? current : null;
   }
 
-  return Object.freeze({OWNERS, ID_RE, strictOwner, validId, profileFromUrl, parseScanValue, buildSpoolTarget, stateHasSpool, resolveProfile});
+  return Object.freeze({OWNERS, ID_RE, strictOwner, validId, profileFromUrl, neutralizeLegacyProfileHint, parseScanValue, buildSpoolTarget, stateHasSpool, resolveProfile});
 });
