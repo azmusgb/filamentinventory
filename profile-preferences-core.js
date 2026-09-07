@@ -22,6 +22,7 @@
   const text=(value,max=48)=>String(value??'').trim().slice(0,max);
   const oneOf=(value,allowed,fallback)=>allowed.includes(String(value))?String(value):fallback;
   const number=(value,min,max,fallback)=>{
+    if(value===''||value===null||value===undefined) return fallback;
     const parsed=Number(value);
     return Number.isFinite(parsed)?Math.min(max,Math.max(min,parsed)):fallback;
   };
@@ -45,7 +46,7 @@
       identity:{displayName,initials:initials(displayName)},
       appearance:{theme:'system',accent:owner==='Aimee'?'violet':'teal',density:'comfortable'},
       workspace:{startView:'dashboard',dashboardDetail:'focused'},
-      printing:{safetyMargin:10,defaultReorderGrams:250,defaultStartWeight:1000},
+      printing:{safetyMargin:10,defaultReorderGrams:250,defaultStartWeight:''},
     };
   }
 
