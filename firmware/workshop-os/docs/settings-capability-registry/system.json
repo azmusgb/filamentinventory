@@ -4,150 +4,81 @@
       "id": "alerts.hms",
       "classification": "PHYSICAL",
       "implementedOnDevice": true,
-      "surface": "Display \u2192 Alerts / Signals",
+      "surface": "Display → Alerts / Signals",
       "browserBindings": [
         {
           "route": "/apply",
-          "keys": [
-            "hmsauto",
-            "hmsen",
-            "hmssev",
-            "hmsonl",
-            "hmsmask"
-          ]
+          "keys": ["hmsauto", "hmsen", "hmssev", "hmsonl", "hmsmask"]
         },
         {
           "route": "/save/toggle",
-          "keys": [
-            "hmsauto",
-            "hmsen",
-            "hmssev",
-            "hmsonl",
-            "hmsmask"
-          ]
+          "keys": ["hmsauto", "hmsen", "hmssev", "hmsonl", "hmsmask"]
         }
       ],
-      "physicalEvidence": [
-        "\"ALERTS\"",
-        "\"SIGNALS\"",
-        "hmsEnabled",
-        "hmsSeverityAll"
-      ]
+      "physicalEvidence": ["\"ALERTS\"", "\"SIGNALS\"", "hmsEnabled", "hmsSeverityAll"]
     },
     {
       "id": "locale.time-format",
       "classification": "PHYSICAL",
       "implementedOnDevice": true,
-      "surface": "System \u2192 Network Essentials / Display \u2192 Clock",
+      "surface": "System → Network Essentials / Display → Clock",
       "browserBindings": [
-        {
-          "route": "/apply",
-          "keys": [
-            "use24h",
-            "datefmt"
-          ]
-        },
-        {
-          "route": "/save/toggle",
-          "keys": [
-            "use24h"
-          ]
-        }
+        {"route": "/apply", "keys": ["use24h", "datefmt"]},
+        {"route": "/save/toggle", "keys": ["use24h"]}
       ],
-      "physicalEvidence": [
-        "use24h",
-        "dateFormat"
-      ]
+      "physicalEvidence": ["use24h", "dateFormat"]
     },
     {
       "id": "locale.timezone",
       "classification": "PHYSICAL-EXPERT",
-      "implementedOnDevice": false,
-      "surface": "System \u2192 Expert \u2192 Time & Locale",
+      "implementedOnDevice": true,
+      "surface": "System → Network Expert → Time & Locale",
       "browserBindings": [
-        {
-          "route": "/apply",
-          "keys": [
-            "tz"
-          ]
-        }
+        {"route": "/apply", "keys": ["tz"]}
       ],
-      "reason": "Timezone selection is low-frequency and belongs on a deeper device page.",
-      "plannedRelease": "v11.23"
+      "physicalEvidence": ["\"TIMEZONE\"", "hubStepTimezone", "configTzTime(netSettings.timezoneStr"]
     },
     {
       "id": "network.show-ip",
       "classification": "PHYSICAL",
       "implementedOnDevice": true,
-      "surface": "System \u2192 Network Essentials",
+      "surface": "System → Network Essentials",
       "browserBindings": [
-        {
-          "route": "/save/toggle",
-          "keys": [
-            "showip"
-          ]
-        },
-        {
-          "route": "/save/wifi",
-          "keys": [
-            "showip"
-          ]
-        }
+        {"route": "/save/toggle", "keys": ["showip"]},
+        {"route": "/save/wifi", "keys": ["showip"]}
       ],
-      "physicalEvidence": [
-        "showIPAtStartup"
-      ]
+      "physicalEvidence": ["showIPAtStartup"]
     },
     {
       "id": "network.mdns",
       "classification": "PHYSICAL",
       "implementedOnDevice": true,
-      "surface": "System \u2192 Network Essentials",
+      "surface": "System → Network Essentials",
       "browserBindings": [
-        {
-          "route": "/save/wifi",
-          "keys": [
-            "mdns_en"
-          ]
-        }
+        {"route": "/save/wifi", "keys": ["mdns_en"]}
       ],
-      "physicalEvidence": [
-        "mdnsEnabled"
-      ]
+      "physicalEvidence": ["mdnsEnabled"]
     },
     {
       "id": "network.static-address",
       "classification": "PHYSICAL-EXPERT",
-      "implementedOnDevice": false,
-      "surface": "System \u2192 Network \u2192 Advanced",
+      "implementedOnDevice": true,
+      "surface": "System → Network Expert → Address Edit / Review",
       "browserBindings": [
         {
           "route": "/save/wifi",
-          "keys": [
-            "netmode",
-            "net_ip",
-            "net_gw",
-            "net_sn",
-            "net_dns"
-          ]
+          "keys": ["netmode", "net_ip", "net_gw", "net_sn", "net_dns"]
         }
       ],
-      "reason": "Segmented numeric entry is feasible but must be coordinated and guarded.",
-      "plannedRelease": "v11.23"
+      "physicalEvidence": ["\"STAGED - NOT APPLIED\"", "hubLoadNetworkEdit", "hubCommitNetworkAndRestart", "netSettings.useDHCP=g_networkEditDhcp"]
     },
     {
       "id": "network.wifi-credentials",
       "classification": "PORTAL-INPUT",
       "implementedOnDevice": false,
-      "surface": "Portal \u2192 Network",
+      "surface": "Portal → Network",
       "browserBindings": [
-        {
-          "route": "/save/wifi",
-          "keys": [
-            "ssid",
-            "pass"
-          ]
-        }
+        {"route": "/save/wifi", "keys": ["ssid", "pass"]}
       ],
       "reason": "SSID/password require free-text and secret entry."
     },
@@ -155,14 +86,9 @@
       "id": "network.hostname",
       "classification": "PORTAL-INPUT",
       "implementedOnDevice": false,
-      "surface": "Portal \u2192 Network",
+      "surface": "Portal → Network",
       "browserBindings": [
-        {
-          "route": "/save/wifi",
-          "keys": [
-            "mdns_host"
-          ]
-        }
+        {"route": "/save/wifi", "keys": ["mdns_host"]}
       ],
       "reason": "Hostname is free text and remains portal input."
     }

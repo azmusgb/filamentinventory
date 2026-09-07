@@ -91,11 +91,10 @@
     {
       "id": "display.rotation",
       "classification": "PHYSICAL-EXPERT",
-      "implementedOnDevice": false,
-      "surface": "Display → Expert → Layout",
+      "implementedOnDevice": true,
+      "surface": "Display → Expert → Extras → Rotation Preview",
       "browserBindings": [{"route": "/apply", "keys": ["rotation"]}],
-      "reason": "Rotation changes touch mapping and requires guarded expert handling with recovery semantics.",
-      "plannedRelease": "v11.23"
+      "physicalEvidence": ["\"ROTATION\"", "Tap to open guarded preview", "HOLD TO COMMIT ROTATION", "g_rotationPreviewValue", "dispSettings.rotation=(uint8_t)(g_rotationPreviewValue&3U)"]
     },
     {
       "id": "display.gauge-colors",

@@ -1,4 +1,4 @@
-name: Workshop OS Firmware Gate — v11.22 Display Expert RC1
+name: Workshop OS Firmware Gate — v11.23 Network Locale Layout RC2
 
 on:
   pull_request:
@@ -22,7 +22,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - id: classify
         name: Decide whether native firmware validation is required
         shell: bash
@@ -32,61 +31,32 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             echo 'firmware=true' >> "$GITHUB_OUTPUT"
-            echo 'Manual dispatch: full firmware validation required.'
+            echo 'Native firmware validation required: YES'
             exit 0
           fi
-
           git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null || git fetch --no-tags origin "$BASE_SHA"
           git cat-file -e "${HEAD_SHA}^{commit}" 2>/dev/null || git fetch --no-tags origin "$HEAD_SHA"
-          git diff --name-only "$BASE_SHA" "$HEAD_SHA" | sort -u | tee /tmp/workshop-os-changed-files.txt
-
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" | sort -u > /tmp/changed.txt
           python - <<'PY'
-          import fnmatch
-          import os
+          import fnmatch, os
           from pathlib import Path
-
           patterns = (
-              '.github/workflows/firmware-candidate.yml',
-              'README.md',
-              'SECURITY.md',
-              'releases/current.json',
-              'apply_smart_home_*.py',
-              '.bambuhelper-validation/**',
-              'assets/**',
-              'scripts/apply_*.sh',
-              'scripts/validate_*.py',
-              'scripts/capture-ws350-views.zsh',
-              'docs/physical-*.md',
-              'docs/visual-*.md',
-              'docs/portal-auth-*.md',
-              'docs/display-expert-*.md',
-              'docs/settings-capability-registry/**',
+              '.github/workflows/firmware-candidate.yml', 'README.md', 'SECURITY.md',
+              'releases/current.json', 'apply_smart_home_*.py', '.bambuhelper-validation/**',
+              'assets/**', 'scripts/apply_*.sh', 'scripts/validate_*.py',
+              'scripts/capture-ws350-views.zsh', 'docs/physical-*.md', 'docs/visual-*.md',
+              'docs/portal-auth-*.md', 'docs/display-expert-*.md', 'docs/network-*.md',
+              'docs/touch-*.md', 'docs/security-*.md', 'docs/PHYSICAL_ACCEPTANCE*.md',
+              'docs/settings-capability-registry/**'
           )
-
-          changed = [
-              line.strip()
-              for line in Path('/tmp/workshop-os-changed-files.txt').read_text().splitlines()
-              if line.strip()
-          ]
-          matched = sorted(
-              path for path in changed
-              if any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns)
-          )
-          required = bool(matched)
-
-          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as out:
-              out.write(f"firmware={'true' if required else 'false'}\n")
-
-          print('Firmware-sensitive paths:')
-          if matched:
-              for path in matched:
-                  print(f'  - {path}')
-          else:
-              print('  (none)')
-          print(f"Native firmware validation required: {'YES' if required else 'NO'}")
+          changed=[p.strip() for p in Path('/tmp/changed.txt').read_text().splitlines() if p.strip()]
+          matched=[p for p in changed if any(fnmatch.fnmatchcase(p, pat) for pat in patterns)]
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out:
+              out.write(f"firmware={'true' if matched else 'false'}\n")
+          print('\n'.join(matched) if matched else 'No firmware-sensitive paths')
+          print(f"Native firmware validation required: {'YES' if matched else 'NO'}")
           PY
 
   validate:
@@ -94,154 +64,160 @@ jobs:
     needs: scope
     if: needs.scope.outputs.firmware == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
         name: Checkout Workshop OS repository
-
-      - name: Checkout pinned BambuHelper baseline
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        name: Checkout pinned BambuHelper baseline
         with:
           repository: Keralots/BambuHelper
           ref: 8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4
           path: upstream
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Validate candidate tooling
         run: |
+          set -euo pipefail
           python -m py_compile apply_smart_home_physical_fit_v11_19_1.py
           python -m py_compile apply_smart_home_portal_auth_v11_20.py
           python -m py_compile apply_smart_home_display_expert_v11_22.py
+          python -m py_compile apply_smart_home_network_locale_layout_v11_23.py
+          # Historical RC2 module is retained only as the source of touch/layout
+          # transformation helpers. It is never executed directly by this gate.
+          python -m py_compile apply_smart_home_touch_ux_v11_23_rc2.py
+          python -m py_compile apply_smart_home_touch_ux_v11_23_rc2_secure.py
+          python -m py_compile apply_smart_home_touch_ux_v11_23_rc2_finalize.py
+          python -m py_compile apply_smart_home_touch_ux_v11_23_rc2_finalize_secure.py
+          python -m py_compile apply_smart_home_touch_ux_v11_23_rc2_guard_feedback.py
+          python -m py_compile apply_smart_home_auth_restore_v11_23_rc2.py
           python -m py_compile scripts/validate_device_contracts.py
           python -m py_compile scripts/validate_visual_contracts_v11_19.py
           python -m py_compile scripts/validate_rendered_fit_v11_19_1.py
           python -m py_compile scripts/validate_portal_auth_v11_20.py
           python -m py_compile scripts/validate_display_expert_v11_22.py
+          python -m py_compile scripts/validate_network_locale_layout_v11_23.py
+          python -m py_compile scripts/validate_touch_ux_v11_23_rc2.py
+          python -m py_compile scripts/validate_touch_ux_v11_23_rc2_finalize.py
+          python -m py_compile scripts/validate_touch_ux_v11_23_rc2_guard_feedback.py
+          python -m py_compile scripts/validate_auth_restore_v11_23_rc2.py
           python -m py_compile scripts/validate_settings_parity.py
           bash -n scripts/apply_workshop_os_v11_19.sh
           bash -n scripts/apply_workshop_os_v11_19_1.sh
           bash -n scripts/capture-ws350-views.zsh
+          grep -Fq 'stty -echo' scripts/capture-ws350-views.zsh
+          grep -Fq -- "--data-urlencode 'code@-'" scripts/capture-ws350-views.zsh
+          grep -Fq 'curl -fsS -b "$COOKIE" "$BASE/hub/frame.ppm"' scripts/capture-ws350-views.zsh
+          if grep -Fq 'TRUSTED-LAN ACCESS OK (NO PORTAL CODE)' scripts/capture-ws350-views.zsh; then
+            echo 'Unauthenticated capture helper is forbidden.' >&2
+            exit 1
+          fi
+          echo 'Authenticated capture-helper contract: PASS'
 
       - name: Reconstruct accepted v11.19 baseline
         run: bash scripts/apply_workshop_os_v11_19.sh upstream
-
-      - name: Validate inherited device contracts at v11.19 boundary
+      - name: Validate inherited v11.19 device contracts
         run: python scripts/validate_device_contracts.py
-
-      - name: Validate complete v11.19 visual baseline
+      - name: Validate accepted v11.19 visual contracts
         run: python scripts/validate_visual_contracts_v11_19.py upstream
-
       - name: Apply accepted v11.19.1 physical-fit delta
         run: python apply_smart_home_physical_fit_v11_19_1.py --repo upstream --apply
-
-      - name: Validate accepted v11.19.1 rendered-fit contracts
+      - name: Validate accepted v11.19.1 rendered fit
         run: python scripts/validate_rendered_fit_v11_19_1.py upstream
-
-      - name: Verify accepted baseline before security delta
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          hub = Path('upstream/src/smart_hub.cpp').read_text()
-          mqtt = Path('upstream/src/bambu_mqtt.cpp').read_text()
-          tasmota = Path('upstream/src/tasmota.cpp').read_text()
-          build = Path('upstream/include/smart_home_build.h').read_text()
-          web = Path('upstream/src/web_server.cpp').read_text()
-
-          def need(body, needle, label):
-              if needle not in body:
-                  raise SystemExit(f'MISSING {label}: {needle}')
-
-          for n in ['SMART_HOME_VERSION "v11.19.1"', 'Smart Home v11.19.1 Physical Fit RC2']:
-              need(build, n, 'accepted release identity')
-          for n in ['DROPPED: MQTT offline', 'if (!st.connected) return false']:
-              need(mqtt, n, 'fail-closed printer control')
-          for n in ['visiblePlugForSlot', 'TASMOTA_PLUG_COUNT']:
-              need(tasmota, n, 'smart-plug slot mapping')
-          for n in ['smartHubCapturePrepare', 'smartHubCaptureRgbRow', 'g_hubFrame->readPixel']:
-              need(hub, n, 'physical framebuffer capture')
-          for n in [
-              'SECURE_GET("/hub/views", handleHubViews)',
-              'SECURE_GET("/hub/frame.ppm", handleHubFramePpm)',
-              'SECURE_POST("/hub/show", handleHubShow)',
-          ]:
-              need(web, n, 'visual capture route')
-          for forbidden in ['requestSpeedCommand', 'requestFanCommand']:
-              if forbidden in hub or forbidden in web or forbidden in mqtt:
-                  raise SystemExit(f'forbidden speculative printer command introduced: {forbidden}')
-          print('Accepted v11.19.1 baseline before auth delta: PASS')
-          PY
-
-      - name: Apply v11.20 Portal Auth RC1
+      - name: Apply v11.20 Portal Auth
         run: python apply_smart_home_portal_auth_v11_20.py --repo upstream --apply
-
-      - name: Validate v11.20 portal authentication contracts
+      - name: Validate v11.20 authenticated baseline
         run: python scripts/validate_portal_auth_v11_20.py upstream
-
-      - name: Apply v11.22 Display Expert RC1
+      - name: Apply v11.22 Display Expert
         run: python apply_smart_home_display_expert_v11_22.py --repo upstream --apply
-
-      - name: Validate v11.22 Display Expert contracts
+      - name: Validate v11.22 Display Expert
         run: python scripts/validate_display_expert_v11_22.py upstream
+      - name: Apply v11.23 Network Locale Layout RC1 base
+        run: python apply_smart_home_network_locale_layout_v11_23.py --repo upstream --apply
+      - name: Validate v11.23 RC1 base contract
+        run: python scripts/validate_network_locale_layout_v11_23.py upstream
 
-      - name: Validate settings parity against reconstructed v11.22 source
+      - name: Apply v11.23 RC2 secure touch UX
+        run: python apply_smart_home_touch_ux_v11_23_rc2_secure.py --repo upstream --apply
+      - name: Validate v11.23 RC2 secure touch UX and authenticated boundary
+        run: python scripts/validate_touch_ux_v11_23_rc2.py upstream
+      - name: Apply v11.23 RC2 secure physical touch finalization
+        run: python apply_smart_home_touch_ux_v11_23_rc2_finalize_secure.py --repo upstream --apply
+      - name: Validate v11.23 RC2 physical touch finalization
+        run: python scripts/validate_touch_ux_v11_23_rc2_finalize.py upstream
+      - name: Revalidate authenticated boundary after touch finalization
+        run: python scripts/validate_touch_ux_v11_23_rc2.py upstream
+      - name: Apply v11.23 RC2 guarded-action feedback
+        run: python apply_smart_home_touch_ux_v11_23_rc2_guard_feedback.py --repo upstream --apply
+      - name: Validate v11.23 RC2 guarded-action feedback
+        run: python scripts/validate_touch_ux_v11_23_rc2_guard_feedback.py upstream
+
+      # Defense-in-depth normalization. The secure touch path above must already
+      # preserve authentication; this layer now proves idempotent restoration.
+      - name: Normalize final authenticated v11.23 LAN boundary
+        run: python apply_smart_home_auth_restore_v11_23_rc2.py --repo upstream --apply
+      - name: Validate final authenticated v11.23 boundary
+        run: python scripts/validate_auth_restore_v11_23_rc2.py upstream
+      - name: Validate settings parity against final v11.23 RC2 source
         run: python scripts/validate_settings_parity.py --repo upstream
 
-      - name: Verify inherited safety after Display Expert delta
+      - name: Verify final inherited safety
         run: |
           python - <<'PY'
           from pathlib import Path
-          hub = Path('upstream/src/smart_hub.cpp').read_text()
-          web = Path('upstream/src/web_server.cpp').read_text()
-          mqtt = Path('upstream/src/bambu_mqtt.cpp').read_text()
-          tasmota = Path('upstream/src/tasmota.cpp').read_text()
-          build = Path('upstream/include/smart_home_build.h').read_text()
-
-          def need(body, needle, label):
-              if needle not in body:
-                  raise SystemExit(f'MISSING {label}: {needle}')
-
-          for n in ['SMART_HOME_VERSION "v11.22"', 'Smart Home v11.22 Display Expert RC1']:
-              need(build, n, 'candidate release identity')
-          for n in ['DROPPED: MQTT offline', 'if (!st.connected) return false']:
-              need(mqtt, n, 'fail-closed printer control')
-          for n in ['visiblePlugForSlot', 'TASMOTA_PLUG_COUNT']:
-              need(tasmota, n, 'smart-plug slot mapping')
-          for n in ['smartHubCapturePrepare', 'smartHubCaptureRgbRow', 'g_hubFrame->readPixel']:
-              need(hub, n, 'physical framebuffer capture')
-          for n in [
+          hub=Path('upstream/src/smart_hub.cpp').read_text()
+          web=Path('upstream/src/web_server.cpp').read_text()
+          mqtt=Path('upstream/src/bambu_mqtt.cpp').read_text()
+          build=Path('upstream/include/smart_home_build.h').read_text()
+          security=Path('upstream/src/security_manager.cpp').read_text()
+          app=Path('upstream/web/app.js').read_text()
+          for needle in [
+              'SMART_HOME_VERSION "v11.23"',
+              'Smart Home v11.23 Network Locale Layout RC2',
+              'Workshop OS v11.23 RC2 secure touch UX',
+              'Workshop OS v11.23 RC2 authenticated LAN restore',
+          ]:
+              assert needle in build + hub, needle
+          for forbidden in [
+              'WORKSHOP_OS_TEMP_LAN_OPEN',
+              'if (!isAPMode()) return true;',
+              'TEMPORARY TRUSTED-LAN MODE',
+              'v1123Rc2LanOpenBanner',
+              'Workshop OS v11.23 RC2 touch UX and temporary trusted-LAN portal bypass',
+          ]:
+              assert forbidden not in build + hub + security + app, forbidden
+          assert 'return cookieMatches(server);' in security
+          assert 'if (mutating && !sameOrigin(server))' in security
+          for needle in ['DROPPED: MQTT offline','if (!st.connected) return false']:
+              assert needle in mqtt, needle
+          for needle in [
               'SECURE_GET("/hub/views", handleHubViews)',
               'SECURE_GET("/hub/frame.ppm", handleHubFramePpm)',
               'SECURE_POST("/hub/show", handleHubShow)',
           ]:
-              need(web, n, 'authenticated visual capture')
-          for forbidden in ['requestSpeedCommand', 'requestFanCommand']:
-              if forbidden in hub or forbidden in web or forbidden in mqtt:
-                  raise SystemExit(f'forbidden speculative printer command introduced: {forbidden}')
-          print('v11.22 inherited control/capture safety: PASS')
+              assert needle in web, needle
+          for forbidden in ['requestSpeedCommand','requestFanCommand']:
+              assert forbidden not in hub and forbidden not in web and forbidden not in mqtt, forbidden
+          print('v11.23 RC2 secure reconstruction + final authenticated safety: PASS')
           PY
 
       - name: Validate browser JavaScript
         run: node --check upstream/web/app.js
-
       - name: Install PlatformIO
         run: python -m pip install --upgrade platformio
-
-      - name: Build WS350 v11.22
+      - name: Build WS350 v11.23 RC2
         working-directory: upstream
         run: pio run -e ws_lcd_350
-
       - name: Regression build shared 320x480 target
         working-directory: upstream
         run: pio run -e jc3248w535
-
       - name: Merge Full image
         working-directory: upstream
         run: python merge_bins.py --board ws_lcd_350 --full
 
-      - name: Package v11.22 Display Expert RC1 artifacts
+      - name: Package v11.23 Network Locale Layout RC2 artifacts
         shell: bash
         env:
           CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -249,41 +225,41 @@ jobs:
           set -euo pipefail
           FULL="$(find upstream/firmware -type f -name 'BambuHelper-ws_lcd_350-*-Full.bin' | sort | tail -1)"
           APP='upstream/.pio/build/ws_lcd_350/firmware.bin'
-          mkdir -p firmware-gate-artifacts/source-snapshot firmware-gate-artifacts/tools firmware-gate-artifacts/docs
-          cp "$FULL" firmware-gate-artifacts/BambuHelper-ws_lcd_350-v3.8.1-Workshop-OS-v11.22-Display-Expert-RC1-Full.bin
-          cp "$APP" firmware-gate-artifacts/BambuHelper-ws_lcd_350-v3.8.1-Workshop-OS-v11.22-Display-Expert-RC1-OTA.bin
+          mkdir -p firmware-gate-artifacts/tools firmware-gate-artifacts/docs
+          cp "$FULL" firmware-gate-artifacts/BambuHelper-ws_lcd_350-v3.8.1-Workshop-OS-v11.23-Network-Locale-Layout-RC2-Full.bin
+          cp "$APP" firmware-gate-artifacts/BambuHelper-ws_lcd_350-v3.8.1-Workshop-OS-v11.23-Network-Locale-Layout-RC2-OTA.bin
           cp "$APP" firmware-gate-artifacts/WaveshareHome-firmware.bin
-          cp scripts/capture-ws350-views.zsh firmware-gate-artifacts/tools/capture-ws350-views.zsh
-          cp apply_smart_home_portal_auth_v11_20.py firmware-gate-artifacts/tools/apply_smart_home_portal_auth_v11_20.py
-          cp apply_smart_home_display_expert_v11_22.py firmware-gate-artifacts/tools/apply_smart_home_display_expert_v11_22.py
-          cp scripts/validate_portal_auth_v11_20.py firmware-gate-artifacts/tools/validate_portal_auth_v11_20.py
-          cp scripts/validate_display_expert_v11_22.py firmware-gate-artifacts/tools/validate_display_expert_v11_22.py
-          cp scripts/validate_settings_parity.py firmware-gate-artifacts/tools/validate_settings_parity.py
-          cp docs/portal-auth-v11-20.md firmware-gate-artifacts/docs/portal-auth-v11-20.md
-          cp docs/display-expert-v11-22.md firmware-gate-artifacts/docs/display-expert-v11-22.md
-          cp docs/physical-settings-parity.md firmware-gate-artifacts/docs/physical-settings-parity.md
-          cp SECURITY.md firmware-gate-artifacts/docs/SECURITY.md
+          cp scripts/capture-ws350-views.zsh firmware-gate-artifacts/tools/
+          cp scripts/validate_auth_restore_v11_23_rc2.py firmware-gate-artifacts/tools/
+          cp scripts/validate_settings_parity.py firmware-gate-artifacts/tools/
+          cp docs/physical-settings-parity.md firmware-gate-artifacts/docs/
+          cp docs/PHYSICAL_ACCEPTANCE_V11_23_RC2.md firmware-gate-artifacts/docs/
+          cp docs/security-hardening-v11-23-rc2.md firmware-gate-artifacts/docs/
           cp releases/current.json firmware-gate-artifacts/docs/release-state.json
           cp -R docs/settings-capability-registry firmware-gate-artifacts/docs/settings-capability-registry
-          for f in include/web_pages.h include/smart_home_build.h web/app.js web/app.css src/web_server.cpp src/bambu_mqtt.cpp src/smart_hub.cpp src/settings.cpp src/display_ui.h src/tasmota.cpp src/security_manager.cpp include/security_manager.h; do
-            mkdir -p "firmware-gate-artifacts/source-snapshot/$(dirname "$f")"
-            cp "upstream/$f" "firmware-gate-artifacts/source-snapshot/$f"
-          done
           {
-            echo 'Workshop OS v11.22 Display Expert RC1'
+            echo 'Workshop OS v11.23 Network Locale Layout RC2'
             echo "candidate_head_sha=${CANDIDATE_HEAD_SHA}"
             echo 'source_line=CANDIDATE'
             echo 'physical_acceptance=REQUIRED'
-            echo 'accepted_v11_19_1_rendered_fit=PRESERVED'
-            echo 'portal_auth_v11_20=PRESERVED'
-            echo 'display_expert_v11_22=ENABLED'
-            echo 'display_pages=14'
-            echo 'capture_views=29'
-            echo 'gauge_labels=PORTAL_INPUT'
-            echo 'display_rotation=DEFERRED_V11_23'
-            echo 'portal_credential_serial_logging=FORBIDDEN'
-            echo 'fail_closed_printer_commands=PRESERVED'
-            echo 'capture_routes=AUTHENTICATED'
+            echo 'accepted_v11_22=PRESERVED'
+            echo 'touch_ux=EXPLICIT_CONTROLS'
+            echo 'security_intermediate=NEVER_ENABLED_BY_ACTIVE_RECONSTRUCTION'
+            echo 'primary_touch_targets=52PX_REFERENCE_WHERE_LAYOUT_PERMITS'
+            echo 'hidden_hold_reverse=REMOVED'
+            echo 'timezone_physical_expert=ENABLED'
+            echo 'static_network_editor=STAGED_ATOMIC'
+            echo 'display_rotation=DEDICATED_PREVIEW_GUARDED_HOLD_COMMIT'
+            echo 'guarded_hold_progress=5_SEGMENTS_650MS'
+            echo 'active_print_network_warning=ENABLED_DISPLAY_RESTART_ONLY'
+            echo 'normal_wifi_portal_code=REQUIRED_THROUGHOUT_RECONSTRUCTION'
+            echo 'capture_auth=AUTHENTICATED_SESSION'
+            echo 'same_origin_mutation_guard=PRESERVED'
+            echo 'ap_recovery_boundaries=PRESERVED'
+            echo 'trusted_lan_bypass=ABSENT_ALL_ACTIVE_STAGES'
+            echo 'capture_views=32'
+            echo 'wifi_credentials=PORTAL_INPUT'
+            echo 'hostname=PORTAL_INPUT'
             echo 'ws350_build=PASS'
             echo 'jc3248w535_regression=PASS'
             sha256sum firmware-gate-artifacts/*.bin
@@ -291,7 +267,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: workshop-os-v11-22-display-expert-rc1
+          name: workshop-os-v11-23-network-locale-layout-rc2
           retention-days: 14
           if-no-files-found: error
           path: firmware-gate-artifacts/
@@ -310,22 +286,11 @@ jobs:
           FIRMWARE_RESULT: ${{ needs.validate.result }}
         run: |
           set -euo pipefail
-
-          if [[ "$SCOPE_RESULT" != "success" ]]; then
-            echo "Scope classification failed: $SCOPE_RESULT" >&2
-            exit 1
-          fi
-
+          [[ "$SCOPE_RESULT" == "success" ]] || exit 1
           if [[ "$FIRMWARE_REQUIRED" == "true" ]]; then
-            if [[ "$FIRMWARE_RESULT" != "success" ]]; then
-              echo "Firmware-sensitive change requires successful native validation; result=$FIRMWARE_RESULT" >&2
-              exit 1
-            fi
-            echo 'Merge Gate: PASS — firmware-sensitive change completed full native validation.'
+            [[ "$FIRMWARE_RESULT" == "success" ]] || exit 1
+            echo 'Merge Gate: PASS — full native v11.23 RC2 secure reconstruction validation completed.'
           else
-            if [[ "$FIRMWARE_RESULT" != "skipped" ]]; then
-              echo "Expected native validation to be skipped for non-firmware change; result=$FIRMWARE_RESULT" >&2
-              exit 1
-            fi
-            echo 'Merge Gate: PASS — no firmware-sensitive paths changed; native build correctly skipped.'
+            [[ "$FIRMWARE_RESULT" == "skipped" ]] || exit 1
+            echo 'Merge Gate: PASS — native validation correctly skipped.'
           fi

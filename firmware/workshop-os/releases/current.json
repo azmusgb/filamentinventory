@@ -17,20 +17,19 @@
     "channel": "production-workshop-os-v11.19.1",
     "version": "11.19.1",
     "rollbackVersion": "7.2",
-    "note": "Accepted source has advanced to v11.22. The static installer remains intentionally conservative at physically accepted v11.19.1 with Smart Home v7.2 rollback until a separate binary-channel promotion is completed."
+    "note": "Accepted source remains v11.22 while the static installer stays conservatively pinned to v11.19.1 with Smart Home v7.2 rollback."
   },
   "candidate": {
     "version": "11.23-rc2",
+    "name": "Workshop OS v11.23 Network / Locale / Layout Expert RC2",
     "branch": "feature/v11-23-network-locale-layout",
     "pullRequest": 76,
-    "name": "Workshop OS v11.23 Network / Locale / Layout Expert RC2",
-    "purpose": "Direct-to-main hardware candidate for explicit physical network, timezone and guarded display-rotation controls with larger touch targets and explicit directional navigation.",
-    "securityBoundary": "Final RC2 preserves the v11.20 portal/session model. The temporary trusted-LAN no-code bypass used during early hardware iteration is not part of the mergeable candidate and is explicitly forbidden by the final authenticated-boundary gate.",
+    "purpose": "Elevate the WS350 touch experience with explicit large controls, visible staged network state, safe Back/Discard/Apply actions, dedicated rotation preview and guarded commit, while preserving the authenticated v11.20 portal/session boundary, same-origin mutation protection, AP/recovery boundaries, and the 32-view credential-safe capture catalog.",
+    "securityBoundary": "Active RC2 reconstruction preserves the v11.20 portal/session model at every stage. The historical trusted-LAN no-code bypass is never enabled by the secure touch applicator, is excluded from packaged candidate tools, and is forbidden by intermediate and final authenticated-boundary validation.",
     "status": "physical-acceptance-required",
     "exactHeadCi": "required",
     "physicalAcceptance": "required"
   },
-  "mainState": null,
   "validation": {
     "acceptedSource": {
       "exactHeadCi": "passed",
@@ -43,6 +42,23 @@
       "settingsParity": "passed",
       "framebufferViews": 29,
       "physicalAcceptance": "passed"
+    },
+    "candidate": {
+      "networkLocaleLayoutContracts": "required",
+      "touchUxContracts": "required",
+      "secureTouchApplicator": "required",
+      "authenticatedBoundaryDuringTouchStages": "required",
+      "physicalTouchFinalizationContracts": "required",
+      "guardedActionFeedbackContracts": "required",
+      "rotationPreviewGuard": "required",
+      "normalWifiPortalCode": "required-throughout-reconstruction",
+      "helperAuthMode": "authenticated-session",
+      "trustedLanBypass": "forbidden-all-active-stages",
+      "sameOriginMutationProtection": "required",
+      "apRecoveryBoundaries": "required",
+      "settingsParity": "required",
+      "framebufferViews": 32,
+      "physicalAcceptance": "required"
     },
     "staticDownload": {
       "version": "11.19.1",

@@ -21,19 +21,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Run repository release gate
         run: python3 scripts/validate_release.py
-
       - name: Validate shell scripts
         shell: bash
         run: |
           set -euo pipefail
           while IFS= read -r -d '' file; do
             bash -n "$file"
-          done < <(find . -type f -name '*.sh' -not -path './.git/*' -not -path './firmware/build/*' -print0)
+          done < <(find . -type f \( -name '*.sh' -o -name '*.zsh' \) -not -path './.git/*' -not -path './firmware/build/*' -print0)
           echo 'Shell syntax: PASS'
-
       - name: Validate release metadata
         run: |
           python3 - <<'PY'
@@ -59,18 +56,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           mapfile -t files < <(
             gh api --paginate "/repos/$REPO/pulls/$PR_NUMBER/files?per_page=100" --jq '.[].filename'
           )
-
           required=("Validate")
           firmware_required=0
           static_required=0
-
           for f in "${files[@]}"; do
             case "$f" in
-              .github/workflows/firmware-candidate.yml|README.md|SECURITY.md|releases/current.json|apply_smart_home_*.py|.bambuhelper-validation/*|.bambuhelper-validation/**/*|assets/*|assets/**/*|scripts/apply_*.sh|scripts/validate_*.py|scripts/capture-ws350-views.zsh|docs/physical-*.md|docs/visual-*.md|docs/portal-auth-*.md|docs/display-expert-*.md|docs/settings-capability-registry/*|docs/settings-capability-registry/**/*)
+              .github/workflows/firmware-candidate.yml|README.md|SECURITY.md|releases/current.json|apply_smart_home_*.py|.bambuhelper-validation/*|.bambuhelper-validation/**/*|assets/*|assets/**/*|scripts/apply_*.sh|scripts/validate_*.py|scripts/capture-ws350-views.zsh|docs/physical-*.md|docs/visual-*.md|docs/portal-auth-*.md|docs/display-expert-*.md|docs/network-*.md|docs/touch-*.md|docs/security-*.md|docs/PHYSICAL_ACCEPTANCE*.md|docs/settings-capability-registry/*|docs/settings-capability-registry/**/*)
                 firmware_required=1
                 ;;
             esac
@@ -80,17 +74,14 @@ jobs:
                 ;;
             esac
           done
-
           if (( firmware_required )); then
-            required+=("Workshop OS Firmware Gate — v11.22 Display Expert RC1")
+            required+=("Workshop OS Firmware Gate — v11.23 Network Locale Layout RC2")
           fi
           if (( static_required )); then
             required+=("Validate accepted static installer")
           fi
-
           printf '%s\n' "${required[@]}" | jq -R . | jq -s -c . > required.json
           echo "required=$(cat required.json)" >> "$GITHUB_OUTPUT"
-
           echo "Changed paths:"
           printf '  %s\n' "${files[@]}"
           echo "Required conditional workflow gates:"
@@ -105,13 +96,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           mapfile -t required < <(jq -r '.[]' <<< "$REQUIRED")
-
           for attempt in $(seq 1 210); do
             runs="$(gh api "/repos/$REPO/actions/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100")"
             all_passed=1
-
             echo "Merge Gate poll $attempt"
             for name in "${required[@]}"; do
               row="$(jq -c --arg n "$name" '[.workflow_runs[] | select(.name == $n)] | sort_by(.created_at) | last // empty' <<< "$runs")"
@@ -120,11 +108,9 @@ jobs:
                 all_passed=0
                 continue
               fi
-
               status="$(jq -r '.status' <<< "$row")"
               conclusion="$(jq -r '.conclusion // ""' <<< "$row")"
               url="$(jq -r '.html_url' <<< "$row")"
-
               if [[ "$status" == "completed" && "$conclusion" == "success" ]]; then
                 echo "  PASS  $name"
               elif [[ "$status" == "completed" ]]; then
@@ -136,14 +122,11 @@ jobs:
                 all_passed=0
               fi
             done
-
             if (( all_passed )); then
               echo "Merge Gate: PASS"
               exit 0
             fi
-
             sleep 20
           done
-
           echo "Merge Gate: timed out waiting for required workflows" >&2
           exit 1

@@ -6,10 +6,11 @@ Workshop OS is local-first firmware that can observe and issue commands to physi
 
 | Surface | Status | Security handling |
 | --- | --- | --- |
-| Workshop OS v11.19.1 accepted source | Supported | Current accepted source baseline. |
-| Workshop OS v11.20 Portal Auth RC1 | Active security candidate | Portal/session and AP-boundary hardening are validated here and still require physical WS350 acceptance before promotion. |
-| Static installer v7.2 | Supported for the published download channel | Security-relevant installer/recovery defects should be assessed independently from source-line fixes. |
-| Static rollback v7.1 | Recovery-only | Retained only as the immediate rollback image. |
+| Workshop OS v11.22 accepted source | Supported | Current physically accepted source baseline. |
+| Workshop OS v11.23 Network Locale Layout RC2 | Hardware candidate | Preserves the v11.20 portal/session and AP-boundary security model; physical acceptance still required. |
+| Workshop OS v11.20 Portal Auth RC1 | Preserved security baseline | Auth/session/AP-boundary implementation remains in the deterministic reconstruction stack and is revalidated after the v11.23 UX deltas. |
+| Static installer v11.19.1 | Supported for the published download channel | Conservative published installer. |
+| Static rollback v7.2 | Recovery-only | Immediate static-channel rollback. |
 | Historical RCs / archived manifests | Unsupported | Kept for provenance only. |
 
 ## Report privately when possible
@@ -27,7 +28,7 @@ Please treat these as security-sensitive even when they look like functional bug
 - unauthorized printer control or smart-plug power control;
 - command replay after disconnect/reconnect;
 - a destructive command that bypasses state validation or confirmation;
-- exposure of Wi-Fi credentials, Bambu access codes, portal codes, tokens, backups, or settings secrets;
+- exposure of Wi-Fi credentials, printer access codes, portal codes, tokens, backups, or settings secrets;
 - unsafe OTA/recovery behavior or rollback bypass;
 - unauthenticated framebuffer/capture endpoints;
 - credential-bearing screenshots, framebuffer bundles, diagnostics, logs, process arguments, or configuration exports;
@@ -37,25 +38,25 @@ Please treat these as security-sensitive even when they look like functional bug
 
 ## Portal/session expectations
 
-For an authenticated Workshop OS source line:
+For Workshop OS v11.23 RC2 and later authenticated source lines:
 
 - normal LAN management routes require the boot-scoped portal-code session;
 - mutating requests retain same-origin protection in addition to authentication;
 - logout and reboot invalidate prior portal sessions;
-- the rotating portal code is intentionally shown on the physical System screen for the owner but must not be printed to Serial/log output;
+- the rotating portal code may be shown on the physical System screen for the owner but must not be printed to Serial/log output;
 - normal-LAN Recovery access is authenticated;
 - **AP mode is not itself an authorization credential**;
 - ordinary first-boot/fallback AP access is limited to captive Wi-Fi onboarding essentials unless the owner establishes a portal-code session;
-- independent unauthenticated rescue access exists only in deliberate Recovery Safe Mode and is scoped to the dedicated recovery/status/actions plus application OTA/factory-reset surface;
-- printer control, mapped printer power, settings export, debug and unrelated privileged surfaces must not become anonymously accessible merely because the device entered AP mode;
+- independent unauthenticated rescue access exists only in deliberate Recovery Safe Mode and is scoped to dedicated recovery/status/actions plus application OTA/factory-reset;
+- printer control, mapped printer power, settings export, debug, framebuffer capture, and unrelated privileged surfaces must not become anonymously accessible merely because the device entered AP mode;
 - portal-code login may remain available on AP so the owner can establish authenticated access to protected surfaces when needed;
 - the portal credential must not be embedded in command-line arguments, shared captures, diagnostics, or support artifacts.
 
-The pinned upstream setup/fallback AP currently uses a known default Wi-Fi password. That is an onboarding transport control, **not** a substitute for Workshop OS authorization. Changes that reintroduce blanket `isAPMode()` authorization are security regressions.
+The pinned upstream setup/fallback AP currently uses a known default Wi-Fi password. That is an onboarding transport control, **not** a substitute for Workshop OS authorization. Changes that reintroduce blanket `isAPMode()` authorization or normal-LAN trusted-network bypasses are security regressions.
 
 ## Control-safety expectations
 
-Security fixes must preserve the fail-closed control model documented in `docs/CONTROL_SAFETY.md`:
+Security changes must preserve the fail-closed control model documented in `docs/CONTROL_SAFETY.md`:
 
 - commands are revalidated at execution time;
 - stale/offline commands are discarded rather than delayed;
@@ -71,9 +72,10 @@ The supported `scripts/capture-ws350-views.zsh` workflow must remain credential-
 
 - portal-code input is not echoed or passed in process arguments;
 - cookie/login/raw-frame temporary files use restrictive permissions and are removed on normal exit and interruption;
+- the credential is submitted to `/login` over stdin rather than as a command-line argument;
 - raw framebuffer bytes are kept only in a private temporary file outside the retained capture directory;
 - the live System portal-code region is redacted **before** retained PPM or PNG output is written;
 - printer configuration/settings exports are excluded because those models can contain access codes or other secrets;
-- Release Gate must fail if these capture-safety invariants are weakened.
+- Release Gate must fail if these capture-safety invariants or authenticated-route expectations are weakened.
 
 If a secret is committed accidentally, deleting it in a later commit is not sufficient. Rotate/revoke the credential first, then remove it from the active repository and evaluate whether history rewriting is warranted.
