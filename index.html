@@ -167,68 +167,71 @@
           <div class="form-field"><label for="confidence">Identification confidence</label><select class="select" id="confidence"><option>Confirmed</option><option>High</option><option>Medium</option><option>Low</option><option>Unknown</option></select></div>
           <div class="form-field"><label for="opened">Opened</label><select class="select" id="opened"><option>Unknown</option><option>Yes</option><option>No</option></select></div>
           <div class="form-field"><label for="bagged">Bagged / sealed storage</label><select class="select" id="bagged"><option>Unknown</option><option>Yes</option><option>No</option></select></div>
-          <div class="form-field"><label for="purchaseSource">Purchase source</label><input class="field" id="purchaseSource" maxlength="100" placeholder="Micro Center / Bambu Lab / Amazon"/></div>
-          <div class="form-field"><label for="purchasePrice">Purchase price</label><input class="field" id="purchasePrice" min="0" step="0.01" type="number"/></div>
-          <div class="form-field"><label for="purchaseDate">Purchase date</label><input class="field" id="purchaseDate" type="date"/></div>
           <div class="form-field"><label for="reorderThreshold">Reorder threshold (g)</label><input class="field" id="reorderThreshold" min="0" step="1" type="number" value="250"/></div>
           <div class="form-field"><label for="lastDriedDate">Last dried</label><input class="field" id="lastDriedDate" type="date"/></div>
-          <div class="form-field full"><label for="notes">Notes</label><textarea class="field" id="notes" maxlength="1000"></textarea></div>
+          <div class="form-field"><label for="purchaseSource">Purchase source</label><input class="field" id="purchaseSource" maxlength="80" placeholder="Micro Center / Amazon"/></div>
+          <div class="form-field"><label for="purchasePrice">Purchase price</label><input class="field" id="purchasePrice" inputmode="decimal" min="0" placeholder="14.99" step="0.01" type="number"/></div>
+          <div class="form-field"><label for="purchaseDate">Purchase date</label><input class="field" id="purchaseDate" type="date"/></div>
+          <div class="form-field full"><label for="notes">Notes</label><textarea class="field" id="notes" maxlength="500" placeholder="Label evidence, drying notes, purchase details…"></textarea></div>
         </div>
+        <footer class="dialog-actions">
+          <button class="btn" id="cancelSpoolBtn" type="button">Cancel</button>
+          <button class="btn btn-primary" type="submit" value="default">Save spool</button>
+        </footer>
       </div>
-      <footer class="dialog-actions"><button class="btn" id="dialogCancelBtn" type="button" value="cancel">Cancel</button><button class="btn btn-primary" id="dialogSaveBtn" type="submit" value="default">Save spool</button></footer>
     </form>
   </dialog>
 
-  <div aria-live="polite" class="toast" id="toast"></div>
-  <script src="/app-version.js"></script>
-  <script src="/events.js"></script>
-  <script src="/user-isolation.js"></script>
-  <script src="/pwa-client.js"></script>
-  <script src="/state-merge.js"></script>
-  <script src="/trust-core.js"></script>
-  <script src="/audit-core.js"></script>
-  <script src="/personal-core.js"></script>
-  <script src="/spool-contract-core.js"></script>
-  <script src="/spool-contract-client.js"></script>
-  <script src="/physical-workflow-core.js"></script>
-  <script src="/physical-workflow-client.js"></script>
-  <script src="/profile-preferences-core.js"></script>
-  <script src="/intake-core.js"></script>
-  <script src="/scan-core.js"></script>
-  <script src="/printer-core.js"></script>
-  <script src="/inventory-command-core.js"></script>
-  <script src="/spool-actions-core.js"></script>
-  <script src="/smart-weigh-core.js"></script>
-  <script src="/bulk-actions-core.js"></script>
-  <script src="/print-readiness-core.js"></script>
-  <script src="/workflows.js"></script>
-  <script src="/llm-core.js"></script>
-  <script src="/llm-transport-client.js"></script>
-  <script src="/sync-client.js"></script>
-  <script src="/security-client.js"></script>
-  <script src="/labels-client.js"></script>
-  <script src="/household-client.js"></script>
-  <script src="/ux-client.js"></script>
-  <script src="/audit-client.js"></script>
-  <script src="/personal-dashboard.js"></script>
-  <script src="/profile-preferences-client.js"></script>
-  <script src="/spool-intake-client.js"></script>
-  <script src="/intake-client.js"></script>
-  <script src="/scan-client.js"></script>
-  <script src="/printer-dashboard.js"></script>
-  <script src="/printer-ams-ui.js"></script>
-  <script src="/inventory-command-client.js"></script>
-  <script src="/inventory-card-client.js"></script>
-  <script src="/spool-actions-client.js"></script>
-  <script src="/smart-weigh-client.js"></script>
-  <script src="/bulk-actions-client.js"></script>
-  <script src="/print-readiness-client.js"></script>
-  <script src="/ux-cohesion-client.js"></script>
-  <script src="/preferences-v12-client.js"></script>
-  <script src="/ui-v10-client.js"></script>
-  <script src="/app-shell-client.js"></script>
-  <script src="/navigation-architecture.js"></script>
-  <script src="/llm-client.js"></script>
-  <script src="/app.js"></script>
+  <div aria-live="polite" class="toast" id="toast" role="status"></div>
+
+  <script defer src="/app-version.js"></script>
+  <script defer src="/events.js"></script>
+  <script defer src="/state-merge.js"></script>
+  <script defer src="/audit-core.js"></script>
+  <script defer src="/personal-core.js"></script>
+  <script defer src="/spool-contract-core.js"></script>
+  <script defer src="/physical-workflow-core.js"></script>
+  <script defer src="/profile-preferences-core.js"></script>
+  <script defer src="/intake-core.js"></script>
+  <script defer src="/scan-core.js"></script>
+  <script defer src="/printer-core.js"></script>
+  <script defer src="/inventory-command-core.js"></script>
+  <script defer src="/spool-actions-core.js"></script>
+  <script defer src="/smart-weigh-core.js"></script>
+  <script defer src="/bulk-actions-core.js"></script>
+  <script defer src="/print-readiness-core.js"></script>
+  <script defer src="/user-isolation.js"></script>
+  <script defer src="/pwa-client.js"></script>
+  <script defer src="/spool-contract-client.js"></script>
+  <script defer src="/physical-workflow-client.js"></script>
+  <script defer src="/llm-core.js"></script>
+  <script defer src="/llm-transport-client.js"></script>
+  <script defer src="/sync-client.js"></script>
+  <script defer src="/security-client.js"></script>
+  <script defer src="/labels-client.js"></script>
+  <script defer src="/household-client.js"></script>
+  <script defer src="/ux-client.js"></script>
+  <script defer src="/audit-client.js"></script>
+  <script defer src="/personal-dashboard.js"></script>
+  <script defer src="/profile-preferences-client.js"></script>
+  <script defer src="/spool-intake-client.js"></script>
+  <script defer src="/intake-client.js"></script>
+  <script defer src="/scan-client.js"></script>
+  <script defer src="/printer-dashboard.js"></script>
+  <script defer src="/printer-ams-ui.js"></script>
+  <script defer src="/inventory-command-client.js"></script>
+  <script defer src="/inventory-card-client.js"></script>
+  <script defer src="/spool-actions-client.js"></script>
+  <script defer src="/smart-weigh-client.js"></script>
+  <script defer src="/bulk-actions-client.js"></script>
+  <script defer src="/print-readiness-client.js"></script>
+  <script defer src="/ux-cohesion-client.js"></script>
+  <script defer src="/preferences-v12-client.js"></script>
+  <script defer src="/workflows.js"></script>
+  <script defer src="/ui-v10-client.js"></script>
+  <script defer src="/app-shell-client.js"></script>
+  <script defer src="/navigation-architecture.js"></script>
+  <script defer src="/llm-client.js"></script>
+  <script defer src="/app.js"></script>
 </body>
 </html>
