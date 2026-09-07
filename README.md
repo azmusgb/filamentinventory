@@ -22,6 +22,8 @@ This repository, `azmusgb/filamentinventory`, is authoritative for inventory-dom
 
 WS350 / Workshop OS firmware is authoritative in `azmusgb/bambuhelper-smart-display`.
 
+The history-preserved `firmware/workshop-os/` tree is an **integration mirror** for product-level contract checks, candidate reconstruction, and recovery planning. It is not a second firmware release authority, and mirror CI does not promote or physically accept a Workshop OS candidate.
+
 The legacy `firmware/waveshare-home` tree retained here is historical/migration/recovery material. It is **not** a second active firmware product line.
 
 See [`docs/REPOSITORY_BOUNDARIES.md`](docs/REPOSITORY_BOUNDARIES.md).
@@ -154,6 +156,7 @@ Repository governance still tracks enforcement of a protected/ruleset-gated `mai
 
 - [`docs/ROADMAP_STATUS_2026-09-06.md`](docs/ROADMAP_STATUS_2026-09-06.md) — current implementation vs acceptance state
 - [`docs/REPOSITORY_BOUNDARIES.md`](docs/REPOSITORY_BOUNDARIES.md) — repository authority and firmware boundary
+- [`docs/UNIFIED_MONOREPO_MIGRATION.md`](docs/UNIFIED_MONOREPO_MIGRATION.md) — history-preserved Workshop OS integration import and authority-cutover gates
 - [`docs/DEVICE_API_CONTRACT_V1.md`](docs/DEVICE_API_CONTRACT_V1.md) — current device-facing inventory contract
 - [`docs/GROUNDED_LLM_ACCEPTANCE_V1.md`](docs/GROUNDED_LLM_ACCEPTANCE_V1.md) — grounded-model acceptance protocol
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — engineering and release discipline
