@@ -3,8 +3,8 @@ import { test, expect } from '@playwright/test';
 
 const FIXED_TIME = Date.parse('2026-08-28T15:00:00.000Z');
 const APPROVED_VISUAL_HASHES = Object.freeze({
-  home:'4d54898667b7fbc4bcfed31ecdcee93329192f69645cb6d251a7d2223da2af04',
-  inventory:'7fa3b11616bd9a983e0e7f68a2c465b64ea6e6e79bfa846d2e7c838a50d4b6f8',
+  home:'96cb04f471d1b430b24693614f8794dc1a7f00b770ac64c62a1f8b6e2b211b45',
+  inventory:'e0ac7a622a10b1c76ea5965de0a935c00c28552fe432df23cbe9e21986484d4e',
 });
 
 const prefs = (owner, displayName, initials, accent) => ({
@@ -225,6 +225,10 @@ test('mobile Back and Forward restore the exact app surface', async ({ page }, t
   test.skip(testInfo.project.name !== 'mobile-webkit','Mobile shell contract.');
   const bottom=page.locator('.mobile-bottom-nav');
   await expect(bottom).toBeVisible();
+  await expect(bottom.locator('button')).toHaveCount(5);
+  await expect(bottom.locator('[data-bottom-scan], [data-bottom-more]')).toHaveCount(0);
+  await expect(bottom).toContainText('Assistant');
+  await expect(bottom).toContainText('Activity');
   await bottom.locator('[data-bottom-view="inventory"]').click();
   await expect(page.locator('#inventoryView')).toHaveClass(/active/);
   await expect(page).toHaveURL(/#view=inventory$/);
@@ -239,9 +243,9 @@ test('mobile Back and Forward restore the exact app surface', async ({ page }, t
   await expect(page.locator('#inventoryView')).toHaveClass(/active/);
 });
 
-test('mobile More hands off to one isolated Print Check dialog', async ({ page }, testInfo) => {
+test('mobile header Tools hands off to one isolated Print Check dialog', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-webkit','Mobile sheet contract.');
-  await page.locator('[data-bottom-more]').click();
+  await page.getByRole('button',{name:'Open tools and settings'}).click();
   await expect(page.locator('.fi-more-sheet[open]')).toBeVisible();
   await page.locator('.fi-more-sheet [data-shell-action="print"]').click();
   await expect(page.locator('.fi-more-sheet')).not.toHaveAttribute('open','');
@@ -254,7 +258,7 @@ test('mobile More hands off to one isolated Print Check dialog', async ({ page }
 
 test('mobile scanner unknown-spool recovery opens Add spool with the scanned ID', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-webkit','iPhone scanner handoff contract.');
-  await page.locator('[data-bottom-scan]').click();
+  await page.getByRole('button',{name:'Scan spool',exact:true}).click();
   await expect(page.locator('#qrScannerDialog[open]')).toBeVisible();
   await page.locator('#qrManualId').fill('T999');
   await page.getByRole('button',{name:'Find spool'}).click();

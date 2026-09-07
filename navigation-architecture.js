@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PRIMARY_VIEWS = new Set(['dashboard', 'inventory', 'household', 'history']);
+  const PRIMARY_VIEWS = new Set(['dashboard', 'inventory', 'household', 'assistant', 'history']);
   const $ = id => document.getElementById(id);
   const qs = selector => document.querySelector(selector);
   let observer = null;
@@ -36,15 +36,23 @@
     return `<button type="button"${classes}${route}${task}><span class="fi-nav-icon" aria-hidden="true">${icon}</span><span>${label}</span></button>`;
   }
 
-  function moreAction({view, action, label}) {
+  function moreAction({view, action, label, hint = ''}) {
     const route = view ? ` data-shell-view="${view}"` : '';
     const task = action ? ` data-shell-action="${action}"` : '';
-    return `<button class="fi-more-action" type="button"${route}${task}><span>${label}</span><b aria-hidden="true">›</b></button>`;
+    const sub = hint ? `<small>${hint}</small>` : '';
+    return `<button class="fi-more-action" type="button"${route}${task}><span><strong>${label}</strong>${sub}</span><b aria-hidden="true">›</b></button>`;
+  }
+
+  function activeViewFromDom() {
+    return document.querySelector('.view.active[id$="View"]')?.id.replace(/View$/, '') || '';
   }
 
   function currentView() {
+    const domView = activeViewFromDom();
+    if (domView === 'assistant') return 'assistant';
     return globalThis.FilamentInventoryNavigation?.current?.()
-      || document.querySelector('.view.active[id$="View"]')?.id.replace(/View$/, '')
+      || domView
+      || document.documentElement.dataset.currentView
       || 'dashboard';
   }
 
@@ -65,17 +73,18 @@
     document.querySelectorAll('[data-bottom-view]').forEach(control => {
       control.setAttribute('aria-current', control.dataset.bottomView === view ? 'page' : 'false');
     });
+    document.querySelectorAll('[data-shell-action="assistant"]').forEach(control => {
+      control.setAttribute('aria-current', view === 'assistant' ? 'page' : 'false');
+    });
     document.querySelectorAll('[data-v12-more]').forEach(control => {
       control.setAttribute('aria-current', PRIMARY_VIEWS.has(view) ? 'false' : 'page');
     });
-    const more = qs('.mobile-bottom-nav [data-bottom-more]');
-    if (more) more.setAttribute('aria-current', ['dashboard', 'inventory', 'household'].includes(view) ? 'false' : 'page');
   }
 
   function refineSidebar() {
     const sidebar = $('fiDesktopSidebar');
-    if (!sidebar || sidebar.dataset.navigationArchitecture === '3') return;
-    sidebar.dataset.navigationArchitecture = '3';
+    if (!sidebar || sidebar.dataset.navigationArchitecture === '4') return;
+    sidebar.dataset.navigationArchitecture = '4';
     sidebar.innerHTML = `
       <div class="fi-sidebar-group-label">Workspace</div>
       <nav class="fi-secondary-nav" aria-label="Primary destinations">
@@ -86,85 +95,92 @@
         ${shellButton({view:'history', icon:'↺', label:'Activity'})}
       </nav>
       <div class="fi-sidebar-spacer"></div>
-      <div class="fi-sidebar-group-label">Actions</div>
+      <div class="fi-sidebar-group-label">Quick actions</div>
       <nav class="fi-secondary-nav fi-quick-actions" aria-label="Quick actions">
-        ${shellButton({action:'print', icon:'✓', label:'Can I print this?'})}
+        ${shellButton({action:'print', icon:'✓', label:'Print readiness'})}
+        ${shellButton({action:'scan', icon:'⌁', label:'Scan spool'})}
         ${shellButton({action:'add', icon:'＋', label:'Add spool', className:'fi-sidebar-primary-action'})}
       </nav>
       <nav class="fi-secondary-nav fi-sidebar-more" aria-label="More tools">
-        <button type="button" data-v12-more aria-haspopup="dialog" aria-controls="fiMoreSheet"><span class="fi-nav-icon" aria-hidden="true">•••</span><span>Tools & settings</span></button>
+        <button type="button" data-bottom-more data-v12-more aria-haspopup="dialog" aria-controls="fiMoreSheet"><span class="fi-nav-icon" aria-hidden="true">•••</span><span>Tools & settings</span></button>
       </nav>`;
   }
 
   function preserveBottomNav() {
     const nav = qs('.mobile-bottom-nav');
     if (!nav) return;
-    nav.dataset.navigationArchitecture = '2';
+    nav.dataset.navigationArchitecture = '4';
     const required = [
       '[data-bottom-view="dashboard"]',
       '[data-bottom-view="inventory"]',
-      '[data-bottom-scan]',
       '[data-bottom-view="household"]',
-      '[data-bottom-more]',
+      '[data-shell-action="assistant"]',
+      '[data-bottom-view="history"]',
     ];
-    if (required.every(selector => nav.querySelector(selector))) return;
+    const hasLegacy = nav.querySelector('[data-bottom-scan], [data-bottom-more]');
+    if (!hasLegacy && required.every(selector => nav.querySelector(selector))) return;
     nav.innerHTML = `
       <button type="button" data-bottom-view="dashboard"><span aria-hidden="true">⌂</span><small>Home</small></button>
       <button type="button" data-bottom-view="inventory"><span aria-hidden="true">▦</span><small>Inventory</small></button>
-      <button type="button" data-bottom-scan><span aria-hidden="true">⌁</span><small>Scan</small></button>
       <button type="button" data-bottom-view="household"><span aria-hidden="true">◉</span><small>Printer</small></button>
-      <button type="button" data-bottom-more aria-haspopup="dialog" aria-controls="fiMoreSheet"><span aria-hidden="true">•••</span><small>More</small></button>`;
+      <button type="button" data-shell-action="assistant"><span aria-hidden="true">✦</span><small>Assistant</small></button>
+      <button type="button" data-bottom-view="history"><span aria-hidden="true">↺</span><small>Activity</small></button>`;
+  }
+
+  function ensureHeaderTools() {
+    const topActions = qs('.top-actions');
+    if (!topActions || topActions.querySelector('[data-v12-more]')) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn icon-btn header-tools-launch header-scan-launch';
+    button.dataset.bottomMore = '';
+    button.dataset.v12More = '';
+    button.setAttribute('aria-haspopup', 'dialog');
+    button.setAttribute('aria-controls', 'fiMoreSheet');
+    button.setAttribute('aria-label', 'Open tools and settings');
+    button.innerHTML = '<span aria-hidden="true">•••</span>';
+    topActions.appendChild(button);
   }
 
   function refineMoreSheet() {
     const dialog = qs('.fi-more-sheet');
-    if (!dialog || dialog.dataset.navigationArchitecture === '3') return;
-    dialog.dataset.navigationArchitecture = '3';
+    if (!dialog || dialog.dataset.navigationArchitecture === '4') return;
+    dialog.dataset.navigationArchitecture = '4';
     if (!dialog.id) dialog.id = 'fiMoreSheet';
     dialog.setAttribute('aria-labelledby', 'fiMoreSheetTitle');
     dialog.innerHTML = `
       <div class="dialog-head">
-        <div><span class="eyebrow">More</span><h3 id="fiMoreSheetTitle">Tools & settings</h3></div>
+        <div><span class="eyebrow">Workshop tools</span><h3 id="fiMoreSheetTitle">Tools & settings</h3></div>
         <button class="btn icon-btn" type="button" data-dialog-close aria-label="Close">×</button>
       </div>
       <div class="dialog-body">
         <div class="fi-more-groups">
           <section class="fi-more-group">
-            <h4>Intelligence</h4>
+            <h4>Physical filament</h4>
             <div class="fi-more-actions">
-              ${moreAction({action:'assistant', label:'Inventory assistant'})}
-            </div>
-          </section>
-          <section class="fi-more-group">
-            <h4>Filament workflow</h4>
-            <div class="fi-more-actions">
-              ${moreAction({action:'scan', label:'Scan spool'})}
-              ${moreAction({view:'weigh', label:'Weigh spool'})}
-              ${moreAction({action:'print', label:'Can I print this?'})}
-            </div>
-          </section>
-          <section class="fi-more-group">
-            <h4>Manage</h4>
-            <div class="fi-more-actions">
-              ${moreAction({view:'labels', label:'QR labels'})}
+              ${moreAction({action:'add', label:'Add spool', hint:'Create a spool in this private workspace'})}
+              ${moreAction({action:'scan', label:'Scan spool', hint:'Resolve a durable spool ID'})}
+              ${moreAction({view:'weigh', label:'Weigh spool', hint:'Record measured quantity evidence'})}
+              ${moreAction({action:'print', label:'Print readiness', hint:'Can I print this now?'})}
+              ${moreAction({view:'labels', label:'QR labels', hint:'Identity only — no mutable state'})}
             </div>
           </section>
           <section class="fi-more-group">
             <h4>Devices & data</h4>
             <div class="fi-more-actions">
-              ${moreAction({view:'sync', label:'Sync devices'})}
-              ${moreAction({view:'data', label:'Backup & data'})}
+              ${moreAction({view:'sync', label:'Sync devices', hint:'Profile-scoped cloud state'})}
+              ${moreAction({view:'data', label:'Backup & data', hint:'Export, restore and install'})}
             </div>
           </section>
           <section class="fi-more-group">
             <h4>Workspace</h4>
             <div class="fi-more-actions">
-              ${moreAction({view:'preferences', label:'Preferences'})}
+              ${moreAction({view:'preferences', label:'Preferences', hint:'Personalize this private workspace'})}
             </div>
           </section>
         </div>
       </div>`;
-    document.querySelectorAll('[data-v12-more], .mobile-bottom-nav [data-bottom-more]').forEach(more => {
+    document.querySelectorAll('[data-v12-more]').forEach(more => {
       more.setAttribute('aria-haspopup', 'dialog');
       more.setAttribute('aria-controls', dialog.id);
     });
@@ -189,13 +205,14 @@
     const brand = qs('.brand h1');
     if (brand) brand.textContent = 'Filament Inventory';
     const copy = qs('.brand p');
-    if (copy) copy.textContent = 'Filament workspace';
+    if (copy) copy.textContent = 'Private workshop inventory';
   }
 
   function apply() {
     scheduled = false;
     refineSidebar();
     preserveBottomNav();
+    ensureHeaderTools();
     refineMoreSheet();
     retireLegacyNavigation();
     refineLabels();
@@ -229,6 +246,7 @@
       syncViewVisibility();
       syncCurrentState(event.detail?.view || currentView());
     });
+    document.addEventListener('fi:profile-updated', scheduleApply);
     globalThis.FilamentInventoryEvents?.on?.('navigation:changed', () => scheduleApply());
   }
 
