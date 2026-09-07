@@ -142,11 +142,27 @@ test('private link preserves scan/profile and deep-link boot reopens Physical Sp
   await expect(page).not.toHaveURL(/(?:\?|&)scan=1/); await expect(page).not.toHaveURL(/(?:\?|&)spool=T001/);
 });
 
-test('cross-profile scan routes to owning private inventory', async ({page}) => {
+test('cross-profile scan fails closed without revealing or switching private inventory', async ({page}) => {
   await scan(page,'A001');
-  await expect(page.locator('body')).toHaveAttribute('data-inventory-user','Aimee'); await expect(page.locator('#spoolActionDialog[open]')).toBeVisible();
-  await expect(page.locator('#spoolActionTitle')).toContainText('A001 · Ocean Blue');
-  expect(await page.evaluate(() => (JSON.parse(localStorage.getItem('filament-user-v1:bill:inventory')||'{}').spools||[]).some(x=>x.id==='A001'))).toBe(false);
+
+  // A spool that exists only in another member's private workspace must be
+  // indistinguishable from an unknown spool to the active profile.
+  await expect(page.locator('body')).toHaveAttribute('data-inventory-user','Bill');
+  await expect(page.locator('#spoolActionDialog[open]')).toHaveCount(0);
+  const unknown = page.locator('dialog[open]');
+  await expect(unknown).toBeVisible();
+  await expect(unknown).toContainText('Unknown spool');
+  await expect(unknown).toContainText("A001 is not in Bill's inventory");
+  await expect(unknown).not.toContainText('Aimee');
+  await expect(unknown).not.toContainText('Ocean Blue');
+  await expect(page.locator('[data-scanner-profile]')).toContainText("Bill's private inventory");
+
+  const isolation = await page.evaluate(() => ({
+    current: localStorage.getItem('filament-current-user-v1'),
+    billHasA001: (JSON.parse(localStorage.getItem('filament-user-v1:bill:inventory') || '{}').spools || []).some(x => x.id === 'A001'),
+    aimeeHasA001: (JSON.parse(localStorage.getItem('filament-user-v1:aimee:inventory') || '{}').spools || []).some(x => x.id === 'A001'),
+  }));
+  expect(isolation).toEqual({current:'Bill', billHasA001:false, aimeeHasA001:true});
 });
 
 test('foreign labels are rejected with an explicit recovery message', async ({page}) => {

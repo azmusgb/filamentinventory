@@ -23,23 +23,24 @@ test('scanner is progressive and preserves an iPhone-safe fallback', async () =>
   assert.doesNotMatch(client, /https:\/\/.*(?:cdn|unpkg|jsdelivr)/i);
 });
 
-test('current-workspace scans open physical spool mode without a page reload', async () => {
+test('active-workspace scans open physical spool mode without a page reload', async () => {
   const client = await read('scan-client.js');
   assert.match(client, /function openPhysicalSpool\(id\)/);
   assert.match(client, /FilamentInventorySpoolActions/);
   assert.match(client, /actions\.openPhysical/);
-  assert.match(client, /exists&&resolved===current/);
+  assert.match(client, /const exists=core\.stateHasSpool\(state,parsed\.spoolId\)/);
   assert.match(client, /Opening spool controls/);
   assert.match(client, /if\(!openPhysicalSpool\(parsed\.spoolId\)\)location\.assign\(target\)/);
 });
 
-test('cross-profile scans still use a profile-aware reload to preserve isolation', async () => {
+test('scanner fails closed at private profile boundaries', async () => {
   const client = await read('scan-client.js');
-  assert.match(client, /Switching to .*private inventory/);
-  assert.match(client, /core\.buildSpoolTarget/);
-  assert.match(client, /location\.assign\(target\)/);
+  assert.doesNotMatch(client, /core\.resolveProfile/);
+  assert.doesNotMatch(client, /Switching to .*private inventory/);
+  assert.match(client, /showUnknown\(parsed\.spoolId\)/);
   assert.match(client, /reconcileIncomingLegacyScan/);
-  assert.match(client, /location\.replace\(core\.buildSpoolTarget/);
+  assert.match(client, /core\.stateHasSpool\(readState\(\),spoolId\)/);
+  assert.match(client, /profile:current/);
 });
 
 test('scanner exposes a small public adapter for shell and physical-spool workflows', async () => {
@@ -57,17 +58,20 @@ test('scanner has one direct found-spool path and one explicit unknown-spool rec
   assert.match(client, /data-unknown-sync/);
   assert.match(client, /data-unknown-add/);
   assert.doesNotMatch(client, /function openEditFromScan|function openPlacementFromScan|scanOpenSpoolBtn|scanEditBtn|scanPlacementBtn/);
-  assert.match(client, /resolveProfile/);
+  assert.match(client, /core\.stateHasSpool\(state,parsed\.spoolId\)/);
+  assert.doesNotMatch(client, /core\.resolveProfile/);
 });
 
-test('new QR labels encode profile while never embedding sync credentials', async () => {
-  const [labels, qr] = await Promise.all([read('labels-client.js'), read('netlify/functions/qr.mts')]);
+test('legacy QR profile hints remain non-secret metadata and never grant scanner access', async () => {
+  const [labels, qr, client] = await Promise.all([read('labels-client.js'), read('netlify/functions/qr.mts'), read('scan-client.js')]);
   assert.match(labels, /profile=\$\{encodeURIComponent/);
   assert.match(labels, /filament-user/);
   assert.match(qr, /searchParams\.get\('profile'\)/);
   assert.match(qr, /filament-user/);
   assert.match(qr, /\['Bill','Aimee'\]/);
   assert.doesNotMatch(qr, /sync-key|syncKey|filament-sync/i);
+  assert.doesNotMatch(client, /parsed\.profile\s*\|\|/);
+  assert.doesNotMatch(client, /profile:parsed\.profile/);
 });
 
 test('deployment permits only same-origin camera access and still blocks microphone and geolocation', async () => {
