@@ -31,9 +31,6 @@ PINNED_COMMIT = "8cb1cbbb6d3c175af919e8ebe1bbdcbe848ac4"
 PINNED_TREE = "754c5506bdac08033f0cdc3439e4814acd2b4294"
 API = "https://api.github.com"
 
-# Exclude payloads that are not inputs to the source reconstruction/build. The
-# path list remains intentionally small and extension-based so metadata/docs
-# consumed by old patchers are not silently omitted.
 BINARY_SUFFIXES = {
     ".bin", ".exe", ".dll", ".dylib", ".so", ".a", ".o", ".elf",
     ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico", ".pdf",
@@ -156,8 +153,6 @@ def materialize(dest: Path, token: str | None, workers: int) -> None:
             target = dest / path
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
-            # Preserve executable bit for shell/python tooling when represented by
-            # Git mode; normal CI invocation does not depend on it, but fidelity does.
             if mode == "100755":
                 target.chmod(target.stat().st_mode | 0o111)
             records.append((path, sha, mode))
