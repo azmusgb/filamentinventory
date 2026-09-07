@@ -18,6 +18,20 @@ test('legacy same-origin label URL may expose a compatibility profile hint witho
   assert.equal(result.source, 'url');
 });
 
+test('legacy scan profile hints are stripped before user-isolation bootstrap', () => {
+  const result = scan.neutralizeLegacyProfileHint(`${origin}/?spool=A12&scan=1#filament-user=Aimee&keep=1`);
+  assert.equal(result.changed, true);
+  assert.equal(result.url.searchParams.get('spool'), 'A12');
+  assert.equal(result.url.searchParams.get('scan'), '1');
+  const hash = new URLSearchParams(result.url.hash.slice(1));
+  assert.equal(hash.get('filament-user'), null);
+  assert.equal(hash.get('keep'), '1');
+
+  const ordinaryProfileLink = scan.neutralizeLegacyProfileHint(`${origin}/#filament-user=Aimee`);
+  assert.equal(ordinaryProfileLink.changed, false);
+  assert.equal(new URLSearchParams(ordinaryProfileLink.url.hash.slice(1)).get('filament-user'), 'Aimee');
+});
+
 test('foreign QR URLs are rejected instead of being followed', () => {
   const result = scan.parseScanValue('https://example.com/?spool=S022&scan=1', origin);
   assert.deepEqual(result, {ok:false, reason:'foreign-origin'});
