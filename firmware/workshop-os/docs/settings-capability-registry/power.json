@@ -1,0 +1,127 @@
+{
+  "settings": [
+    {
+      "id": "power.enabled-and-status",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "Hardware \u2192 Power",
+      "browserBindings": [
+        {
+          "route": "/save/power",
+          "keys": [
+            "tsm_en",
+            "tsm_dm",
+            "tsm_pi"
+          ]
+        }
+      ],
+      "physicalEvidence": [
+        "\"PLUG STATUS\"",
+        "\"POLL INTERVAL\"",
+        "\"STATUS DISPLAY\""
+      ]
+    },
+    {
+      "id": "power.auto-off",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "Hardware \u2192 Auto Off",
+      "browserBindings": [
+        {
+          "route": "/save/power",
+          "keys": [
+            "tsm_ao",
+            "tsm_ad",
+            "tsm_aod"
+          ]
+        }
+      ],
+      "physicalEvidence": [
+        "\"AUTO OFF\"",
+        "\"AUTO OFF DELAY\"",
+        "\"CANCEL ON DOOR\""
+      ]
+    },
+    {
+      "id": "power.button-control",
+      "classification": "PHYSICAL",
+      "implementedOnDevice": true,
+      "surface": "Hardware \u2192 Power",
+      "browserBindings": [
+        {
+          "route": "/save/toggle",
+          "keys": [
+            "btnpwr"
+          ]
+        }
+      ],
+      "physicalEvidence": [
+        "\"BUTTON POWER\""
+      ]
+    },
+    {
+      "id": "power.plug-address",
+      "classification": "PORTAL-INPUT",
+      "implementedOnDevice": false,
+      "surface": "Portal \u2192 Power",
+      "browserBindings": [
+        {
+          "route": "/save/power",
+          "keys": [
+            "tsm_ip"
+          ]
+        }
+      ],
+      "reason": "Plug IP/hostname requires text entry."
+    },
+    {
+      "id": "power.plug-type-outlet",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": false,
+      "surface": "Hardware \u2192 Expert \u2192 Power",
+      "browserBindings": [
+        {
+          "route": "/save/power",
+          "keys": [
+            "tsm_pt",
+            "tsm_po"
+          ]
+        }
+      ],
+      "reason": "Plug type/outlet selection is bounded but configuration-sensitive.",
+      "plannedRelease": "v11.24"
+    },
+    {
+      "id": "power.tariff",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": false,
+      "surface": "Hardware \u2192 Expert \u2192 Power",
+      "browserBindings": [
+        {
+          "route": "/save/power",
+          "keys": [
+            "tsm_cur",
+            "tsm_tar"
+          ]
+        }
+      ],
+      "reason": "Currency/tariff are low-frequency power-accounting settings.",
+      "plannedRelease": "v11.24"
+    },
+    {
+      "id": "power.assigned-slot-low-ram",
+      "classification": "BOARD-N/A",
+      "implementedOnDevice": false,
+      "surface": "Not shown on WS350",
+      "browserBindings": [
+        {
+          "route": "/save/power",
+          "keys": [
+            "tsm_slot"
+          ]
+        }
+      ],
+      "boardReason": "Full-RAM WS350 uses visiblePlugForSlot same-slot mapping; assignedSlot exists only on the one-plug low-RAM shape."
+    }
+  ]
+}

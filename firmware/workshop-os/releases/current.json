@@ -1,0 +1,52 @@
+{
+  "channel": "accepted-source",
+  "version": "11.22",
+  "name": "Waveshare Workshop OS",
+  "targets": [
+    "ws_lcd_350"
+  ],
+  "source": {
+    "branch": "main",
+    "acceptedFirmwareCommit": "b6ff19e8617a8cceb380ea3c3621c54ea0048f11",
+    "name": "Workshop OS v11.22 Display Expert RC1",
+    "physicalAcceptance": "passed",
+    "acceptedAt": "2026-09-04",
+    "acceptanceEvidence": "Exact-head CI + healthy WS350 read-only interrogation + complete 29-view credential-safe framebuffer capture"
+  },
+  "download": {
+    "channel": "production-workshop-os-v11.19.1",
+    "version": "11.19.1",
+    "rollbackVersion": "7.2",
+    "note": "Accepted source has advanced to v11.22. The static installer remains intentionally conservative at physically accepted v11.19.1 with Smart Home v7.2 rollback until a separate binary-channel promotion is completed."
+  },
+  "candidate": {
+    "version": "11.23-rc2",
+    "branch": "feature/v11-23-network-locale-layout",
+    "pullRequest": 76,
+    "name": "Workshop OS v11.23 Network / Locale / Layout Expert RC2",
+    "purpose": "Direct-to-main hardware candidate for explicit physical network, timezone and guarded display-rotation controls with larger touch targets and explicit directional navigation.",
+    "securityBoundary": "Final RC2 preserves the v11.20 portal/session model. The temporary trusted-LAN no-code bypass used during early hardware iteration is not part of the mergeable candidate and is explicitly forbidden by the final authenticated-boundary gate.",
+    "status": "physical-acceptance-required",
+    "exactHeadCi": "required",
+    "physicalAcceptance": "required"
+  },
+  "mainState": null,
+  "validation": {
+    "acceptedSource": {
+      "exactHeadCi": "passed",
+      "ws350Build": "passed",
+      "shared320x480Regression": "passed",
+      "browserJavaScript": "passed",
+      "renderedFit": "passed",
+      "portalAuthContracts": "passed",
+      "displayExpertContracts": "passed",
+      "settingsParity": "passed",
+      "framebufferViews": 29,
+      "physicalAcceptance": "passed"
+    },
+    "staticDownload": {
+      "version": "11.19.1",
+      "status": "retained-conservative-channel"
+    }
+  }
+}

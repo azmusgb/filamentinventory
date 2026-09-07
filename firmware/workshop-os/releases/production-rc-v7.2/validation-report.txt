@@ -1,0 +1,14 @@
+BambuHelper ws_lcd_350 Smart Home v7.2 display-stability validation
+upstream_commit=8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4
+video_feedback=IMG_8234_periodic_rolling_redraw
+video_dominant_pulse_approx_hz=4.7_to_5.3
+workshop_full_screen_clear_only_on_entry=PASS
+workshop_dynamic_redraw_min_interval_ms=750
+workshop_clean_idle_refresh_ms=5000
+header_footer_preserved_between_updates=PASS
+smart_home_identity=v7.2
+shared_layout_regression=jc3248w535_passed
+full_image=upstream/firmware/v3.8.1/BambuHelper-ws_lcd_350-v3.8.1-Full.bin
+SHA256:
+ed72f08e4977edd14dc7590a129469405d81e0f565f327402ea5e5190543233a  upstream/firmware/v3.8.1/BambuHelper-ws_lcd_350-v3.8.1-Full.bin
+3eb17d01fb980dbea82e07242bb385ea35b6035b3b57038616b0579f846a95fc  upstream/.pio/build/ws_lcd_350/firmware.bin

@@ -1,0 +1,46 @@
+{
+  "release": "Smart Home v9.9 Display Experience RC1",
+  "board": "ws_lcd_350",
+  "bambuhelper_core": "v3.8.1",
+  "status": "candidate_physical_acceptance_required",
+  "pre_merge_head": "77c24ae1819c91d2804436386e6c14bffcf01058",
+  "merge_commit": "4867fe81d147b5beeec300b884665b87031462b7",
+  "workflow_run": 33664412293,
+  "artifact": {
+    "github_actions_artifact_id": 9860111719,
+    "name": "bambuhelper-ws_lcd_350-smart-home-v9.9-display-experience-rc1",
+    "archive_sha256": "579bed7c4eca8017f4cd5187ce606cf072db1c56843f819c08984fb5799ecb09"
+  },
+  "firmware": {
+    "ota": {
+      "file": "BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v9.9-Display-Experience-RC1-OTA.bin",
+      "size": 2206800,
+      "sha256": "7718a985050a93853dddbe89dad3364035f6891d4cbf084da8740f24127b4411"
+    },
+    "full": {
+      "file": "BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v9.9-Display-Experience-RC1-Full.bin",
+      "size": 2272336,
+      "sha256": "a2aac6e3a93a2a33ec4791c260b440941b9966a28139e6e18928161a143f8c2b"
+    },
+    "recovery_ota_alias": {
+      "file": "WaveshareHome-firmware.bin",
+      "size": 2206800,
+      "sha256": "7718a985050a93853dddbe89dad3364035f6891d4cbf084da8740f24127b4411"
+    }
+  },
+  "validation": {
+    "context_aware_home_states": "PASS",
+    "page_specific_visual_hierarchy": "PASS",
+    "material_slot_cards": "PASS",
+    "human_system_health": "PASS",
+    "portrait_landscape_parity": "PASS",
+    "browser_physical_parity": "PASS",
+    "shared_visual_touch_geometry": "PRESERVED",
+    "minimum_action_target_44px": "PRESERVED",
+    "safari_recovery_foundation": "PRESERVED",
+    "ft6336_reliability": "PRESERVED",
+    "ws350_build": "PASS",
+    "jc3248w535_regression": "PASS",
+    "physical_acceptance": "REQUIRED"
+  }
+}

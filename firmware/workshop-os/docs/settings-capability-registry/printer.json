@@ -1,0 +1,110 @@
+{
+  "settings": [
+    {
+      "id": "printer.light-automation",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": false,
+      "surface": "Printer \u2192 Expert \u2192 Light",
+      "browserBindings": [
+        {
+          "route": "/light/config",
+          "keys": [
+            "ldelay",
+            "loff_fin",
+            "loff_fail",
+            "lon_start"
+          ]
+        }
+      ],
+      "reason": "Light start/finish/failure automation and delay are configuration rather than immediate Light commands.",
+      "plannedRelease": "v11.24"
+    },
+    {
+      "id": "printer.identity-input",
+      "classification": "PORTAL-INPUT",
+      "implementedOnDevice": false,
+      "surface": "Portal \u2192 Printer",
+      "browserBindings": [
+        {
+          "route": "/save/printer",
+          "keys": [
+            "pname",
+            "ip",
+            "serial",
+            "code",
+            "token"
+          ]
+        }
+      ],
+      "reason": "Printer name/IP/serial/access credentials require text or secret input."
+    },
+    {
+      "id": "printer.connection-mode",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": false,
+      "surface": "Printer \u2192 Expert \u2192 Connection",
+      "browserBindings": [
+        {
+          "route": "/save/printer",
+          "keys": [
+            "connmode",
+            "region"
+          ]
+        }
+      ],
+      "reason": "Connection mode and region are bounded but low-frequency printer configuration.",
+      "plannedRelease": "v11.24"
+    },
+    {
+      "id": "printer.gauge-layout",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": false,
+      "surface": "Printer \u2192 Expert \u2192 Gauge Layout",
+      "browserBindings": [
+        {
+          "route": "/save/gaugelayout",
+          "keys": [
+            "gs*",
+            "lx*",
+            "px*",
+            "is*",
+            "amsv"
+          ]
+        }
+      ],
+      "reason": "Gauge layout is dense but feasible on an expert physical surface.",
+      "plannedRelease": "v11.22"
+    },
+    {
+      "id": "printer.multi-printer-low-ram",
+      "classification": "BOARD-N/A",
+      "implementedOnDevice": false,
+      "surface": "Not shown on WS350",
+      "browserBindings": [
+        {
+          "route": "/save/toggle",
+          "keys": [
+            "dualp"
+          ]
+        }
+      ],
+      "boardReason": "dualp is compiled only for BOARD_LOW_RAM; WS350 uses PSRAM."
+    },
+    {
+      "id": "printer.multi-printer-psram",
+      "classification": "PHYSICAL-EXPERT",
+      "implementedOnDevice": false,
+      "surface": "System \u2192 Expert \u2192 Printers",
+      "browserBindings": [
+        {
+          "route": "/save/toggle",
+          "keys": [
+            "quadp"
+          ]
+        }
+      ],
+      "reason": "PSRAM four-printer beta is applicable but should remain an explicit expert setting.",
+      "plannedRelease": "v11.24"
+    }
+  ]
+}

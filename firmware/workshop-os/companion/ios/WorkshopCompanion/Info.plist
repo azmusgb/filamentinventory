@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Workshop Companion uses Bluetooth Low Energy to discover and communicate with your Workshop OS display.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Workshop Companion uses the iPhone camera only when you approve a camera request from Workshop OS while the app is active.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Workshop Companion connects to Workshop OS on your local network for authenticated management and larger data transfers.</string>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>bluetooth-central</string>
+    </array>
+</dict>
+</plist>

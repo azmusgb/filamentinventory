@@ -1,0 +1,39 @@
+{
+  "release": "production-workshop-os-v11.19.1",
+  "sourceCommit": "8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4",
+  "board": {
+    "id": "ws_lcd_350",
+    "name": "Waveshare ESP32-S3-Touch-LCD-3.5",
+    "chipFamily": "ESP32-S3",
+    "display": "3.5\" ST7796 IPS 320×480",
+    "touch": "FT6336 capacitive",
+    "flash": "16 MB",
+    "psram": "8 MB"
+  },
+  "profiles": {
+    "workshop-os-v11.19.1": {
+      "label": "Workshop OS v11.19.1 — recommended",
+      "recommended": true,
+      "version": "BambuHelper v3.8.1 + Workshop OS v11.19.1 Physical Fit RC2",
+      "file": "firmware/BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v11.19.1-Physical-Fit-RC2-Full.bin",
+      "size": 2360944,
+      "sha256": "f49f695f08966a8c1cf5822e1357d03793a1aac634540d8b3a290d891468343b",
+      "otaFile": "firmware/BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v11.19.1-Physical-Fit-RC2-OTA.bin",
+      "otaSize": 2295408,
+      "otaSha256": "f0fc73b65eb39623b5f8e6f8f7564d844d06021ebcb7887d5fc67a6df9e2073e",
+      "description": "Physically accepted Workshop OS download channel."
+    },
+    "smart-home-v7.2": {
+      "label": "Smart Home v7.2 (rollback)",
+      "recommended": false,
+      "version": "BambuHelper v3.8.1 + Smart Home v7.2 Display Stability",
+      "file": "firmware/BambuHelper-ws_lcd_350-v3.8.1-Full-smart-home-v7.2-validated.bin",
+      "size": 2208288,
+      "sha256": "ed72f08e4977edd14dc7590a129469405d81e0f565f327402ea5e5190543233a",
+      "otaFile": "firmware/BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v7.2-OTA.bin",
+      "otaSize": 2142752,
+      "otaSha256": "3eb17d01fb980dbea82e07242bb385ea35b6035b3b57038616b0579f846a95fc",
+      "description": "Single immediate rollback retained for recovery safety."
+    }
+  }
+}

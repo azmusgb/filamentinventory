@@ -1,0 +1,20 @@
+BambuHelper ws_lcd_350 Smart Home v9.6.1 Zero-Blip RC2 validation
+recovery_foundation=v9.4_RC3_PRESERVED
+printer_workspace=PASS
+psram_page_compositor=PASS
+smart_home_preclear_suppressed=PASS
+dirty_only_frame_commit=PASS
+browser_js=PASS
+ws350_build=PASS
+jc3248w535_regression=PASS
+full_image_merge=PASS
+artifact_packaging=PASS
+physical_acceptance=REQUIRED
+physical_v9_6_rc1=REJECTED_VISIBLE_BLIPPING
+workflow_run=33641404096
+build_head=1ec8d190be91705f7f0d4bcdfc03ba30b13219eb
+artifact_id=9851101064
+artifact_zip_sha256=e8c892fe923bf8e60e017027fa4974131eaf088a0811f796d77b8bc238b00738
+c19f6e7f144d4ee9b172ee84d56f4a2beed8587148cde6e7fcb5ce446fba6dd0  BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v9.6.1-Zero-Blip-RC2-Full.bin
+c290bb942662023de00cd622b90a85945af3c08a6d3bf31976ecebb25eefe760  BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v9.6.1-Zero-Blip-RC2-OTA.bin
+c290bb942662023de00cd622b90a85945af3c08a6d3bf31976ecebb25eefe760  WaveshareHome-firmware.bin
