@@ -2,65 +2,85 @@
 
 This repository is the authoritative product boundary for **Filament Inventory**.
 
-## This repository owns
+It now also contains a history-preserved Workshop OS integration mirror under `firmware/workshop-os/` so product-level contracts and firmware reconstruction can be tested together. That mirror does **not** replace the current firmware authority.
+
+## Filament Inventory authority
+
+`azmusgb/filamentinventory` owns:
 
 - canonical spool identity and lifecycle;
 - remaining-quantity evidence, measurement precedence, and inventory calculations;
-- current Bill/Aimee profile isolation plus the target household/member/private/shared-resource domain migration;
+- current Bill/Aimee profile isolation plus the target `Household -> Member -> Private/Shared Resources` migration;
 - QR/intake, physical-spool workflows, and inventory labels;
 - printer/AMS relationships as inventory-domain placement data;
 - print requirements/readiness, reservations, print jobs, usage, and forecasting;
 - cloud sync, recovery snapshots, backup/import/export, and audit/history;
-- the Filament Inventory PWA and its Netlify backend;
-- inventory LLM grounding, evidence validation, and server-side model transport;
+- the Filament Inventory PWA and Netlify backend;
+- Grounded Assistant evidence construction, validation, server-side model transport, and deterministic fallback;
 - versioned, authenticated device-facing inventory APIs.
 
-Bill/Aimee is the **current transitional implementation**, not the permanent household domain model. Future sharing or ownership transfer must be explicit and auditable and must not weaken current private-state isolation during migration.
+Bill/Aimee remains a **transitional implementation**, not the permanent household domain model. Future sharing or ownership transfer must be explicit and auditable and must not weaken private-state isolation during migration.
 
-## This repository does not own
+## Workshop OS authority
 
-Production firmware for the Waveshare ESP32-S3-Touch-LCD-3.5 is owned by:
+Production Workshop OS firmware for the WS350 remains owned by:
 
-- `azmusgb/bambuhelper-smart-display` — **Waveshare Workshop OS**
+- `azmusgb/bambuhelper-smart-display`
 
-That repository owns WS350 touch behavior, printer and mapped-power controls, audio/microphone, BLE/device companion behavior, networking, OTA/recovery, hardware builds, and physical acceptance.
+That repository remains authoritative for WS350 firmware, touch/navigation behavior, Bambu and mapped-power controls, audio/microphone/BLE, networking, local portal/session security, OTA/full-image recovery, firmware release provenance, native hardware builds, and physical acceptance.
 
-The historical `firmware/waveshare-home` line in this repository is retained only as a migration/reference/recovery source. **Waveshare Home 1.7.0 is the final feature release of that independent firmware line.** New WS350 product features belong in Workshop OS after any unique behavior is migrated.
+The imported `firmware/workshop-os/` tree in this repository is an **integration mirror** used for unified contract checks, reconstruction, candidate comparison, and recovery planning. It must not become a competing release authority unless the project authority model is explicitly changed.
 
-Legacy source/recovery material may remain here temporarily; it must not be described or operated as a competing active firmware authority.
+## Device contract
 
-## Cross-repository contract
+Workshop OS consumes inventory facts through explicit authenticated APIs rather than becoming a second inventory authority.
 
-Workshop OS consumes inventory through explicit authenticated APIs rather than becoming a second inventory authority.
-
-Current device contract:
+Current device-facing inventory contract:
 
 - `GET /api/display-feed`
 - `X-Filament-Sync-Key`
 - `X-Filament-Profile: Bill | Aimee`
 - response contract version: `1`
 
-The current credential is intentionally compatible with the existing private sync scope. The target hardening increment is a revocable device-scoped credential with narrower read/assistant permissions before expanding device access.
+The current sync-key reuse is a compatibility bridge. The target hardening increment is a revocable device-scoped credential with narrower read/assistant permissions and no inventory mutation authority.
 
-The device contract should remain versioned, minimal, redacted, profile-scoped, freshness-aware, and explicit about unknown state.
+The contract must remain versioned, minimal, redacted, profile-scoped, freshness-aware, and explicit about unknown state.
+
+## Physical-state rule
+
+Neither subsystem may silently invent physical truth.
+
+- Unknown inventory quantity remains `Unknown`.
+- A spool is not assigned to an AMS slot solely because color or material resembles printer telemetry.
+- One physical spool may occupy at most one explicit placement: `Spool -> Printer -> Feeder/AMS -> Slot`.
+- External-spool paths must be represented explicitly.
+- Archived, empty, or inactive spools cannot remain loaded.
+- Stale or conflicting evidence must be surfaced rather than silently reconciled by the LLM.
 
 ## LLM boundary
 
-The LLM interprets and explains inventory state; it never becomes the source of truth for inventory state.
+The LLM interprets and explains authoritative inventory evidence; it does not create authoritative inventory facts.
 
 - provider secrets remain server-side;
-- the browser sends only relevant grounded evidence to the server transport;
 - the WS350 never stores an OpenAI/provider API key;
 - profile isolation is mandatory;
 - fabricated evidence identifiers are rejected;
-- unsupported numeric/placement/ownership claims are rejected or downgraded;
-- unknown inventory quantities remain unknown;
-- configured transport is not reported as Grounded model success until a validated profile-scoped model response succeeds.
+- unsupported numeric, placement, ownership, or loaded-state claims are rejected or downgraded;
+- configured transport is not reported as Grounded model success until a validated profile-scoped model response succeeds;
+- deterministic/local fallback remains available.
 
-## Migration / recovery rule
+## Legacy firmware and recovery
 
-Do not delete historical firmware releases, rewrite release history, or remove the known-good recovery path merely to simplify the repository.
+The historical `firmware/waveshare-home/` tree and `WaveshareHome-ESP32S3-1.6.0-fullflash/` recovery material are retained for migration/reference/recovery only. They are not active competing firmware authorities.
 
-Port unique Waveshare Home 1.7.0 behavior into Workshop OS, physically accept the resulting Workshop OS candidate, verify the cross-line **full-image flash at `0x0`** and recovery path, then remove duplicate active firmware/tooling from this repository in a separate cleanup change.
+Waveshare Home and Workshop OS use incompatible partition layouts. Cross-line migration remains a **full-image flash at `0x0`**, not OTA.
 
-Cross-line Waveshare Home -> Workshop OS migration is **not OTA-compatible** because the partition layouts differ.
+Do not remove the known-good recovery image, flashing procedure, artifact identity/hash, or rollback documentation until the replacement path is physically proven.
+
+## Release-state rule
+
+Repository location and CI do not promote release state. Keep these states distinct:
+
+`implemented -> built -> tested -> runtime validated -> production validated -> physically validated -> accepted -> stable`
+
+CI can prove source reconstruction, security checks, native builds, regression builds, and artifact packaging. It does **not** prove WS350 physical acceptance.
