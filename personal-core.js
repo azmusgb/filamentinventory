@@ -136,9 +136,9 @@
       return {state:'empty', label:'SET UP', title:'Start your workshop inventory', detail:'Add or scan a spool to establish the first authoritative inventory record.', attentionCount:0};
     }
     if (inbox.length) {
-      return {state:'attention', label:'NEEDS ATTENTION', title:`${inbox.length} item${inbox.length === 1 ? '' : 's'} need review`, detail:'Resolve low-stock and unknown-quantity items before they become print blockers.', attentionCount:inbox.length};
+      return {state:'attention', label:'NEEDS ATTENTION', title:`${inbox.length} item${inbox.length === 1 ? '' : 's'} need review`, detail:'Low-stock or unknown-quantity inventory actions are waiting in the Workshop Inbox.', attentionCount:inbox.length};
     }
-    return {state:'ready', label:'READY', title:'Workshop inventory is ready', detail:'No low-stock or unknown-quantity items currently need attention.', attentionCount:0};
+    return {state:'healthy', label:'INVENTORY HEALTHY', title:'No inventory actions need attention', detail:'No low-stock or unknown-quantity inventory exceptions are currently detected. Print readiness is evaluated separately for a specific job.', attentionCount:0};
   }
 
   function recentActivity(state, owner, limit = 5) {
