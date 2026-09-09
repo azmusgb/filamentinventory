@@ -37,6 +37,13 @@
     return {grams:null, percent:null, source:'unknown'};
   }
 
+  function evidenceLabel(spool) {
+    const value = remaining(spool);
+    if (value.source === 'measured') return 'Measured';
+    if (value.source === 'visual') return 'Visual estimate';
+    return 'Unknown';
+  }
+
   function isReorder(spool) {
     if (spool?.archivedAt) return false;
     const measurement = remaining(spool);
@@ -82,6 +89,58 @@
     };
   }
 
+  function workshopInbox(state, owner, limit = 6) {
+    const summary = summarizeOwner(state, owner);
+    const items = [];
+
+    summary.reorder
+      .slice()
+      .sort((a,b) => (remaining(a).grams ?? Infinity) - (remaining(b).grams ?? Infinity) || text(a.id).localeCompare(text(b.id), undefined, {numeric:true}))
+      .forEach(spool => {
+        const value = remaining(spool);
+        items.push({
+          kind:'low',
+          priority:10,
+          spoolId:text(spool.id),
+          title:`${text(spool.material) || 'Unknown material'} · ${text(spool.colorName) || 'Unknown color'}`,
+          detail:`${Math.round(value.grams)} g remaining · ${evidenceLabel(spool)}`,
+          action:'open',
+          actionLabel:'Review',
+        });
+      });
+
+    const lowIds = new Set(items.map(item => item.spoolId));
+    summary.needsMeasurement
+      .filter(spool => !lowIds.has(text(spool.id)))
+      .forEach(spool => {
+        items.push({
+          kind:'unknown',
+          priority:20,
+          spoolId:text(spool.id),
+          title:`${text(spool.material) || 'Unknown material'} · ${text(spool.colorName) || 'Unknown color'}`,
+          detail:'Quantity unknown · No trusted quantity evidence',
+          action:'weigh',
+          actionLabel:'Weigh spool',
+        });
+      });
+
+    return items
+      .sort((a,b) => a.priority - b.priority || a.title.localeCompare(b.title, undefined, {numeric:true}))
+      .slice(0, Math.max(1, Number(limit) || 6));
+  }
+
+  function workshopStatus(state, owner) {
+    const summary = summarizeOwner(state, owner);
+    const inbox = workshopInbox(state, owner, 99);
+    if (!summary.activeCount) {
+      return {state:'empty', label:'SET UP', title:'Start your workshop inventory', detail:'Add or scan a spool to establish the first authoritative inventory record.', attentionCount:0};
+    }
+    if (inbox.length) {
+      return {state:'attention', label:'NEEDS ATTENTION', title:`${inbox.length} item${inbox.length === 1 ? '' : 's'} need review`, detail:'Resolve low-stock and unknown-quantity items before they become print blockers.', attentionCount:inbox.length};
+    }
+    return {state:'ready', label:'READY', title:'Workshop inventory is ready', detail:'No low-stock or unknown-quantity items currently need attention.', attentionCount:0};
+  }
+
   function recentActivity(state, owner, limit = 5) {
     const resolved = OWNERS.includes(owner) ? owner : 'Bill';
     return (Array.isArray(state?.auditLog) ? state.auditLog : [])
@@ -109,5 +168,5 @@
     return actions.slice(0,3);
   }
 
-  return Object.freeze({OWNERS, activeForOwner, isReorder, loadedLabel, ownerOf, recentActivity, recommendedActions, remaining, summarizeOwner});
+  return Object.freeze({OWNERS, activeForOwner, evidenceLabel, isReorder, loadedLabel, ownerOf, recentActivity, recommendedActions, remaining, summarizeOwner, workshopInbox, workshopStatus});
 });
