@@ -1,0 +1,104 @@
+name: Workshop OS UI13 Appliance Settings Gate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apply_workshop_os_*.py'
+      - 'apply_smart_home_network_locale_layout_v11_23.py'
+      - 'apply_smart_home_touch_ux_v11_23_rc2_*.py'
+      - 'apply_smart_home_auth_restore_v11_23_rc2.py'
+      - 'firmware/ui-v11.25/**'
+      - 'firmware/ui-v11.25-*/**'
+      - 'firmware/ui-v11.26-ui11/**'
+      - 'firmware/ui-v11.27-ui12/**'
+      - 'firmware/ui-v11.28-ui13/**'
+      - 'assets/v11_25_*.css'
+      - 'scripts/capture-ws350-views.zsh'
+      - 'scripts/run_rc10_local.sh'
+      - 'scripts/run_ui12_local.sh'
+      - 'scripts/run_ui13_local.sh'
+      - 'scripts/validate_ui12_control_center.py'
+      - 'scripts/validate_ui13_appliance_settings.py'
+      - 'scripts/validate_ui13_product_finish.py'
+      - 'docs/UI11_SOURCE_PROVENANCE.md'
+      - 'docs/UI12_CONTROL_CENTER.md'
+      - 'docs/UI13_APPLIANCE_SETTINGS.md'
+      - '.github/workflows/ui13-appliance-settings.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workshop-os-settings-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-and-build:
+    name: Reconstruct and build UI13
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate UI13 tooling syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile apply_workshop_os_cupertino_ui_v11_26_ui11.py
+          python -m py_compile apply_workshop_os_control_center_v11_27_ui12.py
+          python -m py_compile apply_workshop_os_appliance_settings_v11_28_ui13.py
+          python -m py_compile apply_workshop_os_ui13_compile_order_fix.py
+          python -m py_compile apply_workshop_os_ui13_product_finish.py
+          python -m py_compile scripts/validate_ui12_control_center.py
+          python -m py_compile scripts/validate_ui13_appliance_settings.py
+          python -m py_compile scripts/validate_ui13_product_finish.py
+          bash -n scripts/capture-ws350-views.zsh
+          bash -n scripts/run_rc10_local.sh
+          bash -n scripts/run_ui12_local.sh
+          bash -n scripts/run_ui13_local.sh
+
+      - name: Reconstruct, validate, and build UI13
+        env:
+          BUILD: /tmp/ws350-ui13-build
+        run: bash scripts/run_ui13_local.sh --build
+
+      - name: Record exact CI artifact identity
+        shell: bash
+        env:
+          BUILD: /tmp/ws350-ui13-build
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          OTA="$BUILD/.pio/build/ws_lcd_350/firmware.bin"
+          test -s "$OTA"
+          mkdir -p ui13-gate-artifact
+          cp "$OTA" ui13-gate-artifact/BambuHelper-ws_lcd_350-Workshop-OS-v11.28-UI13-Appliance-Settings-CI-OTA.bin
+          {
+            echo 'Workshop OS v11.28 UI13 Appliance Settings'
+            echo "source_head_sha=$HEAD_SHA"
+            echo 'result=BUILD_PASS'
+            echo 'release_state=IMPLEMENTED_BUILT_TESTED_BY_CI_ONLY'
+            echo 'product_finish=APPLIED'
+            echo 'published_candidate=NO'
+            echo 'physical_acceptance=REQUIRED'
+            echo 'stable_promotion=FORBIDDEN'
+            echo 'supersedes_ui12_acceptance_artifact=YES'
+            echo 'artifact_retention_days=90'
+            wc -c < "$OTA" | awk '{print "ota_size=" $1}'
+            sha256sum "$OTA" | awk '{print "ota_sha256=" $1}'
+          } | tee ui13-gate-artifact/BUILD-REPORT.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: workshop-os-v11-28-ui13-appliance-settings-ci
+          retention-days: 90
+          if-no-files-found: error
+          path: ui13-gate-artifact/

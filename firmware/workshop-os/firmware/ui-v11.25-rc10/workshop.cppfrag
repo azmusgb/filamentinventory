@@ -1,0 +1,87 @@
+@@WORKSHOP@@
+static void drawWorkshop(bool full) {
+  (void)full;
+  const int16_t W=tft.width();
+  tft.fillScreen(C10_BG);
+  drawHeader("Workshop",nullptr,2);
+  uiBottomNav(2,nullptr);
+
+  const BambuState* s=isAnyPrinterConfigured()?&displayedPrinter().state:nullptr;
+  const uint16_t timerColor=g_workshopTimerDone?C10_ORANGE:
+                            (workshopTimerActive()?C10_ACCENT:W25_LINE);
+
+  char materialValue[34]="Unknown";
+  if(s&&s->ams.present&&s->ams.activeTray<4&&s->ams.trays[s->ams.activeTray].present) {
+    const AmsTray& t=s->ams.trays[s->ams.activeTray];
+    snprintf(materialValue,sizeof(materialValue),"Slot %u - %s",
+             (unsigned)s->ams.activeTray+1,t.type[0]?t.type:"Filament");
+  }
+
+  if(hubLandscape()) {
+    HubRect timer=hr(8,44,W-16,112);
+    HubRect context=hr(8,164,W-16,40);
+    hubV1125Card(timer,timerColor,true);
+    hubV1125Card(context,W25_LINE,false);
+
+    uiDrawFit("Timer",timer.x+16,timer.y+12,90,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE_2);
+    char tv[28];workshopTimerText(tv,sizeof(tv));
+    uiDrawFit(workshopTimerActive()||g_workshopTimerDone?tv:"Ready",
+              timer.x+16,timer.y+40,timer.w-32,FONT_LARGE,TL_DATUM,
+              g_workshopTimerDone?C10_ORANGE:C10_TEXT,C10_SURFACE_2);
+    uiDrawFit(g_workshopTimerDone?"Timer complete":
+              (workshopTimerActive()?"Running":"Open Tools to choose a timer"),
+              timer.x+16,timer.y+94,timer.w-32,FONT_SMALL,BL_DATUM,
+              g_workshopTimerDone?C10_ORANGE:C10_MUTED,C10_SURFACE_2);
+
+    const int16_t mid=context.x+context.w/2;
+    uiDrawFit("Note",context.x+12,context.y+8,48,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE);
+    uiDrawFit(g_workshopNote[0]?g_workshopNote:"None",
+              context.x+66,context.y+20,mid-context.x-76,FONT_BODY,ML_DATUM,
+              g_workshopNote[0]?C10_TEXT:C10_MUTED,C10_SURFACE);
+    tft.drawFastVLine(mid,context.y+8,context.h-16,C10_SEPARATOR);
+    uiDrawFit("Material",mid+12,context.y+8,58,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE);
+    uiDrawFit(materialValue,mid+76,context.y+20,context.x+context.w-mid-88,FONT_BODY,ML_DATUM,
+              (s&&s->ams.present)?C10_TEXT:C10_MUTED,C10_SURFACE);
+
+    char timerLab[18];workshopTimerText(timerLab,sizeof(timerLab),true);
+    for(uint8_t i=0;i<4;i++) {
+      const char* label=i==0?(s&&s->lightState==1?"Light Off":"Light On"):
+                        i==1?(g_workshopTimerDone?"Timer Done":(workshopTimerActive()?timerLab:"Tools")):
+                        i==2?"System":"Printer";
+      const bool enabled=i!=0||(s&&s->connected);
+      const uint16_t c=i==1&&g_workshopTimerDone?C10_ORANGE:C10_ACCENT;
+      hubV1125Action(hubWorkshopActionRect(i),label,c,enabled,false);
+    }
+  } else {
+    HubRect timer=hr(8,44,W-16,132);
+    HubRect context=hr(8,184,W-16,136);
+    hubV1125Card(timer,timerColor,true);
+    hubV1125Card(context,W25_LINE,false);
+
+    char tv[28];workshopTimerText(tv,sizeof(tv));
+    uiDrawFit("Timer",timer.x+14,timer.y+12,timer.w-28,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE_2);
+    uiDrawFit(workshopTimerActive()||g_workshopTimerDone?tv:"Ready",
+              timer.x+14,timer.y+48,timer.w-28,FONT_LARGE,TL_DATUM,C10_TEXT,C10_SURFACE_2);
+    uiDrawFit(workshopTimerActive()?"Running":"Open Tools to choose a timer",
+              timer.x+14,timer.y+108,timer.w-28,FONT_SMALL,BL_DATUM,C10_MUTED,C10_SURFACE_2);
+
+    uiDrawFit("Note",context.x+12,context.y+12,context.w-24,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE);
+    uiDrawFit(g_workshopNote[0]?g_workshopNote:"None",
+              context.x+12,context.y+38,context.w-24,FONT_BODY,TL_DATUM,
+              g_workshopNote[0]?C10_TEXT:C10_MUTED,C10_SURFACE);
+    tft.drawFastHLine(context.x+12,context.y+68,context.w-24,C10_SEPARATOR);
+    uiDrawFit("Material",context.x+12,context.y+80,context.w-24,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE);
+    uiDrawFit(materialValue,context.x+12,context.y+106,context.w-24,FONT_BODY,TL_DATUM,
+              (s&&s->ams.present)?C10_TEXT:C10_MUTED,C10_SURFACE);
+
+    for(uint8_t i=0;i<4;i++) {
+      const char* label=i==0?(s&&s->lightState==1?"Light Off":"Light On"):
+                        i==1?"Tools":i==2?"System":"Printer";
+      hubV1125Action(hubWorkshopActionRect(i),label,C10_ACCENT,i!=0||(s&&s->connected),false);
+    }
+  }
+
+  hubMarkFrameDirty();
+  g_dirty=false;
+}
+@@END_WORKSHOP@@

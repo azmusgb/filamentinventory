@@ -1,0 +1,65 @@
+@@HOME@@
+static void drawHome(bool full) {
+  (void)full;
+  const int16_t W=tft.width();
+  const bool configured=isAnyPrinterConfigured();
+  const PrinterSlot* p=configured?&displayedPrinter():nullptr;
+  const BambuState* s=p?&p->state:nullptr;
+  if(g_ambientEnabled&&g_ambientActive){drawAmbientHome(p,s);return;}
+  tft.fillScreen(W25_BG);drawHeader("HOME",nullptr,0);uiBottomNav(0,nullptr);
+  const uint16_t sc=hubV1125PrinterColor(s);
+  const bool paused=s&&s->gcodeStateId==GCODE_PAUSE;
+  const bool printing=s&&s->printing;
+  const bool online=s&&s->connected;
+  const bool wifi=WiFi.status()==WL_CONNECTED;
+  const char* state=!configured?"SET UP PRINTER":(!online?"PRINTER OFFLINE":(paused?"PAUSED":(printing?"PRINTING":"READY")));
+
+  if(hubLandscape()){
+    HubRect hero=hr(8,48,304,134),rail=hr(320,48,W-328,212),material=hr(8,190,148,70),network=hr(164,190,148,70);
+    hubV1125Card(hero,sc,true);
+    uiDrawFit(p&&p->config.name[0]?p->config.name:"PRINTER",hero.x+14,hero.y+12,hero.w-28,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE_2);
+    uiDrawFit(state,hero.x+14,hero.y+35,hero.w-28,FONT_LARGE,TL_DATUM,sc,W25_SURFACE_2);
+    if(printing||paused){
+      uiDrawFit(jobDisplayName(*s),hero.x+14,hero.y+72,hero.w-28,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE_2);
+      uiProgressBar(hero.x+14,hero.y+101,hero.w-28,s->progress,W25_ACCENT);
+      char rem[20],meta[48];formatDuration(s->remainingMinutes,rem,sizeof(rem));snprintf(meta,sizeof(meta),"%u%%   %s left   Layer %u/%u",(unsigned)s->progress,rem,(unsigned)s->layerNum,(unsigned)s->totalLayers);
+      uiDrawFit(meta,hero.x+14,hero.y+119,hero.w-28,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE_2);
+    }else{
+      const char* prompt=!configured?"Open Printer to configure":(!online?"Check printer connection":"No active print");
+      uiDrawFit(prompt,hero.x+14,hero.y+82,hero.w-28,FONT_BODY,TL_DATUM,configured?W25_TEXT_2:W25_ACCENT,W25_SURFACE_2);
+    }
+
+    hubV1125Card(material,W25_INFO,false);
+    uiDrawFit("MATERIAL",material.x+12,material.y+10,material.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);
+    char mv[32]="NOT AVAILABLE";
+    if(s&&s->ams.present&&s->ams.activeTray<4&&s->ams.trays[s->ams.activeTray].present){const AmsTray&t=s->ams.trays[s->ams.activeTray];snprintf(mv,sizeof(mv),"A%u  %s",(unsigned)s->ams.activeTray+1,t.type[0]?t.type:"FILAMENT");}
+    uiDrawFit(mv,material.x+12,material.y+38,material.w-24,FONT_BODY,TL_DATUM,(s&&s->ams.present)?W25_TEXT:W25_MUTED,W25_SURFACE);
+
+    hubV1125Card(network,wifi?W25_SUCCESS:W25_DANGER,false);
+    uiDrawFit("NETWORK",network.x+12,network.y+10,network.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);
+    uiDrawFit(wifi?"ONLINE":"OFFLINE",network.x+12,network.y+38,network.w-24,FONT_BODY,TL_DATUM,wifi?W25_SUCCESS:W25_DANGER,W25_SURFACE);
+
+    uint16_t nc=W25_SUCCESS;const char* nt="ALL CLEAR";const char* action="OPEN PRINTER";char nd[44]="Nothing needs attention";
+    if(g_workshopTimerDone){nc=W25_WARN;nt="TIMER DONE";strlcpy(nd,"Workshop timer finished",sizeof(nd));action="OPEN WORKSHOP";}
+    else if(s&&uiHmsCount(*s)){nc=W25_WARN;nt="PRINTER ALERT";snprintf(nd,sizeof(nd),"%u alert%s to review",(unsigned)uiHmsCount(*s),uiHmsCount(*s)==1?"":"s");action="OPEN PRINTER";}
+    else if(configured&&s&&!s->connected){nc=W25_WARN;nt="PRINTER OFFLINE";strlcpy(nd,"Connection needs attention",sizeof(nd));action="OPEN PRINTER";}
+    else if(!wifi){nc=W25_DANGER;nt="NETWORK OFFLINE";strlcpy(nd,"Reconnect Wi-Fi",sizeof(nd));action="OPEN SYSTEM";}
+    else if(workshopTimerActive()){nc=W25_ACCENT;nt="TIMER RUNNING";workshopTimerText(nd,sizeof(nd));action="OPEN WORKSHOP";}
+    hubV1125Card(rail,nc,false);
+    uiDrawFit("ATTENTION",rail.x+12,rail.y+12,rail.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);
+    uiDrawFit(nt,rail.x+12,rail.y+41,rail.w-24,FONT_BODY,TL_DATUM,nc,W25_SURFACE);
+    uiDrawFit(nd,rail.x+12,rail.y+70,rail.w-24,FONT_SMALL,TL_DATUM,W25_TEXT_2,W25_SURFACE);
+    tft.drawFastHLine(rail.x+12,rail.y+101,rail.w-24,W25_LINE);
+    uiDrawFit("NEXT ACTION",rail.x+12,rail.y+118,rail.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);
+    uiDrawFit(action,rail.x+12,rail.y+147,rail.w-24,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE);
+    uiDrawFit(printing?"Monitor job and controls":"Status and controls",rail.x+12,rail.y+176,rail.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);
+  }else{
+    HubRect hero=hr(8,48,W-16,154),material=hr(8,210,W-16,70),network=hr(8,288,W-16,70),attention=hr(8,366,W-16,88);
+    hubV1125Card(hero,sc,true);uiDrawFit(p&&p->config.name[0]?p->config.name:"PRINTER",hero.x+14,hero.y+12,hero.w-28,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE_2);uiDrawFit(state,hero.x+14,hero.y+40,hero.w-28,FONT_LARGE,TL_DATUM,sc,W25_SURFACE_2);if(printing||paused){uiDrawFit(jobDisplayName(*s),hero.x+14,hero.y+84,hero.w-28,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE_2);uiProgressBar(hero.x+14,hero.y+124,hero.w-28,s->progress,W25_ACCENT);}else uiDrawFit(!configured?"Open Printer to configure":(online?"No active print":"Check connection"),hero.x+14,hero.y+88,hero.w-28,FONT_BODY,TL_DATUM,W25_MUTED,W25_SURFACE_2);
+    hubV1125Card(material,W25_INFO,false);uiDrawFit("MATERIAL",material.x+12,material.y+11,material.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit(s&&s->ams.present?"AMS CONNECTED":"NOT AVAILABLE",material.x+12,material.y+40,material.w-24,FONT_BODY,TL_DATUM,s&&s->ams.present?W25_TEXT:W25_MUTED,W25_SURFACE);
+    hubV1125Card(network,wifi?W25_SUCCESS:W25_DANGER,false);uiDrawFit("NETWORK",network.x+12,network.y+11,network.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit(wifi?"ONLINE":"OFFLINE",network.x+12,network.y+40,network.w-24,FONT_BODY,TL_DATUM,wifi?W25_SUCCESS:W25_DANGER,W25_SURFACE);
+    hubV1125Card(attention,W25_LINE,false);uiDrawFit("ATTENTION",attention.x+12,attention.y+12,attention.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit(g_workshopTimerDone?"TIMER DONE":"ALL CLEAR",attention.x+12,attention.y+44,attention.w-24,FONT_BODY,TL_DATUM,g_workshopTimerDone?W25_WARN:W25_SUCCESS,W25_SURFACE);
+  }
+  hubMarkFrameDirty();g_dirty=false;
+}
+@@END_HOME@@

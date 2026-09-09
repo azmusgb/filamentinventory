@@ -1,0 +1,22 @@
+@@HOME@@
+static void drawHome(bool full) {
+  (void)full; const int16_t W=tft.width(); const bool configured=isAnyPrinterConfigured(); const PrinterSlot* p=configured?&displayedPrinter():nullptr; const BambuState* s=p?&p->state:nullptr;
+  if(g_ambientEnabled&&g_ambientActive){drawAmbientHome(p,s);return;} tft.fillScreen(C10_BG);drawHeader("Home",nullptr,0);uiBottomNav(0,nullptr);
+  const bool paused=s&&s->gcodeStateId==GCODE_PAUSE; const bool printing=s&&s->printing; const bool online=s&&s->connected; const bool wifi=WiFi.status()==WL_CONNECTED; const bool alert=s&&uiHmsCount(*s)>0;
+  const uint16_t sc=!configured?C10_MUTED:(!online?C10_RED:(alert?C10_RED:(paused?C10_ORANGE:(printing?C10_ACCENT:C10_GREEN))));
+  const char* state=!configured?"Set Up":(!online?"Offline":(alert?"Needs Attention":(paused?"Paused":(printing?"Printing":"Ready"))));
+  if(hubLandscape()) {
+    HubRect hero=hr(8,44,W-16,216); hubV1125Card(hero,sc,true);
+    uiDrawFit(p&&p->config.name[0]?p->config.name:"Workshop OS",hero.x+18,hero.y+16,hero.w-36,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE_2);
+    uiDrawFit(state,hero.x+18,hero.y+46,hero.w-36,FONT_LARGE,TL_DATUM,sc,C10_SURFACE_2);
+    if(alert){char a[48];snprintf(a,sizeof(a),"%u printer alert%s",(unsigned)uiHmsCount(*s),uiHmsCount(*s)==1?"":"s");uiDrawFit(a,hero.x+18,hero.y+96,hero.w-36,FONT_BODY,TL_DATUM,C10_TEXT,C10_SURFACE_2);uiDrawFit("Open Printer to review",hero.x+18,hero.y+190,hero.w-36,FONT_SMALL,BL_DATUM,C10_MUTED,C10_SURFACE_2);}
+    else if(printing||paused){uiDrawFit(jobDisplayName(*s),hero.x+18,hero.y+92,hero.w-36,FONT_BODY,TL_DATUM,C10_TEXT,C10_SURFACE_2);uiProgressBar(hero.x+18,hero.y+130,hero.w-36,s->progress,C10_ACCENT);char rem[20],meta[40];formatDuration(s->remainingMinutes,rem,sizeof(rem));snprintf(meta,sizeof(meta),"%u%%  -  %s left",(unsigned)s->progress,rem);uiDrawFit(meta,hero.x+18,hero.y+156,hero.w-36,FONT_BODY,TL_DATUM,C10_TEXT,C10_SURFACE_2);uiDrawFit(paused?"Print paused":"Printing normally",hero.x+18,hero.y+190,hero.w-36,FONT_SMALL,BL_DATUM,paused?C10_ORANGE:C10_MUTED,C10_SURFACE_2);}
+    else {const char* detail=!configured?"Connect your printer to begin":(!online?"Printer connection unavailable":(!wifi?"Network connection unavailable":"Everything is ready"));uiDrawFit(detail,hero.x+18,hero.y+98,hero.w-36,FONT_BODY,TL_DATUM,C10_TEXT,C10_SURFACE_2);uiDrawFit(!configured?"Open Settings to configure Local Access":(!online?"Open Printer to reconnect":"Tap Printer for status and controls"),hero.x+18,hero.y+190,hero.w-36,FONT_SMALL,BL_DATUM,C10_MUTED,C10_SURFACE_2);}
+    if(g_workshopTimerDone){tft.fillRoundRect(hero.x+hero.w-142,hero.y+16,124,30,15,C10_SURFACE_3);uiDrawFit("Timer Done",hero.x+hero.w-80,hero.y+31,104,FONT_SMALL,MC_DATUM,C10_ORANGE,C10_SURFACE_3);}else if(workshopTimerActive()){char tv[18];workshopTimerText(tv,sizeof(tv),true);tft.fillRoundRect(hero.x+hero.w-142,hero.y+16,124,30,15,C10_SURFACE_3);uiDrawFit(tv,hero.x+hero.w-80,hero.y+31,104,FONT_SMALL,MC_DATUM,C10_ACCENT,C10_SURFACE_3);}
+  } else {
+    HubRect hero=hr(8,44,W-16,366);hubV1125Card(hero,sc,true);uiDrawFit(p&&p->config.name[0]?p->config.name:"Workshop OS",hero.x+16,hero.y+18,hero.w-32,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE_2);uiDrawFit(state,hero.x+16,hero.y+58,hero.w-32,FONT_LARGE,TL_DATUM,sc,C10_SURFACE_2);
+    if(printing||paused){uiDrawFit(jobDisplayName(*s),hero.x+16,hero.y+126,hero.w-32,FONT_BODY,TL_DATUM,C10_TEXT,C10_SURFACE_2);uiProgressBar(hero.x+16,hero.y+178,hero.w-32,s->progress,C10_ACCENT);char meta[28];snprintf(meta,sizeof(meta),"%u%% complete",(unsigned)s->progress);uiDrawFit(meta,hero.x+16,hero.y+208,hero.w-32,FONT_BODY,TL_DATUM,C10_TEXT,C10_SURFACE_2);}else uiDrawFit(!configured?"Connect your printer to begin":(online?"Everything is ready":"Check the printer connection"),hero.x+16,hero.y+132,hero.w-32,FONT_BODY,TL_DATUM,C10_TEXT,C10_SURFACE_2);
+  }
+  hubMarkFrameDirty();g_dirty=false;
+}
+@@END_HOME@@

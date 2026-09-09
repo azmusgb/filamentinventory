@@ -1,0 +1,30 @@
+@@PRINTER@@
+static void drawPrinter(bool full) {
+  (void)full;const int16_t W=tft.width();tft.fillScreen(W25_BG);drawHeader("PRINTER",nullptr,1);uiBottomNav(1,nullptr);hubV1125ModeTabs();
+  if(!isAnyPrinterConfigured()){
+    HubRect r=hubLandscape()?hr(8,106,W-16,154):hr(8,106,W-16,306);hubV1125Card(r,W25_ACCENT,true);uiDrawFit("NO PRINTER CONFIGURED",r.x+16,r.y+34,r.w-32,FONT_LARGE,TL_DATUM,W25_TEXT,W25_SURFACE_2);uiDrawFit("Use the local portal to add a printer",r.x+16,r.y+82,r.w-32,FONT_BODY,TL_DATUM,W25_TEXT_2,W25_SURFACE_2);hubMarkFrameDirty();g_dirty=false;return;
+  }
+  const PrinterSlot&p=displayedPrinter();const BambuState&s=p.state;const uint16_t sc=hubV1125PrinterColor(&s);const bool paused=s.gcodeStateId==GCODE_PAUSE;const bool active=s.printing||paused;
+  if(g_printerMode==HUB_PRINTER_STATUS){
+    if(hubLandscape()){
+      HubRect job=hr(8,106,300,154),live=hr(316,106,W-324,154);hubV1125Card(job,sc,true);uiDrawFit(s.printing?"ACTIVE JOB":"PRINTER STATUS",job.x+14,job.y+12,job.w-28,FONT_SMALL,TL_DATUM,sc,W25_SURFACE_2);uiDrawFit(hubV1125PrinterTitle(&s),job.x+14,job.y+35,job.w-28,FONT_LARGE,TL_DATUM,W25_TEXT,W25_SURFACE_2);uiDrawFit(p.config.name[0]?p.config.name:"Bambu printer",job.x+14,job.y+70,job.w-28,FONT_BODY,TL_DATUM,W25_TEXT_2,W25_SURFACE_2);
+      if(s.printing){char rem[20],meta[60];formatDuration(s.remainingMinutes,rem,sizeof(rem));snprintf(meta,sizeof(meta),"%u%%  |  %s left  |  L%u/%u",(unsigned)s.progress,rem,(unsigned)s.layerNum,(unsigned)s.totalLayers);uiDrawFit(jobDisplayName(s),job.x+14,job.y+96,job.w-28,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE_2);uiDrawFit(meta,job.x+14,job.y+124,job.w-28,FONT_SMALL,TL_DATUM,W25_ACCENT,W25_SURFACE_2);uiProgressBar(job.x+14,job.y+141,job.w-28,s.progress,W25_ACCENT);}else uiDrawFit(s.connected?"No active print":"Current telemetry unavailable",job.x+14,job.y+108,job.w-28,FONT_BODY,TL_DATUM,s.connected?W25_MUTED:W25_WARN,W25_SURFACE_2);
+      hubV1125TelemetryColumn(live,s);
+    }else{
+      HubRect job=hr(8,106,W-16,154),live=hr(8,268,W-16,144);hubV1125Card(job,sc,true);uiDrawFit("PRINTER STATUS",job.x+14,job.y+12,job.w-28,FONT_SMALL,TL_DATUM,sc,W25_SURFACE_2);uiDrawFit(hubV1125PrinterTitle(&s),job.x+14,job.y+38,job.w-28,FONT_LARGE,TL_DATUM,W25_TEXT,W25_SURFACE_2);uiDrawFit(p.config.name[0]?p.config.name:"Bambu printer",job.x+14,job.y+80,job.w-28,FONT_BODY,TL_DATUM,W25_TEXT_2,W25_SURFACE_2);if(s.printing){char meta[48];snprintf(meta,sizeof(meta),"%u%%  |  L%u/%u",(unsigned)s.progress,(unsigned)s.layerNum,(unsigned)s.totalLayers);uiDrawFit(meta,job.x+14,job.y+111,job.w-28,FONT_BODY,TL_DATUM,W25_ACCENT,W25_SURFACE_2);uiProgressBar(job.x+14,job.y+137,job.w-28,s.progress,W25_ACCENT);}hubV1125TelemetryColumn(live,s);
+    }
+  }else if(g_printerMode==HUB_PRINTER_AMS){
+    if(hubLandscape()){
+      const int16_t g=6,m=8,cw=(W-2*m-3*g)/4;uint8_t n=s.ams.present?s.ams.unitCount*4:0;if(n>4)n=4;for(uint8_t i=0;i<4;i++){HubRect r=hr(m+i*(cw+g),106,cw,106);hubV1125AmsSlot(r,(i<n)?&s.ams.trays[i]:nullptr,s.ams.present&&s.ams.activeTray==i,i);}
+      HubRect identity=hr(8,220,W-16,40);hubV1125Card(identity,W25_INFO,false);uiDrawFit("INVENTORY IDENTITY",identity.x+12,identity.y+12,128,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit("Unknown",identity.x+149,identity.y+12,70,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE);uiDrawFit("Printer telemetry only - no inferred spool match",identity.x+226,identity.y+13,identity.w-238,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);
+    }else{
+      uint8_t n=s.ams.present?s.ams.unitCount*4:0;if(n>4)n=4;const int16_t g=8,m=8,cw=(W-2*m-g)/2,ch=110;for(uint8_t i=0;i<4;i++){HubRect r=hr(m+(i%2)*(cw+g),106+(i/2)*(ch+g),cw,ch);hubV1125AmsSlot(r,(i<n)?&s.ams.trays[i]:nullptr,s.ams.present&&s.ams.activeTray==i,i);}HubRect identity=hr(8,342,W-16,70);hubV1125Card(identity,W25_INFO,false);uiDrawFit("INVENTORY IDENTITY",identity.x+12,identity.y+12,identity.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit("Unknown",identity.x+12,identity.y+40,identity.w-24,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE);
+    }
+  }else{
+    const char* light=s.lightState==1?"LIGHT OFF":"LIGHT ON";const char* pause=paused?"RESUME":"PAUSE";const uint8_t plug=tasmotaControlPlugForSlot(rotState.displayIndex);const bool powerMapped=plug!=0xFF;
+    for(uint8_t i=0;i<4;i++){HubRect r=hubPrinterActionRect(i);const char* label=i==0?printerFeedbackLabel(0,light):i==1?printerFeedbackLabel(1,pause):i==2?(powerMapped?"PRINTER POWER":"POWER NOT MAPPED"):printerFeedbackLabel(3,active?"HOLD STOP":"STOP");const bool enabled=i==0?s.connected:i==1?(s.connected&&active):i==2?powerMapped:(s.connected&&active);const uint16_t c=i==0?W25_INFO:i==1?(paused?W25_SUCCESS:W25_ACCENT):i==2?W25_WARN:W25_DANGER;hubV1125Action(r,label,c,enabled,i==3);}
+    if(hubLandscape()){uiDrawFit("DIRECT CONTROLS",10,250,160,FONT_SMALL,BL_DATUM,W25_MUTED,W25_BG);uiDrawFit("Stop requires hold",W-10,250,160,FONT_SMALL,BR_DATUM,W25_WARN,W25_BG);}
+  }
+  hubMarkFrameDirty();g_dirty=false;
+}
+@@END_PRINTER@@

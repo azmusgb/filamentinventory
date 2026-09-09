@@ -1,0 +1,35 @@
+@@PRINTER_TOUCH@@
+if(cur==SCREEN_HUB_PRINTER){
+    for(uint8_t i=0;i<3;i++)if(hubV1125PrinterModeRect(i).contains(x,y)){g_printerMode=i;buzzerPlay(BUZZ_CLICK);g_dirty=true;return true;}
+    if(!isAnyPrinterConfigured())return true;
+    if(g_printerMode!=HUB_PRINTER_CONTROL)return true;
+    BambuState&s=displayedPrinter().state;const uint8_t slot=rotState.displayIndex;const bool paused=(s.gcodeStateId==GCODE_PAUSE);const bool active=s.printing||paused;
+    if(hubPrinterActionRect(0).contains(x,y)){if(s.connected){requestLightCommand(slot,s.lightState!=1);setPrinterFeedback(0,"LIGHT SENT");buzzerPlay(BUZZ_CLICK);}return true;}
+    if(hubPrinterActionRect(1).contains(x,y)){if(s.connected&&active){const bool ok=requestPrinterControlCommand(slot,paused?PRINTER_CTRL_RESUME:PRINTER_CTRL_PAUSE);if(ok){setPrinterFeedback(1,paused?"RESUME SENT":"PAUSE SENT");buzzerPlay(BUZZ_CLICK);}}return true;}
+    if(hubPrinterActionRect(2).contains(x,y)){if(powerConfirmOpenForSlot(slot))buzzerPlay(BUZZ_CLICK);else setPrinterFeedback(0,"POWER NOT MAPPED",1200);return true;}
+    if(hubPrinterActionRect(3).contains(x,y)){if(s.connected&&active&&longPress){if(requestPrinterControlCommand(slot,PRINTER_CTRL_STOP)){setPrinterFeedback(3,"STOP SENT",1800);buzzerPlay(BUZZ_CLICK);}}else if(s.connected&&active){setPrinterFeedback(3,"HOLD TO STOP",1000);}return true;}
+    return true;
+  }
+@@END_PRINTER_TOUCH@@
+@@WORKSHOP_TOUCH@@
+if(cur==SCREEN_HUB_WORKSHOP){
+    for(uint8_t i=0;i<4;i++)if(hubWorkshopActionRect(i).contains(x,y)){
+      if(i==0&&isAnyPrinterConfigured()){BambuState&s=displayedPrinter().state;if(s.connected){requestLightCommand(rotState.displayIndex,s.lightState!=1);buzzerPlay(BUZZ_CLICK);}g_dirty=true;}
+      else if(i==1){setPage(SCREEN_HUB_MORE);g_displayExperienceView=false;g_toolsView=true;g_dirty=true;}
+      else if(i==2)setPage(SCREEN_HUB_SYSTEM);
+      else if(i==3)setPage(SCREEN_HUB_PRINTER);
+      return true;
+    }
+    return true;
+  }
+@@END_WORKSHOP_TOUCH@@
+@@HOLD_PROGRESS_INSERT@@
+else if(getScreenState()==SCREEN_HUB_PRINTER && g_printerMode==HUB_PRINTER_CONTROL &&
+           isAnyPrinterConfigured() && hubPrinterActionRect(3).contains(x,y)){
+    BambuState& s=displayedPrinter().state;
+    const bool paused=s.gcodeStateId==GCODE_PAUSE;
+    if(s.connected&&(s.printing||paused)){
+      HubRect r=hubPrinterActionRect(3);kind=3;bx=r.x;by=r.y;bw=r.w;bh=r.h;label="HOLD STOP";
+    }else{lastKind=0;lastSegments=255;return;}
+  }
+@@END_HOLD_PROGRESS_INSERT@@

@@ -1,0 +1,55 @@
+@@WORKSHOP@@
+static void drawWorkshop(bool full) {
+  (void)full;const int16_t W=tft.width();tft.fillScreen(UI_BG);drawHeader("WORKSHOP",nullptr,2);uiBottomNav(2,nullptr);
+  const BambuState* s=isAnyPrinterConfigured()?&displayedPrinter().state:nullptr;
+  if(hubLandscape()){
+    HubRect timer=hr(8,48,304,82),note=hr(320,48,W-328,82),material=hr(8,138,W-16,62);
+    const uint16_t tc=g_workshopTimerDone?UI_AMBER:(workshopTimerActive()?UI_CYAN:UI_BORDER_2);hubV1125Card(timer,tc,true);uiDrawFit("TIMER",timer.x+14,timer.y+12,90,FONT_SMALL,TL_DATUM,workshopTimerActive()||g_workshopTimerDone?tc:UI_MUTED,UI_PANEL_3);char tv[28];workshopTimerText(tv,sizeof(tv));uiDrawFit(workshopTimerActive()||g_workshopTimerDone?tv:"READY",timer.x+14,timer.y+34,timer.w-28,FONT_LARGE,TL_DATUM,g_workshopTimerDone?UI_AMBER:UI_TEXT,UI_PANEL_3);uiDrawFit(workshopTimerActive()?"Tap Tools to manage":(g_workshopTimerDone?"Timer complete":"Presets are one tap away"),timer.x+14,timer.y+67,timer.w-28,FONT_SMALL,BL_DATUM,UI_DIM,UI_PANEL_3);
+    hubV1125Card(note,UI_BORDER_2,false);uiDrawFit("NOTE",note.x+12,note.y+12,note.w-24,FONT_SMALL,TL_DATUM,UI_MUTED,UI_PANEL);uiDrawFit(g_workshopNote[0]?g_workshopNote:"No note",note.x+12,note.y+38,note.w-24,FONT_BODY,TL_DATUM,g_workshopNote[0]?UI_TEXT:UI_DIM,UI_PANEL);
+    hubV1125Card(material,UI_BORDER_2,false);uiDrawFit("MATERIAL PATH",material.x+12,material.y+11,110,FONT_SMALL,TL_DATUM,UI_MUTED,UI_PANEL);char value[50]="Unknown / external";char detail[72]="Inventory identity remains Unknown";if(s&&s->ams.present&&s->ams.activeTray<4&&s->ams.trays[s->ams.activeTray].present){const AmsTray&t=s->ams.trays[s->ams.activeTray];snprintf(value,sizeof(value),"A%u • %s",(unsigned)s->ams.activeTray+1,t.type[0]?t.type:"FILAMENT");if(t.remain>=0)snprintf(detail,sizeof(detail),"Printer telemetry • %d%% • inventory spool Unknown",(int)t.remain);else strlcpy(detail,"Printer telemetry • amount unknown • inventory spool Unknown",sizeof(detail));}uiDrawFit(value,material.x+130,material.y+11,160,FONT_BODY,TL_DATUM,UI_TEXT,UI_PANEL);uiDrawFit(detail,material.x+12,material.y+40,material.w-24,FONT_SMALL,TL_DATUM,UI_DIM,UI_PANEL);
+    char timerLab[18];workshopTimerText(timerLab,sizeof(timerLab),true);for(uint8_t i=0;i<4;i++){const char* lab=i==0?(s&&s->lightState==1?"LIGHT OFF":"LIGHT ON"):i==1?(g_workshopTimerDone?"TIMER DONE":(workshopTimerActive()?timerLab:"TOOLS")):i==2?"SYSTEM":"PRINTER";const bool enabled=i!=0||(s&&s->connected);hubV1125Action(hubWorkshopActionRect(i),lab,i==2?UI_CYAN:(i==1&&g_workshopTimerDone?UI_AMBER:UI_CYAN),enabled,false);}
+  }else{
+    HubRect timer=hr(8,48,W-16,112),note=hr(8,168,W-16,80),material=hr(8,256,W-16,80);hubV1125Card(timer,workshopTimerActive()?UI_CYAN:(g_workshopTimerDone?UI_AMBER:UI_BORDER_2),true);char tv[28];workshopTimerText(tv,sizeof(tv));uiDrawFit("WORKSHOP TIMER",timer.x+14,timer.y+12,timer.w-28,FONT_SMALL,TL_DATUM,UI_MUTED,UI_PANEL_3);uiDrawFit(workshopTimerActive()||g_workshopTimerDone?tv:"READY",timer.x+14,timer.y+42,timer.w-28,FONT_LARGE,TL_DATUM,UI_TEXT,UI_PANEL_3);hubV1125Card(note,UI_BORDER_2,false);uiDrawFit("NOTE",note.x+12,note.y+12,note.w-24,FONT_SMALL,TL_DATUM,UI_MUTED,UI_PANEL);uiDrawFit(g_workshopNote[0]?g_workshopNote:"No note",note.x+12,note.y+41,note.w-24,FONT_BODY,TL_DATUM,g_workshopNote[0]?UI_TEXT:UI_DIM,UI_PANEL);hubV1125Card(material,UI_BORDER_2,false);uiDrawFit("MATERIAL PATH",material.x+12,material.y+12,material.w-24,FONT_SMALL,TL_DATUM,UI_MUTED,UI_PANEL);uiDrawFit("Inventory spool: Unknown",material.x+12,material.y+42,material.w-24,FONT_BODY,TL_DATUM,UI_TEXT,UI_PANEL);for(uint8_t i=0;i<4;i++){const char* lab=i==0?(s&&s->lightState==1?"LIGHT OFF":"LIGHT ON"):i==1?"TOOLS":i==2?"SYSTEM":"PRINTER";hubV1125Action(hubWorkshopActionRect(i),lab,UI_CYAN,i!=0||(s&&s->connected),false);}
+  }
+  hubMarkFrameDirty();g_dirty=false;
+}
+@@END_WORKSHOP@@
+@@MORE@@
+static void drawMore(bool full) {
+  if(g_displayExperienceView){drawDisplayExperience(full);return;}
+  if(g_toolsView){drawTools(full);return;}
+  (void)full;const int16_t W=tft.width();tft.fillScreen(UI_BG);drawHeader("MORE",nullptr,3);uiBottomNav(3,nullptr);
+  const char* titles[4]={"CUSTOM","SYSTEM","DISPLAY","TOOLS"};
+  const char* subs[4]={"Personal dashboard","Health, network, portal","Screen and standby","Timers and workshop tools"};
+  for(uint8_t i=0;i<4;i++){
+    HubRect r=hubV1125MoreRect(i);hubV1125Card(r,UI_BORDER_2,false);
+    tft.fillRoundRect(r.x+12,r.y+12,28,28,8,UI_PANEL_2);tft.drawRoundRect(r.x+12,r.y+12,28,28,8,UI_CYAN);uiMoreIcon(hr(r.x+6,r.y+6,40,40),i,UI_CYAN);
+    if(hubLandscape()){
+      uiDrawFit(titles[i],r.x+52,r.y+16,r.w-82,FONT_BODY,TL_DATUM,UI_TEXT,UI_PANEL);uiDrawFit(subs[i],r.x+52,r.y+43,r.w-82,FONT_SMALL,TL_DATUM,UI_DIM,UI_PANEL);const int16_t cx=r.x+r.w-18,cy=r.y+r.h/2;tft.drawLine(cx-4,cy-5,cx+1,cy,UI_CYAN);tft.drawLine(cx+1,cy,cx-4,cy+5,UI_CYAN);
+    }else{uiDrawFit(titles[i],r.x+12,r.y+52,r.w-24,FONT_BODY,TL_DATUM,UI_TEXT,UI_PANEL);uiDrawFit(subs[i],r.x+12,r.y+82,r.w-24,FONT_SMALL,TL_DATUM,UI_DIM,UI_PANEL);}
+  }
+  String ip=WiFi.status()==WL_CONNECTED?WiFi.localIP().toString():String("No IP");char build[46];snprintf(build,sizeof(build),"Workshop OS %s",SMART_HOME_VERSION);
+  if(hubLandscape()){
+    HubRect d=hr(8,220,W-16,40);hubV1125Card(d,recoveryWebReady()?UI_BORDER_2:UI_AMBER,false);uiDrawFit(build,d.x+12,d.y+12,150,FONT_BODY,TL_DATUM,UI_TEXT,UI_PANEL);uiDrawFit(ip.c_str(),d.x+176,d.y+13,120,FONT_SMALL,TL_DATUM,UI_DIM,UI_PANEL);uiDrawFit(recoveryWebReady()?"RECOVERY READY":"RECOVERY STARTING",d.x+d.w-12,d.y+13,150,FONT_SMALL,TR_DATUM,recoveryWebReady()?UI_GREEN:UI_AMBER,UI_PANEL);
+  }else{
+    HubRect d=hr(10,326,W-20,86);hubV1125Card(d,recoveryWebReady()?UI_BORDER_2:UI_AMBER,false);uiDrawFit(build,d.x+12,d.y+12,d.w-24,FONT_BODY,TL_DATUM,UI_TEXT,UI_PANEL);uiDrawFit(ip.c_str(),d.x+12,d.y+42,d.w-24,FONT_SMALL,TL_DATUM,UI_DIM,UI_PANEL);uiDrawFit(recoveryWebReady()?"Recovery ready":"Recovery starting",d.x+12,d.y+66,d.w-24,FONT_SMALL,TL_DATUM,recoveryWebReady()?UI_GREEN:UI_AMBER,UI_PANEL);
+  }
+  hubMarkFrameDirty();g_dirty=false;
+}
+@@END_MORE@@
+@@SYSTEM@@
+static void drawSystem(bool full) {
+  if(g_audioSettingsView){drawAudioSettings(full);return;}
+  if(g_networkSettingsView){drawNetworkEssentials(full);return;}
+  (void)full;const int16_t W=tft.width();tft.fillScreen(UI_BG);const bool wifi=WiFi.status()==WL_CONNECTED,touchOk=hubTouchHealthy(),recoveryOk=recoveryWebReady();const bool overall=wifi&&touchOk&&recoveryOk;drawHeader("SYSTEM",overall?"HEALTHY":"CHECK",3);uiBottomNav(3,nullptr);String ip=wifi?WiFi.localIP().toString():String("No IP");const char* portalCode=securityPortalCode();HubRect speakerBtn=hubSystemActionRect(0),micBtn=hubSystemActionRect(1),eventsBtn=hubSystemActionRect(2);
+  if(hubLandscape()){
+    HubRect health=hr(8,48,160,212),audio=hr(176,48,296,108),network=hr(176,164,140,96),portal=hr(324,164,148,96);hubV1125Card(health,overall?UI_GREEN:UI_AMBER,true);uiDrawFit("DEVICE HEALTH",health.x+12,health.y+12,health.w-24,FONT_SMALL,TL_DATUM,UI_MUTED,UI_PANEL_3);uiDrawFit(overall?"Healthy":"Check",health.x+12,health.y+39,health.w-24,FONT_LARGE,TL_DATUM,overall?UI_GREEN:UI_AMBER,UI_PANEL_3);uiHealthDot(health.x+15,health.y+91,"Network",wifi);uiHealthDot(health.x+15,health.y+123,"Touch",touchOk,UI_CYAN);uiHealthDot(health.x+15,health.y+155,"Recovery",recoveryOk,UI_CYAN);char ver[30];snprintf(ver,sizeof(ver),"Workshop OS %s",SMART_HOME_VERSION);uiDrawFit(ver,health.x+12,health.y+190,health.w-24,FONT_SMALL,TL_DATUM,UI_DIM,UI_PANEL_3);
+    hubV1125Card(audio,UI_BORDER_2,false);uiDrawFit("AUDIO",audio.x+12,audio.y+11,audio.w-24,FONT_SMALL,TL_DATUM,UI_MUTED,UI_PANEL);uiDrawFit(g_audioDiagMessage,audio.x+12,audio.y+35,audio.w-24,FONT_BODY,TL_DATUM,g_audioDiagColor,UI_PANEL);uiDrawFit("Tap title area for audio settings",audio.x+12,audio.y+60,audio.w-24,FONT_SMALL,TL_DATUM,UI_DIM,UI_PANEL);hubV1125Action(speakerBtn,"SPEAKER",UI_CYAN,true,false);hubV1125Action(micBtn,"MIC ECHO",UI_CYAN,true,false);hubV1125Action(eventsBtn,buzzerSettings.enabled?"EVENTS ON":"EVENTS OFF",buzzerSettings.enabled?UI_GREEN:UI_CYAN,true,false);
+    hubV1125Card(network,wifi?UI_BORDER_2:UI_RED,false);uiDrawFit("NETWORK",network.x+10,network.y+11,network.w-20,FONT_SMALL,TL_DATUM,UI_MUTED,UI_PANEL);char net[24];snprintf(net,sizeof(net),wifi?"%d dBm":"OFFLINE",wifi?WiFi.RSSI():-100);uiDrawFit(net,network.x+10,network.y+37,network.w-20,FONT_LARGE,TL_DATUM,wifi?UI_TEXT:UI_RED,UI_PANEL);uiDrawFit(ip.c_str(),network.x+10,network.y+73,network.w-20,FONT_SMALL,TL_DATUM,UI_DIM,UI_PANEL);
+    hubV1125Card(portal,recoveryOk?UI_BORDER_2:UI_AMBER,false);uiDrawFit("PORTAL ACCESS",portal.x+10,portal.y+11,portal.w-20,FONT_SMALL,TL_DATUM,UI_MUTED,UI_PANEL);uiDrawFit(portalCode&&portalCode[0]?portalCode:"----------",portal.x+10,portal.y+38,portal.w-20,FONT_BODY,TL_DATUM,UI_TEXT,UI_PANEL);uiDrawFit("Changes after reboot",portal.x+10,portal.y+73,portal.w-20,FONT_SMALL,TL_DATUM,UI_DIM,UI_PANEL);
+  }else{
+    HubRect health=hr(8,48,W-16,76),audio=hr(8,132,W-16,118),network=hr(8,258,W-16,72),portal=hr(8,338,W-16,74);hubV1125Card(health,overall?UI_GREEN:UI_AMBER,true);uiDrawFit("DEVICE HEALTH",health.x+12,health.y+12,health.w-24,FONT_SMALL,TL_DATUM,UI_MUTED,UI_PANEL_3);uiDrawFit(overall?"Healthy":"Check device",health.x+12,health.y+39,health.w-24,FONT_LARGE,TL_DATUM,overall?UI_GREEN:UI_AMBER,UI_PANEL_3);hubV1125Card(audio,UI_BORDER_2,false);uiDrawFit("AUDIO",audio.x+12,audio.y+12,audio.w-24,FONT_SMALL,TL_DATUM,UI_MUTED,UI_PANEL);uiDrawFit(g_audioDiagMessage,audio.x+12,audio.y+42,audio.w-24,FONT_BODY,TL_DATUM,g_audioDiagColor,UI_PANEL);hubV1125Action(speakerBtn,"SPEAKER",UI_CYAN,true,false);hubV1125Action(micBtn,"MIC ECHO",UI_CYAN,true,false);hubV1125Action(eventsBtn,"EVENTS",buzzerSettings.enabled?UI_GREEN:UI_CYAN,true,false);hubV1125Card(network,wifi?UI_BORDER_2:UI_RED,false);uiDrawFit("NETWORK",network.x+12,network.y+12,network.w-24,FONT_SMALL,TL_DATUM,UI_MUTED,UI_PANEL);uiDrawFit(ip.c_str(),network.x+12,network.y+40,network.w-24,FONT_BODY,TL_DATUM,wifi?UI_TEXT:UI_RED,UI_PANEL);hubV1125Card(portal,recoveryOk?UI_BORDER_2:UI_AMBER,false);uiDrawFit("PORTAL ACCESS",portal.x+12,portal.y+12,portal.w-24,FONT_SMALL,TL_DATUM,UI_MUTED,UI_PANEL);uiDrawFit(portalCode&&portalCode[0]?portalCode:"----------",portal.x+12,portal.y+42,portal.w-24,FONT_BODY,TL_DATUM,UI_TEXT,UI_PANEL);
+  }
+  hubMarkFrameDirty();g_dirty=false;
+}
+@@END_SYSTEM@@

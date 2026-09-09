@@ -1,0 +1,64 @@
+@@FINGERPRINT_HELPERS@@
+static const char* hubV1125UiFingerprint(uint8_t page) {
+  switch(page) {
+    case 0: return "UI11-H";
+    case 1: return "UI11-P";
+    case 2: return "UI11-W";
+    case 3: return "UI11-M";
+    case 4: return "UI11-S";
+    default: return "UI11";
+  }
+}
+@@END_FINGERPRINT_HELPERS@@
+@@CARD@@
+static void hubV1125Card(const HubRect& r,uint16_t rail=UI_BORDER_2,bool strong=false) {
+  const uint16_t bg=strong?C10_SURFACE_2:C10_SURFACE;
+  tft.fillRoundRect(r.x,r.y,r.w,r.h,16,bg);
+  const bool semantic=rail!=UI_BORDER_2 && rail!=UI_BORDER && rail!=W25_LINE;
+  if(semantic)tft.fillCircle(r.x+r.w-15,r.y+15,4,rail);
+}
+@@END_CARD@@
+@@MODE_TABS@@
+static void hubV1125ModeTabs() {
+  static const char* labels[3]={"Status","AMS","Control"};
+  const int16_t W=tft.width(); HubRect group=hr(8,44,W-16,48);
+  tft.fillRoundRect(group.x,group.y,group.w,group.h,14,C10_SURFACE);
+  for(uint8_t i=0;i<3;i++) { HubRect r=hubV1125PrinterModeRect(i); const bool selected=g_printerMode==i;
+    const uint16_t bg=selected?C10_SURFACE_3:C10_SURFACE;
+    if(selected)tft.fillRoundRect(r.x+4,r.y+4,r.w-8,r.h-8,11,bg);
+    uiDrawFit(labels[i],r.x+r.w/2,r.y+r.h/2,r.w-18,FONT_BODY,MC_DATUM,selected?C10_TEXT:C10_MUTED,bg); }
+}
+@@END_MODE_TABS@@
+@@ACTION@@
+static void hubV1125Action(const HubRect& r,const char* label,uint16_t c,bool enabled=true,bool destructive=false) {
+  const uint16_t bg=enabled?C10_SURFACE_2:C10_SURFACE; const uint16_t text=!enabled?C10_MUTED:(destructive?C10_RED:C10_TEXT);
+  tft.fillRoundRect(r.x,r.y,r.w,r.h,14,bg); if(enabled)tft.fillCircle(r.x+17,r.y+r.h/2,4,destructive?C10_RED:c);
+  uiDrawFit(label,r.x+r.w/2+5,r.y+r.h/2,r.w-42,FONT_BODY,MC_DATUM,text,bg);
+}
+@@END_ACTION@@
+@@TELEMETRY@@
+static void hubV1125TelemetryColumn(const HubRect& r,const BambuState& s) {
+  hubV1125Card(r,s.connected?C10_GREEN:C10_RED,false); uiDrawFit("Temperatures",r.x+14,r.y+12,r.w-28,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE);
+  const char* labels[3]={"Nozzle","Bed","Chamber"}; char vals[3][14];
+  if(s.connected){snprintf(vals[0],14,"%.0f C",s.nozzleTemp);snprintf(vals[1],14,"%.0f C",s.bedTemp);snprintf(vals[2],14,"%.0f C",s.chamberTemp);}else for(uint8_t i=0;i<3;i++)strlcpy(vals[i],"--",14);
+  const int16_t top=r.y+34,row=(r.h-38)/3; for(uint8_t i=0;i<3;i++){if(i)tft.drawFastHLine(r.x+14,top+i*row,r.w-28,C10_SEPARATOR);uiDrawFit(labels[i],r.x+14,top+i*row+row/2,r.w/2-18,FONT_SMALL,ML_DATUM,C10_MUTED,C10_SURFACE);uiDrawFit(vals[i],r.x+r.w-14,top+i*row+row/2,r.w/2-18,FONT_BODY,MR_DATUM,s.connected?C10_TEXT:C10_MUTED,C10_SURFACE);}
+}
+@@END_TELEMETRY@@
+@@AMS_SLOT@@
+static void hubV1125AmsSlot(const HubRect& r,const AmsTray* tr,bool active,uint8_t index) {
+  const bool present=tr&&tr->present; const uint16_t bg=active?C10_SURFACE_3:C10_SURFACE; tft.fillRoundRect(r.x,r.y,r.w,r.h,14,bg); if(active)tft.fillCircle(r.x+r.w-14,r.y+14,4,C10_ACCENT);
+  char slot[8];snprintf(slot,sizeof(slot),"%u",(unsigned)(index+1)); char remain[12]; if(present&&tr->remain>=0)snprintf(remain,sizeof(remain),"%d%%",(int)tr->remain);else strlcpy(remain,"--",sizeof(remain));
+  uiDrawFit(slot,r.x+12,r.y+10,28,FONT_BODY,TL_DATUM,active?C10_ACCENT:C10_MUTED,bg);uiDrawFit(remain,r.x+r.w-12,r.y+10,42,FONT_SMALL,TR_DATUM,present?C10_TEXT:C10_MUTED,bg);
+  uint16_t filament=present?tr->colorRgb565:C10_SEPARATOR;if(present&&filament==0)filament=0x1082;uiSpoolScaled(r.x+r.w/2,r.y+49,filament,active,present?tr->remain:-1,13);uiDrawFit(present&&tr->type[0]?tr->type:"Empty",r.x+r.w/2,r.y+74,r.w-18,FONT_BODY,TC_DATUM,present?C10_TEXT:C10_MUTED,bg);
+}
+@@END_AMS_SLOT@@
+@@HEADER@@
+static void drawHeader(const char* title,const char* right,uint8_t page) {
+  const int16_t W=tft.width(),HH=hubHeaderH(); const bool online=WiFi.status()==WL_CONNECTED; tft.fillRect(0,0,W,HH,C10_BG);
+  uiDrawFit(title?title:"Home",12,8,hubLandscape()?270:178,FONT_BODY,TL_DATUM,C10_TEXT,C10_BG); const char* state=right&&right[0]?right:(online?"Online":"Offline"); const uint16_t c=right&&right[0]?C10_ACCENT:(online?C10_GREEN:C10_RED);
+  const int16_t pw=hubLandscape()?104:90;tft.fillCircle(W-pw+4,18,4,c);uiDrawFit(state,W-12,18,pw-18,FONT_SMALL,MR_DATUM,c,C10_BG);(void)hubV1125UiFingerprint(page);
+}
+@@END_HEADER@@
+@@BOTTOM_NAV@@
+static void uiBottomNav(uint8_t active,const char* nextPage){(void)nextPage;const int16_t y=tft.height()-hubNavH(),W=tft.width();static const char* labels[4]={"Home","Printer","Workshop","Settings"};tft.fillRect(0,y,W,hubNavH(),C10_SURFACE);tft.drawFastHLine(0,y,W,C10_SEPARATOR);for(uint8_t i=0;i<4;i++){HubRect r=hubNavRect(i);const bool selected=i==active;const uint16_t c=selected?C10_ACCENT:C10_MUTED;const int16_t cx=r.x+r.w/2;hubV1125TabIcon(i,cx,r.y+17,c);uiDrawFit(labels[i],cx,r.y+35,r.w-12,FONT_SMALL,TC_DATUM,c,C10_SURFACE);}}
+@@END_BOTTOM_NAV@@

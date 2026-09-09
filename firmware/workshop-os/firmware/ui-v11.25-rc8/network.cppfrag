@@ -1,0 +1,63 @@
+@@NETWORK@@
+static void drawNetworkEssentials(bool full) {
+  (void)full;
+  if(!g_networkEditLoaded) hubLoadNetworkEdit();
+  const uint8_t page=(uint8_t)(g_networkSettingsPage%HUB_NETWORK_PAGE_COUNT);
+  tft.fillScreen(UI_BG);
+  const char* title=page==0?"STARTUP":page==1?"CLOCK":page==2?"DATE":page==3?"LOCAL NAME":page==4?"TIMEZONE":page==5?"ADDRESS":"REVIEW";
+  drawHeader("NETWORK",title,3);
+  hubRc2PageIndicator(page,HUB_NETWORK_PAGE_COUNT);
+
+  if(page<=3) {
+    const char* label=page==0?"SHOW IP AT STARTUP":page==1?"CLOCK FORMAT":page==2?"DATE FORMAT":"LOCAL NETWORK NAME";
+    const char* value=page==0?(netSettings.showIPAtStartup?"ON":"OFF"):page==1?(netSettings.use24h?"24 HOUR":"12 HOUR"):page==2?hubDateFormatLabel(netSettings.dateFormat):(netSettings.mdnsEnabled?"ON":"OFF");
+    const char* detail=page==0?"Show this display's address after boot":page==1?"Choose 12-hour or 24-hour time":page==2?"Choose how dates appear":"Allow a friendly name on your local network";
+    hubRc2CardRef(20,82,440,132,label,value,detail,page==0?UI_BLUE:UI_CYAN);
+    hubRc2ButtonRef(10,258,110,52,"BACK",UI_DIM);
+    hubRc2ButtonRef(360,258,110,52,"NEXT",UI_BLUE);
+  } else if(page==4) {
+    hubRc2CardRef(20,76,440,116,"TIMEZONE",hubTimezoneLabel(),"Choose the timezone used by the display",UI_CYAN);
+    hubRc2ButtonRef(20,202,210,48,"PREVIOUS ZONE",UI_BLUE);
+    hubRc2ButtonRef(250,202,210,48,"NEXT ZONE",UI_BLUE);
+    hubRc2ButtonRef(10,258,110,52,"BACK",UI_DIM);
+    hubRc2ButtonRef(360,258,110,52,"NEXT",UI_BLUE);
+  } else if(page==5) {
+    hubRc2ButtonRef(10,58,460,36,"CHANGES NOT APPLIED",UI_ORANGE);
+    hubRc2ButtonRef(10,102,130,48,g_networkEditDhcp?"DHCP":"STATIC",UI_ORANGE);
+    hubRc2ButtonRef(150,102,70,48,"PREV",UI_CYAN);
+    hubRc2ButtonRef(225,102,170,48,hubNetworkFieldLabel(g_networkEditField),UI_CYAN);
+    hubRc2ButtonRef(400,102,70,48,"NEXT",UI_CYAN);
+    char v0[8],v1[8],v2[8],v3[8];
+    snprintf(v0,sizeof(v0),"%u",(unsigned)g_networkEditValues[g_networkEditField][0]);
+    snprintf(v1,sizeof(v1),"%u",(unsigned)g_networkEditValues[g_networkEditField][1]);
+    snprintf(v2,sizeof(v2),"%u",(unsigned)g_networkEditValues[g_networkEditField][2]);
+    snprintf(v3,sizeof(v3),"%u",(unsigned)g_networkEditValues[g_networkEditField][3]);
+    hubRc2ButtonRef(10,156,108,48,v0,g_networkEditOctet==0?UI_ORANGE:UI_BLUE);
+    hubRc2ButtonRef(127,156,108,48,v1,g_networkEditOctet==1?UI_ORANGE:UI_BLUE);
+    hubRc2ButtonRef(244,156,108,48,v2,g_networkEditOctet==2?UI_ORANGE:UI_BLUE);
+    hubRc2ButtonRef(361,156,109,48,v3,g_networkEditOctet==3?UI_ORANGE:UI_BLUE);
+    hubRc2ButtonRef(10,210,108,48,"-10",UI_CYAN);
+    hubRc2ButtonRef(127,210,108,48,"-1",UI_CYAN);
+    hubRc2ButtonRef(244,210,108,48,"+1",UI_CYAN);
+    hubRc2ButtonRef(361,210,109,48,"+10",UI_CYAN);
+    hubRc2ButtonRef(10,264,110,48,"BACK",UI_DIM);
+    hubRc2ButtonRef(360,264,110,48,"REVIEW",UI_BLUE);
+  } else {
+    char ip[20],gw[20],sn[20],dns[20];
+    hubFormatIpv4(g_networkEditValues[0],ip,sizeof(ip));
+    hubFormatIpv4(g_networkEditValues[1],gw,sizeof(gw));
+    hubFormatIpv4(g_networkEditValues[2],sn,sizeof(sn));
+    hubFormatIpv4(g_networkEditValues[3],dns,sizeof(dns));
+    const bool printerActive=isAnyPrinterConfigured() && displayedPrinter().state.connected && (displayedPrinter().state.printing || displayedPrinter().state.gcodeStateId==GCODE_PAUSE);
+    hubRc2ButtonRef(10,58,460,36,printerActive?"PRINTER ACTIVE - DISPLAY WILL RESTART":"REVIEW CHANGES",printerActive?UI_RED:UI_ORANGE);
+    hubRc2CardRef(10,100,225,58,g_networkEditDhcp?"MODE":"IP",g_networkEditDhcp?"DHCP":ip,g_networkEditDhcp?"Addressing from network":"Static address",UI_ORANGE);
+    hubRc2CardRef(245,100,225,58,"GATEWAY",g_networkEditDhcp?"AUTO":gw,"",UI_CYAN);
+    hubRc2CardRef(10,166,225,58,"SUBNET",g_networkEditDhcp?"AUTO":sn,"",UI_CYAN);
+    hubRc2CardRef(245,166,225,58,"DNS",g_networkEditDhcp?"AUTO":dns,hubStaticNetworkValid()?(printerActive?"Display reconnects after restart":"Ready to apply"):"Static values incomplete",hubStaticNetworkValid()?(printerActive?UI_ORANGE:UI_GREEN):UI_RED);
+    hubRc2ButtonRef(10,252,105,56,"BACK",UI_DIM);
+    hubRc2ButtonRef(125,252,105,56,"DISCARD",UI_RED);
+    hubRc2ButtonRef(240,252,230,56,"HOLD TO APPLY",hubStaticNetworkValid()?UI_ORANGE:UI_RED,hubStaticNetworkValid());
+  }
+  hubMarkFrameDirty();g_dirty=false;
+}
+@@END_NETWORK@@

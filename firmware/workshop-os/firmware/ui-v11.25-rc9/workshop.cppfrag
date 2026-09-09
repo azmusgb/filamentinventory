@@ -1,0 +1,59 @@
+@@WORKSHOP@@
+static void drawWorkshop(bool full) {
+  (void)full;
+  const int16_t W=tft.width();
+  tft.fillScreen(W25_BG);
+  drawHeader("Workshop",nullptr,2);
+  uiBottomNav(2,nullptr);
+  const BambuState* s=isAnyPrinterConfigured()?&displayedPrinter().state:nullptr;
+  if(hubLandscape()){
+    HubRect timer=hr(8,44,W-16,112),note=hr(8,164,228,40),material=hr(244,164,228,40);
+    const uint16_t tc=g_workshopTimerDone?W25_WARN:(workshopTimerActive()?W25_ACCENT:W25_LINE);
+    hubV1125Card(timer,tc,true);
+    uiDrawFit("Timer",timer.x+16,timer.y+12,90,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE_2);
+    char tv[28];workshopTimerText(tv,sizeof(tv));
+    uiDrawFit(workshopTimerActive()||g_workshopTimerDone?tv:"Ready",timer.x+16,timer.y+38,timer.w-32,FONT_LARGE,TL_DATUM,g_workshopTimerDone?W25_WARN:W25_TEXT,W25_SURFACE_2);
+    uiDrawFit(g_workshopTimerDone?"Done - open Tools":(workshopTimerActive()?"Running":"Open Tools to choose a timer"),timer.x+16,timer.y+94,timer.w-32,FONT_SMALL,BL_DATUM,g_workshopTimerDone?W25_WARN:W25_MUTED,W25_SURFACE_2);
+
+    hubV1125Card(note,W25_LINE,false);
+    uiDrawFit("Note",note.x+12,note.y+9,50,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);
+    uiDrawFit(g_workshopNote[0]?g_workshopNote:"None",note.x+66,note.y+21,note.w-76,FONT_BODY,ML_DATUM,g_workshopNote[0]?W25_TEXT:W25_MUTED,W25_SURFACE);
+
+    hubV1125Card(material,W25_INFO,false);
+    uiDrawFit("Printer material",material.x+12,material.y+9,92,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);
+    char value[34]="Unknown";
+    if(s&&s->ams.present&&s->ams.activeTray<4&&s->ams.trays[s->ams.activeTray].present){
+      const AmsTray&t=s->ams.trays[s->ams.activeTray];
+      snprintf(value,sizeof(value),"A%u %s",(unsigned)s->ams.activeTray+1,t.type[0]?t.type:"Filament");
+    }
+    uiDrawFit(value,material.x+112,material.y+21,material.w-124,FONT_BODY,ML_DATUM,(s&&s->ams.present)?W25_TEXT:W25_MUTED,W25_SURFACE);
+
+    char timerLab[18];workshopTimerText(timerLab,sizeof(timerLab),true);
+    for(uint8_t i=0;i<4;i++){
+      const char* lab=i==0?(s&&s->lightState==1?"Light Off":"Light On"):i==1?(g_workshopTimerDone?"Timer Done":(workshopTimerActive()?timerLab:"Tools")):i==2?"System":"Printer";
+      const bool enabled=i!=0||(s&&s->connected);
+      const uint16_t c=i==1&&g_workshopTimerDone?W25_WARN:(i==2?W25_INFO:W25_ACCENT);
+      hubV1125Action(hubWorkshopActionRect(i),lab,c,enabled,false);
+    }
+  } else {
+    HubRect timer=hr(8,44,W-16,132),note=hr(8,184,W-16,64),material=hr(8,256,W-16,64);
+    hubV1125Card(timer,workshopTimerActive()?W25_ACCENT:(g_workshopTimerDone?W25_WARN:W25_LINE),true);
+    char tv[28];workshopTimerText(tv,sizeof(tv));
+    uiDrawFit("Timer",timer.x+14,timer.y+12,timer.w-28,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE_2);
+    uiDrawFit(workshopTimerActive()||g_workshopTimerDone?tv:"Ready",timer.x+14,timer.y+48,timer.w-28,FONT_LARGE,TL_DATUM,W25_TEXT,W25_SURFACE_2);
+    uiDrawFit(workshopTimerActive()?"Running":"Open Tools to choose a timer",timer.x+14,timer.y+108,timer.w-28,FONT_SMALL,BL_DATUM,W25_MUTED,W25_SURFACE_2);
+    hubV1125Card(note,W25_LINE,false);
+    uiDrawFit("Note",note.x+12,note.y+10,note.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);
+    uiDrawFit(g_workshopNote[0]?g_workshopNote:"None",note.x+12,note.y+36,note.w-24,FONT_BODY,TL_DATUM,g_workshopNote[0]?W25_TEXT:W25_MUTED,W25_SURFACE);
+    hubV1125Card(material,W25_INFO,false);
+    uiDrawFit("Printer material",material.x+12,material.y+10,material.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);
+    uiDrawFit(s&&s->ams.present?"AMS connected":"Unknown",material.x+12,material.y+36,material.w-24,FONT_BODY,TL_DATUM,s&&s->ams.present?W25_TEXT:W25_MUTED,W25_SURFACE);
+    for(uint8_t i=0;i<4;i++){
+      const char* lab=i==0?(s&&s->lightState==1?"Light Off":"Light On"):i==1?"Tools":i==2?"System":"Printer";
+      hubV1125Action(hubWorkshopActionRect(i),lab,i==2?W25_INFO:W25_ACCENT,i!=0||(s&&s->connected),false);
+    }
+  }
+  hubMarkFrameDirty();
+  g_dirty=false;
+}
+@@END_WORKSHOP@@

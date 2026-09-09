@@ -1,0 +1,34 @@
+@@MORE@@
+static void drawMore(bool full) {
+  if(g_displayExperienceView){drawDisplayExperience(full);return;}
+  if(g_toolsView){drawTools(full);return;}
+  (void)full;const int16_t W=tft.width();tft.fillScreen(W25_BG);drawHeader("MORE",nullptr,3);uiBottomNav(3,nullptr);
+  const char* titles[4]={"DASHBOARD","SYSTEM","DISPLAY","TOOLS"};
+  const char* subs[4]={"Your quick view","Network and device","Screen and standby","Timers and utilities"};
+  for(uint8_t i=0;i<4;i++){
+    HubRect r=hubV1125MoreRect(i);hubV1125Card(r,i==1?W25_INFO:W25_LINE,false);
+    tft.fillRoundRect(r.x+12,r.y+12,30,30,9,W25_SURFACE_2);tft.drawRoundRect(r.x+12,r.y+12,30,30,9,i==1?W25_INFO:W25_LINE);uiMoreIcon(hr(r.x+7,r.y+7,40,40),i,i==1?W25_INFO:W25_ACCENT);
+    if(hubLandscape()){uiDrawFit(titles[i],r.x+54,r.y+15,r.w-84,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE);uiDrawFit(subs[i],r.x+54,r.y+44,r.w-84,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);const int16_t cx=r.x+r.w-18,cy=r.y+r.h/2;tft.drawLine(cx-4,cy-5,cx+1,cy,W25_MUTED);tft.drawLine(cx+1,cy,cx-4,cy+5,W25_MUTED);}
+    else{uiDrawFit(titles[i],r.x+12,r.y+54,r.w-24,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE);uiDrawFit(subs[i],r.x+12,r.y+84,r.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);}
+  }
+  if(hubLandscape())uiDrawFit("DEVICE DETAILS ARE IN SYSTEM",10,252,W-20,FONT_SMALL,BL_DATUM,W25_MUTED,W25_BG);
+  hubMarkFrameDirty();g_dirty=false;
+}
+@@END_MORE@@
+@@SYSTEM@@
+static void drawSystem(bool full) {
+  if(g_audioSettingsView){drawAudioSettings(full);return;}
+  if(g_networkSettingsView){drawNetworkEssentials(full);return;}
+  (void)full;const int16_t W=tft.width();tft.fillScreen(W25_BG);const bool wifi=WiFi.status()==WL_CONNECTED,touchOk=hubTouchHealthy(),recoveryOk=recoveryWebReady();const bool overall=wifi&&touchOk&&recoveryOk;drawHeader("SYSTEM",overall?"HEALTHY":"CHECK",4);uiBottomNav(3,nullptr);String ip=wifi?WiFi.localIP().toString():String("No IP");HubRect speakerBtn=hubSystemActionRect(0),micBtn=hubSystemActionRect(1),eventsBtn=hubSystemActionRect(2);
+  if(hubLandscape()){
+    HubRect health=hr(8,48,160,212),audio=hr(176,48,296,108),network=hr(176,164,140,96),access=hr(324,164,148,96);
+    hubV1125Card(health,overall?W25_SUCCESS:W25_WARN,true);uiDrawFit("DEVICE",health.x+12,health.y+11,health.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE_2);uiDrawFit(overall?"HEALTHY":"CHECK",health.x+12,health.y+38,health.w-24,FONT_LARGE,TL_DATUM,overall?W25_SUCCESS:W25_WARN,W25_SURFACE_2);uiHealthDot(health.x+15,health.y+91,"Network",wifi);uiHealthDot(health.x+15,health.y+123,"Touch",touchOk,W25_ACCENT);uiHealthDot(health.x+15,health.y+155,"Recovery",recoveryOk,W25_ACCENT);char ver[36];snprintf(ver,sizeof(ver),"%s  %s",SMART_HOME_VERSION,hubV1125UiFingerprint(4));uiDrawFit(ver,health.x+12,health.y+190,health.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE_2);
+    hubV1125Card(audio,W25_LINE,false);uiDrawFit("SOUND",audio.x+12,audio.y+10,audio.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit(g_audioDiagMessage,audio.x+12,audio.y+34,audio.w-24,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE);hubV1125Action(speakerBtn,"SPEAKER",W25_INFO,true,false);hubV1125Action(micBtn,"MIC ECHO",W25_ACCENT,true,false);hubV1125Action(eventsBtn,buzzerSettings.enabled?"EVENTS ON":"EVENTS OFF",buzzerSettings.enabled?W25_SUCCESS:W25_ACCENT,true,false);
+    hubV1125Card(network,wifi?W25_SUCCESS:W25_DANGER,false);uiDrawFit("NETWORK",network.x+10,network.y+10,network.w-20,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit(wifi?"ONLINE":"OFFLINE",network.x+10,network.y+37,network.w-20,FONT_BODY,TL_DATUM,wifi?W25_SUCCESS:W25_DANGER,W25_SURFACE);uiDrawFit(ip.c_str(),network.x+10,network.y+70,network.w-20,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);
+    hubV1125Card(access,W25_ACCENT,false);uiDrawFit("PORTAL CODE",access.x+10,access.y+10,access.w-20,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit(securityPortalCode(),access.x+10,access.y+40,access.w-20,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE);uiDrawFit("LOCAL ACCESS",access.x+10,access.y+72,access.w-20,FONT_SMALL,TL_DATUM,W25_ACCENT,W25_SURFACE);
+  }else{
+    HubRect health=hr(8,48,W-16,80),audio=hr(8,136,W-16,118),network=hr(8,262,W-16,72),access=hr(8,342,W-16,70);hubV1125Card(health,overall?W25_SUCCESS:W25_WARN,true);uiDrawFit("DEVICE",health.x+12,health.y+12,health.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE_2);uiDrawFit(overall?"HEALTHY":"CHECK DEVICE",health.x+12,health.y+42,health.w-24,FONT_LARGE,TL_DATUM,overall?W25_SUCCESS:W25_WARN,W25_SURFACE_2);hubV1125Card(audio,W25_LINE,false);uiDrawFit("SOUND",audio.x+12,audio.y+12,audio.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit(g_audioDiagMessage,audio.x+12,audio.y+42,audio.w-24,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE);hubV1125Action(speakerBtn,"SPEAKER",W25_INFO,true,false);hubV1125Action(micBtn,"MIC ECHO",W25_ACCENT,true,false);hubV1125Action(eventsBtn,"EVENTS",buzzerSettings.enabled?W25_SUCCESS:W25_ACCENT,true,false);hubV1125Card(network,wifi?W25_SUCCESS:W25_DANGER,false);uiDrawFit("NETWORK",network.x+12,network.y+12,network.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit(wifi?"ONLINE":"OFFLINE",network.x+12,network.y+42,network.w-24,FONT_BODY,TL_DATUM,wifi?W25_SUCCESS:W25_DANGER,W25_SURFACE);hubV1125Card(access,W25_ACCENT,false);uiDrawFit("PORTAL CODE",access.x+12,access.y+12,access.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit(securityPortalCode(),access.x+12,access.y+42,access.w-24,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE);
+  }
+  hubMarkFrameDirty();g_dirty=false;
+}
+@@END_SYSTEM@@
