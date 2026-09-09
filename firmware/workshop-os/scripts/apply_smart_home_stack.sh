@@ -61,7 +61,7 @@ PY
 # Historical v3 expected a v2 refresh anchor that became duplicated by later
 # upstream changes. Keep the same deterministic repair used by the proven v10
 # gate, but confine it to the temporary copy instead of mutating this repo.
-python - "$TMP/apply_smart_profiles_evolution_v3.py" <<'PY'
+python3 - "$TMP/apply_smart_profiles_evolution_v3.py" <<'PY'
 from pathlib import Path
 import sys
 
@@ -121,7 +121,7 @@ fi
 
 for patcher in "${patchers[@]}"; do
   echo "==> $(basename "$patcher")"
-  python "$patcher" --repo "$UPSTREAM" --apply
+  python3 "$patcher" --repo "$UPSTREAM" --apply
 done
 
 echo "Smart Home patch stack applied successfully: ${#patchers[@]} patchers"
