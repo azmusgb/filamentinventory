@@ -77,8 +77,8 @@ jobs:
         \ (pid, path_key, len(raw), p[size_key])\n        assert hashlib.sha256(raw).hexdigest() == p[sha_key], (pid, path_key)\n\
         \        published = (Path('dist') / p[path_key]).read_bytes()\n        assert hashlib.sha256(published).hexdigest()\
         \ == p[sha_key], (pid, path_key, 'dist')\n\nd = json.loads(Path('releases/device-update.json').read_text())\nassert\
-        \ d['schemaVersion'] == 1\nassert d['board'] == 'ws_lcd_350'\nassert d['authority'] == 'azmusgb/bambuhelper-smart-display'\n\
-        assert d['artifactBaseUrl'] == 'https://raw.githubusercontent.com/azmusgb/bambuhelper-smart-display/main/'\nstable\
+        \ d['schemaVersion'] == 1\nassert d['board'] == 'ws_lcd_350'\nassert d['authority'] == 'azmusgb/filamentinventory'\n\
+        assert d['artifactBaseUrl'] == 'https://raw.githubusercontent.com/azmusgb/filamentinventory/main/firmware/workshop-os/'\nstable\
         \ = d['channels']['stable']\nassert stable['status'] == 'published'\nassert stable['release'] == r['release']\nstatic\
         \ = r['profiles']['workshop-os-v11.19.1']\nassert stable['ota']['path'] == static['otaFile']\nassert stable['ota']['size']\
         \ == static['otaSize']\nassert stable['ota']['sha256'] == static['otaSha256']\nassert stable['fullFlash']['path']\
