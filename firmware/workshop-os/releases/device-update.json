@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "board": "ws_lcd_350",
-  "authority": "azmusgb/bambuhelper-smart-display",
+  "authority": "azmusgb/filamentinventory",
   "purpose": "Device-native Workshop OS OTA discovery contract",
-  "artifactBaseUrl": "https://raw.githubusercontent.com/azmusgb/bambuhelper-smart-display/main/",
+  "artifactBaseUrl": "https://raw.githubusercontent.com/azmusgb/filamentinventory/main/firmware/workshop-os/",
   "channels": {
     "stable": {
       "status": "published",
