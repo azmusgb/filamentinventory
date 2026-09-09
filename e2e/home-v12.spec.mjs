@@ -46,7 +46,7 @@ async function boot(page, spools) {
   await expect(page.locator('html')).toHaveClass(/fi-ux-v12/);
 }
 
-test('Home command center prioritizes evidence-backed low and unknown items', async ({page}) => {
+test('Home prioritizes evidence-backed Workshop Inbox before secondary actions and metrics', async ({page}) => {
   await boot(page,[
     spool({id:'H001',visualPercent:15,location:'Rack A'}),
     spool({id:'H002',material:'PETG',colorName:'Blue Gray',colorHex:'#667085',visualPercent:null,location:'Dry Box'}),
@@ -55,23 +55,29 @@ test('Home command center prioritizes evidence-backed low and unknown items', as
 
   await expect(page.locator('[data-home-status-pill]')).toHaveText('NEEDS ATTENTION');
   await expect(page.locator('[data-home-status-title]')).toHaveText('2 items need review');
-  await expect(page.locator('[data-home-status-detail]')).toContainText('low-stock and unknown-quantity');
+  await expect(page.locator('[data-home-status-detail]')).toContainText('Workshop Inbox');
   await expect(page.locator('[data-home-metric="spools"]')).toHaveText('3');
   await expect(page.locator('[data-home-metric="loaded"]')).toHaveText('1');
   await expect(page.locator('[data-home-metric="known"]')).toHaveText('0.80 kg');
-  await expect(page.locator('[data-home-metric="attention"]')).toHaveText('2');
   await expect(page.locator('[data-home-attention-count]')).toHaveText('2');
   await expect(page.locator('#priorityList .fi-inbox-row')).toHaveCount(2);
   await expect(page.locator('#priorityList')).toContainText('150 g remaining · Visual estimate');
   await expect(page.locator('#priorityList')).toContainText('Quantity unknown · No trusted quantity evidence');
-  await expect(page.locator('[data-print-readiness]')).toBeVisible();
+  await expect(page.locator('[data-print-readiness]')).toHaveText('Check readiness');
+  const ordering = await page.evaluate(() => {
+    const inbox = document.querySelector('.fi-home-attention');
+    const print = document.querySelector('.fi-home-print-check');
+    const snapshot = document.querySelector('.fi-home-snapshot');
+    return Boolean(inbox && print && snapshot && (inbox.compareDocumentPosition(print) & Node.DOCUMENT_POSITION_FOLLOWING) && (print.compareDocumentPosition(snapshot) & Node.DOCUMENT_POSITION_FOLLOWING));
+  });
+  expect(ordering).toBe(true);
 });
 
-test('Home command center turns unknown quantity into an explicit weighing task', async ({page}) => {
+test('Home turns unknown quantity into an explicit weighing task', async ({page}) => {
   await boot(page,[spool({id:'H010',material:'PETG',colorName:'Orange',visualPercent:null,location:'Shelf'})]);
 
   await expect(page.locator('[data-home-status-pill]')).toHaveText('NEEDS ATTENTION');
-  await expect(page.locator('[data-home-metric="attention"]')).toHaveText('1');
+  await expect(page.locator('[data-home-attention-count]')).toHaveText('1');
   const item = page.locator('#priorityList .fi-inbox-row').first();
   await expect(item).toContainText('PETG · Orange');
   await expect(item).toContainText('Quantity unknown');
@@ -81,14 +87,15 @@ test('Home command center turns unknown quantity into an explicit weighing task'
   await expect(weigh).toHaveAttribute('data-spool','H010');
 });
 
-test('Home command center reports ready while keeping explicit loaded placement visible', async ({page}) => {
+test('Home reports scoped inventory health without claiming print readiness', async ({page}) => {
   await boot(page,[spool({id:'H020',visualPercent:70,placementState:'Loaded',printerName:'P1S',feederName:'AMS',feederSlot:'1'})]);
 
-  await expect(page.locator('[data-home-status-pill]')).toHaveText('READY');
-  await expect(page.locator('[data-home-status-title]')).toHaveText('Workshop inventory is ready');
-  await expect(page.locator('[data-home-metric="attention"]')).toHaveText('0');
+  await expect(page.locator('[data-home-status-pill]')).toHaveText('INVENTORY HEALTHY');
+  await expect(page.locator('[data-home-status-title]')).toHaveText('No inventory actions need attention');
+  await expect(page.locator('[data-home-status-detail]')).toContainText('Print readiness is evaluated separately');
   await expect(page.locator('[data-home-loaded-count]')).toHaveText('1');
   await expect(page.locator('[data-home-loaded]')).toContainText('P1S · AMS · Slot 1');
   await expect(page.locator('[data-home-loaded]')).toContainText('Visual estimate');
   await expect(page.locator('[data-print-readiness]')).toBeVisible();
+  await expect(page.locator('[data-home-status-pill]')).not.toHaveText('READY');
 });
