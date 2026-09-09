@@ -52,28 +52,12 @@
             <h2 id="dashboardTitle">Filament Inventory</h2>
             <p class="lead fi-home-subtitle">Your physical inventory, placement and next actions in one trusted view.</p>
           </div>
-          <span class="fi-home-status-pill" data-home-status-pill>READY</span>
+          <span class="fi-home-status-pill" data-home-status-pill>INVENTORY HEALTHY</span>
         </div>
 
-        <div class="fi-workshop-status" data-home-status="ready">
-          <div class="fi-workshop-status-copy">
-            <p class="fi-home-decision-label">Workshop status</p>
-            <p class="fi-home-decision" data-home-status-title></p>
-            <p class="fi-home-decision-detail" data-home-status-detail></p>
-          </div>
-          <div class="fi-workshop-metrics" aria-label="Workshop summary">
-            <div><strong data-home-metric="spools">0</strong><span>Spools</span></div>
-            <div><strong data-home-metric="loaded">0</strong><span>Loaded</span></div>
-            <div><strong data-home-metric="known">0 kg</strong><span>Known</span></div>
-            <div><strong data-home-metric="attention">0</strong><span>Attention</span></div>
-          </div>
-        </div>
-
-        <div class="fi-home-actions" aria-label="Quick actions">
-          <button class="btn btn-primary" type="button" data-print-readiness>Check a print</button>
-          <button class="btn" type="button" data-shell-action="scan">Scan spool</button>
-          <button class="btn" id="heroAddBtn" type="button">Add spool</button>
-          <button class="btn" type="button" data-home-action="weigh">Weigh spool</button>
+        <div class="fi-workshop-status" data-home-status="healthy">
+          <p class="fi-home-decision" data-home-status-title></p>
+          <p class="fi-home-decision-detail" data-home-status-detail></p>
         </div>
       </section>
 
@@ -84,6 +68,40 @@
         </div>
         <p class="fi-home-section-copy">Only evidence-backed exceptions appear here. Unknown stays unknown until you resolve it.</p>
         <div class="fi-home-list" id="priorityList"></div>
+      </section>
+
+      <section class="fi-home-section fi-home-print-check">
+        <div class="fi-home-section-head">
+          <div><p class="fi-home-section-kicker">Print readiness</p><h3>Check a print</h3></div>
+        </div>
+        <div class="fi-print-check-row">
+          <p>Evaluate a specific job against trusted quantity, material, placement and uncertainty.</p>
+          <button class="btn btn-primary" type="button" data-print-readiness>Check readiness</button>
+        </div>
+      </section>
+
+      <section class="fi-home-section fi-home-quick-actions">
+        <div class="fi-home-section-head">
+          <div><p class="fi-home-section-kicker">Capture</p><h3>Quick actions</h3></div>
+        </div>
+        <div class="fi-home-actions" aria-label="Quick actions">
+          <button class="btn" type="button" data-shell-action="scan">Scan spool</button>
+          <button class="btn" type="button" data-home-action="weigh">Weigh spool</button>
+          <button class="btn btn-quiet" id="heroAddBtn" type="button">Add spool</button>
+        </div>
+      </section>
+
+      <section class="fi-home-section fi-home-snapshot">
+        <div class="fi-home-section-head">
+          <div><p class="fi-home-section-kicker">Workshop</p><h3>Inventory snapshot</h3></div>
+        </div>
+        <p class="fi-workshop-snapshot" aria-label="Workshop summary">
+          <span><strong data-home-metric="spools">0</strong> spools</span>
+          <span aria-hidden="true">·</span>
+          <span><strong data-home-metric="loaded">0</strong> loaded</span>
+          <span aria-hidden="true">·</span>
+          <span><strong data-home-metric="known">0 kg</strong> evidence-backed</span>
+        </p>
       </section>
 
       <section class="fi-home-section fi-home-secondary">
@@ -111,7 +129,7 @@
   function inboxMarkup(snapshot, owner, summary) {
     if (!summary.activeCount) return `<div class="empty"><strong>No inventory yet</strong>Add or scan a spool to establish your first authoritative record.</div>`;
     const inbox = core().workshopInbox(snapshot, owner, 6);
-    if (!inbox.length) return `<div class="empty"><strong>All caught up</strong>No low-stock or unknown-quantity items need attention.</div>`;
+    if (!inbox.length) return `<div class="empty"><strong>All caught up</strong>No low-stock or unknown-quantity inventory actions need attention.</div>`;
     return inbox.map(item => {
       const spool = summary.active.find(row => String(row.id) === String(item.spoolId));
       const swatch = spool?.colorHex || '#666d7d';
@@ -150,6 +168,7 @@
       const inbox = core().workshopInbox(snapshot,owner,99);
 
       view.classList.toggle('fi-home-empty',empty);
+      view.classList.toggle('fi-home-has-attention',inbox.length > 0);
       view.dataset.empty = String(empty);
       view.dataset.homeStatus = status.state;
 
@@ -171,7 +190,6 @@
         spools:String(summary.activeCount),
         loaded:String(summary.loadedCount),
         known:`${(summary.knownGrams/1000).toFixed(2)} kg`,
-        attention:String(inbox.length),
       };
       for (const [key,value] of Object.entries(metrics)) {
         const node = view.querySelector(`[data-home-metric="${key}"]`);
@@ -182,6 +200,7 @@
       if (add) {
         add.textContent = empty ? 'Add first spool' : 'Add spool';
         add.classList.toggle('btn-primary',empty);
+        add.classList.toggle('btn-quiet',!empty);
       }
 
       const attention = view.querySelector('[data-home-attention-count]');
