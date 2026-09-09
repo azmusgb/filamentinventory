@@ -1,0 +1,198 @@
+html.fi-ui .workshop-device-card {
+  display: grid;
+  gap: 18px;
+  padding: clamp(18px, 2.4vw, 28px);
+  border-color: var(--color-border);
+  background:
+    radial-gradient(circle at 92% 0%, color-mix(in srgb, var(--color-accent) 13%, transparent), transparent 34%),
+    var(--color-surface);
+}
+
+html.fi-ui .workshop-device-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+html.fi-ui .workshop-device-heading h3 {
+  margin: 5px 0 6px;
+  font-size: clamp(21px, 2.5vw, 30px);
+  line-height: 1.08;
+  letter-spacing: -.035em;
+}
+
+html.fi-ui .workshop-device-heading p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
+html.fi-ui .workshop-device-badge {
+  flex: 0 0 auto;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+
+html.fi-ui .workshop-device-status {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-raised);
+}
+
+html.fi-ui .workshop-device-status i {
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--color-text-subtle);
+  box-shadow: 0 0 0 4px var(--color-border-subtle);
+}
+
+html.fi-ui .workshop-device-status strong,
+html.fi-ui .workshop-device-status span {
+  display: block;
+}
+
+html.fi-ui .workshop-device-status strong { font-size: 14px; }
+html.fi-ui .workshop-device-status span { margin-top: 2px; color: var(--color-text-muted); font-size: 12px; line-height: 1.45; }
+html.fi-ui .workshop-device-status[data-state="ready"] i { background: var(--color-success); box-shadow: 0 0 0 4px var(--color-success-soft); }
+html.fi-ui .workshop-device-status[data-state="stale"] i { background: var(--color-warning); box-shadow: 0 0 0 4px var(--color-warning-soft); }
+html.fi-ui .workshop-device-status[data-state="working"] i { background: var(--color-accent); box-shadow: 0 0 0 4px var(--color-accent-soft); }
+html.fi-ui .workshop-device-status[data-state="error"] i { background: var(--color-danger); box-shadow: 0 0 0 4px var(--color-danger-soft); }
+html.fi-ui .workshop-device-status[data-state="offline"] i { background: var(--color-text-subtle); }
+
+html.fi-ui .workshop-device-values {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(130px, .7fr) minmax(190px, 1fr);
+  gap: 10px;
+}
+
+html.fi-ui .workshop-device-value {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
+}
+
+html.fi-ui .workshop-device-value > span {
+  grid-column: 1 / -1;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+html.fi-ui .workshop-device-value strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+html.fi-ui .workshop-device-value .btn {
+  min-height: 38px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+html.fi-ui .workshop-device-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+html.fi-ui .workshop-device-actions .btn { min-width: 170px; }
+
+html.fi-ui .workshop-device-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+html.fi-ui .workshop-device-steps li {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  min-height: 98px;
+  padding: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
+}
+
+html.fi-ui .workshop-device-steps li > span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-weight: 900;
+  font-size: 12px;
+}
+
+html.fi-ui .workshop-device-steps strong { display: block; font-size: 13px; }
+html.fi-ui .workshop-device-steps p { margin: 4px 0 0; color: var(--color-text-muted); font-size: 11px; line-height: 1.45; }
+
+html.fi-ui .workshop-device-security-note {
+  display: grid;
+  gap: 3px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+html.fi-ui .workshop-device-security-note strong { font-size: 12px; }
+html.fi-ui .workshop-device-security-note span { color: var(--color-text-muted); font-size: 11px; line-height: 1.5; }
+
+@media (max-width: 900px) {
+  html.fi-ui .workshop-device-values { grid-template-columns: 1fr 1fr; }
+  html.fi-ui .workshop-device-value:first-child { grid-column: 1 / -1; }
+  html.fi-ui .workshop-device-steps { grid-template-columns: 1fr; }
+  html.fi-ui .workshop-device-steps li { min-height: 0; }
+}
+
+@media (max-width: 620px) {
+  html.fi-ui .workshop-device-card { gap: 14px; padding: 16px; }
+  html.fi-ui .workshop-device-heading { display: grid; }
+  html.fi-ui .workshop-device-badge { justify-self: start; }
+  html.fi-ui .workshop-device-values { grid-template-columns: 1fr; }
+  html.fi-ui .workshop-device-value:first-child { grid-column: auto; }
+  html.fi-ui .workshop-device-value { grid-template-columns: 1fr; }
+  html.fi-ui .workshop-device-value .btn { width: 100%; min-height: 44px; }
+  html.fi-ui .workshop-device-actions .btn { width: 100%; min-width: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.fi-ui .workshop-device-card *,
+  html.fi-ui .workshop-device-card *::before,
+  html.fi-ui .workshop-device-card *::after {
+    transition: none;
+    animation: none;
+  }
+}
