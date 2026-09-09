@@ -1,0 +1,2 @@
+06c688f02ef1aa83449060a26a9fd7b0892c8260e060f0bed802b56d7b1e51d0  BambuHelper-ws_lcd_350-v3.8.1-Workshop-OS-v11.26-UI11-Cupertino-Full.bin
+ed96f780b58af2fd353f45a4df442abd27d5065c520dff757c346abddeac8fc2  BambuHelper-ws_lcd_350-v3.8.1-Workshop-OS-v11.26-UI11-Cupertino-OTA.bin

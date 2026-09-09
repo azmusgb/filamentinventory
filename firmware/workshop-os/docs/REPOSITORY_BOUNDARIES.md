@@ -1,42 +1,37 @@
-# Workshop OS integration-mirror boundaries
+# Repository boundaries
 
-This subtree is a **history-preserved integration mirror** of Workshop OS inside `azmusgb/filamentinventory`.
+This repository is the authoritative product boundary for **Waveshare Workshop OS** on the WS350.
 
-The authoritative Workshop OS firmware repository remains:
-
-- `azmusgb/bambuhelper-smart-display`
-
-Use this subtree for product-level contract checks, reconstruction, integration testing, and recovery planning. Do not treat it as the production firmware release authority unless the project authority model is explicitly changed.
-
-## Authoritative Workshop OS scope
-
-The authoritative firmware repository owns:
+## This repository owns
 
 - WS350 firmware and hardware-facing runtime behavior;
 - touch/navigation UX and physical interaction contracts;
 - Bambu printer control and mapped smart-plug power control;
-- audio, microphone, BLE/device-companion behavior;
-- local portal/session security, networking, device management and recovery;
+- audio, microphone and BLE/device-companion behavior;
+- local portal/session security, device management and recovery;
 - OTA/full-flash packaging and firmware release provenance;
 - hardware builds, regression builds, framebuffer capture and physical acceptance;
 - the Workshop Device Companion protocol and hardware orchestration plane.
 
-## Inventory boundary
+## This repository does not own
 
-Filament inventory data, cloud synchronization, evidence provenance, ownership/profile state, print readiness, and inventory LLM behavior are owned by the root Filament Inventory product.
+Filament inventory data, cloud synchronization or inventory LLM behavior are owned by:
 
-Workshop OS must not become a second inventory database, quantity authority, ownership authority, placement authority, or model provider. In particular, it must not invent:
+- `azmusgb/filamentinventory` — **Filament Inventory**
 
-- spool identity;
-- owner/profile scope;
-- remaining quantity;
-- printer/AMS/slot placement;
-- measured weight;
-- inventory recommendations presented as facts.
+That repository is authoritative for profile isolation, spool state, remaining-quantity evidence, cloud sync, QR/audit workflows, inventory Assistant grounding and server-side model transport.
 
-Unknown remains unknown. Similar color/material telemetry is not enough to assign a spool to an AMS slot.
+Workshop OS consumes inventory facts through versioned authenticated device APIs. It must not become a second inventory database, quantity authority, ownership authority, placement authority, or model provider.
 
-## Device contract
+## Filament Inventory integration mirror
+
+`azmusgb/filamentinventory` now contains a history-preserved integration mirror of Workshop OS under `firmware/workshop-os/`.
+
+That mirror is used for product-level contract validation, reconstruction, shared CI, candidate comparison, and recovery planning. It is **not** the current production firmware authority and does not replace this repository's physical-acceptance or release responsibilities.
+
+Mirrored CI may be cited as additional software evidence only when it is tied to an exact source/candidate mapping. It must not be used to promote firmware independently of the authoritative Workshop OS candidate line.
+
+## Canonical device contract
 
 Current device-facing inventory endpoint:
 
@@ -45,27 +40,41 @@ Current device-facing inventory endpoint:
 - `X-Filament-Profile: Bill | Aimee`
 - response contract version: `1`
 
-Contract v1 is redacted and profile-scoped. The current sync-key reuse is a compatibility bridge; the target is a revocable device-scoped credential with read/assistant capabilities and no broad inventory mutation authority.
+Contract v1 returns aggregate inventory/queue/staleness data only. Record-level Assistant evidence requires a separately designed least-privilege endpoint.
 
-## Integration-mirror relationship
+The current sync-key reuse is a compatibility bridge. The target design is a device-scoped credential with read/assistant capabilities and no sync-mutation authority.
 
-The Workshop OS history was imported here so unified CI can prove that inventory/cloud changes and firmware contracts can coexist without losing source provenance.
+## Filament Inventory firmware consolidation
 
-The mirror has successfully reconstructed and built the current firmware candidate stack, but source-of-truth firmware changes and physical acceptance remain anchored in `azmusgb/bambuhelper-smart-display`.
+`azmusgb/filamentinventory` previously evolved an independent **Waveshare Home** firmware line through v1.7.0. That line is frozen and retained only as migration/reference/recovery material.
 
-Mirrored candidate references:
+Workshop OS must preserve valuable behavior without importing duplicate firmware authority. Unique migration targets include:
 
-1. v11.23 RC2 mirror — integration head `7723efad12c5a9f2274ac64df7e1d257cf2a4ad1`; authoritative source PR #76 / `feature/v11-23-network-locale-layout`.
-2. v11.24 Audio mirror — integration head `ad1d7e9c78205be3d90c8ff76eee6d215f2c8ecd`; authoritative source PR #77 / `feature/v11-24-audio-console`.
-3. Instrument UI + Audio + QMI8658 Auto Orient mirror — integration head `87c0af8a959e8f08b2ed29d458bf02c001bc318d`; source design branch `design/workshop-instrument-ui-v11-24`.
+- profile-aware inventory summary;
+- compact Inventory Assistant launcher;
+- quick questions for Low stock, Loaded now, Inventory and Attention;
+- explicit evidence/unknown-data language;
+- refusal to infer AMS assignment from color or material;
+- 52–60 px physical touch-target standard where applicable.
 
-Do not merge or promote a later candidate merely because the integration mirror can reconstruct and build it.
+Workshop OS remains authoritative for the underlying printer, power, network, audio, BLE, OTA/recovery and security implementations.
+
+## Candidate sequencing
+
+Do not mix repository integration with physical-acceptance promotion.
+
+1. Complete v11.23 Network / Locale / Layout RC2 physical acceptance in authoritative PR #76.
+2. Complete the dependent v11.24 Audio Console candidate acceptance in authoritative PR #77.
+3. Rebase/recreate later Instrument UI/Auto Orient work on the then-accepted authoritative source line if it remains desired.
+4. Create the Workshop OS inventory/Assistant migration candidate from the then-accepted source line.
+5. Run exact-head CI, native WS350 build, shared-display regression and real-device physical acceptance.
+6. Consider any future firmware-authority migration only as a separate deliberate architecture change with proven recovery/rollback.
 
 ## LLM boundary
 
 The WS350 never stores an OpenAI/provider API key.
 
-If Workshop OS requests cloud-generated inventory answers, it must call a narrow Filament Inventory server endpoint with profile-scoped, least-privilege authorization. Local printer/device telemetry and Filament Inventory data remain evidence; model output never becomes inventory source-of-truth state.
+If Workshop OS later requests cloud-generated inventory answers, it must call a narrow Filament Inventory server endpoint with profile-scoped, least-privilege authorization. Local printer/AMS state and Filament Inventory data remain evidence; model output never becomes inventory source-of-truth state.
 
 ## Recovery rule
 
@@ -79,4 +88,4 @@ Keep these states distinct:
 
 `implemented -> built -> tested -> runtime validated -> production validated -> physically validated -> accepted -> stable`
 
-GitHub Actions passing native builds and packaging is software evidence only. It is not physical acceptance of the WS350.
+CI or integration-mirror success does not prove WS350 physical acceptance.

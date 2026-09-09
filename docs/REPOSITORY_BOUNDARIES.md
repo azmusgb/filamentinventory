@@ -2,7 +2,7 @@
 
 This repository is the authoritative product boundary for **Filament Inventory**.
 
-It now also contains a history-preserved Workshop OS integration mirror under `firmware/workshop-os/` so product-level contracts and firmware reconstruction can be tested together. That mirror does **not** replace the current firmware authority.
+It now also contains a history-preserved Workshop OS integration mirror under `firmware/workshop-os/` so product-level contracts and firmware reconstruction can be tested together. The user authorized consolidation on 2026-09-09. The target is one repository with the same domain boundaries; operational release cutover remains gated by validation.
 
 ## Filament Inventory authority
 
@@ -23,13 +23,15 @@ Bill/Aimee remains a **transitional implementation**, not the permanent househol
 
 ## Workshop OS authority
 
-Production Workshop OS firmware for the WS350 remains owned by:
+Workshop OS source destination:
 
-- `azmusgb/bambuhelper-smart-display`
+- `azmusgb/filamentinventory`, under `firmware/workshop-os/`
 
-That repository remains authoritative for WS350 firmware, touch/navigation behavior, Bambu and mapped-power controls, audio/microphone/BLE, networking, local portal/session security, OTA/full-image recovery, firmware release provenance, native hardware builds, and physical acceptance.
+The existing `azmusgb/bambuhelper-smart-display` release endpoints remain operational during migration.
 
-The imported `firmware/workshop-os/` tree in this repository is an **integration mirror** used for unified contract checks, reconstruction, candidate comparison, and recovery planning. It must not become a competing release authority unless the project authority model is explicitly changed.
+The Workshop OS subsystem remains authoritative for WS350 firmware, touch/navigation behavior, Bambu and mapped-power controls, audio/microphone/BLE, networking, local portal/session security, OTA/full-image recovery, firmware release provenance, native hardware builds, and physical acceptance.
+
+The imported `firmware/workshop-os/` tree in this repository is an **integration mirror** used for unified contract checks, reconstruction, candidate comparison, and recovery planning. The explicitly authorized migration supersedes the previous two-repository target, but does not authorize promotion of unaccepted firmware. See `migration/2026-09-09/README.md`.
 
 ## Device contract
 

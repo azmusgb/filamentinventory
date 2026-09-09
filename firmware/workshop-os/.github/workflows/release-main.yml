@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'release.json'
+      - 'releases/device-update.json'
       - 'build.py'
       - 'index.html'
       - 'app.js'
@@ -15,6 +16,7 @@ on:
     branches: [main]
     paths:
       - 'release.json'
+      - 'releases/device-update.json'
       - 'build.py'
       - 'index.html'
       - 'app.js'
@@ -55,9 +57,46 @@ jobs:
                   assert hashlib.sha256(raw).hexdigest() == p[sha_key], (pid, path_key)
                   published = (Path('dist') / p[path_key]).read_bytes()
                   assert hashlib.sha256(published).hexdigest() == p[sha_key], (pid, path_key, 'dist')
+
+          d = json.loads(Path('releases/device-update.json').read_text())
+          assert d['schemaVersion'] == 1
+          assert d['board'] == 'ws_lcd_350'
+          assert d['authority'] == 'azmusgb/bambuhelper-smart-display'
+          assert d['artifactBaseUrl'] == 'https://raw.githubusercontent.com/azmusgb/bambuhelper-smart-display/main/'
+          stable = d['channels']['stable']
+          assert stable['status'] == 'published'
+          assert stable['release'] == r['release']
+          static = r['profiles']['workshop-os-v11.19.1']
+          assert stable['ota']['path'] == static['otaFile']
+          assert stable['ota']['size'] == static['otaSize']
+          assert stable['ota']['sha256'] == static['otaSha256']
+          assert stable['fullFlash']['path'] == static['file']
+          assert stable['fullFlash']['size'] == static['size']
+          assert stable['fullFlash']['sha256'] == static['sha256']
+          assert stable['fullFlash']['flashOffset'] == '0x0'
+          assert stable['fullFlash']['deviceInstallAllowed'] is False
+          for kind in ('ota', 'fullFlash'):
+              meta = stable[kind]
+              raw = Path(meta['path']).read_bytes()
+              assert len(raw) == meta['size'], ('device-update', kind, 'size')
+              assert hashlib.sha256(raw).hexdigest() == meta['sha256'], ('device-update', kind, 'sha256')
+          candidate = d['channels']['candidate']
+          assert candidate['status'] in {'none-published', 'published'}
+          if candidate['status'] == 'published':
+              assert candidate['ota'] is not None
+              raw = Path(candidate['ota']['path']).read_bytes()
+              assert len(raw) == candidate['ota']['size'], ('candidate', 'size')
+              assert hashlib.sha256(raw).hexdigest() == candidate['ota']['sha256'], ('candidate', 'sha256')
+          else:
+              assert candidate['ota'] is None
+          assert d['rules']['normalDeviceUpdateUsesOtaOnly'] is True
+          assert d['rules']['verifySizeBeforeInstall'] is True
+          assert d['rules']['verifySha256BeforeInstall'] is True
+          assert d['rules']['fullFlashRequiresRecoveryFlow'] is True
+
           assert len(list(Path('firmware').glob('*.bin'))) == 4
           assert len(list((Path('dist') / 'firmware').glob('*.bin'))) == 4
-          print('Accepted static installer integrity: PASS')
+          print('Accepted static installer + device update manifest integrity: PASS')
           PY
           grep -Fq "EXPECTED_RELEASE='production-workshop-os-v11.19.1'" app.js
           grep -Fq "selectedProfile='workshop-os-v11.19.1'" app.js

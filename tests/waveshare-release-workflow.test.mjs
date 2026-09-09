@@ -17,6 +17,7 @@ test('root Actions surface contains only unified web, production and Workshop OS
     'ci.yml',
     'firmware-validate.yml',
     'production-smoke.yml',
+    'workshop-release.yml',
   ]);
 
   assert.equal(fs.existsSync(path.join(workflowsDir, 'waveshare-home.yml')), false);

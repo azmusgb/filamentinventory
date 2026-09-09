@@ -1,0 +1,12 @@
+Workshop OS v11.28 UI13 Appliance Settings
+source_head_sha=3672a6f0947af0c890a4f7a79c28b140c901425b
+result=BUILD_PASS
+release_state=IMPLEMENTED_BUILT_TESTED_BY_CI_ONLY
+product_finish=APPLIED
+published_candidate=NO
+physical_acceptance=REQUIRED
+stable_promotion=FORBIDDEN
+supersedes_ui12_acceptance_artifact=YES
+artifact_retention_days=90
+ota_size=2334176
+ota_sha256=8b7ab683879803b37669b675442bc40df4918a7c83947ddff187c9fb4935c0d0

@@ -1,35 +1,7 @@
-# Workshop OS integration mirror
+# Workshop OS migration boundary
 
-This directory is a history-preserved integration mirror of the authoritative Workshop OS repository:
+This is the Workshop OS source destination in the authorized Filament Inventory monorepo migration. See [current migration record](../../docs/migration/2026-09-09/README.md).
 
-- `azmusgb/bambuhelper-smart-display`
+Source files, nested workflows, release metadata and historical documentation retain their source-repository meaning unless an explicit migration overlay says otherwise. Nested `.github/workflows` files are retained provenance; root workflows perform monorepo validation. Existing release URLs remain operational until validated cutover. UI13 remains a separate unaccepted candidate, never an implicit main/stable promotion.
 
-## What this mirror is for
-
-Use this tree for:
-
-- Filament Inventory / Workshop OS contract validation;
-- unified product-level CI;
-- source reconstruction and candidate comparison;
-- native `ws_lcd_350` and shared-target regression builds in the integration repository;
-- recovery and future architecture planning.
-
-## What this mirror is not
-
-This tree is **not** the current production firmware authority.
-
-Do not use a merge or branch in this mirror alone to claim that Workshop OS has been physically validated, accepted, promoted, or stabilized. Authoritative candidate promotion, release provenance, OTA/recovery ownership, and physical WS350 acceptance remain in `azmusgb/bambuhelper-smart-display` unless the project authority model is explicitly changed.
-
-## Current authoritative promotion train
-
-1. `bambuhelper-smart-display` PR #76 — v11.23 Network / Locale / Layout Expert RC2 — physical acceptance pending.
-2. `bambuhelper-smart-display` PR #77 — v11.24 Audio Console RC1 — blocked on #76 physical acceptance, then requires its own speaker/microphone acceptance.
-3. Later Instrument UI / Auto Orient work remains implementation evidence until reconciled onto an accepted authoritative base and physically validated.
-
-## Release-state rule
-
-Keep these states distinct:
-
-`implemented -> built -> tested -> runtime validated -> production validated -> physically validated -> accepted -> stable`
-
-Integration CI provides software evidence only. It does not substitute for real-device acceptance.
+Inventory truth belongs to the root inventory/API implementation. Workshop OS consumes the profile-scoped device contract and must not infer spool identity or AMS placement from telemetry.

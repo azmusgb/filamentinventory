@@ -31,6 +31,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -118,6 +119,41 @@ jobs:
         working-directory: firmware/workshop-os
         run: python scripts/validate_rendered_fit_v11_19_1.py upstream
 
+      - name: Verify accepted baseline before security delta
+        working-directory: firmware/workshop-os
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          hub = Path('upstream/src/smart_hub.cpp').read_text()
+          mqtt = Path('upstream/src/bambu_mqtt.cpp').read_text()
+          tasmota = Path('upstream/src/tasmota.cpp').read_text()
+          build = Path('upstream/include/smart_home_build.h').read_text()
+          web = Path('upstream/src/web_server.cpp').read_text()
+
+          def need(body, needle, label):
+              if needle not in body:
+                  raise SystemExit(f'MISSING {label}: {needle}')
+
+          for n in ['SMART_HOME_VERSION "v11.19.1"', 'Smart Home v11.19.1 Physical Fit RC2']:
+              need(build, n, 'accepted release identity')
+          for n in ['DROPPED: MQTT offline', 'if (!st.connected) return false']:
+              need(mqtt, n, 'fail-closed printer control')
+          for n in ['visiblePlugForSlot', 'TASMOTA_PLUG_COUNT']:
+              need(tasmota, n, 'smart-plug slot mapping')
+          for n in ['smartHubCapturePrepare', 'smartHubCaptureRgbRow', 'g_hubFrame->readPixel']:
+              need(hub, n, 'physical framebuffer capture')
+          for n in [
+              'SECURE_GET("/hub/views", handleHubViews)',
+              'SECURE_GET("/hub/frame.ppm", handleHubFramePpm)',
+              'SECURE_POST("/hub/show", handleHubShow)',
+          ]:
+              need(web, n, 'visual capture route')
+          for forbidden in ['requestSpeedCommand', 'requestFanCommand']:
+              if forbidden in hub or forbidden in web or forbidden in mqtt:
+                  raise SystemExit(f'forbidden speculative printer command introduced: {forbidden}')
+          print('Accepted v11.19.1 baseline before auth delta: PASS')
+          PY
+
       - name: Apply v11.20 Portal Auth
         working-directory: firmware/workshop-os
         run: python apply_smart_home_portal_auth_v11_20.py --repo upstream --apply
@@ -133,6 +169,41 @@ jobs:
       - name: Validate v11.22 Display Expert
         working-directory: firmware/workshop-os
         run: python scripts/validate_display_expert_v11_22.py upstream
+
+      - name: Verify inherited safety after Display Expert delta
+        working-directory: firmware/workshop-os
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          hub = Path('upstream/src/smart_hub.cpp').read_text()
+          web = Path('upstream/src/web_server.cpp').read_text()
+          mqtt = Path('upstream/src/bambu_mqtt.cpp').read_text()
+          tasmota = Path('upstream/src/tasmota.cpp').read_text()
+          build = Path('upstream/include/smart_home_build.h').read_text()
+
+          def need(body, needle, label):
+              if needle not in body:
+                  raise SystemExit(f'MISSING {label}: {needle}')
+
+          for n in ['SMART_HOME_VERSION "v11.22"', 'Smart Home v11.22 Display Expert RC1']:
+              need(build, n, 'candidate release identity')
+          for n in ['DROPPED: MQTT offline', 'if (!st.connected) return false']:
+              need(mqtt, n, 'fail-closed printer control')
+          for n in ['visiblePlugForSlot', 'TASMOTA_PLUG_COUNT']:
+              need(tasmota, n, 'smart-plug slot mapping')
+          for n in ['smartHubCapturePrepare', 'smartHubCaptureRgbRow', 'g_hubFrame->readPixel']:
+              need(hub, n, 'physical framebuffer capture')
+          for n in [
+              'SECURE_GET("/hub/views", handleHubViews)',
+              'SECURE_GET("/hub/frame.ppm", handleHubFramePpm)',
+              'SECURE_POST("/hub/show", handleHubShow)',
+          ]:
+              need(web, n, 'authenticated visual capture')
+          for forbidden in ['requestSpeedCommand', 'requestFanCommand']:
+              if forbidden in hub or forbidden in web or forbidden in mqtt:
+                  raise SystemExit(f'forbidden speculative printer command introduced: {forbidden}')
+          print('v11.22 inherited control/capture safety: PASS')
+          PY
 
       - name: Apply and validate candidate layers present in this PR
         working-directory: firmware/workshop-os
@@ -300,6 +371,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: workshop-os-monorepo-${{ github.run_id }}
-          retention-days: 14
+          retention-days: 90
           if-no-files-found: error
           path: firmware-validation-artifacts/

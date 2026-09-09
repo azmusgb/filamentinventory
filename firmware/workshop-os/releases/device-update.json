@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "board": "ws_lcd_350",
+  "authority": "azmusgb/bambuhelper-smart-display",
+  "purpose": "Device-native Workshop OS OTA discovery contract",
+  "artifactBaseUrl": "https://raw.githubusercontent.com/azmusgb/bambuhelper-smart-display/main/",
+  "channels": {
+    "stable": {
+      "status": "published",
+      "release": "production-workshop-os-v11.19.1",
+      "version": "11.19.1",
+      "label": "Workshop OS v11.19.1 Physical Fit RC2",
+      "acceptance": "physically-accepted-static-channel",
+      "sourceCommit": "8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4",
+      "ota": {
+        "path": "firmware/BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v11.19.1-Physical-Fit-RC2-OTA.bin",
+        "size": 2295408,
+        "sha256": "f0fc73b65eb39623b5f8e6f8f7564d844d06021ebcb7887d5fc67a6df9e2073e"
+      },
+      "fullFlash": {
+        "path": "firmware/BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v11.19.1-Physical-Fit-RC2-Full.bin",
+        "size": 2360944,
+        "sha256": "f49f695f08966a8c1cf5822e1357d03793a1aac634540d8b3a290d891468343b",
+        "flashOffset": "0x0",
+        "deviceInstallAllowed": false
+      }
+    },
+    "candidate": {
+      "status": "published",
+      "release": "workshop-os-v11.26-ui11-cupertino",
+      "version": "11.26",
+      "label": "Workshop OS v11.26 UI11 Cupertino",
+      "acceptance": "unaccepted-hardware-candidate",
+      "sourceCommit": "54e045f9fcf1ca237f850c7cbbc0bf79ac2f89e0",
+      "ota": {
+        "path": "releases/ui11-cupertino/BambuHelper-ws_lcd_350-v3.8.1-Workshop-OS-v11.26-UI11-Cupertino-OTA.bin",
+        "size": 2321840,
+        "sha256": "ed96f780b58af2fd353f45a4df442abd27d5065c520dff757c346abddeac8fc2"
+      },
+      "fullFlash": null
+    }
+  },
+  "rules": {
+    "normalDeviceUpdateUsesOtaOnly": true,
+    "verifySizeBeforeInstall": true,
+    "verifySha256BeforeInstall": true,
+    "fullFlashRequiresRecoveryFlow": true,
+    "unknownOrUnacceptedCandidateMustNotBePromotedToStable": true
+  }
+}
