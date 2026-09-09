@@ -7,6 +7,7 @@ name: Workshop OS Release Validation
   workflow_dispatch: {}
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: workshop-release-${{ github.ref }}
   cancel-in-progress: true
@@ -108,3 +109,36 @@ jobs:
         fetch-depth: 0
         ref: ${{ github.event.pull_request.head.sha || github.sha }}
     - run: python3 scripts/validate_monorepo_migration.py
+  merge-gate:
+    name: Workshop OS Merge Gate
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs:
+    - validate
+    - validate-release
+    - companion-ios
+    - migration
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+    - name: Require release, migration and Companion checks
+      env:
+        RESULTS: ${{ toJSON(needs) }}
+      run: 'python3 - <<''PYTHON''
+
+        import json, os
+
+        results = json.loads(os.environ[''RESULTS''])
+
+        assert all(job[''result''] == ''success'' for job in results.values()), results
+
+        PYTHON'
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: ${{ github.event.pull_request.head.sha }}
+    - name: Wait for exact-head web and firmware gates
+      env:
+        GH_TOKEN: ${{ github.token }}
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      run: python3 scripts/workshop_merge_gate.py
