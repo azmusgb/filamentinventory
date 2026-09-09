@@ -69,15 +69,18 @@ test('evidence labels distinguish measured, estimate, and unknown', () => {
   assert.equal(personal.evidenceLabel({}), 'Unknown');
 });
 
-test('ready status requires no low-stock or unknown quantity items', () => {
-  const readyState = {
+test('healthy inventory status is scoped and never claims print readiness', () => {
+  const healthyState = {
     spools:[{
-      id:'READY', owner:'Bill', material:'PLA', colorName:'Green',
+      id:'HEALTHY', owner:'Bill', material:'PLA', colorName:'Green',
       gross:1000, tare:250, startWeight:1000, reorderThreshold:200,
       placementState:'Loaded', printerName:'P1S', feederName:'AMS A', feederSlot:'1',
     }],
   };
-  const status = personal.workshopStatus(readyState, 'Bill');
-  assert.equal(status.state, 'ready');
+  const status = personal.workshopStatus(healthyState, 'Bill');
+  assert.equal(status.state, 'healthy');
+  assert.equal(status.label, 'INVENTORY HEALTHY');
+  assert.equal(status.title, 'No inventory actions need attention');
+  assert.match(status.detail, /Print readiness is evaluated separately/);
   assert.equal(status.attentionCount, 0);
 });
