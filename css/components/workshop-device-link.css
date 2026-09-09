@@ -2,10 +2,10 @@ html.fi-ui .workshop-device-card {
   display: grid;
   gap: 18px;
   padding: clamp(18px, 2.4vw, 28px);
-  border-color: var(--hairline);
+  border-color: var(--color-border);
   background:
-    radial-gradient(circle at 92% 0%, color-mix(in srgb, var(--ux-accent, var(--cyan)) 13%, transparent), transparent 34%),
-    var(--surface-1);
+    radial-gradient(circle at 92% 0%, color-mix(in srgb, var(--color-accent) 13%, transparent), transparent 34%),
+    var(--color-surface);
 }
 
 html.fi-ui .workshop-device-heading {
@@ -25,7 +25,7 @@ html.fi-ui .workshop-device-heading h3 {
 html.fi-ui .workshop-device-heading p {
   max-width: 720px;
   margin: 0;
-  color: var(--muted);
+  color: var(--color-text-muted);
   line-height: 1.55;
 }
 
@@ -35,10 +35,10 @@ html.fi-ui .workshop-device-badge {
   display: inline-flex;
   align-items: center;
   padding: 6px 10px;
-  border: 1px solid var(--accent-border);
-  border-radius: var(--r-pill);
-  background: var(--accent-soft);
-  color: var(--text);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-text);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: .02em;
@@ -50,9 +50,9 @@ html.fi-ui .workshop-device-status {
   gap: 12px;
   align-items: start;
   padding: 14px 16px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-lg);
-  background: var(--surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-raised);
 }
 
 html.fi-ui .workshop-device-status i {
@@ -60,8 +60,8 @@ html.fi-ui .workshop-device-status i {
   height: 10px;
   margin-top: 5px;
   border-radius: 50%;
-  background: #64748b;
-  box-shadow: 0 0 0 4px rgba(100,116,139,.12);
+  background: var(--color-text-subtle);
+  box-shadow: 0 0 0 4px var(--color-border-subtle);
 }
 
 html.fi-ui .workshop-device-status strong,
@@ -70,12 +70,12 @@ html.fi-ui .workshop-device-status span {
 }
 
 html.fi-ui .workshop-device-status strong { font-size: 14px; }
-html.fi-ui .workshop-device-status span { margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 1.45; }
-html.fi-ui .workshop-device-status[data-state="ready"] i { background: #22c55e; box-shadow: 0 0 0 4px rgba(34,197,94,.12); }
-html.fi-ui .workshop-device-status[data-state="stale"] i { background: #f59e0b; box-shadow: 0 0 0 4px rgba(245,158,11,.12); }
-html.fi-ui .workshop-device-status[data-state="working"] i { background: #38bdf8; box-shadow: 0 0 0 4px rgba(56,189,248,.12); }
-html.fi-ui .workshop-device-status[data-state="error"] i { background: #ef4444; box-shadow: 0 0 0 4px rgba(239,68,68,.12); }
-html.fi-ui .workshop-device-status[data-state="offline"] i { background: #94a3b8; }
+html.fi-ui .workshop-device-status span { margin-top: 2px; color: var(--color-text-muted); font-size: 12px; line-height: 1.45; }
+html.fi-ui .workshop-device-status[data-state="ready"] i { background: var(--color-success); box-shadow: 0 0 0 4px var(--color-success-soft); }
+html.fi-ui .workshop-device-status[data-state="stale"] i { background: var(--color-warning); box-shadow: 0 0 0 4px var(--color-warning-soft); }
+html.fi-ui .workshop-device-status[data-state="working"] i { background: var(--color-accent); box-shadow: 0 0 0 4px var(--color-accent-soft); }
+html.fi-ui .workshop-device-status[data-state="error"] i { background: var(--color-danger); box-shadow: 0 0 0 4px var(--color-danger-soft); }
+html.fi-ui .workshop-device-status[data-state="offline"] i { background: var(--color-text-subtle); }
 
 html.fi-ui .workshop-device-values {
   display: grid;
@@ -90,14 +90,14 @@ html.fi-ui .workshop-device-value {
   gap: 6px 10px;
   align-items: center;
   padding: 14px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-md);
-  background: rgba(2,8,15,.30);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
 }
 
 html.fi-ui .workshop-device-value > span {
   grid-column: 1 / -1;
-  color: var(--muted);
+  color: var(--color-text-muted);
   font-size: 10px;
   font-weight: 800;
   letter-spacing: .08em;
@@ -140,9 +140,9 @@ html.fi-ui .workshop-device-steps li {
   gap: 10px;
   min-height: 98px;
   padding: 13px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-md);
-  background: rgba(255,255,255,.018);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
 }
 
 html.fi-ui .workshop-device-steps li > span {
@@ -151,24 +151,24 @@ html.fi-ui .workshop-device-steps li > span {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--ux-accent, var(--cyan));
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
   font-weight: 900;
   font-size: 12px;
 }
 
 html.fi-ui .workshop-device-steps strong { display: block; font-size: 13px; }
-html.fi-ui .workshop-device-steps p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+html.fi-ui .workshop-device-steps p { margin: 4px 0 0; color: var(--color-text-muted); font-size: 11px; line-height: 1.45; }
 
 html.fi-ui .workshop-device-security-note {
   display: grid;
   gap: 3px;
   padding-top: 14px;
-  border-top: 1px solid var(--hairline);
+  border-top: 1px solid var(--color-border);
 }
 
 html.fi-ui .workshop-device-security-note strong { font-size: 12px; }
-html.fi-ui .workshop-device-security-note span { color: var(--muted); font-size: 11px; line-height: 1.5; }
+html.fi-ui .workshop-device-security-note span { color: var(--color-text-muted); font-size: 11px; line-height: 1.5; }
 
 @media (max-width: 900px) {
   html.fi-ui .workshop-device-values { grid-template-columns: 1fr 1fr; }
@@ -191,5 +191,8 @@ html.fi-ui .workshop-device-security-note span { color: var(--muted); font-size:
 @media (prefers-reduced-motion: reduce) {
   html.fi-ui .workshop-device-card *,
   html.fi-ui .workshop-device-card *::before,
-  html.fi-ui .workshop-device-card *::after { transition: none !important; animation: none !important; }
+  html.fi-ui .workshop-device-card *::after {
+    transition: none;
+    animation: none;
+  }
 }
