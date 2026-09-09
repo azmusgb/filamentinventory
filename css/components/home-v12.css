@@ -1,86 +1,280 @@
-/* V12 Home decision surface ------------------------------------------------
-   Home answers the next operational question before presenting inventory
-   totals. Domain state remains owned by personal-core/personal-dashboard.
+/* Workshop Command Center --------------------------------------------------
+   Home prioritizes inventory health and evidence-backed actions before
+   secondary metrics. Domain truth remains owned by personal-core/dashboard.
 */
 
-html.fi-v11.fi-ux-v12 .fi-home-decision-label {
-  margin: 18px 0 5px;
-  color: var(--color-accent);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .11em;
-  text-transform: uppercase;
+html.fi-v11.fi-ux-v12 .fi-home-intro {
+  display: grid;
+  gap: 16px;
 }
 
-html.fi-v11.fi-ux-v12 .fi-home-intro .lead.fi-home-decision {
-  max-width: 48ch;
+html.fi-v11.fi-ux-v12 .fi-home-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-kicker,
+html.fi-v11.fi-ux-v12 .fi-home-section-kicker {
+  margin: 0 0 5px;
+  color: var(--color-accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-heading-row h2 {
+  margin: 0;
+  font-size: clamp(30px, 5vw, 46px);
+  line-height: 1.02;
+  letter-spacing: -.04em;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-subtitle {
+  max-width: 62ch;
+  margin: 8px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-status-pill {
+  flex: 0 0 auto;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 11px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-raised);
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 760;
+  letter-spacing: .025em;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-status-pill[data-state="attention"],
+html.fi-v11.fi-ux-v12 .fi-home-has-attention .fi-home-status-pill {
+  color: var(--color-warning);
+}
+
+html.fi-v11.fi-ux-v12 .fi-workshop-status {
+  display: grid;
+  gap: 7px;
+  padding: 2px 0 0;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-decision {
+  max-width: 38ch;
   margin: 0;
   color: var(--color-text);
-  font-size: clamp(18px, 2.2vw, 22px);
-  font-weight: 620;
-  line-height: 1.3;
-  letter-spacing: -.015em;
+  font-size: clamp(20px, 2.4vw, 28px);
+  font-weight: 680;
+  line-height: 1.15;
+  letter-spacing: -.025em;
 }
 
 html.fi-v11.fi-ux-v12 .fi-home-decision-detail {
-  max-width: 64ch;
-  margin: 6px 0 0;
+  max-width: 66ch;
+  margin: 0;
   color: var(--color-text-muted);
   font-size: 12.5px;
   line-height: 1.5;
 }
 
-html.fi-v11.fi-ux-v12 .fi-home-summary {
-  max-width: 74ch;
-  margin: 9px 0 0;
-  color: var(--color-text-subtle);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  line-height: 1.45;
-}
-
-html.fi-v11.fi-ux-v12 .fi-home-summary[hidden],
-html.fi-v11.fi-ux-v12 .fi-home-actions [hidden] {
-  display: none;
-}
-
-html.fi-v11.fi-ux-v12 .fi-home-actions {
-  margin-top: 16px;
-}
-
 html.fi-v11.fi-ux-v12 .fi-home-section {
-  padding-top: 3px;
+  display: grid;
+  gap: 10px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border-subtle);
 }
 
 html.fi-v11.fi-ux-v12 .fi-home-attention {
-  border-top: 1px solid var(--color-border-subtle);
-  padding-top: 20px;
+  padding-top: 18px;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-section-head h3 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -.02em;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-section-copy {
+  max-width: 70ch;
+  margin: -3px 0 2px;
+  color: var(--color-text-subtle);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+html.fi-v11.fi-ux-v12 .fi-inbox-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+html.fi-v11.fi-ux-v12 .fi-inbox-main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: center;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+html.fi-v11.fi-ux-v12 .fi-inbox-main:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-md);
+}
+
+html.fi-v11.fi-ux-v12 .fi-inbox-action {
+  min-width: 108px;
+  min-height: 44px;
 }
 
 html.fi-v11.fi-ux-v12 .fi-home-row .fi-status-chip[data-state="danger"],
 html.fi-v11.fi-ux-v12 .fi-home-row .fi-status-chip[data-state="warning"] {
-  font-weight: 800;
+  font-weight: 760;
+}
+
+html.fi-v11.fi-ux-v12 .fi-print-check-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+html.fi-v11.fi-ux-v12 .fi-print-check-row p {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 0;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-actions .btn-quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-text-muted);
+}
+
+html.fi-v11.fi-ux-v12 .fi-workshop-snapshot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+html.fi-v11.fi-ux-v12 .fi-workshop-snapshot strong {
+  color: var(--color-text);
+  font-weight: 680;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-empty .fi-home-attention,
+html.fi-v11.fi-ux-v12 .fi-home-empty .fi-home-print-check,
+html.fi-v11.fi-ux-v12 .fi-home-empty .fi-home-snapshot,
+html.fi-v11.fi-ux-v12 .fi-home-empty .fi-home-secondary {
+  display: none;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-actions [hidden],
+html.fi-v11.fi-ux-v12 [data-print-readiness][hidden] {
+  display: none;
 }
 
 @media (max-width: 640px) {
-  html.fi-v11.fi-ux-v12 .fi-home-decision-label {
-    margin-top: 15px;
+  html.fi-v11.fi-ux-v12 .fi-home-intro {
+    gap: 12px;
   }
 
-  html.fi-v11.fi-ux-v12 .fi-home-intro .lead.fi-home-decision {
-    font-size: 18px;
+  html.fi-v11.fi-ux-v12 .fi-home-heading-row {
+    display: grid;
+    gap: 10px;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-status-pill {
+    justify-self: start;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-heading-row h2 {
+    font-size: 32px;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-decision {
+    font-size: 20px;
   }
 
   html.fi-v11.fi-ux-v12 .fi-home-decision-detail {
     font-size: 12px;
   }
 
-  html.fi-v11.fi-ux-v12 .fi-home-summary {
-    font-size: 10px;
+  html.fi-v11.fi-ux-v12 .fi-home-section {
+    padding-top: 16px;
   }
 
-  html.fi-v11.fi-ux-v12 .fi-home-attention {
-    padding-top: 16px;
+  html.fi-v11.fi-ux-v12 .fi-inbox-row {
+    grid-template-columns: 1fr;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-inbox-action {
+    width: 100%;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-print-check-row {
+    display: grid;
+    gap: 12px;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-print-check-row .btn {
+    width: 100%;
+    min-height: 46px;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-actions .btn {
+    min-height: 46px;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-actions .btn-quiet {
+    grid-column: 1 / -1;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-snapshot {
+    padding-top: 14px;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-workshop-snapshot {
+    gap: 4px 6px;
   }
 }
