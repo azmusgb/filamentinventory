@@ -19,7 +19,7 @@ trap 'rm -rf "$TMP"' EXIT
 v1="https://raw.githubusercontent.com/azmusgb/filamentinventory/741a6f0651fb4e20d8e2674f2c0ce726b0d7bdf9/.bambuhelper-validation"
 v3="https://raw.githubusercontent.com/azmusgb/filamentinventory/07ce909fa7dd485abfc556eaf9addfbbd82e3cb3/.bambuhelper-validation"
 v6="https://raw.githubusercontent.com/azmusgb/filamentinventory/c1a6cdf389be14b18f26eecefd5c5a62b5d1e7dc/.bambuhelper-validation"
-v72="https://raw.githubusercontent.com/azmusgb/bambuhelper-smart-display/smart-home-v7-2-display-stability"
+v72="https://raw.githubusercontent.com/azmusgb/filamentinventory/b1c99092783b243e53c0ebed22ba1bf2c9a14e06"
 
 curl -fsSL "$v1/installer.zlib.b64" -o "$TMP/installer.b64"
 for n in 0 1 2 3; do

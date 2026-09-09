@@ -1,3 +1,7 @@
+> **Historical status snapshot — superseded 2026-09-09.**
+> Active Workshop OS development, release validation, and device-update authority now live in `azmusgb/filamentinventory`.
+> Historical candidate, CI, provenance, and physical-acceptance statements below are preserved as originally recorded.
+
 # Filament Inventory integration mirror status — 2026-09-07
 
 This document records the relationship between the authoritative Workshop OS repository and the history-preserved integration mirror now present in `azmusgb/filamentinventory`.

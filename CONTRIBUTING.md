@@ -14,7 +14,7 @@ Filament Inventory is the source of truth for physical filament inventory. Chang
 
 This repository owns inventory, spool identity, quantity evidence, profile isolation, QR/intake, printer/AMS inventory relationships, sync/recovery, print readiness, forecasting, grounded AI, and device-facing inventory data.
 
-WS350 / Workshop OS firmware and hardware controls belong in `azmusgb/bambuhelper-smart-display`.
+WS350 / Workshop OS firmware and hardware controls belong in the canonical `azmusgb/filamentinventory` repository under `firmware/workshop-os/`. The former `azmusgb/bambuhelper-smart-display` repository is retained only for historical provenance, migration evidence, recovery references, and legacy links.
 
 The legacy Waveshare Home tree in this repository is retained only for migration/reference and recovery history.
 

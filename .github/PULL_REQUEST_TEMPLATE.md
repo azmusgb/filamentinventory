@@ -11,7 +11,7 @@
 Check every applicable item.
 
 - [ ] Filament Inventory remains the sole inventory authority.
-- [ ] This does not create a competing WS350 firmware authority; Workshop OS lives in `azmusgb/bambuhelper-smart-display`.
+- [ ] This does not create a competing WS350 firmware authority; Workshop OS lives in the canonical `azmusgb/filamentinventory` repository under `firmware/workshop-os/`.
 - [ ] Unknown physical or quantity state remains `Unknown`; no authoritative state is inferred from color/material similarity.
 - [ ] Canonical spool identity is preserved.
 - [ ] One physical spool occupies at most one Printer → Feeder/AMS → Slot placement.

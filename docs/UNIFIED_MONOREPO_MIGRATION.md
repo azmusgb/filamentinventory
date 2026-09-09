@@ -1,5 +1,23 @@
 # Monorepo consolidation
 
+## Current authority status — 2026-09-09
+
+**Authority cutover: COMPLETE**
+
+- Surviving canonical repository: `azmusgb/filamentinventory`
+- Inventory/product authority: `azmusgb/filamentinventory`
+- Workshop OS source and development authority: `firmware/workshop-os/`
+- Workshop OS release-validation authority: `azmusgb/filamentinventory`
+- Device-native OTA discovery authority: `azmusgb/filamentinventory`
+- Active artifact base: `https://raw.githubusercontent.com/azmusgb/filamentinventory/main/firmware/workshop-os/`
+- Former repository `azmusgb/bambuhelper-smart-display`: retained for provenance, migration evidence, recovery references, and historical links
+- Physical firmware acceptance state is unchanged by repository consolidation
+- UI13 remains unaccepted until exact-artifact WS350 physical acceptance passes
+- Cross-line Waveshare Home → Workshop OS migration remains a full-image `0x0` recovery/service operation, never normal OTA
+
+The historical integration record below is intentionally retained to preserve the sequence of evidence and the gates that existed before authority cutover.
+
+
 On 2026-09-09 the user explicitly authorized `azmusgb/filamentinventory` as the surviving repository. The smallest migration updates the existing `firmware/workshop-os/` subtree and leaves web/API paths intact.
 
 See [current migration evidence and blockers](migration/2026-09-09/README.md). The prior integration record below is historical; its requirement for authorization is now satisfied. Hardware acceptance, artifact integrity, recovery, and release validation remain mandatory. Superseded candidate sequencing does not grant UI13 acceptance.

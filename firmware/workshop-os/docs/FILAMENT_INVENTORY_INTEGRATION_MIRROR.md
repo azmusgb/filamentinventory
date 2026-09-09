@@ -1,12 +1,12 @@
-# Filament Inventory Integration Mirror
+# Filament Inventory / Workshop OS Integration Record
 
 ## Purpose
 
-`azmusgb/bambuhelper-smart-display` remains the authoritative repository for Workshop OS firmware, WS350 hardware behavior, release provenance, recovery, and physical acceptance.
+`azmusgb/filamentinventory` is the canonical repository for Workshop OS firmware development, WS350 hardware behavior, release validation, device-update discovery, recovery material, and future physical-acceptance records.
 
-`azmusgb/filamentinventory` contains a history-preserved integration mirror under `firmware/workshop-os/`. That mirror exists so product-level contracts, deterministic reconstruction, candidate comparison, and recovery planning can be validated together with Filament Inventory.
+The `firmware/workshop-os/` tree originated as a history-preserved integration mirror and became the canonical Workshop OS source tree during the 2026-09-09 authority cutover. Historical source-repository references remain preserved for provenance.
 
-The mirror is not an independent firmware release authority and must not be used to bypass the Workshop OS promotion and physical-acceptance process.
+Repository consolidation does not bypass the Workshop OS promotion or physical-acceptance process. Successful CI, reconstruction, or repository relocation does not promote firmware to accepted or stable.
 
 ## Authority boundary
 

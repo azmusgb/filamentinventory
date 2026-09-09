@@ -37,4 +37,4 @@ Security fixes must preserve the same product-truth rules as feature work:
 
 The active Filament Inventory PWA/backend on `main` is the supported inventory software line.
 
-WS350 / Workshop OS firmware is maintained in `azmusgb/bambuhelper-smart-display`. The `firmware/waveshare-home` tree retained here is historical/migration material and is not an active competing firmware product line.
+WS350 / Workshop OS firmware is maintained in this canonical `azmusgb/filamentinventory` repository under `firmware/workshop-os/`. The former `azmusgb/bambuhelper-smart-display` repository and the retained `firmware/waveshare-home` tree are historical, migration, provenance, and recovery material rather than competing active firmware authorities.

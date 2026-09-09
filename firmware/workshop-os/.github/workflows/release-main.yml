@@ -61,8 +61,8 @@ jobs:
           d = json.loads(Path('releases/device-update.json').read_text())
           assert d['schemaVersion'] == 1
           assert d['board'] == 'ws_lcd_350'
-          assert d['authority'] == 'azmusgb/bambuhelper-smart-display'
-          assert d['artifactBaseUrl'] == 'https://raw.githubusercontent.com/azmusgb/bambuhelper-smart-display/main/'
+          assert d['authority'] == 'azmusgb/filamentinventory'
+          assert d['artifactBaseUrl'] == 'https://raw.githubusercontent.com/azmusgb/filamentinventory/main/firmware/workshop-os/'
           stable = d['channels']['stable']
           assert stable['status'] == 'published'
           assert stable['release'] == r['release']
