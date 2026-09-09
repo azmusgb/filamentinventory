@@ -20,9 +20,9 @@ This repository, `azmusgb/filamentinventory`, is authoritative for inventory-dom
 - grounded inventory Assistant behavior;
 - versioned device-facing inventory APIs.
 
-WS350 / Workshop OS firmware is authoritative in `azmusgb/bambuhelper-smart-display`.
+The selected single-repository destination is `azmusgb/filamentinventory`, with Workshop OS in `firmware/workshop-os/`. Inventory/API code stays at its existing paths. Firmware owns device behavior; the inventory service owns physical inventory facts.
 
-The history-preserved `firmware/workshop-os/` tree is an **integration mirror** for product-level contract checks, candidate reconstruction, and recovery planning. It is not a second firmware release authority, and mirror CI does not promote or physically accept a Workshop OS candidate.
+Migration is staged: the imported accepted source and original history are retained, while UI13 remains a separate physical-acceptance candidate. Existing device update endpoints and release channels stay in service until the monorepo release and recovery paths are validated. See [the migration record](docs/migration/2026-09-09/README.md) for exact provenance and cutover blockers.
 
 The legacy `firmware/waveshare-home` tree retained here is historical/migration/recovery material. It is **not** a second active firmware product line.
 

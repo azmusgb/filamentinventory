@@ -1,0 +1,110 @@
+name: Workshop OS Release Validation
+'on':
+  pull_request: {}
+  push:
+    branches:
+    - main
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: workshop-release-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+    - name: Validate JSON
+      run: "python - <<'PY'\nimport json\nfrom pathlib import Path\nfor p in Path('.').rglob('*.json'):\n    try:\n      \
+        \  json.loads(p.read_text())\n    except Exception as e:\n        raise SystemExit(f'Invalid JSON: {p}: {e}')\nprint('JSON\
+        \ validation passed')\nPY\n"
+    - name: Validate settings capability registry
+      run: python3 scripts/validate_settings_parity.py
+    - name: Validate Workshop Companion protocol
+      run: python3 scripts/validate_companion_protocol.py
+    - name: Validate shell helpers
+      run: 'bash -n scripts/waveshare-usb.sh
+
+        '
+    - name: Check ignored build output
+      run: "if git ls-files --full-name | grep -q '^firmware/workshop-os/firmware/build/'; then\n  echo 'firmware/build must\
+        \ not be tracked'\n  exit 1\nfi\n"
+    defaults:
+      run:
+        working-directory: firmware/workshop-os
+    timeout-minutes: 20
+  companion-ios:
+    name: Workshop Companion iOS
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+    - name: Install XcodeGen
+      run: brew install xcodegen
+    - name: Generate Xcode project
+      working-directory: firmware/workshop-os/companion/ios
+      run: xcodegen generate --spec project.yml
+    - name: Compile iOS Simulator app
+      working-directory: firmware/workshop-os/companion/ios
+      run: "set -euo pipefail\nxcodebuild \\\n  -project WorkshopCompanion.xcodeproj \\\n  -scheme WorkshopCompanion \\\n\
+        \  -configuration Debug \\\n  -sdk iphonesimulator \\\n  -destination 'generic/platform=iOS Simulator' \\\n  CODE_SIGNING_ALLOWED=NO\
+        \ \\\n  COMPILER_INDEX_STORE_ENABLE=NO \\\n  build\n"
+    defaults:
+      run:
+        working-directory: firmware/workshop-os
+  validate-release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+    - name: Validate repository release policy
+      run: python3 scripts/validate_release.py
+    - name: Validate installer and retained firmware assets
+      shell: bash
+      run: "set -euo pipefail\nnode --check app.js\npython3 build.py\npython3 - <<'PY'\nimport hashlib, json\nfrom pathlib\
+        \ import Path\nr = json.loads(Path('release.json').read_text())\nassert r['release'] == 'production-workshop-os-v11.19.1'\n\
+        assert r['board']['id'] == 'ws_lcd_350'\nassert set(r['profiles']) == {'workshop-os-v11.19.1', 'smart-home-v7.2'}\n\
+        assert r['profiles']['workshop-os-v11.19.1']['recommended'] is True\nassert r['profiles']['smart-home-v7.2']['recommended']\
+        \ is False\nfor pid, p in r['profiles'].items():\n    for path_key, size_key, sha_key in [('file','size','sha256'),\
+        \ ('otaFile','otaSize','otaSha256')]:\n        raw = Path(p[path_key]).read_bytes()\n        assert len(raw) == p[size_key],\
+        \ (pid, path_key, len(raw), p[size_key])\n        assert hashlib.sha256(raw).hexdigest() == p[sha_key], (pid, path_key)\n\
+        \        published = (Path('dist') / p[path_key]).read_bytes()\n        assert hashlib.sha256(published).hexdigest()\
+        \ == p[sha_key], (pid, path_key, 'dist')\n\nd = json.loads(Path('releases/device-update.json').read_text())\nassert\
+        \ d['schemaVersion'] == 1\nassert d['board'] == 'ws_lcd_350'\nassert d['authority'] == 'azmusgb/bambuhelper-smart-display'\n\
+        assert d['artifactBaseUrl'] == 'https://raw.githubusercontent.com/azmusgb/bambuhelper-smart-display/main/'\nstable\
+        \ = d['channels']['stable']\nassert stable['status'] == 'published'\nassert stable['release'] == r['release']\nstatic\
+        \ = r['profiles']['workshop-os-v11.19.1']\nassert stable['ota']['path'] == static['otaFile']\nassert stable['ota']['size']\
+        \ == static['otaSize']\nassert stable['ota']['sha256'] == static['otaSha256']\nassert stable['fullFlash']['path']\
+        \ == static['file']\nassert stable['fullFlash']['size'] == static['size']\nassert stable['fullFlash']['sha256'] ==\
+        \ static['sha256']\nassert stable['fullFlash']['flashOffset'] == '0x0'\nassert stable['fullFlash']['deviceInstallAllowed']\
+        \ is False\nfor kind in ('ota', 'fullFlash'):\n    meta = stable[kind]\n    raw = Path(meta['path']).read_bytes()\n\
+        \    assert len(raw) == meta['size'], ('device-update', kind, 'size')\n    assert hashlib.sha256(raw).hexdigest()\
+        \ == meta['sha256'], ('device-update', kind, 'sha256')\ncandidate = d['channels']['candidate']\nassert candidate['status']\
+        \ in {'none-published', 'published'}\nif candidate['status'] == 'published':\n    assert candidate['ota'] is not None\n\
+        \    raw = Path(candidate['ota']['path']).read_bytes()\n    assert len(raw) == candidate['ota']['size'], ('candidate',\
+        \ 'size')\n    assert hashlib.sha256(raw).hexdigest() == candidate['ota']['sha256'], ('candidate', 'sha256')\nelse:\n\
+        \    assert candidate['ota'] is None\nassert d['rules']['normalDeviceUpdateUsesOtaOnly'] is True\nassert d['rules']['verifySizeBeforeInstall']\
+        \ is True\nassert d['rules']['verifySha256BeforeInstall'] is True\nassert d['rules']['fullFlashRequiresRecoveryFlow']\
+        \ is True\n\nassert len(list(Path('firmware').glob('*.bin'))) == 4\nassert len(list((Path('dist') / 'firmware').glob('*.bin')))\
+        \ == 4\nprint('Accepted static installer + device update manifest integrity: PASS')\nPY\ngrep -Fq \"EXPECTED_RELEASE='production-workshop-os-v11.19.1'\"\
+        \ app.js\ngrep -Fq \"selectedProfile='workshop-os-v11.19.1'\" app.js\ngrep -Fq 'Workshop OS v11.19.1 \u2014 recommended'\
+        \ index.html\ngrep -Fq 'Smart Home v7.2 \u2014 rollback' index.html\ngrep -Fq 'Workshop OS v11.19.1 OTA' index.html\n\
+        echo 'accepted Workshop OS v11.19.1 static portal contract: PASS'\n"
+    defaults:
+      run:
+        working-directory: firmware/workshop-os
+    timeout-minutes: 20
+  migration:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+    - run: python3 scripts/validate_monorepo_migration.py

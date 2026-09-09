@@ -1,3 +1,11 @@
+# Monorepo consolidation
+
+On 2026-09-09 the user explicitly authorized `azmusgb/filamentinventory` as the surviving repository. The smallest migration updates the existing `firmware/workshop-os/` subtree and leaves web/API paths intact.
+
+See [current migration evidence and blockers](migration/2026-09-09/README.md). The prior integration record below is historical; its requirement for authorization is now satisfied. Hardware acceptance, artifact integrity, recovery, and release validation remain mandatory. Superseded candidate sequencing does not grant UI13 acceptance.
+
+---
+
 # Unified Filament Inventory + Workshop OS Repository Integration
 
 Status: **INTEGRATION IMPORT COMPLETE — AUTHORITY CUTOVER NOT APPROVED**

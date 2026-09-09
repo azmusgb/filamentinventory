@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "canonicalRepository": "azmusgb/filamentinventory",
+  "sourceRepository": "azmusgb/bambuhelper-smart-display",
+  "inventoryBase": "772f2481d027737fea3110a183fc188fb4655931",
+  "workshopMain": "69aa36e33afe8bf83639b83315890592b4249591",
+  "mainImport": "8a18907d001e61b49524af2f39d3d8954db3598a",
+  "ui13Source": "3672a6f0947af0c890a4f7a79c28b140c901425b",
+  "ui13PhysicalAcceptance": "pending",
+  "oldRepositoryRetirement": "blocked-pending-validation-and-cutover",
+  "bundleSha256": "587ac08cf991ff26109980575d7169afeea0d0cc603b5850ce0f4e70c4499a6b",
+  "files": {
+    "BambuHelper-ws_lcd_350-Workshop-OS-v11.28-UI13-Appliance-Settings-CI-OTA.bin": "8b7ab683879803b37669b675442bc40df4918a7c83947ddff187c9fb4935c0d0",
+    "source-tags.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "run-34366597047.json": "927ea476687d67714b38be545dfa13d6cdffbed57f0b770ce3c1bb0b9186b657",
+    "UI13-BUILD-REPORT.txt": "5182517f5a85915193d1c8108674ba5a72f50eb14e68b0e73b9a10c12a184144",
+    "source-heads.json": "97641c2005fb6446ce1955cfed9e94e53da12b18dca8ffe5d955a1eee0dac391",
+    "source-refs.txt": "b8d3feea99cbe3480f9a387daf658bbdfa2bb89c5c40d14d1e057c472b35bf7a",
+    "run-34366597023.json": "a1a1651cbdc38ab3e24c966a25c99766da083fb0209bfbffa375bd1de15aa08f",
+    "github-releases.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "run-34366597025.json": "9456a5378eaaea3d86b10e00d795348449269b558797aa4d7bb341073d8bf982",
+    "ui13-acceptance-issue-111.json": "b5158e355722c4d64e9d590a0ffb4301aa11de012e814797dfc967d9ec39ae5a",
+    "run-34366597044.json": "9a7f1abb54ff213040765c2778a371175e8cb6f99067db0f1ef0b33e525b3c42",
+    "run-34366597032.json": "ace33d3bab896286252c4b97081e16be93cebbdf2d52ff8312afb5bffd0dd067"
+  },
+  "recoveryFiles": {
+    "WaveshareHome-ESP32S3-1.6.0-fullflash/WaveshareHome-partitions.bin": "e73dab5317eb4c2392427929503badcc4722458a001322640b11f8b1e3dde52d",
+    "WaveshareHome-ESP32S3-1.6.0-fullflash/WaveshareHome-merged.bin": "89eeb29751639fe4308889c977c3b46fcec264807de8acc13fd56a2edd7f8daf",
+    "WaveshareHome-ESP32S3-1.6.0-fullflash/WaveshareHome-firmware.bin": "6569101816b4428dd9596b3eb0d1f21da91b42865fab26e1d9852bde67a36749",
+    "WaveshareHome-ESP32S3-1.6.0-fullflash/WaveshareHome-bootloader.bin": "12c9a10fef2d95a3f6d74dc6089fa8fedc51a77a487be834c9207b8c687b8761",
+    "firmware/workshop-os/firmware/BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v7.2-OTA.bin": "3eb17d01fb980dbea82e07242bb385ea35b6035b3b57038616b0579f846a95fc",
+    "firmware/workshop-os/firmware/BambuHelper-ws_lcd_350-v3.8.1-Full-smart-home-v7.2-validated.bin": "ed72f08e4977edd14dc7590a129469405d81e0f565f327402ea5e5190543233a",
+    "firmware/workshop-os/firmware/BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v11.19.1-Physical-Fit-RC2-OTA.bin": "f0fc73b65eb39623b5f8e6f8f7564d844d06021ebcb7887d5fc67a6df9e2073e",
+    "firmware/workshop-os/firmware/BambuHelper-ws_lcd_350-v3.8.1-Smart-Home-v11.19.1-Physical-Fit-RC2-Full.bin": "f49f695f08966a8c1cf5822e1357d03793a1aac634540d8b3a290d891468343b"
+  }
+}
