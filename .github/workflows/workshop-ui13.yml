@@ -1,0 +1,78 @@
+name: Workshop OS UI13 Monorepo Gate
+permissions:
+  contents: read
+concurrency:
+  group: workshop-os-settings-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate-and-build:
+    name: Reconstruct and build UI13
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Validate UI13 tooling syntax
+      shell: bash
+      run: 'set -euo pipefail
+
+        python -m py_compile apply_workshop_os_cupertino_ui_v11_26_ui11.py
+
+        python -m py_compile apply_workshop_os_control_center_v11_27_ui12.py
+
+        python -m py_compile apply_workshop_os_appliance_settings_v11_28_ui13.py
+
+        python -m py_compile apply_workshop_os_ui13_compile_order_fix.py
+
+        python -m py_compile apply_workshop_os_ui13_product_finish.py
+
+        python -m py_compile scripts/validate_ui12_control_center.py
+
+        python -m py_compile scripts/validate_ui13_appliance_settings.py
+
+        python -m py_compile scripts/validate_ui13_product_finish.py
+
+        bash -n scripts/capture-ws350-views.zsh
+
+        bash -n scripts/run_rc10_local.sh
+
+        bash -n scripts/run_ui12_local.sh
+
+        bash -n scripts/run_ui13_local.sh
+
+        '
+    - name: Reconstruct, validate, and build UI13
+      env:
+        BUILD: /tmp/ws350-ui13-build
+      run: bash scripts/run_ui13_local.sh --build
+    - name: Record exact CI artifact identity
+      shell: bash
+      env:
+        BUILD: /tmp/ws350-ui13-build
+        HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: "set -euo pipefail\nOTA=\"$BUILD/.pio/build/ws_lcd_350/firmware.bin\"\ntest -s \"$OTA\"\nmkdir -p ui13-gate-artifact\n\
+        cp \"$OTA\" ui13-gate-artifact/BambuHelper-ws_lcd_350-Workshop-OS-v11.28-UI13-Appliance-Settings-CI-OTA.bin\n{\n \
+        \ echo 'Workshop OS v11.28 UI13 Appliance Settings'\n  echo \"monorepo_head_sha=$HEAD_SHA\"\n  echo \"original_source_sha=3672a6f0947af0c890a4f7a79c28b140c901425b\"\
+        \n  echo \"rebuilt_bytes_are_not_the_frozen_acceptance_artifact=YES\"\n  echo 'result=BUILD_PASS'\n  echo 'release_state=IMPLEMENTED_BUILT_TESTED_BY_CI_ONLY'\n\
+        \  echo 'product_finish=APPLIED'\n  echo 'published_candidate=NO'\n  echo 'physical_acceptance=REQUIRED'\n  echo 'stable_promotion=FORBIDDEN'\n\
+        \  echo 'supersedes_ui12_acceptance_artifact=YES'\n  echo 'artifact_retention_days=90'\n  wc -c < \"$OTA\" | awk '{print\
+        \ \"ota_size=\" $1}'\n  sha256sum \"$OTA\" | awk '{print \"ota_sha256=\" $1}'\n} | tee ui13-gate-artifact/BUILD-REPORT.txt\n"
+    - uses: actions/upload-artifact@v4
+      with:
+        name: workshop-os-v11-28-ui13-appliance-settings-ci
+        retention-days: 90
+        if-no-files-found: error
+        path: firmware/workshop-os/ui13-gate-artifact/
+    defaults:
+      run:
+        working-directory: firmware/workshop-os
+    env:
+      ROOT: ${{ github.workspace }}/firmware/workshop-os
+'on':
+  pull_request: {}
+  workflow_dispatch: {}

@@ -51,3 +51,7 @@ Old repository deletion/archive is forbidden until these cutover requirements ar
 ## Recovery
 
 The migration is isolated on PR branches. Until merged, abandon the branch to return to the unchanged inventory base. After merge, revert monorepo integration changes through a reviewed revert while retaining history/archive refs. Existing production installer and OTA endpoints remain available throughout. Do not remove the retained Waveshare Home fullflash image, scripts, v7.2 rollback or accepted v11.19.1 binaries.
+
+## Separate UI13 candidate import
+
+This candidate branch imports frozen source `3672a6f0947af0c890a4f7a79c28b140c901425b` with original history. `ui13-import.json` records the merge. Root `Workshop OS UI13 Monorepo Gate` executes the original reconstruction/build script with an explicit firmware root and preserves original source identity separately from the new monorepo build. Rebuilt artifacts are test evidence only; acceptance still follows the retained original OTA. This branch must remain draft/unmerged until physical acceptance.

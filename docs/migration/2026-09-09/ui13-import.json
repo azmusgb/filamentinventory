@@ -1,0 +1,8 @@
+{
+  "source": "3672a6f0947af0c890a4f7a79c28b140c901425b",
+  "subtreeMerge": "af7ec8c637aff7512d5a6f5cea65c6cad3b9ba90",
+  "physicalAcceptance": "pending",
+  "stablePromotion": "forbidden",
+  "sourcePathsChanged": false,
+  "rootOverride": "Set ROOT to the absolute firmware/workshop-os directory when invoking run_ui13_local.sh; git top-level is now the monorepo."
+}
