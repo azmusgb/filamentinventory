@@ -40,7 +40,7 @@ test('dashboard is one Workshop Command Center surface with a deliberate zero-sp
   assert.match(css, /\.fi-home-empty/);
 });
 
-test('Workshop Command Center promotes status, evidence-backed actions, and physical placement context', async () => {
+test('Workshop Command Center promotes scoped health and Inbox before quiet operational context', async () => {
   const [source, css, bootstrap, assets, sw] = await Promise.all([
     read('personal-dashboard.js'),
     read('css/components/home-v12.css'),
@@ -52,17 +52,21 @@ test('Workshop Command Center promotes status, evidence-backed actions, and phys
   assert.match(source, /workshopInbox/);
   assert.match(source, /data-home-status-title/);
   assert.match(source, /data-home-status-detail/);
+  assert.match(source, /INVENTORY HEALTHY/);
+  assert.match(source, /Workshop Inbox/);
+  assert.ok(source.indexOf('Workshop Inbox') < source.indexOf('Check a print'), 'Inbox must precede generic print and capture actions');
   assert.match(source, /data-home-metric="spools"/);
   assert.match(source, /data-home-metric="loaded"/);
   assert.match(source, /data-home-metric="known"/);
-  assert.match(source, /data-home-metric="attention"/);
-  assert.match(source, /Only evidence-backed exceptions appear here/);
+  assert.doesNotMatch(source, /data-home-metric="attention"/);
+  assert.match(source, /evidence-backed/);
   assert.match(source, /Unknown stays unknown/);
   assert.match(source, /evidenceLabel/);
   assert.match(source, /loadedLabel/);
   assert.match(css, /\.fi-workshop-status/);
-  assert.match(css, /\.fi-workshop-metrics/);
+  assert.match(css, /\.fi-workshop-snapshot/);
   assert.match(css, /\.fi-inbox-row/);
+  assert.doesNotMatch(css, /\.fi-workshop-metrics/);
   assert.doesNotMatch(css, /!important/);
   for (const content of [bootstrap,assets,sw]) assert.ok(content.includes('home-v12.css'),'Workshop Command Center stylesheet must ship through bootstrap/build/offline surfaces');
 });
@@ -80,10 +84,13 @@ test('V11 mobile navigation is owned by the shell and exposes Home, Inventory, S
   assert.match(css, /safe-area-inset-bottom/);
 });
 
-test('dashboard language is operational, trust-aware, and free of obsolete shared-household framing', async () => {
-  const source = await read('personal-dashboard.js');
-  for (const expected of ['Workshop Inbox','Loaded now','All caught up','No inventory yet','Workshop status','Quantity unknown']) assert.ok(source.includes(expected),`missing dashboard copy: ${expected}`);
-  for (const stale of ['Shared household inventory','Shared activity','Bill + Aimee','Transfer ownership']) assert.equal(source.includes(stale),false,`stale shared copy remains: ${stale}`);
+test('dashboard language is operational, trust-aware, and does not conflate inventory health with print readiness', async () => {
+  const [dashboard, core] = await Promise.all([read('personal-dashboard.js'), read('personal-core.js')]);
+  for (const expected of ['Workshop Inbox','Loaded now','All caught up','No inventory yet','Quantity unknown','Inventory snapshot','Check readiness']) assert.ok(dashboard.includes(expected),`missing dashboard copy: ${expected}`);
+  assert.ok(core.includes('INVENTORY HEALTHY'));
+  assert.ok(core.includes('Print readiness is evaluated separately'));
+  assert.equal(core.includes("label:'READY'"),false,'inventory status must not claim print readiness');
+  for (const stale of ['Shared household inventory','Shared activity','Bill + Aimee','Transfer ownership']) assert.equal(dashboard.includes(stale),false,`stale shared copy remains: ${stale}`);
 });
 
 test('dashboard does not create a competing add-spool implementation', async () => {
