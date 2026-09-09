@@ -1,0 +1,145 @@
+@@PRIMARY_HELPERS@@
+// ---------------------------------------------------------------------------
+// Workshop OS v11.25 — whole-device 480x320 product UI
+// ---------------------------------------------------------------------------
+enum HubPrinterMode : uint8_t { HUB_PRINTER_STATUS=0, HUB_PRINTER_AMS=1, HUB_PRINTER_CONTROL=2 };
+
+static HubRect hubV1125PrinterModeRect(uint8_t i) {
+  const int16_t W=tft.width(), m=8, g=6;
+  const int16_t cw=(W-2*m-2*g)/3;
+  const int16_t x=m+i*(cw+g);
+  return hr(x,48,i==2?W-m-x:cw,50);
+}
+
+static HubRect hubV1125MoreRect(uint8_t i) {
+  const int16_t W=tft.width();
+  if(hubLandscape()) {
+    const int16_t m=8,g=8,cw=(W-2*m-g)/2,ch=78;
+    return hr(m+(i%2)*(cw+g),48+(i/2)*(ch+8),cw,ch);
+  }
+  const int16_t m=10,g=10,cw=(W-2*m-g)/2,ch=126;
+  return hr(m+(i%2)*(cw+g),52+(i/2)*(ch+10),cw,ch);
+}
+
+static void hubV1125Card(const HubRect& r,uint16_t rail=UI_BORDER_2,bool strong=false) {
+  tft.fillRoundRect(r.x+2,r.y+3,r.w,r.h,12,0x0000);
+  tft.fillRoundRect(r.x,r.y,r.w,r.h,12,strong?UI_PANEL_3:UI_PANEL);
+  tft.drawRoundRect(r.x,r.y,r.w,r.h,12,strong?UI_BORDER:UI_BORDER_2);
+  if(rail!=UI_BORDER_2 && rail!=UI_BORDER) {
+    tft.fillRoundRect(r.x+1,r.y+10,4,r.h-20,2,rail);
+  }
+}
+
+static uint16_t hubV1125PrinterColor(const BambuState* s) {
+  if(!s) return UI_CYAN;
+  if(!s->connected) return UI_DIM;
+  if(s->gcodeStateId==GCODE_FAILED || uiHmsCount(*s)) return UI_RED;
+  if(s->gcodeStateId==GCODE_PAUSE) return UI_AMBER;
+  if(s->printing) return UI_CYAN;
+  return UI_GREEN;
+}
+
+static const char* hubV1125PrinterTitle(const BambuState* s) {
+  if(!s) return "SET UP PRINTER";
+  if(!s->connected) return "PRINTER OFFLINE";
+  if(s->gcodeStateId==GCODE_FAILED || uiHmsCount(*s)) return "ATTENTION NEEDED";
+  if(s->gcodeStateId==GCODE_PAUSE) return "PRINT PAUSED";
+  if(s->printing) return "PRINTING";
+  return "READY";
+}
+
+static void hubV1125ModeTabs() {
+  static const char* labels[3]={"STATUS","AMS","CONTROL"};
+  for(uint8_t i=0;i<3;i++) {
+    HubRect r=hubV1125PrinterModeRect(i);
+    const bool selected=g_printerMode==i;
+    const uint16_t c=selected?UI_CYAN:UI_MUTED;
+    tft.fillRoundRect(r.x,r.y,r.w,r.h,9,selected?UI_PANEL_3:UI_PANEL_2);
+    tft.drawRoundRect(r.x,r.y,r.w,r.h,9,selected?UI_CYAN:UI_BORDER_2);
+    if(selected)tft.fillRoundRect(r.x+10,r.y+3,r.w-20,3,2,UI_CYAN);
+    uiDrawFit(labels[i],r.x+r.w/2,r.y+r.h/2,r.w-18,FONT_BODY,MC_DATUM,c,selected?UI_PANEL_3:UI_PANEL_2);
+  }
+}
+
+static void hubV1125Action(const HubRect& r,const char* label,uint16_t c,bool enabled=true,bool destructive=false) {
+  const uint16_t edge=enabled?c:UI_BORDER_2;
+  const uint16_t bg=UI_PANEL_2;
+  tft.fillRoundRect(r.x+1,r.y+2,r.w,r.h,11,0x0000);
+  tft.fillRoundRect(r.x,r.y,r.w,r.h,11,bg);
+  tft.drawRoundRect(r.x,r.y,r.w,r.h,11,edge);
+  if(enabled)tft.fillRoundRect(r.x+8,r.y+10,4,r.h-20,2,edge);
+  if(destructive&&enabled)tft.fillCircle(r.x+r.w-14,r.y+14,3,UI_RED);
+  uiDrawFit(label,r.x+r.w/2+2,r.y+r.h/2,r.w-28,FONT_BODY,MC_DATUM,enabled?UI_TEXT:UI_DIM,bg);
+}
+
+static void hubV1125TelemetryColumn(const HubRect& r,const BambuState& s) {
+  hubV1125Card(r,UI_BORDER_2,false);
+  uiDrawFit("LIVE",r.x+12,r.y+12,r.w-24,FONT_SMALL,TL_DATUM,s.connected?UI_CYAN:UI_DIM,UI_PANEL);
+  const char* labels[4]={"NOZZLE","BED","CHAMBER","FAN"};
+  char vals[4][14];
+  if(s.connected){
+    snprintf(vals[0],sizeof(vals[0]),"%.0f°",s.nozzleTemp);
+    snprintf(vals[1],sizeof(vals[1]),"%.0f°",s.bedTemp);
+    snprintf(vals[2],sizeof(vals[2]),"%.0f°",s.chamberTemp);
+    snprintf(vals[3],sizeof(vals[3]),"%u%%",(unsigned)s.coolingFanPct);
+  }else for(uint8_t i=0;i<4;i++)strlcpy(vals[i],"—",sizeof(vals[i]));
+  const int16_t top=r.y+34,row=(r.h-42)/4;
+  for(uint8_t i=0;i<4;i++){
+    if(i)tft.drawFastHLine(r.x+10,top+i*row,r.w-20,UI_BORDER_2);
+    uiDrawFit(labels[i],r.x+12,top+i*row+row/2,r.w/2-16,FONT_SMALL,ML_DATUM,UI_MUTED,UI_PANEL);
+    uiDrawFit(vals[i],r.x+r.w-12,top+i*row+row/2,r.w/2-16,FONT_BODY,MR_DATUM,s.connected?UI_TEXT:UI_DIM,UI_PANEL);
+  }
+}
+
+static void hubV1125AmsSlot(const HubRect& r,const AmsTray* tr,bool active,uint8_t index) {
+  const bool present=tr&&tr->present;
+  tft.fillRoundRect(r.x,r.y,r.w,r.h,10,active?UI_PANEL_3:UI_PANEL);
+  tft.drawRoundRect(r.x,r.y,r.w,r.h,10,active?UI_CYAN:UI_BORDER_2);
+  if(active)tft.fillRoundRect(r.x+1,r.y+10,4,r.h-20,2,UI_CYAN);
+  char slot[8];snprintf(slot,sizeof(slot),"A%u",(unsigned)(index+1));
+  char remain[12];if(present&&tr->remain>=0)snprintf(remain,sizeof(remain),"%d%%",(int)tr->remain);else strlcpy(remain,"—",sizeof(remain));
+  uiDrawFit(slot,r.x+10,r.y+10,34,FONT_BODY,TL_DATUM,active?UI_CYAN:UI_MUTED,active?UI_PANEL_3:UI_PANEL);
+  uiDrawFit(remain,r.x+r.w-9,r.y+10,42,FONT_BODY,TR_DATUM,present?UI_TEXT:UI_DIM,active?UI_PANEL_3:UI_PANEL);
+  uint16_t filament=present?tr->colorRgb565:UI_BORDER;if(present&&filament==0)filament=0x1082;
+  uiSpoolScaled(r.x+r.w/2,r.y+47,filament,active,present?tr->remain:-1,13);
+  uiDrawFit(present&&tr->type[0]?tr->type:"EMPTY",r.x+r.w/2,r.y+68,r.w-16,FONT_BODY,TC_DATUM,present?UI_TEXT:UI_MUTED,active?UI_PANEL_3:UI_PANEL);
+  if(present)uiDrawFit(uiFilamentColorName(tr->colorRgb565),r.x+r.w/2,r.y+r.h-10,r.w-16,FONT_SMALL,BC_DATUM,UI_DIM,active?UI_PANEL_3:UI_PANEL);
+}
+@@END_PRIMARY_HELPERS@@
+@@DRAW_HEADER@@
+static void drawHeader(const char* title, const char* right, uint8_t page) {
+  (void)page;
+  const int16_t W=tft.width(),HH=hubHeaderH();
+  const bool online=WiFi.status()==WL_CONNECTED;
+  tft.fillRect(0,0,W,HH,UI_BG);
+  uiDrawFit("WORKSHOP OS",10,8,130,FONT_SMALL,TL_DATUM,UI_CYAN,UI_BG);
+  uiDrawFit(title?title:"HOME",10,24,hubLandscape()?260:180,FONT_BODY,TL_DATUM,UI_TEXT,UI_BG);
+  const char* state=right&&right[0]?right:(online?"ONLINE":"OFFLINE");
+  const uint16_t c=right&&right[0]?UI_CYAN:(online?UI_GREEN:UI_RED);
+  const int16_t pw=hubLandscape()?92:80;
+  tft.fillRoundRect(W-pw-8,8,pw,24,12,UI_PANEL_2);
+  tft.drawRoundRect(W-pw-8,8,pw,24,12,c);
+  tft.fillCircle(W-pw+2,20,3,c);
+  uiDrawFit(state,W-14,20,pw-24,FONT_SMALL,MR_DATUM,c,UI_PANEL_2);
+  tft.drawFastHLine(8,HH-1,W-16,UI_BORDER_2);
+}
+@@END_DRAW_HEADER@@
+@@BOTTOM_NAV@@
+static void uiBottomNav(uint8_t active, const char* nextPage) {
+  (void)nextPage;
+  const int16_t y=tft.height()-hubNavH(),W=tft.width();
+  static const char* labels[4]={"HOME","PRINTER","WORKSHOP","MORE"};
+  tft.fillRect(0,y,W,hubNavH(),UI_BG);
+  tft.fillRoundRect(6,y+3,W-12,hubNavH()-6,12,UI_PANEL_2);
+  tft.drawRoundRect(6,y+3,W-12,hubNavH()-6,12,UI_BORDER_2);
+  for(uint8_t i=0;i<4;i++){
+    HubRect r=hubNavRect(i);const bool selected=i==active;
+    if(selected){
+      tft.fillRoundRect(r.x+5,r.y+6,r.w-10,r.h-12,9,UI_PANEL_3);
+      tft.drawRoundRect(r.x+5,r.y+6,r.w-10,r.h-12,9,UI_CYAN);
+      tft.fillRoundRect(r.x+16,r.y+5,r.w-32,3,2,UI_CYAN);
+    }
+    uiDrawFit(labels[i],r.x+r.w/2,r.y+r.h/2,r.w-18,FONT_BODY,MC_DATUM,selected?UI_TEXT:UI_MUTED,selected?UI_PANEL_3:UI_PANEL_2);
+  }
+}
+@@END_BOTTOM_NAV@@

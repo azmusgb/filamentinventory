@@ -1,0 +1,35 @@
+@@PRINTER@@
+static void drawPrinter(bool full) {
+  (void)full;const int16_t W=tft.width();tft.fillScreen(W25_BG);drawHeader("PRINTER",nullptr,1);uiBottomNav(1,nullptr);hubV1125ModeTabs();
+  if(!isAnyPrinterConfigured()){
+    HubRect r=hubLandscape()?hr(8,106,W-16,154):hr(8,106,W-16,306);hubV1125Card(r,W25_ACCENT,true);
+    uiDrawFit("NO PRINTER",r.x+16,r.y+30,r.w-32,FONT_LARGE,TL_DATUM,W25_TEXT,W25_SURFACE_2);
+    uiDrawFit("Configure your printer to unlock live status, AMS, light and print controls.",r.x+16,r.y+72,r.w-32,FONT_BODY,TL_DATUM,W25_TEXT_2,W25_SURFACE_2);
+    uiDrawFit("OPEN LOCAL PORTAL",r.x+16,r.y+r.h-28,r.w-32,FONT_BODY,BL_DATUM,W25_ACCENT,W25_SURFACE_2);
+    hubMarkFrameDirty();g_dirty=false;return;
+  }
+  const PrinterSlot&p=displayedPrinter();const BambuState&s=p.state;const uint16_t sc=hubV1125PrinterColor(&s);const bool paused=s.gcodeStateId==GCODE_PAUSE;const bool active=s.printing||paused;const char* state=!s.connected?"OFFLINE":(paused?"PAUSED":(s.printing?"PRINTING":"READY"));
+  if(g_printerMode==HUB_PRINTER_STATUS){
+    if(hubLandscape()){
+      HubRect job=hr(8,106,300,154),live=hr(316,106,W-324,154);hubV1125Card(job,sc,true);
+      uiDrawFit(p.config.name[0]?p.config.name:"PRINTER",job.x+14,job.y+11,job.w-28,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE_2);uiDrawFit(state,job.x+14,job.y+34,job.w-28,FONT_LARGE,TL_DATUM,sc,W25_SURFACE_2);
+      if(active){char rem[20],meta[52];formatDuration(s.remainingMinutes,rem,sizeof(rem));snprintf(meta,sizeof(meta),"%u%%   %s left   Layer %u/%u",(unsigned)s.progress,rem,(unsigned)s.layerNum,(unsigned)s.totalLayers);uiDrawFit(jobDisplayName(s),job.x+14,job.y+73,job.w-28,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE_2);uiProgressBar(job.x+14,job.y+103,job.w-28,s.progress,W25_ACCENT);uiDrawFit(meta,job.x+14,job.y+122,job.w-28,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE_2);}else uiDrawFit(s.connected?"Ready for next print":"Check printer connection",job.x+14,job.y+82,job.w-28,FONT_BODY,TL_DATUM,s.connected?W25_TEXT_2:W25_WARN,W25_SURFACE_2);
+      hubV1125TelemetryColumn(live,s);
+    }else{
+      HubRect job=hr(8,106,W-16,154),live=hr(8,268,W-16,144);hubV1125Card(job,sc,true);uiDrawFit(p.config.name[0]?p.config.name:"PRINTER",job.x+14,job.y+12,job.w-28,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE_2);uiDrawFit(state,job.x+14,job.y+38,job.w-28,FONT_LARGE,TL_DATUM,sc,W25_SURFACE_2);if(active){uiDrawFit(jobDisplayName(s),job.x+14,job.y+82,job.w-28,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE_2);uiProgressBar(job.x+14,job.y+122,job.w-28,s.progress,W25_ACCENT);}else uiDrawFit(s.connected?"Ready for next print":"Check printer connection",job.x+14,job.y+86,job.w-28,FONT_BODY,TL_DATUM,W25_MUTED,W25_SURFACE_2);hubV1125TelemetryColumn(live,s);
+    }
+  }else if(g_printerMode==HUB_PRINTER_AMS){
+    if(hubLandscape()){
+      const int16_t g=6,m=8,cw=(W-2*m-3*g)/4;uint8_t n=s.ams.present?s.ams.unitCount*4:0;if(n>4)n=4;for(uint8_t i=0;i<4;i++){HubRect r=hr(m+i*(cw+g),106,cw,122);hubV1125AmsSlot(r,(i<n)?&s.ams.trays[i]:nullptr,s.ams.present&&s.ams.activeTray==i,i);}
+      uiDrawFit(s.ams.present?"AMS telemetry from printer":"AMS not detected",10,249,W-20,FONT_SMALL,BL_DATUM,s.ams.present?W25_MUTED:W25_WARN,W25_BG);
+    }else{
+      uint8_t n=s.ams.present?s.ams.unitCount*4:0;if(n>4)n=4;const int16_t g=8,m=8,cw=(W-2*m-g)/2,ch=110;for(uint8_t i=0;i<4;i++){HubRect r=hr(m+(i%2)*(cw+g),106+(i/2)*(ch+g),cw,ch);hubV1125AmsSlot(r,(i<n)?&s.ams.trays[i]:nullptr,s.ams.present&&s.ams.activeTray==i,i);}
+    }
+  }else{
+    const char* light=s.lightState==1?"LIGHT OFF":"LIGHT ON";const char* pause=paused?"RESUME":"PAUSE";const uint8_t plug=tasmotaControlPlugForSlot(rotState.displayIndex);const bool powerMapped=plug!=0xFF;
+    for(uint8_t i=0;i<4;i++){HubRect r=hubPrinterActionRect(i);const char* label=i==0?printerFeedbackLabel(0,light):i==1?printerFeedbackLabel(1,pause):i==2?(powerMapped?"PRINTER POWER":"POWER UNAVAILABLE"):printerFeedbackLabel(3,active?"HOLD TO STOP":"STOP");const bool enabled=i==0?s.connected:i==1?(s.connected&&active):i==2?powerMapped:(s.connected&&active);const uint16_t c=i==0?W25_INFO:i==1?(paused?W25_SUCCESS:W25_ACCENT):i==2?W25_WARN:W25_DANGER;hubV1125Action(r,label,c,enabled,i==3);}
+    if(hubLandscape()){uiDrawFit("TAP TO ACT",10,250,150,FONT_SMALL,BL_DATUM,W25_MUTED,W25_BG);uiDrawFit("STOP REQUIRES HOLD",W-10,250,180,FONT_SMALL,BR_DATUM,W25_WARN,W25_BG);}
+  }
+  hubMarkFrameDirty();g_dirty=false;
+}
+@@END_PRINTER@@

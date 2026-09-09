@@ -1,0 +1,75 @@
+/* Workshop OS v11.25 RC7 Touch-First UX Overhaul */
+:root {
+  --rc7-radius-sm: 10px;
+  --rc7-radius-md: 14px;
+  --rc7-radius-lg: 18px;
+  --rc7-space-1: 4px;
+  --rc7-space-2: 8px;
+  --rc7-space-3: 12px;
+  --rc7-space-4: 16px;
+  --rc7-space-5: 24px;
+  --rc7-touch: 48px;
+}
+
+/* Calm the portal: hierarchy comes from spacing and type, not stacked borders. */
+:is(.card,.panel,.tile,.setting-card,.dashboard-card) {
+  border-radius: var(--rc7-radius-md);
+}
+
+:is(button,.button,[role="button"],input,select) {
+  min-height: var(--rc7-touch);
+}
+
+button,.button,[role="button"] {
+  border-radius: var(--rc7-radius-sm);
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+
+:is(button,.button,[role="button"],a,input,select):focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 3px;
+}
+
+/* Primary content should breathe even on narrow phone-sized portal views. */
+main,.main,.content {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+:is(.grid,.cards,.dashboard-grid) {
+  gap: var(--rc7-space-4);
+}
+
+/* De-emphasize implementation metadata while keeping it available. */
+:is(.meta,.muted,.hint,.helper,.secondary) {
+  line-height: 1.45;
+}
+
+/* Tables become touch-readable instead of spreadsheet-dense. */
+table th,table td {
+  padding-block: 12px;
+}
+
+/* Destructive controls remain visually distinct from navigation. */
+:is(.danger,.destructive,[data-danger="true"]) {
+  font-weight: 800;
+}
+
+@media (max-width: 720px) {
+  :is(.grid,.cards,.dashboard-grid) {
+    grid-template-columns: 1fr;
+  }
+  main,.main,.content {
+    padding-inline: var(--rc7-space-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,*::before,*::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}

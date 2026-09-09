@@ -1,0 +1,29 @@
+@@HOLD_PROGRESS@@
+void smartHubUpdateHoldProgress(uint16_t rawX, uint16_t rawY, uint32_t holdMs) {
+  static uint8_t lastKind=0;
+  static uint8_t lastSegments=255;
+  if(holdMs==0){lastKind=0;lastSegments=255;return;}
+  if(!g_cfg.enabled||!smartHubIsScreen(getScreenState()))return;
+  int16_t x=0,y=0;mapHubTouch(rawX,rawY,x,y);
+  uint8_t kind=0;int16_t bx=0,by=0,bw=0,bh=0;const char* label=nullptr;
+  if(g_networkSettingsView && (g_networkSettingsPage%HUB_NETWORK_PAGE_COUNT)==6 && hubStaticNetworkValid() && hubRc2HitRef(x,y,240,252,230,56)){
+    kind=1;bx=240;by=252;bw=230;bh=56;label="KEEP HOLDING";
+  }else if(g_displayExperienceView && g_rotationPreviewMode && hubRc2HitRef(x,y,160,258,310,52)){
+    kind=2;bx=160;by=258;bw=310;bh=52;label="KEEP HOLDING";
+  }else if(getScreenState()==SCREEN_HUB_PRINTER && g_printerMode==HUB_PRINTER_CONTROL && isAnyPrinterConfigured() && hubPrinterActionRect(3).contains(x,y)){
+    BambuState& s=displayedPrinter().state;const bool paused=s.gcodeStateId==GCODE_PAUSE;
+    if(s.connected&&(s.printing||paused)){HubRect r=hubPrinterActionRect(3);kind=3;bx=r.x;by=r.y;bw=r.w;bh=r.h;label="KEEP HOLDING";}else{lastKind=0;lastSegments=255;return;}
+  }else{lastKind=0;lastSegments=255;return;}
+  uint8_t segments=(uint8_t)((holdMs*5U+649U)/650U);if(segments>5U)segments=5U;
+  if(kind==lastKind && segments==lastSegments)return;lastKind=kind;lastSegments=segments;
+  if(kind==3)hubV1125Action(hr(bx,by,bw,bh),label,W25_DANGER,true,true);else hubRc2ButtonRef(bx,by,bw,bh,label,UI_ORANGE,true);
+  int16_t px=kind==3?(int16_t)(bx+10):hubRc2SX((int16_t)(bx+10));
+  int16_t py=kind==3?(int16_t)(by+bh-13):hubRc2SY((int16_t)(by+bh-13));
+  int16_t total=kind==3?(int16_t)(bw-20):hubRc2SX((int16_t)(bw-20));
+  int16_t gap=kind==3?3:hubRc2SX(3);if(gap<2)gap=2;
+  int16_t sh=kind==3?8:hubRc2SY(8);if(sh<5)sh=5;
+  int16_t sw=(int16_t)((total-gap*4)/5);if(sw<5)sw=5;
+  for(uint8_t i=0;i<5;i++){const uint16_t c=(i<segments)?(kind==3?W25_DANGER:UI_ORANGE):UI_BORDER;tft.fillRoundRect((int16_t)(px+i*(sw+gap)),py,sw,sh,3,c);}
+  hubMarkFrameDirty();
+}
+@@END_HOLD_PROGRESS@@

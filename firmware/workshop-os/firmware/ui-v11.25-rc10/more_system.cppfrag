@@ -1,0 +1,105 @@
+@@MORE@@
+static void drawMore(bool full) {
+  if(g_displayExperienceView){drawDisplayExperience(full);return;}
+  if(g_toolsView){drawTools(full);return;}
+  (void)full;
+
+  const int16_t W=tft.width();
+  tft.fillScreen(C10_BG);
+  drawHeader("Settings",nullptr,3);
+  uiBottomNav(3,nullptr);
+
+  const char* titles[4]={"Home","System","Display","Tools"};
+  const char* subs[4]={
+    "Dashboard and appearance",
+    "Network, access and health",
+    "Screen and standby",
+    "Timers and utilities"
+  };
+
+  for(uint8_t i=0;i<4;i++) {
+    HubRect r=hubV1125MoreRect(i);
+    const uint16_t bg=C10_SURFACE;
+    tft.fillRoundRect(r.x,r.y,r.w,r.h,14,bg);
+
+    uiMoreIcon(hr(r.x+10,r.y+10,34,34),i,i==1?C10_ACCENT:C10_MUTED);
+
+    if(hubLandscape()) {
+      uiDrawFit(titles[i],r.x+54,r.y+14,r.w-84,FONT_BODY,TL_DATUM,C10_TEXT,bg);
+      uiDrawFit(subs[i],r.x+54,r.y+43,r.w-84,FONT_SMALL,TL_DATUM,C10_MUTED,bg);
+      const int16_t cx=r.x+r.w-18,cy=r.y+r.h/2;
+      tft.drawLine(cx-4,cy-5,cx+1,cy,C10_MUTED);
+      tft.drawLine(cx+1,cy,cx-4,cy+5,C10_MUTED);
+    } else {
+      uiDrawFit(titles[i],r.x+12,r.y+54,r.w-24,FONT_BODY,TL_DATUM,C10_TEXT,bg);
+      uiDrawFit(subs[i],r.x+12,r.y+84,r.w-24,FONT_SMALL,TL_DATUM,C10_MUTED,bg);
+    }
+  }
+
+  hubMarkFrameDirty();
+  g_dirty=false;
+}
+@@END_MORE@@
+@@SYSTEM@@
+static void drawSystem(bool full) {
+  if(g_audioSettingsView){drawAudioSettings(full);return;}
+  if(g_networkSettingsView){drawNetworkEssentials(full);return;}
+  (void)full;
+
+  const int16_t W=tft.width();
+  tft.fillScreen(C10_BG);
+
+  const bool wifi=WiFi.status()==WL_CONNECTED;
+  const bool touchOk=hubTouchHealthy();
+  const bool serviceOk=recoveryWebReady();
+  const bool overall=wifi&&touchOk&&serviceOk;
+  drawHeader("System",overall?"Healthy":"Check",4);
+  uiBottomNav(3,nullptr);
+
+  String ip=wifi?WiFi.localIP().toString():String("No IP");
+
+  if(hubLandscape()) {
+    HubRect device=hr(8,44,220,80);
+    HubRect group=hr(236,44,W-244,176);
+
+    hubV1125Card(device,overall?C10_GREEN:C10_ORANGE,true);
+    uiDrawFit("Device",device.x+14,device.y+12,device.w-28,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE_2);
+    uiDrawFit(overall?"Healthy":"Check Device",device.x+14,device.y+40,device.w-28,FONT_LARGE,TL_DATUM,
+              overall?C10_GREEN:C10_ORANGE,C10_SURFACE_2);
+
+    hubV1125Card(group,W25_LINE,false);
+    uiDrawFit("Network",group.x+14,group.y+12,group.w-28,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE);
+    uiDrawFit(wifi?"Connected":"Offline",group.x+14,group.y+36,group.w-28,FONT_BODY,TL_DATUM,
+              wifi?C10_GREEN:C10_RED,C10_SURFACE);
+    uiDrawFit(wifi?ip.c_str():"Review network settings",group.x+14,group.y+61,group.w-28,FONT_SMALL,TL_DATUM,
+              C10_MUTED,C10_SURFACE);
+
+    tft.drawFastHLine(group.x+14,group.y+86,group.w-28,C10_SEPARATOR);
+    uiDrawFit("Local Access",group.x+14,group.y+99,group.w-28,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE);
+    uiDrawFit(securityPortalCode(),group.x+14,group.y+124,group.w-28,FONT_LARGE,TL_DATUM,C10_TEXT,C10_SURFACE);
+    uiDrawFit("Code changes after every reboot",group.x+14,group.y+153,group.w-28,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE);
+
+    uiDrawFit("Advanced details: Local Portal > Diagnostics",10,252,W-20,FONT_SMALL,BL_DATUM,C10_MUTED,C10_BG);
+  } else {
+    HubRect device=hr(8,44,W-16,82);
+    HubRect group=hr(8,134,W-16,174);
+
+    hubV1125Card(device,overall?C10_GREEN:C10_ORANGE,true);
+    uiDrawFit("Device",device.x+12,device.y+10,device.w-24,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE_2);
+    uiDrawFit(overall?"Healthy":"Check Device",device.x+12,device.y+40,device.w-24,FONT_LARGE,TL_DATUM,
+              overall?C10_GREEN:C10_ORANGE,C10_SURFACE_2);
+
+    hubV1125Card(group,W25_LINE,false);
+    uiDrawFit("Network",group.x+12,group.y+12,group.w-24,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE);
+    uiDrawFit(wifi?"Connected":"Offline",group.x+12,group.y+38,group.w-24,FONT_BODY,TL_DATUM,
+              wifi?C10_GREEN:C10_RED,C10_SURFACE);
+    tft.drawFastHLine(group.x+12,group.y+78,group.w-24,C10_SEPARATOR);
+    uiDrawFit("Local Access",group.x+12,group.y+90,group.w-24,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE);
+    uiDrawFit(securityPortalCode(),group.x+12,group.y+118,group.w-24,FONT_BODY,TL_DATUM,C10_TEXT,C10_SURFACE);
+    uiDrawFit("Changes after reboot",group.x+12,group.y+148,group.w-24,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE);
+  }
+
+  hubMarkFrameDirty();
+  g_dirty=false;
+}
+@@END_SYSTEM@@

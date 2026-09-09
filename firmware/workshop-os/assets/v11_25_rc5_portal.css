@@ -1,0 +1,83 @@
+/* Workshop OS v11.25 RC5 Native UI Acceptance
+   Final browser polish aligned to the WS350 UI5 hierarchy. */
+:root{
+  --ui5-accent:#20b7a8;
+  --ui5-radius:10px;
+  --ui5-radius-sm:7px;
+  --ui5-control:48px;
+  --ui5-grid-gap:12px;
+}
+html[data-theme="dark"]{
+  --ui5-accent:#62d8cc;
+}
+body{font-feature-settings:"tnum" 1,"ss01" 1;text-rendering:optimizeLegibility}
+.card,.wk116-printer,.wk116-materials{border-radius:var(--ui5-radius)}
+.card{padding:18px 20px}
+.card-head{margin-bottom:14px}
+.card-head h3{letter-spacing:-.018em}
+.section-intro{margin-bottom:16px;padding-bottom:16px}
+.section-intro h2{font-size:26px;letter-spacing:-.038em}
+
+.nav-item{min-height:48px;border-radius:8px}
+.nav-item[aria-current="true"]{box-shadow:inset 0 0 0 1px var(--line)}
+.nav-item[aria-current="true"]::before{top:10px;bottom:10px;background:var(--ui5-accent)}
+
+.btn{min-height:var(--ui5-control);border-radius:8px}
+.btn-primary{background:var(--ui5-accent);border-color:var(--ui5-accent)}
+.section input[type="text"],.section input[type="password"],.section input[type="email"],
+.section input[type="number"],.section input[type="url"],.section select,.section textarea{
+  min-height:var(--ui5-control);border-radius:8px
+}
+
+/* Command-center hierarchy: state > job > telemetry > controls. */
+.wk116-grid{gap:var(--ui5-grid-gap);grid-template-columns:minmax(0,1.55fr) minmax(300px,.75fr)}
+.wk116-printer{padding:18px 20px;min-height:390px}
+.wk116-materials{padding:18px}
+.wk116-state strong{font-size:21px;letter-spacing:-.035em}
+.wk116-job{margin-top:26px}
+.wk116-job>div>strong{font-size:25px;line-height:1.05}
+.wk116-percent{font-size:40px;color:var(--ui5-accent)}
+.wk116-progress{height:6px;margin-top:12px}
+.wk116-progress>span{background:var(--ui5-accent)}
+.wk116-telemetry{gap:7px;margin-top:16px}
+.wk116-telemetry>div{min-height:66px;border-radius:8px}
+.wk116-control-strip{gap:8px;padding-top:16px}
+.wk116-control{min-height:68px;border-radius:8px}
+.wk116-control-icon{border-radius:7px}
+.wk116-trays .wk-tray{border-radius:8px;min-height:76px}
+.wk116-trays .wk-tray.active{border-color:var(--ui5-accent);box-shadow:inset 3px 0 0 var(--ui5-accent)}
+.wk116-active{border-radius:8px}
+.wk116-dock button{min-height:64px;border-radius:8px}
+
+/* Warnings and destructive controls are semantic, not decorative. */
+.btn-danger,.danger,.is-danger{box-shadow:none}
+.btn-danger:not(:disabled):hover{filter:none}
+[aria-disabled="true"],.btn:disabled,.wk116-control:disabled{cursor:not-allowed;opacity:.46}
+
+/* Dense diagnostics stay subordinate to primary operating information. */
+.help-text,.hint,.muted,.wk116-feedback{font-size:12px;line-height:1.42}
+.kpi-value,.metric-value,.wk116-telemetry strong{font-variant-numeric:tabular-nums}
+
+@media(max-width:980px){
+  .wk116-grid{grid-template-columns:1fr}
+  .wk116-printer{min-height:0}
+  .wk116-materials{min-height:0}
+}
+@media(max-width:720px){
+  .main{padding:20px 16px 44px}
+  .section-intro h2{font-size:24px}
+  .wk116-title h2{font-size:28px}
+  .wk116-telemetry{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .wk116-control-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(pointer:coarse){
+  .btn,.nav-item,.icon-btn,.wk116-control,.wk116-dock button,
+  .section input,.section select,.section textarea{min-height:48px}
+  .wk116-control{min-height:68px}
+}
+@media(prefers-reduced-motion:reduce){
+  .wk116-progress>span,.btn,.nav-item,.wk116-control{transition:none!important}
+}
+@media(forced-colors:active){
+  .nav-item[aria-current="true"],.wk116-control,.wk116-trays .wk-tray.active,.btn{border:1px solid CanvasText}
+}

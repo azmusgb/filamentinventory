@@ -74,6 +74,10 @@ src = Path(sys.argv[1])
 ppm_dst = Path(sys.argv[2])
 png_dst = Path(sys.argv[3])
 view_id = sys.argv[4] if len(sys.argv) > 4 else ''
+sensitivity = sys.argv[5] if len(sys.argv) > 5 else '-'
+catalog_version = int(sys.argv[6]) if len(sys.argv) > 6 else 1
+if sensitivity == '-':
+    sensitivity = ''
 
 with src.open('rb') as f:
     magic = f.readline().strip()
@@ -92,15 +96,28 @@ expected = w * h * 3
 if len(rgb) != expected:
     raise SystemExit(f'{src}: expected {expected} RGB bytes, got {len(rgb)}')
 
-# The System page intentionally shows the rotating portal credential on the
-# physical device. Acceptance artifacts must never preserve that credential.
-# The validated WS350 capture surface is 480x320 landscape; redact only the
-# credential line inside the Portal Access card while retaining the card,
-# heading, IP and "changes after reboot" copy for layout/fit review.
-if view_id == 'system':
+# Never retain a credential-bearing framebuffer without deterministic redaction.
+# Catalog v2 declares sensitive views explicitly. Catalog v1 is retained for
+# compatibility with accepted older firmware, where the System view itself held
+# the rotating access code. Unknown sensitivity labels fail closed.
+redaction = None
+if sensitivity:
+    if sensitivity != 'portal-code':
+        raise SystemExit(f'Refusing unknown capture sensitivity: {sensitivity}')
+    if catalog_version < 2 or view_id != 'system-portal':
+        raise SystemExit(f'Refusing unexpected portal-code view contract: v{catalog_version} / {view_id}')
     if (w, h) != (480, 320):
-        raise SystemExit(f'Refusing unverified System redaction geometry: {w}x{h}')
-    x0, y0, x1, y1 = 330, 196, 468, 230
+        raise SystemExit(f'Refusing unverified UI12 portal redaction geometry: {w}x{h}')
+    # UI12 Local Portal card: preserve heading, IP and lifecycle copy while
+    # covering the complete access-code text line.
+    redaction = (236, 146, 472, 192)
+elif catalog_version == 1 and view_id == 'system':
+    if (w, h) != (480, 320):
+        raise SystemExit(f'Refusing unverified legacy System redaction geometry: {w}x{h}')
+    redaction = (330, 196, 468, 230)
+
+if redaction:
+    x0, y0, x1, y1 = redaction
     fill = (31, 35, 40)
     for y in range(y0, y1):
         row = y * w * 3
@@ -131,17 +148,26 @@ png_dst.write_bytes(png)
 PY
 chmod +x "$OUT/ppm_to_png.py"
 
-printf 'index,id,label,group,png,ppm\n' > "$OUT/manifest.csv"
+printf 'index,id,label,group,sensitive,png,ppm\n' > "$OUT/manifest.csv"
 
 python3 - "$CATALOG" <<'PY' > "$OUT/view-list.tsv"
 import json, sys
 with open(sys.argv[1], encoding='utf-8') as f:
     data = json.load(f)
-for i, v in enumerate(data['views'], 1):
-    print(f"{i}\t{v['id']}\t{v['label']}\t{v['group']}")
+version = int(data.get('version', 1))
+if version not in (1, 2):
+    raise SystemExit(f'Unsupported capture catalog version: {version}')
+views = data.get('views')
+if not isinstance(views, list) or not views:
+    raise SystemExit('Capture catalog contains no views')
+for i, v in enumerate(views, 1):
+    sensitivity = v.get('sensitive', '') or '-'
+    if sensitivity not in ('-', 'portal-code'):
+        raise SystemExit(f"Unsupported sensitivity for {v.get('id')}: {sensitivity}")
+    print(f"{i}\t{v['id']}\t{v['label']}\t{v['group']}\t{sensitivity}\t{version}")
 PY
 
-while IFS=$'\t' read -r IDX ID LABEL GROUP; do
+while IFS=$'\t' read -r IDX ID LABEL GROUP SENSITIVE CATALOG_VERSION; do
   NUM="$(printf '%02d' "$IDX")"
   SAFE_ID="${ID//[^A-Za-z0-9_-]/_}"
   PPM="$OUT/ppm/$NUM-$SAFE_ID.ppm"
@@ -166,13 +192,14 @@ while IFS=$'\t' read -r IDX ID LABEL GROUP; do
   # Raw framebuffer bytes never enter the retained capture tree. The converter
   # reads the private temp file and writes only sanitized PPM/PNG outputs.
   curl -fsS -b "$COOKIE" "$BASE/hub/frame.ppm" -o "$RAW_PPM"
-  python3 "$OUT/ppm_to_png.py" "$RAW_PPM" "$PPM" "$PNG" "$ID"
+  python3 "$OUT/ppm_to_png.py" "$RAW_PPM" "$PPM" "$PNG" "$ID" "$SENSITIVE" "$CATALOG_VERSION"
   : > "$RAW_PPM"
 
   QLABEL="${LABEL//\"/\"\"}"
   QGROUP="${GROUP//\"/\"\"}"
-  printf '%s,%s,"%s","%s",png/%s.png,ppm/%s.ppm\n' \
-    "$NUM" "$ID" "$QLABEL" "$QGROUP" "$NUM-$SAFE_ID" "$NUM-$SAFE_ID" >> "$OUT/manifest.csv"
+  QSENSITIVE="${SENSITIVE//\"/\"\"}"
+  printf '%s,%s,"%s","%s","%s",png/%s.png,ppm/%s.ppm\n' \
+    "$NUM" "$ID" "$QLABEL" "$QGROUP" "$QSENSITIVE" "$NUM-$SAFE_ID" "$NUM-$SAFE_ID" >> "$OUT/manifest.csv"
 done < "$OUT/view-list.tsv"
 
 rm -f "$OUT/.show-response"
@@ -183,13 +210,18 @@ curl -sS -b "$COOKIE" -H 'X-BambuHelper-Client: 1' -X POST \
 rm -f "$OUT/view-list.tsv"
 
 cat > "$OUT/SECURITY-NOTE.txt" <<'EOF'
-The System framebuffer's live portal-code line was redacted before any PPM or PNG
-was written into this retained capture folder. Raw framebuffer bytes existed only
-in a mode-0600 temporary file outside the bundle and were cleared after each view
-and removed on exit. The login credential was passed to curl over stdin, not in
-its command-line arguments. Printer configuration/settings exports are excluded
-because they may contain access codes or other secrets. Do not manually add
-unredacted System screenshots or configuration exports.
+Credential-bearing framebuffer views are redacted before any PPM or PNG is
+written into this retained capture folder. UI12 uses capture-catalog sensitivity
+metadata to identify the deliberate Local Portal view. Accepted legacy catalog
+v1 firmware is handled with its validated System-view redaction geometry.
+Unknown sensitivity labels or unverified framebuffer geometry fail closed.
+
+Raw framebuffer bytes exist only in a mode-0600 temporary file outside the
+bundle; they are cleared after each view and removed on exit. The login credential
+is passed to curl over stdin, not in command-line arguments. Printer configuration
+and settings exports are excluded because they may contain access codes or other
+secrets. Do not manually add unredacted portal screenshots or configuration
+exports to the retained acceptance bundle.
 EOF
 
 ZIP="$HOME/Desktop/BambuHelper-Visual-Capture-$STAMP.zip"
@@ -203,6 +235,6 @@ echo "CAPTURE COMPLETE"
 echo "Folder: $OUT"
 echo "ZIP:    $ZIP"
 echo "PNG frames: $(find "$OUT/png" -type f -name '*.png' | wc -l | tr -d ' ')"
-echo "System portal-code line: REDACTED before retained PPM + PNG write"
+echo "Credential-bearing frame(s): REDACTED before retained PPM + PNG write"
 echo "Raw framebuffer: TEMPORARY 0600 ONLY"
 echo "Printer configuration/settings exports: EXCLUDED"

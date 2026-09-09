@@ -1,0 +1,217 @@
+@@HELPERS@@
+static HubRect hubUi13RowRect(uint8_t i) {
+  const int16_t W=tft.width();
+  if(hubLandscape()) return i<3?hr(8,48+i*56,W-16,48):hr(0,0,0,0);
+  return i<3?hr(8,58+i*82,W-16,72):hr(0,0,0,0);
+}
+
+static HubRect hubUi13BackRect() {
+  const int16_t W=tft.width();
+  return hubLandscape()?hr(8,214,112,48):hr(8,366,112,48);
+}
+
+static HubRect hubUi13ActionRect() {
+  const int16_t W=tft.width();
+  return hubLandscape()?hr(W-188,214,180,48):hr(W-188,366,180,48);
+}
+
+static HubRect hubUi13MinusRect(uint8_t i) {
+  const HubRect r=hubUi13RowRect(i);
+  return hr(r.x+r.w-236,r.y,52,r.h);
+}
+
+static HubRect hubUi13PlusRect(uint8_t i) {
+  const HubRect r=hubUi13RowRect(i);
+  return hr(r.x+r.w-60,r.y,52,r.h);
+}
+
+static HubRect hubUi13ToggleRect(uint8_t i) {
+  const HubRect r=hubUi13RowRect(i);
+  return hr(r.x+r.w-96,r.y,96,r.h);
+}
+
+static void hubUi13InfoRow(const HubRect& r,const char* label,const char* value,const char* detail,uint16_t accent=C10_ACCENT) {
+  hubV1125Card(r,C10_SEPARATOR,false);
+  uiDrawFit(label,r.x+12,r.y+8,r.w-150,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE);
+  uiDrawFit(value,r.x+12,r.y+25,r.w-150,FONT_BODY,TL_DATUM,accent,C10_SURFACE);
+  uiDrawFit(detail,r.x+r.w-140,r.y+r.h/2,128,FONT_SMALL,MR_DATUM,C10_MUTED,C10_SURFACE);
+}
+
+static void hubUi13ToggleRow(const HubRect& r,const char* label,const char* detail,bool on,uint16_t accent=C10_ACCENT) {
+  hubV1125Card(r,C10_SEPARATOR,false);
+  uiDrawFit(label,r.x+12,r.y+8,r.w-108,FONT_BODY,TL_DATUM,C10_TEXT,C10_SURFACE);
+  uiDrawFit(detail,r.x+12,r.y+r.h-9,r.w-108,FONT_SMALL,BL_DATUM,C10_MUTED,C10_SURFACE);
+  HubRect sw=hr(r.x+r.w-82,r.y+8,66,r.h-16);
+  tft.fillRoundRect(sw.x,sw.y,sw.w,sw.h,sw.h/2,on?accent:C10_SURFACE_2);
+  tft.drawRoundRect(sw.x,sw.y,sw.w,sw.h,sw.h/2,on?accent:C10_SEPARATOR);
+  const int16_t d=sw.h-8;
+  const int16_t cx=on?(sw.x+sw.w-4-d/2):(sw.x+4+d/2);
+  tft.fillCircle(cx,sw.y+sw.h/2,d/2,C10_TEXT);
+}
+
+static void hubUi13StepperRow(const HubRect& r,const char* label,const char* value,const char* detail,uint16_t accent=C10_ACCENT) {
+  hubV1125Card(r,C10_SEPARATOR,false);
+  uiDrawFit(label,r.x+12,r.y+8,r.w-248,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE);
+  uiDrawFit(detail,r.x+12,r.y+r.h-9,r.w-248,FONT_SMALL,BL_DATUM,C10_MUTED,C10_SURFACE);
+  HubRect minus=hr(r.x+r.w-236,r.y+2,52,r.h-4),plus=hr(r.x+r.w-60,r.y+2,52,r.h-4);
+  tft.fillRoundRect(minus.x,minus.y,minus.w,minus.h,11,C10_SURFACE_2);tft.drawRoundRect(minus.x,minus.y,minus.w,minus.h,11,C10_SEPARATOR);
+  tft.fillRoundRect(plus.x,plus.y,plus.w,plus.h,11,C10_SURFACE_2);tft.drawRoundRect(plus.x,plus.y,plus.w,plus.h,11,C10_SEPARATOR);
+  uiDrawFit("-",minus.x+minus.w/2,minus.y+minus.h/2,minus.w-8,FONT_LARGE,MC_DATUM,accent,C10_SURFACE_2);
+  uiDrawFit("+",plus.x+plus.w/2,plus.y+plus.h/2,plus.w-8,FONT_LARGE,MC_DATUM,accent,C10_SURFACE_2);
+  uiDrawFit(value,r.x+r.w-178,r.y+r.h/2,112,FONT_BODY,MC_DATUM,C10_TEXT,C10_SURFACE);
+}
+
+static HubRect hubUi13SystemCardRect(uint8_t i) {
+  const int16_t W=tft.width();
+  if(hubLandscape()) {
+    if(i==0)return hr(8,48,228,76);
+    if(i==1)return hr(244,48,W-252,76);
+    if(i==2)return hr(8,132,228,76);
+    if(i==3)return hr(244,132,W-252,76);
+  }
+  return i<4?hr(8,52+i*74,W-16,66):hr(0,0,0,0);
+}
+@@END_HELPERS@@
+
+@@MORE@@
+static void drawUi13Display() {
+  const int16_t W=tft.width();tft.fillScreen(C10_BG);drawHeader("Display & Appearance",nullptr,3);uiBottomNav(3,nullptr);
+  char mainValue[16],standbyValue[16];snprintf(mainValue,sizeof(mainValue),"%u%%",(unsigned)hubLevelPct(brightness));snprintf(standbyValue,sizeof(standbyValue),"%u%%",(unsigned)hubLevelPct(dpSettings.screensaverBrightness));
+  hubUi13StepperRow(hubUi13RowRect(0),"Brightness",mainValue,"Display",C10_ACCENT);
+  hubUi13StepperRow(hubUi13RowRect(1),"Standby Brightness",standbyValue,"When idle",C10_ACCENT);
+  hubUi13ToggleRow(hubUi13RowRect(2),"Night Mode","Follow the night schedule",dpSettings.nightModeEnabled,C10_ACCENT);
+  hubV1125Action(hubUi13BackRect(),"Back",C10_ACCENT,true,false);hubV1125Action(hubUi13ActionRect(),"After Print",C10_ACCENT,true,false);
+  hubMarkFrameDirty();g_dirty=false;
+}
+
+static void drawUi13AfterPrint() {
+  tft.fillScreen(C10_BG);drawHeader("After Print",nullptr,3);uiBottomNav(3,nullptr);
+  char timeout[20];if(dpSettings.finishDisplayMins==0)strlcpy(timeout,"Immediate",sizeof(timeout));else snprintf(timeout,sizeof(timeout),"%u min",(unsigned)dpSettings.finishDisplayMins);
+  hubUi13StepperRow(hubUi13RowRect(0),"Display Behavior",hubAfterPrintLabel(),"What the display shows",C10_ACCENT);
+  hubUi13StepperRow(hubUi13RowRect(1),"Finish Timeout",timeout,"Before standby",C10_ACCENT);
+  hubUi13ToggleRow(hubUi13RowRect(2),"Animated Progress","Show motion during progress",dispSettings.animatedBar,C10_ACCENT);
+  hubV1125Action(hubUi13BackRect(),"Back",C10_ACCENT,true,false);hubV1125Action(hubUi13ActionRect(),"Done",C10_ACCENT,true,false);
+  hubMarkFrameDirty();g_dirty=false;
+}
+
+static void drawUi13Sound() {
+  tft.fillScreen(C10_BG);drawHeader("Sounds & Alerts",nullptr,3);uiBottomNav(3,nullptr);
+  hubUi13ToggleRow(hubUi13RowRect(0),"Event Sounds","Print and device events",buzzerSettings.enabled,C10_ACCENT);
+  hubUi13ToggleRow(hubUi13RowRect(1),"Touch Sounds","Feedback when you tap",buzzerSettings.buttonClick,C10_ACCENT);
+  hubUi13ToggleRow(hubUi13RowRect(2),"Bed Cooled Alert","Notify when the bed cools",buzzerSettings.bedCooldownAlert,C10_ACCENT);
+  hubV1125Action(hubUi13BackRect(),"Back",C10_ACCENT,true,false);hubV1125Action(hubUi13ActionRect(),"Printer Alerts",C10_ACCENT,true,false);
+  hubMarkFrameDirty();g_dirty=false;
+}
+
+static void drawUi13PrinterAlerts() {
+  tft.fillScreen(C10_BG);drawHeader("Printer Alerts",nullptr,3);uiBottomNav(3,nullptr);
+#if HAS_HMS_UI
+  hubUi13ToggleRow(hubUi13RowRect(0),"Printer Errors","Show printer error alerts",dispSettings.hmsEnabled,C10_ACCENT);
+  hubUi13StepperRow(hubUi13RowRect(1),"Severity",dispSettings.hmsSeverityAll?"All":"Important","Which errors appear",C10_ACCENT);
+  hubUi13StepperRow(hubUi13RowRect(2),"Presentation",hubHmsAutoLabel(),"How alerts appear",C10_ACCENT);
+#else
+  hubUi13InfoRow(hubUi13RowRect(0),"Printer Errors","Unavailable","Not available on this device",C10_MUTED);
+#endif
+  hubV1125Action(hubUi13BackRect(),"Back",C10_ACCENT,true,false);hubV1125Action(hubUi13ActionRect(),"Alert Signals",C10_ACCENT,true,false);
+  hubMarkFrameDirty();g_dirty=false;
+}
+
+static void drawUi13AlertSignals() {
+  tft.fillScreen(C10_BG);drawHeader("Alert Signals",nullptr,3);uiBottomNav(3,nullptr);
+#if HAS_HMS_UI
+  hubUi13ToggleRow(hubUi13RowRect(0),"Alert Sound","Play a sound for printer errors",(dispSettings.hmsAlertMask&0x02U)!=0,C10_ACCENT);
+  hubUi13ToggleRow(hubUi13RowRect(1),"Status Light","Use the status light",(dispSettings.hmsAlertMask&0x04U)!=0,C10_ACCENT);
+  hubUi13ToggleRow(hubUi13RowRect(2),"Wake Display","Wake the screen for new alerts",(dispSettings.hmsAlertMask&0x08U)!=0,C10_ACCENT);
+#else
+  hubUi13InfoRow(hubUi13RowRect(0),"Alert Signals","Unavailable","Not available on this device",C10_MUTED);
+#endif
+  hubV1125Action(hubUi13BackRect(),"Back",C10_ACCENT,true,false);hubV1125Action(hubUi13ActionRect(),"Done",C10_ACCENT,true,false);
+  hubMarkFrameDirty();g_dirty=false;
+}
+
+static void drawUi13Network() {
+  const bool wifi=WiFi.status()==WL_CONNECTED;String ip=wifi?WiFi.localIP().toString():String("Unknown");
+  tft.fillScreen(C10_BG);drawHeader("Network",wifi?"Connected":"Offline",3);uiBottomNav(3,nullptr);
+  hubUi13InfoRow(hubUi13RowRect(0),"Wi-Fi",wifi?"Connected":"Not connected",wifi?ip.c_str():"No network connection",wifi?C10_GREEN:C10_ORANGE);
+  hubUi13ToggleRow(hubUi13RowRect(1),"Local Hostname","Make Workshop OS easy to find",netSettings.mdnsEnabled,C10_ACCENT);
+  hubUi13ToggleRow(hubUi13RowRect(2),"Show IP at Startup","Show the local address after connecting",netSettings.showIPAtStartup,C10_ACCENT);
+  hubV1125Action(hubUi13BackRect(),"Back",C10_ACCENT,true,false);hubV1125Action(hubUi13ActionRect(),"Local Portal",C10_ACCENT,true,false);
+  hubMarkFrameDirty();g_dirty=false;
+}
+
+static void drawUi13PrinterPower() {
+  const bool configured=isAnyPrinterConfigured();const PrinterSlot* p=configured?&displayedPrinter():nullptr;const bool connected=p&&p->state.connected;const uint8_t plug=configured?hubPowerConfigPlug():0xFF;const bool mapped=plug!=0xFF;const bool plugReady=mapped&&tasmotaSettings[plug].enabled&&tasmotaSettings[plug].ip[0];
+  tft.fillScreen(C10_BG);drawHeader("Printer & Power",connected?"Connected":(configured?"Offline":"Set Up"),3);uiBottomNav(3,nullptr);
+  hubUi13InfoRow(hubUi13RowRect(0),"Printer",p&&p->config.name[0]?p->config.name:(configured?"Configured":"Not configured"),connected?"Available now":"Not currently reachable",connected?C10_GREEN:(configured?C10_ORANGE:C10_MUTED));
+  hubUi13InfoRow(hubUi13RowRect(1),"Smart Plug",plugReady?"Ready":(mapped?"Needs setup":"Not mapped"),"Manage mapping in Local Portal",plugReady?C10_GREEN:C10_MUTED);
+  hubUi13ToggleRow(hubUi13RowRect(2),"Automatic Power Off",mapped&&tasmotaSettings[plug].autoOffEnabled?"After a finished print":"Set up a smart plug first",mapped&&tasmotaSettings[plug].autoOffEnabled,C10_ACCENT);
+  hubV1125Action(hubUi13BackRect(),"Back",C10_ACCENT,true,false);hubV1125Action(hubUi13ActionRect(),"Power Options",C10_ACCENT,mapped,false);
+  hubMarkFrameDirty();g_dirty=false;
+}
+
+static void drawUi13PowerOptions() {
+  const bool configured=isAnyPrinterConfigured();const uint8_t plug=configured?hubPowerConfigPlug():0xFF;const bool mapped=plug!=0xFF;
+  tft.fillScreen(C10_BG);drawHeader("Power Options",mapped?"Ready":"Unavailable",3);uiBottomNav(3,nullptr);
+  if(mapped){TasmotaSettings& ps=tasmotaSettings[plug];char delay[20];snprintf(delay,sizeof(delay),"%u min",(unsigned)ps.autoOffDelayMin);hubUi13StepperRow(hubUi13RowRect(0),"Auto-Off Delay",delay,"After a finished print",C10_ACCENT);hubUi13ToggleRow(hubUi13RowRect(1),"Cancel on Door","Keep power on if the door opens",ps.autoOffCancelOnDoor,C10_ACCENT);hubUi13InfoRow(hubUi13RowRect(2),"Advanced Power Setup","Local Portal","Address and device details",C10_MUTED);}else{hubUi13InfoRow(hubUi13RowRect(0),"Smart Plug","Not mapped","Set up in Local Portal",C10_MUTED);}
+  hubV1125Action(hubUi13BackRect(),"Back",C10_ACCENT,true,false);hubV1125Action(hubUi13ActionRect(),"Local Portal",C10_ACCENT,true,false);
+  hubMarkFrameDirty();g_dirty=false;
+}
+
+static void drawUi13AutoOffConfirm() {
+  const int16_t W=tft.width();tft.fillScreen(C10_BG);drawHeader("Enable Auto-Off?",nullptr,3);uiBottomNav(3,nullptr);
+  HubRect card=hubLandscape()?hr(8,52,W-16,146):hr(8,62,W-16,250);hubV1125Card(card,C10_ORANGE,true);
+  uiDrawFit("Automatic printer power-off",card.x+16,card.y+16,card.w-32,FONT_LARGE,TL_DATUM,C10_TEXT,C10_SURFACE_2);
+  uiDrawFit("Workshop OS can turn off the mapped smart plug after a finished print and the delay you choose.",card.x+16,card.y+60,card.w-32,FONT_BODY,TL_DATUM,C10_MUTED,C10_SURFACE_2);
+  uiDrawFit("You can turn this off at any time.",card.x+16,card.y+112,card.w-32,FONT_SMALL,TL_DATUM,C10_MUTED,C10_SURFACE_2);
+  hubV1125Action(hubUi13BackRect(),"Cancel",C10_ACCENT,true,false);hubV1125Action(hubUi13ActionRect(),"Enable",C10_ORANGE,true,false);
+  hubMarkFrameDirty();g_dirty=false;
+}
+
+static void drawMore(bool full) {
+  if(g_displayExperienceView){drawDisplayExperience(full);return;}if(g_toolsView){drawTools(full);return;}
+  if(g_ui12SettingsView==1){drawUi13Display();return;}if(g_ui12SettingsView==2){drawUi13Sound();return;}if(g_ui12SettingsView==3){drawUi13Network();return;}if(g_ui12SettingsView==4){drawUi13PrinterPower();return;}if(g_ui12SettingsView==5){drawUi13AfterPrint();return;}if(g_ui12SettingsView==6){drawUi13PrinterAlerts();return;}if(g_ui12SettingsView==7){drawUi13AlertSignals();return;}if(g_ui12SettingsView==8){drawUi13PowerOptions();return;}if(g_ui12SettingsView==9){drawUi13AutoOffConfirm();return;}
+  (void)full;const bool wifi=WiFi.status()==WL_CONNECTED;const bool configured=isAnyPrinterConfigured();const bool printerConnected=configured&&displayedPrinter().state.connected;const bool deviceHealthy=hubTouchHealthy()&&recoveryWebReady();tft.fillScreen(C10_BG);drawHeader("Settings",nullptr,3);uiBottomNav(3,nullptr);
+  hubUi12SettingsCard(hubUi12SettingsRect(0),"Display & Appearance","Brightness, standby, after print",C10_ACCENT,false);
+  hubUi12SettingsCard(hubUi12SettingsRect(1),"Sounds & Alerts","Sounds, touch feedback, printer alerts",C10_ACCENT,false);
+  hubUi12SettingsCard(hubUi12SettingsRect(2),"Network",wifi?"Connected":"Offline",wifi?C10_GREEN:C10_ORANGE,false);
+  hubUi12SettingsCard(hubUi12SettingsRect(3),"Printer & Power",!configured?"Not configured":(printerConnected?"Connected":"Offline"),printerConnected?C10_GREEN:(configured?C10_ORANGE:C10_MUTED),false);
+  hubUi12SettingsCard(hubUi12SettingsRect(4),"System",deviceHealthy?"Ready":"Needs attention",deviceHealthy?C10_GREEN:C10_ORANGE,true);
+  hubMarkFrameDirty();g_dirty=false;
+}
+@@END_MORE@@
+
+@@SYSTEM@@
+static void drawUi13DateTime() {
+  tft.fillScreen(C10_BG);drawHeader("Date & Time",nullptr,3);uiBottomNav(3,nullptr);
+  hubUi13StepperRow(hubUi13RowRect(0),"Time Zone",hubTimezoneLabel(),"Region",C10_ACCENT);
+  hubUi13ToggleRow(hubUi13RowRect(1),"24-Hour Time","Use a 24-hour clock",netSettings.use24h,C10_ACCENT);
+  hubUi13StepperRow(hubUi13RowRect(2),"Date Format",hubDateFormatLabel(netSettings.dateFormat),"Format",C10_ACCENT);
+  hubV1125Action(hubUi13BackRect(),"Back",C10_ACCENT,true,false);hubV1125Action(hubUi13ActionRect(),"Done",C10_ACCENT,true,false);hubMarkFrameDirty();g_dirty=false;
+}
+
+static void drawUi13SoftwareUpdate() {
+  const int16_t W=tft.width();tft.fillScreen(C10_BG);drawHeader("Software Update",nullptr,3);uiBottomNav(3,nullptr);
+  HubRect hero=hubLandscape()?hr(8,48,W-16,86):hr(8,58,W-16,126);hubV1125Card(hero,C10_ACCENT,true);char ver[40];snprintf(ver,sizeof(ver),"Workshop OS %s",SMART_HOME_VERSION);uiDrawFit(ver,hero.x+16,hero.y+14,hero.w-32,FONT_LARGE,TL_DATUM,C10_TEXT,C10_SURFACE_2);uiDrawFit("UI13 · pre-release build",hero.x+16,hero.y+56,hero.w-32,FONT_SMALL,TL_DATUM,C10_ORANGE,C10_SURFACE_2);
+  hubUi13InfoRow(hubUi13RowRect(2),"Device Update","Local Portal","On-device install is not enabled in this build",C10_MUTED);
+  hubV1125Action(hubUi13BackRect(),"Back",C10_ACCENT,true,false);hubV1125Action(hubUi13ActionRect(),"Local Portal",C10_ACCENT,true,false);hubMarkFrameDirty();g_dirty=false;
+}
+
+static void drawUi13Diagnostics() {
+  const bool touchOk=hubTouchHealthy(),recoveryOk=recoveryWebReady(),wifi=WiFi.status()==WL_CONNECTED;const bool configured=isAnyPrinterConfigured(),printerOk=configured&&displayedPrinter().state.connected;
+  tft.fillScreen(C10_BG);drawHeader("Diagnostics",touchOk&&recoveryOk?"Healthy":"Check Device",3);uiBottomNav(3,nullptr);
+  hubUi13InfoRow(hubUi13RowRect(0),"Touch",touchOk?"OK":"Check","Touchscreen input",touchOk?C10_GREEN:C10_ORANGE);
+  hubUi13InfoRow(hubUi13RowRect(1),"Recovery",recoveryOk?"Ready":"Starting","Recovery service",recoveryOk?C10_GREEN:C10_ORANGE);
+  hubUi13InfoRow(hubUi13RowRect(2),"Connectivity",wifi?(printerOk?"Network + Printer":"Network only"):"Offline","Connectivity is separate from device health",wifi?C10_GREEN:C10_ORANGE);
+  hubV1125Action(hubUi13BackRect(),"Back",C10_ACCENT,true,false);hubV1125Action(hubUi13ActionRect(),"Local Portal",C10_ACCENT,true,false);hubMarkFrameDirty();g_dirty=false;
+}
+
+static void drawSystem(bool full) {
+  if(g_audioSettingsView){drawAudioSettings(full);return;}if(g_networkSettingsView){drawNetworkEssentials(full);return;}if(g_ui12SystemView==1){drawUi12PortalAccess();return;}if(g_ui12SystemView==2){drawUi13DateTime();return;}if(g_ui12SystemView==3){drawUi13SoftwareUpdate();return;}if(g_ui12SystemView==4){drawUi13Diagnostics();return;}
+  (void)full;const int16_t W=tft.width();const bool touchOk=hubTouchHealthy(),recoveryOk=recoveryWebReady();const bool deviceHealthy=touchOk&&recoveryOk;const bool wifi=WiFi.status()==WL_CONNECTED;const bool configured=isAnyPrinterConfigured();const bool printerOk=configured&&displayedPrinter().state.connected;tft.fillScreen(C10_BG);drawHeader("System",deviceHealthy?"Healthy":"Check Device",3);uiBottomNav(3,nullptr);
+  hubUi12SettingsCard(hubUi13SystemCardRect(0),"Device Health",deviceHealthy?"Healthy":"Needs attention",deviceHealthy?C10_GREEN:C10_ORANGE,false);
+  hubUi12SettingsCard(hubUi13SystemCardRect(1),"Connectivity",!wifi?"Offline":(printerOk?"Network + printer":"Network connected"),wifi?C10_GREEN:C10_ORANGE,false);
+  hubUi12SettingsCard(hubUi13SystemCardRect(2),"Date & Time",hubTimezoneLabel(),C10_ACCENT,false);
+  hubUi12SettingsCard(hubUi13SystemCardRect(3),"Software Update","Version and update options",C10_ACCENT,false);
+  hubV1125Action(hubUi13BackRect(),"Back",C10_ACCENT,true,false);hubV1125Action(hubUi13ActionRect(),"Local Portal",C10_ACCENT,true,false);hubMarkFrameDirty();g_dirty=false;
+}
+@@END_SYSTEM@@

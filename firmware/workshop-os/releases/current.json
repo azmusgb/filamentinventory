@@ -17,15 +17,17 @@
     "channel": "production-workshop-os-v11.19.1",
     "version": "11.19.1",
     "rollbackVersion": "7.2",
-    "note": "Accepted source has advanced to v11.22. The static installer remains intentionally conservative at physically accepted v11.19.1 with Smart Home v7.2 rollback until a separate binary-channel promotion is completed."
+    "note": "Accepted source is v11.22. The static installer remains intentionally conservative at physically accepted v11.19.1 with Smart Home v7.2 rollback until a separate binary-channel promotion is completed."
   },
   "candidate": {
-    "version": "11.23-rc2",
-    "branch": "feature/v11-23-network-locale-layout",
-    "pullRequest": 76,
-    "name": "Workshop OS v11.23 Network / Locale / Layout Expert RC2",
-    "purpose": "Direct-to-main hardware candidate for explicit physical network, timezone and guarded display-rotation controls with larger touch targets and explicit directional navigation.",
-    "securityBoundary": "Final RC2 preserves the v11.20 portal/session model. The temporary trusted-LAN no-code bypass used during early hardware iteration is not part of the mergeable candidate and is explicitly forbidden by the final authenticated-boundary gate.",
+    "version": "11.28-ui13",
+    "branch": "feature/ui12-settings-control-center",
+    "pullRequest": 109,
+    "name": "Workshop OS v11.28 UI13 Appliance Settings",
+    "purpose": "Direct-to-main hardware candidate that finishes the WS350 appliance UI with explicit touch controls, coherent Settings information architecture, semantic state treatment, guarded printer power behavior, and preserved recovery/security/inventory-authority boundaries.",
+    "securityBoundary": "Normal LAN administration remains authenticated with the rotating boot-scoped portal/session model and same-origin mutation protection. Credentials and advanced administration remain outside ordinary touchscreen Settings; Full-image recovery remains separate from OTA.",
+    "acceptanceBranch": "acceptance/v11.28-ui13-appliance-settings",
+    "acceptanceIssue": 111,
     "status": "physical-acceptance-required",
     "exactHeadCi": "required",
     "physicalAcceptance": "required"
@@ -43,6 +45,13 @@
       "settingsParity": "passed",
       "framebufferViews": 29,
       "physicalAcceptance": "passed"
+    },
+    "candidate": {
+      "exactHeadCi": "required",
+      "ws350Build": "required",
+      "shared320x480Regression": "required",
+      "productFinish": "required",
+      "physicalAcceptance": "required"
     },
     "staticDownload": {
       "version": "11.19.1",

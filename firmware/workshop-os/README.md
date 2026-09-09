@@ -1,125 +1,135 @@
-# BambuHelper Smart Display — Waveshare Workshop OS
+# BambuHelper Smart Display — Workshop OS
 
 Local-first Workshop OS for the **Waveshare ESP32-S3-Touch-LCD-3.5 (`ws_lcd_350`)**, built on the BambuHelper v3.8.1 core.
 
-## Release model
+Workshop OS owns the WS350 firmware, touchscreen UX, printer/device controls, hardware integrations, audio/microphone/BLE, networking, OTA/recovery behavior, and physical acceptance. **Filament Inventory remains the sole authority for filament inventory facts, spool identity, ownership, quantity evidence, location, printer/AMS placement, and print-readiness data.**
 
-The repository deliberately separates the **physically accepted source baseline** from the conservative static download channel and from hardware candidates still awaiting real-device acceptance.
+## Current release state
 
-| Surface | Current state | Purpose |
+Workshop OS deliberately keeps source acceptance, static distribution, device OTA publication, and hardware candidates separate. A green build is not physical acceptance, and physical acceptance is not automatically stable promotion.
+
+| Surface | Current state | Meaning |
 | --- | --- | --- |
-| accepted source baseline | **Workshop OS v11.22 Display Expert RC1 — physically accepted** | Current source baseline accepted on real WS350 hardware. |
-| `main` | **Workshop OS v11.22 Display Expert RC1 — accepted** | PR #74 merged after exact-head CI and real-device acceptance. |
-| `release.json` / Netlify | **Workshop OS v11.19.1 Physical Fit RC2** | Conservative static installer retained until its binary-channel promotion is performed separately. |
-| static rollback download | **Smart Home v7.2** | Current static-channel rollback while v11.19.1 remains the published installer. |
-| active candidate | **Workshop OS v11.23 Network / Locale / Layout Expert RC2 — PR #76 (draft)** | Direct-to-`main` hardware candidate; exact-head CI and physical WS350 acceptance are required. |
-| stacked follow-on | **Workshop OS v11.24 Audio Console RC1 — PR #77 (draft)** | First stacked dependency on #76; not independently promotable until its base candidate is accepted. |
-| deferred backlog | **post-v11.24 Companion / Assistant experiments — issue #97** | Former v11.25–v11.30 / Workshop Intelligence PRs are closed as preserved implementation evidence until the physical baseline is accepted. |
+| accepted source baseline | **Workshop OS v11.22 Display Expert RC1** | Physically accepted on a real WS350 on 2026-09-04. |
+| `main` | **v11.22 accepted source** | Current accepted source authority until a later hardware candidate passes physical acceptance and promotion. |
+| static installer | **Workshop OS v11.19.1 Physical Fit RC2** | Conservative downloadable Full + OTA channel. |
+| static rollback | **Smart Home v7.2** | Known static rollback pair retained for recovery. |
+| published device OTA candidate | **Workshop OS v11.26 UI11 Cupertino** | Published, unaccepted OTA candidate in `releases/device-update.json`; Full image is not published for this candidate. |
+| source acceptance candidate | **Workshop OS v11.28 UI13 Appliance Settings — PR #109** | Direct-to-`main` source candidate; exact-head CI and physical WS350 acceptance are required. |
+| physical acceptance record | **Issue #111** | Canonical checklist and evidence record for the exact frozen UI13 artifact. |
 
-A merge is not physical acceptance by itself. `releases/current.json` is authoritative for the accepted source, the direct-to-`main` hardware candidate, `main` state, and the static download channel. The active promotion train is deliberately limited to **#76 -> #77**; deferred Companion/Assistant implementation evidence is recorded in `docs/CANDIDATE_STACK_2026-09-06.md` and issue #97 rather than represented as another active candidate chain.
+`releases/current.json` is authoritative for accepted source, the active source candidate, `main` state, and the conservative static download channel. `releases/device-update.json` is the versioned device-facing OTA discovery contract and may intentionally lag or differ from the active source candidate until publication is deliberately advanced.
 
-## Current candidate stack
+## Workshop OS v11.28 UI13 Appliance Settings
 
-### Workshop OS v11.23 Network / Locale / Layout Expert RC2 — PR #76
+PR **#109** is the current hardware-facing source candidate. Its goal is not another settings menu; it is a coherent appliance UI for a 480×320 touch device.
 
-PR **#76** is the current direct-to-`main` hardware candidate. It adds explicit physical controls for timezone, staged DHCP/static network configuration, segmented IPv4 editing, and guarded display rotation. Ordinary adjustments use visible directional controls rather than hidden long-press reversal semantics.
+Primary navigation is:
 
-The **final RC2 preserves the v11.20 portal/session security model**. An early hardware-iteration delta temporarily introduced a trusted-LAN no-code bypass, but that experiment is not part of the mergeable candidate. The final authenticated-boundary gate explicitly forbids the temporary bypass, the ordinary station-mode portal still requires the boot-scoped session, mutating requests retain same-origin protection, and framebuffer capture remains session-authenticated and credential-safe. Physical network, touch, rotation, and security acceptance remain required before promotion.
+`Home · Printer · Tools · Settings`
 
-### Workshop OS v11.24 Audio Console RC1 — PR #77
+Settings is reduced to five user-facing destinations:
 
-PR **#77** is stacked on #76. It evolves the existing ES8311/onboard-microphone path with persistent speaker volume, explicit event/click/cooldown/quiet controls, a short microphone-level sample, and explicit 1/3/5-second local record/playback loops. Capture remains local-only and temporary.
+- **Display & Appearance** — brightness, standby, night behavior, and after-print display behavior.
+- **Sounds & Alerts** — event/touch sounds, cooled-bed notification, printer-error policy, and alert signals.
+- **Network** — everyday connectivity, local discovery, startup address visibility, and Local Portal handoff.
+- **Printer & Power** — printer availability, smart-plug readiness, and guarded automatic power-off.
+- **System** — device health, connectivity summary, Date & Time, Software Update, Diagnostics, and Local Portal.
 
-Because #77 depends on #76, it cannot be treated as a direct replacement for the accepted v11.22 baseline until the underlying v11.23 candidate has completed its own validation and physical acceptance path.
+Advanced network configuration, credentials, wiring, drivers, polling, raw diagnostics, and recovery/service mechanics do not belong in normal touchscreen Settings.
 
-### Deferred post-v11.24 Companion / Assistant work — issue #97
+### Product-finish rules
 
-The former later stacked PRs **#83, #87, #88, #90, #91, and #92** are now closed as **deferred implementation evidence**. Their branches, commits, discussions, and prior validation remain available, but they are not active merge candidates and do not form an accepted release train.
+UI13 uses a restrained dark system palette and semantic state treatment:
 
-After #76 and #77 are physically accepted, re-enter that work through **issue #97** and rebuild the smallest still-relevant Companion/Assistant slice on the then-accepted baseline. Do not merge the historical dependency stack wholesale.
+- blue = normal interaction;
+- green = healthy / available;
+- orange = offline / degraded / setup required;
+- red = true fault / destructive meaning;
+- muted = unknown / unavailable information.
 
-PRs #91/#92 experimented with a WS350-only **Acceptance Open LAN** policy. That posture is explicitly **not eligible for stable promotion**. A stable successor must retain an authenticated normal-LAN/session boundary or use an explicitly approved revocable, least-authority device-scoped credential model, with the chosen security/recovery behavior physically validated.
+Routine landscape controls expose at least a **48 px** touch target. Back and primary actions are explicit. Numeric/preset values use visible decrement/increment controls. Routine Settings navigation does not depend on hidden tap/hold gestures.
 
-Filament Inventory Assistant migration remains separately tracked by **issue #94** and must preserve Filament Inventory as the sole inventory authority.
+Copy is written as product language rather than implementation language. The touchscreen presents what a person needs while standing at the printer; advanced administration stays in the authenticated Local Portal.
 
-## Accepted source — Workshop OS v11.22 Display Expert RC1
+## Safety, truth, and security boundaries
 
-PR **#74** completed the v11.22 Display Expert evolution and was physically accepted on a real WS350 on **2026-09-04**.
+Workshop OS must not invent physical or inventory facts.
 
-Acceptance evidence includes:
+- Unknown inventory state remains **Unknown**.
+- AMS color/material telemetry does not identify a Filament Inventory spool by similarity.
+- Workshop OS does not fabricate spool identity, owner, quantity, location, printer assignment, feeder/AMS placement, or measured weight.
+- Printer controls fail closed when required printer connectivity/state is unavailable.
+- Stop and other destructive actions retain deliberate guards and visible feedback.
+- Automatic printer power-off requires explicit enable confirmation and a valid mapped smart plug.
+- The rotating Local Portal access code is shown only in the deliberate Local Portal view, not on normal System status screens.
+- Session validation and same-origin mutation protection remain authoritative.
 
-- exact-head `Validate`, `Release Gate`, stable `merge-gate`, and **Workshop OS Firmware Gate — v11.22 Display Expert RC1** success;
-- native `ws_lcd_350` build success;
-- shared `jc3248w535` 320×480 regression success;
-- inherited v11.20 portal-auth contract validation;
-- v11.22 Display Expert contract and settings-parity validation;
-- healthy read-only device interrogation reporting `Smart Home v11.22 Display Expert RC1`, `safeMode=false`, responsive FT6336 touch, connected Wi-Fi, healthy memory, and connected X2D telemetry;
-- complete **29-view** authenticated framebuffer capture with the System credential line redacted before retained PNG/PPM output.
+## Update and recovery model
 
-### v11.22 Display Expert
+For a normal existing-device update, use the **application/OTA image** on a compatible Workshop OS partition layout.
 
-The physical Display Experience includes 14 pages with expert surfaces for:
+A **Full** image is a recovery/service artifact and belongs at flash offset `0x0`. Waveshare Home and Workshop OS use incompatible partition layouts; cross-line migration is therefore a deliberate full-image recovery procedure, never an OTA shortcut.
 
-- curated theme palettes and clock colors;
-- gauge arc/label/value colors;
-- nozzle, bed, chamber, and power full-scale values;
-- gauge smoothing and warning threshold/color;
-- glow mode/style/duration/color;
-- 8-slot landscape, 9-slot portrait, and split presentation;
-- Clock Info and AMS Tray Types.
+UI13 does **not** pretend that device-native self-install exists when it does not. The touchscreen Software Update screen reports capability honestly and keeps Full-image/recovery mechanics out of normal update UX.
 
-Free-text Gauge Labels remain portal-only. Guarded display rotation is being validated in v11.23 rather than being retrofitted into the accepted v11.22 baseline.
+## Validation and acceptance
 
-### Inherited safety and security
+Firmware is reconstructed deterministically from pinned upstream BambuHelper commit `8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4` plus the versioned Workshop OS patch stack.
 
-v11.22 preserves the v11.20 rotating portal-code and boot-scoped session boundary plus the accepted v11.19.1 control and recovery behavior. Printer control remains selected-printer scoped and fail-closed. Chamber Light, Pause/Resume, guarded Stop, and mapped Printer Power retain their established safeguards.
+Hardware-facing source changes are expected to pass:
 
-Speed, fan, temperature, AMS, or other printer commands are not added without a proven backend path and explicit safety semantics.
+1. repository validation;
+2. accepted static-installer integrity validation;
+3. deterministic Workshop OS reconstruction;
+4. product/interaction contract validation;
+5. native `ws_lcd_350` build;
+6. shared `jc3248w535` regression build;
+7. release/merge gate coordination;
+8. exact artifact identity capture;
+9. physical WS350 acceptance.
 
-## Static installer
+The lifecycle is kept explicit:
 
-The static installer intentionally remains **Workshop OS v11.19.1 Physical Fit RC2** for the moment, with **Smart Home v7.2** as its rollback. Accepted source and static distribution are independent release surfaces; advancing accepted source does not silently rewrite the published binary channel.
+`implemented → built → tested → runtime validated → production validated → physically validated → accepted → stable`
 
-For a normal existing-device update, use the application/OTA image. A Full image belongs only at flash offset `0x0` during intentional USB recovery/full flash.
+CI cannot skip the physical stages.
 
-## Validation model
+### UI13 acceptance
 
-Firmware is reconstructed deterministically from pinned upstream BambuHelper commit `8cb1cbbb6d3c175af91989e8ebe1bbdcbe848ac4` plus the versioned `apply_smart_home_*.py` evolution stack. The reusable firmware gate validates:
+Issue **#111** is the canonical physical-acceptance record for PR #109. It locks the exact source SHA, OTA filename, size, SHA-256, Actions artifact identity, automated gate evidence, product-level 480×320 checks, Settings behavior, printer safety, inventory truth boundaries, persistence, recovery, and sanitized framebuffer evidence requirements.
 
-1. deterministic reconstruction and candidate tooling;
-2. inherited device and control contracts;
-3. accepted visual/rendered-fit boundaries;
-4. portal-auth contracts;
-5. candidate-specific behavior contracts;
-6. browser JavaScript;
-7. native `ws_lcd_350` build;
-8. shared `jc3248w535` regression build;
-9. Full/OTA artifact generation and provenance.
+Do not merge or promote UI13 merely because CI is green. If acceptance passes, promotion must preserve the **exact accepted bytes** and provenance; do not rebuild a different binary and call it accepted.
 
-`docs/settings-capability-registry/` is the machine-authoritative WS350 browser/device settings parity inventory.
+## Repository map
 
-## Repository layout
-
-- `apply_smart_home_*.py` — deterministic firmware evolution inputs.
+- `apply_smart_home_*.py` — inherited deterministic firmware evolution inputs.
+- `apply_workshop_os_*.py` — Workshop OS source evolution and product-finish layers.
 - `.bambuhelper-validation/` — verified patch payloads required by selected loaders.
-- `.github/workflows/firmware-candidate.yml` — single reusable firmware/hardware gate.
+- `.github/workflows/firmware-candidate.yml` — reusable firmware/hardware gate.
+- `.github/workflows/ui13-appliance-settings.yml` — UI13 reconstruction, product-finish, native build, and exact artifact gate.
 - `.github/workflows/validate.yml` — repository validation.
-- `.github/workflows/release-gate.yml` — source/release metadata gate and stable `merge-gate` coordination.
-- `.github/workflows/release-main.yml` — accepted static installer integrity gate.
-- `docs/` — architecture, safety, parity, acceptance, and roadmap documentation.
-- `docs/archive/` and `releases/archive/` — historical provenance.
-- `releases/current.json` — accepted-source / direct-candidate / `main` / static-channel state.
+- `.github/workflows/release-gate.yml` — release metadata validation and conditional merge-gate coordination.
+- `.github/workflows/release-main.yml` — accepted static-installer integrity gate.
+- `releases/current.json` — accepted-source / active-source-candidate / `main` / static-channel state.
+- `releases/device-update.json` — minimal versioned device-facing OTA discovery contract.
+- `release.json` — conservative static download/rollback catalog.
 - `scripts/capture-ws350-views.zsh` — authenticated credential-safe physical framebuffer capture.
+- `docs/` — architecture, safety, UX, acceptance, and release documentation.
+- `docs/archive/` and `releases/archive/` — historical provenance only.
 
-## Governance and safety
+## Repository discipline
 
-- `main` is protected by the stable path-aware `merge-gate`.
-- Hardware-facing changes require exact-head CI and real-device acceptance before source promotion.
-- Generated PlatformIO output, local capture ZIPs, credentials, and ad-hoc reports stay out of source control.
-- Captures redact the System credential before retained output and exclude printer configuration/settings exports.
+- `main` remains the accepted source authority until promotion is earned.
+- Hardware-facing changes require exact-head CI and physical acceptance before source promotion.
+- Generated PlatformIO output, local capture bundles, credentials, and ad-hoc reports stay out of source control.
+- Physical framebuffer evidence redacts the Local Portal credential before retained output is written.
+- Printer configuration/settings exports are excluded from credential-safe capture bundles.
 - Static firmware retention remains bounded to the published pair plus one rollback pair.
-- Upstream synchronization is its own candidate; the accepted source line is never silently repinned.
+- Upstream synchronization is a deliberate candidate; the accepted source line is never silently repinned.
 
 ## License and attribution
 
-Original Workshop OS contributions are provided under the **MIT License** in `LICENSE`. Workshop OS is derived from **Keralots/BambuHelper**; exact attribution and third-party boundaries are recorded in `NOTICE.md`.
+Original Workshop OS contributions are provided under the **MIT License** in `LICENSE`.
+
+Workshop OS is derived from **Keralots/BambuHelper**; exact attribution and third-party boundaries are recorded in `NOTICE.md`.

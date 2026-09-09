@@ -1,0 +1,35 @@
+@@MORE@@
+static void drawMore(bool full) {
+  if(g_displayExperienceView){drawDisplayExperience(full);return;}
+  if(g_toolsView){drawTools(full);return;}
+  (void)full;const int16_t W=tft.width();tft.fillScreen(W25_BG);drawHeader("MORE",nullptr,3);uiBottomNav(3,nullptr);
+  const char* titles[4]={"DASHBOARD","SYSTEM","DISPLAY","TOOLS"};
+  const char* subs[4]={"Personal view","Health · network","Screen · standby","Timers · utilities"};
+  for(uint8_t i=0;i<4;i++){
+    HubRect r=hubV1125MoreRect(i);hubV1125Card(r,i==1?W25_INFO:W25_LINE,false);
+    tft.fillRoundRect(r.x+12,r.y+12,28,28,7,W25_SURFACE_2);tft.drawRoundRect(r.x+12,r.y+12,28,28,7,i==1?W25_INFO:W25_LINE);uiMoreIcon(hr(r.x+6,r.y+6,40,40),i,i==1?W25_INFO:W25_ACCENT);
+    if(hubLandscape()){uiDrawFit(titles[i],r.x+52,r.y+15,r.w-82,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE);uiDrawFit(subs[i],r.x+52,r.y+43,r.w-82,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);const int16_t cx=r.x+r.w-18,cy=r.y+r.h/2;tft.drawLine(cx-4,cy-5,cx+1,cy,W25_MUTED);tft.drawLine(cx+1,cy,cx-4,cy+5,W25_MUTED);}
+    else{uiDrawFit(titles[i],r.x+12,r.y+52,r.w-24,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE);uiDrawFit(subs[i],r.x+12,r.y+82,r.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);}
+  }
+  String ip=WiFi.status()==WL_CONNECTED?WiFi.localIP().toString():String("No IP");char build[46];snprintf(build,sizeof(build),"Workshop OS %s  UI5",SMART_HOME_VERSION);
+  if(hubLandscape()){HubRect d=hr(8,220,W-16,40);hubV1125Card(d,W25_WARN,false);uiDrawFit(build,d.x+12,d.y+12,170,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE);uiDrawFit(ip.c_str(),d.x+190,d.y+13,100,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit("TEST / NO CODE",d.x+d.w-12,d.y+13,140,FONT_SMALL,TR_DATUM,W25_WARN,W25_SURFACE);}
+  else{HubRect d=hr(10,326,W-20,86);hubV1125Card(d,W25_WARN,false);uiDrawFit(build,d.x+12,d.y+12,d.w-24,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE);uiDrawFit(ip.c_str(),d.x+12,d.y+42,d.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit("TEST / NO CODE",d.x+12,d.y+66,d.w-24,FONT_SMALL,TL_DATUM,W25_WARN,W25_SURFACE);}
+  hubMarkFrameDirty();g_dirty=false;
+}
+@@END_MORE@@
+@@SYSTEM@@
+static void drawSystem(bool full) {
+  if(g_audioSettingsView){drawAudioSettings(full);return;}
+  if(g_networkSettingsView){drawNetworkEssentials(full);return;}
+  (void)full;const int16_t W=tft.width();tft.fillScreen(W25_BG);const bool wifi=WiFi.status()==WL_CONNECTED,touchOk=hubTouchHealthy(),recoveryOk=recoveryWebReady();const bool overall=wifi&&touchOk&&recoveryOk;drawHeader("SYSTEM",overall?"HEALTHY":"CHECK",4);uiBottomNav(3,nullptr);String ip=wifi?WiFi.localIP().toString():String("No IP");HubRect speakerBtn=hubSystemActionRect(0),micBtn=hubSystemActionRect(1),eventsBtn=hubSystemActionRect(2);
+  if(hubLandscape()){
+    HubRect health=hr(8,48,160,212),audio=hr(176,48,296,108),network=hr(176,164,140,96),access=hr(324,164,148,96);hubV1125Card(health,overall?W25_SUCCESS:W25_WARN,true);uiDrawFit("DEVICE HEALTH",health.x+12,health.y+11,health.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE_2);uiDrawFit(overall?"HEALTHY":"CHECK",health.x+12,health.y+38,health.w-24,FONT_LARGE,TL_DATUM,overall?W25_SUCCESS:W25_WARN,W25_SURFACE_2);uiHealthDot(health.x+15,health.y+91,"Network",wifi);uiHealthDot(health.x+15,health.y+123,"Touch",touchOk,W25_ACCENT);uiHealthDot(health.x+15,health.y+155,"Recovery",recoveryOk,W25_ACCENT);char ver[32];snprintf(ver,sizeof(ver),"Workshop OS %s UI5",SMART_HOME_VERSION);uiDrawFit(ver,health.x+12,health.y+190,health.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE_2);
+    hubV1125Card(audio,W25_LINE,false);uiDrawFit("AUDIO",audio.x+12,audio.y+10,audio.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit(g_audioDiagMessage,audio.x+12,audio.y+34,audio.w-24,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE);uiDrawFit("Speaker · mic · events",audio.x+12,audio.y+59,audio.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);hubV1125Action(speakerBtn,"SPEAKER",W25_INFO,true,false);hubV1125Action(micBtn,"MIC ECHO",W25_ACCENT,true,false);hubV1125Action(eventsBtn,buzzerSettings.enabled?"EVENTS ON":"EVENTS OFF",buzzerSettings.enabled?W25_SUCCESS:W25_ACCENT,true,false);
+    hubV1125Card(network,wifi?W25_SUCCESS:W25_DANGER,false);uiDrawFit("NETWORK",network.x+10,network.y+10,network.w-20,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);char net[24];snprintf(net,sizeof(net),wifi?"%d dBm":"OFFLINE",wifi?WiFi.RSSI():-100);uiDrawFit(net,network.x+10,network.y+36,network.w-20,FONT_LARGE,TL_DATUM,wifi?W25_TEXT:W25_DANGER,W25_SURFACE);uiDrawFit(ip.c_str(),network.x+10,network.y+72,network.w-20,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);
+    hubV1125Card(access,W25_WARN,false);uiDrawFit("ACCESS",access.x+10,access.y+10,access.w-20,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit("OPEN",access.x+10,access.y+36,access.w-20,FONT_LARGE,TL_DATUM,W25_WARN,W25_SURFACE);uiDrawFit("TEST / NO CODE",access.x+10,access.y+72,access.w-20,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);
+  }else{
+    HubRect health=hr(8,48,W-16,76),audio=hr(8,132,W-16,118),network=hr(8,258,W-16,72),access=hr(8,338,W-16,74);hubV1125Card(health,overall?W25_SUCCESS:W25_WARN,true);uiDrawFit("DEVICE HEALTH",health.x+12,health.y+12,health.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE_2);uiDrawFit(overall?"HEALTHY":"CHECK DEVICE",health.x+12,health.y+39,health.w-24,FONT_LARGE,TL_DATUM,overall?W25_SUCCESS:W25_WARN,W25_SURFACE_2);hubV1125Card(audio,W25_LINE,false);uiDrawFit("AUDIO",audio.x+12,audio.y+12,audio.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit(g_audioDiagMessage,audio.x+12,audio.y+42,audio.w-24,FONT_BODY,TL_DATUM,W25_TEXT,W25_SURFACE);hubV1125Action(speakerBtn,"SPEAKER",W25_INFO,true,false);hubV1125Action(micBtn,"MIC ECHO",W25_ACCENT,true,false);hubV1125Action(eventsBtn,"EVENTS",buzzerSettings.enabled?W25_SUCCESS:W25_ACCENT,true,false);hubV1125Card(network,wifi?W25_SUCCESS:W25_DANGER,false);uiDrawFit("NETWORK",network.x+12,network.y+12,network.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit(ip.c_str(),network.x+12,network.y+40,network.w-24,FONT_BODY,TL_DATUM,wifi?W25_TEXT:W25_DANGER,W25_SURFACE);hubV1125Card(access,W25_WARN,false);uiDrawFit("ACCESS",access.x+12,access.y+12,access.w-24,FONT_SMALL,TL_DATUM,W25_MUTED,W25_SURFACE);uiDrawFit("OPEN · TEST / NO CODE",access.x+12,access.y+42,access.w-24,FONT_BODY,TL_DATUM,W25_WARN,W25_SURFACE);
+  }
+  hubMarkFrameDirty();g_dirty=false;
+}
+@@END_SYSTEM@@

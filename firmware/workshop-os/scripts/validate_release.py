@@ -28,6 +28,7 @@ ALLOWED_WORKFLOWS = {
     "firmware-candidate.yml",
     "release-gate.yml",
     "release-main.yml",
+    "ui13-appliance-settings.yml",
     "validate.yml",
 }
 REQUIRED = [
@@ -79,7 +80,7 @@ def validate_candidate(candidate: object, readme_text: str) -> str:
     if candidate.get("exactHeadCi") != "required":
         fail("candidate.exactHeadCi must be required before promotion")
     if candidate.get("physicalAcceptance") != "required":
-        fail("candidate.physicalAcceptance must be required before promotion")
+        fail("hardware-facing candidate.physicalAcceptance must be required before promotion")
     if name not in readme_text or f"PR #{pr_number}" not in readme_text:
         fail("README must identify the active candidate and PR")
     return f"{version} / PR #{pr_number} / {branch}"
@@ -116,8 +117,12 @@ def validate_capture_security() -> None:
         'rm -f "$COOKIE" "$LOGIN_BODY" "$RAW_PPM"', "trap cleanup EXIT",
         "--data-urlencode 'code@-'", "unset CODE",
         "Deliberately do not capture /printer/config or settings exports",
-        "view_id == 'system'", "Refusing unverified System redaction geometry",
-        "x0, y0, x1, y1 = 330, 196, 468, 230",
+        "catalog_version = int(sys.argv[6])", "sensitivity != 'portal-code'",
+        "view_id != 'system-portal'", "Refusing unverified UI12 portal redaction geometry",
+        "redaction = (236, 146, 472, 192)",
+        "catalog_version == 1 and view_id == 'system'",
+        "Refusing unverified legacy System redaction geometry",
+        "redaction = (330, 196, 468, 230)", "Unsupported capture catalog version",
         'curl -fsS -b "$COOKIE" "$BASE/hub/frame.ppm" -o "$RAW_PPM"',
         "SECURITY-NOTE.txt", "Raw framebuffer: TEMPORARY 0600 ONLY",
         "Printer configuration/settings exports: EXCLUDED",
