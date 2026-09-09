@@ -1,3 +1,7 @@
+> **Historical status snapshot — superseded 2026-09-09.**
+> Active Workshop OS development, release validation, and device-update authority now live in `azmusgb/filamentinventory`.
+> Historical candidate, CI, provenance, and physical-acceptance statements below are preserved as originally recorded.
+
 # Roadmap implementation status — 2026-09-06
 
 This snapshot reconciles the product roadmap with the current repositories. It distinguishes what exists in code from what has completed behavioral, production, or physical acceptance.

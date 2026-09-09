@@ -7,7 +7,7 @@ The independent **Waveshare Home** firmware line in this repository is frozen af
 - `v1.7.0` remains a valid historical/recovery release.
 - Existing source and tooling are retained temporarily as migration/reference material.
 - No new product features should be added to this firmware line.
-- Hardware-facing development now belongs in `azmusgb/bambuhelper-smart-display` under **Waveshare Workshop OS**.
+- Hardware-facing development now belongs in the canonical `azmusgb/filamentinventory` repository under `firmware/workshop-os/`.
 
 ## Migration targets
 

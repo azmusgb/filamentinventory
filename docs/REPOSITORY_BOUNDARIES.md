@@ -27,11 +27,11 @@ Workshop OS source destination:
 
 - `azmusgb/filamentinventory`, under `firmware/workshop-os/`
 
-The existing `azmusgb/bambuhelper-smart-display` release endpoints remain operational during migration.
+The canonical Workshop OS development, release-validation, and device-update authority now resides in `azmusgb/filamentinventory`. The former `azmusgb/bambuhelper-smart-display` repository is retained for historical provenance, migration evidence, recovery references, and legacy links.
 
 The Workshop OS subsystem remains authoritative for WS350 firmware, touch/navigation behavior, Bambu and mapped-power controls, audio/microphone/BLE, networking, local portal/session security, OTA/full-image recovery, firmware release provenance, native hardware builds, and physical acceptance.
 
-The imported `firmware/workshop-os/` tree in this repository is an **integration mirror** used for unified contract checks, reconstruction, candidate comparison, and recovery planning. The explicitly authorized migration supersedes the previous two-repository target, but does not authorize promotion of unaccepted firmware. See `migration/2026-09-09/README.md`.
+The `firmware/workshop-os/` tree in this repository is the canonical Workshop OS source tree. It supports unified contract checks, deterministic reconstruction, candidate management, recovery planning, and future firmware development. Repository consolidation does not authorize promotion of unaccepted firmware. See `migration/2026-09-09/README.md`.
 
 ## Device contract
 
