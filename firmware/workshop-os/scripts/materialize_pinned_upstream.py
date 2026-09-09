@@ -185,6 +185,16 @@ def materialize(dest: Path, token: str | None, workers: int) -> None:
         encoding="utf-8",
     )
     (dest / ".workshop-pinned-upstream-excluded.txt").write_bytes(excluded_manifest)
+
+    # Historical Workshop OS patchers use `git -C <repo> apply`. Without an
+    # isolated Git directory, Git walks upward into the parent monorepo and
+    # patches target the wrong repository context.
+    import subprocess
+    subprocess.run(
+        ["git", "init", "--quiet", str(dest)],
+        check=True,
+    )
+
     print(f"Selected manifest SHA256: {subset_sha256}")
     print(f"Excluded manifest SHA256: {excluded_sha256}")
     print("Immutable pinned upstream source/text materialization: PASS")

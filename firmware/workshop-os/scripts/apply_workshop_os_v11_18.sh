@@ -39,7 +39,7 @@ patchers=(
 
 for patcher in "${patchers[@]}"; do
   echo "==> $patcher"
-  python "$ROOT/$patcher" --repo "$UPSTREAM" --apply
+  python3 "$ROOT/$patcher" --repo "$UPSTREAM" --apply
 done
 
 echo "Workshop OS stack applied through v11.18 Visual Capture RC1"

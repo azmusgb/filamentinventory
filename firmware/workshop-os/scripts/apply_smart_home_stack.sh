@@ -35,7 +35,7 @@ curl -fsSL "$v72/.bambuhelper-validation/v7-home.zlib.b64" -o "$TMP/v7-home.b64"
 curl -fsSL "$v72/apply_smart_home_ux_v7_1.py" -o "$TMP/apply_smart_home_ux_v7_1.py"
 curl -fsSL "$v72/apply_smart_home_display_stability_v7_2.py" -o "$TMP/apply_smart_home_display_stability_v7_2.py"
 
-python - "$TMP" <<'PY'
+python3 - "$TMP" <<'PY'
 from pathlib import Path
 import base64
 import sys
