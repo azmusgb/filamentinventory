@@ -8,23 +8,23 @@
   let scheduled = false;
 
   function ensurePresentationAssets() {
-    const stylesheets = ['/css/components/inventory-mobile.css', '/css/components/llm.css'];
+    const stylesheets = ['/css/components/inventory-mobile.css', '/css/components/llm.css', '/css/components/workshop-device-link.css'];
     for (const stylesheet of stylesheets) {
       if (document.querySelector(`link[href="${stylesheet}"]`)) continue;
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = stylesheet;
-      link.dataset.fiPresentation = stylesheet.includes('llm') ? 'llm' : 'inventory-mobile';
+      link.dataset.fiPresentation = stylesheet.includes('llm') ? 'llm' : (stylesheet.includes('workshop-device-link') ? 'workshop-device-link' : 'inventory-mobile');
       document.head.appendChild(link);
     }
 
-    const scripts = ['/inventory-card-client.js', '/llm-core.js', '/llm-transport-client.js', '/llm-client.js'];
+    const scripts = ['/inventory-card-client.js', '/llm-core.js', '/llm-transport-client.js', '/llm-client.js', '/workshop-device-link-client.js'];
     for (const script of scripts) {
       if (document.querySelector(`script[src="${script}"]`)) continue;
       const node = document.createElement('script');
       node.src = script;
       node.async = false;
-      node.dataset.fiPresentation = script.includes('llm') ? 'llm' : 'inventory-cards';
+      node.dataset.fiPresentation = script.includes('llm') ? 'llm' : (script.includes('workshop-device-link') ? 'workshop-device-link' : 'inventory-cards');
       document.head.appendChild(node);
     }
   }
