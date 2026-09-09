@@ -4,13 +4,19 @@
   const SYNC_KEY_STORAGE = 'filament-sync-key-v1';
   const DISPLAY_FEED_PATH = '/api/display-feed';
   const KEY_PATTERN = /^[A-Za-z0-9_-]{32,128}$/;
+  const ALLOWED_PROFILES = new Set(['Bill', 'Aimee']);
+  const SUMMARY_FIELDS = ['spools', 'loaded', 'low', 'unknown', 'queue'];
   let observer = null;
   let scheduled = false;
 
-  const currentProfile = () => globalThis.FilamentInventoryUsers?.currentUser?.() || 'Bill';
+  const currentProfile = () => {
+    const profile = globalThis.FilamentInventoryUsers?.currentUser?.();
+    return ALLOWED_PROFILES.has(profile) ? profile : null;
+  };
   const readKey = () => String(localStorage.getItem(SYNC_KEY_STORAGE) || '').trim();
   const validKey = key => KEY_PATTERN.test(String(key || '').trim());
   const endpoint = () => `${location.origin}${DISPLAY_FEED_PATH}`;
+  const validCount = value => Number.isInteger(value) && value >= 0;
 
   function toast(message) {
     const node = document.getElementById('toast');
@@ -50,20 +56,34 @@
     if (detailNode) detailNode.textContent = detail;
   }
 
+  function validateDisplayFeed(result) {
+    if (!result || typeof result !== 'object' || Array.isArray(result)) throw new Error('Display feed returned an invalid contract payload.');
+    if (result.contractVersion !== 1) throw new Error('Workshop OS display contract is not version 1.');
+    if (typeof result.stale !== 'boolean') throw new Error('Display feed returned an invalid staleness value.');
+    if (!result.summary || typeof result.summary !== 'object' || Array.isArray(result.summary)) throw new Error('Display feed returned an invalid summary.');
+    for (const field of SUMMARY_FIELDS) {
+      if (!validCount(result.summary[field])) throw new Error(`Display feed returned an invalid ${field} count.`);
+    }
+    return result;
+  }
+
   function summaryText(result) {
-    const summary = result?.summary;
-    if (!summary || typeof summary !== 'object') return 'Display feed validated.';
-    const parts = [
-      `${Number(summary.spools || 0)} spools`,
-      `${Number(summary.loaded || 0)} loaded`,
-      `${Number(summary.low || 0)} low`,
-      `${Number(summary.unknown || 0)} unknown`,
-      `${Number(summary.queue || 0)} queued`,
-    ];
-    return parts.join(' · ');
+    const summary = result.summary;
+    return [
+      `${summary.spools} spools`,
+      `${summary.loaded} loaded`,
+      `${summary.low} low`,
+      `${summary.unknown} unknown`,
+      `${summary.queue} queued`,
+    ].join(' · ');
   }
 
   async function testDisplayFeed() {
+    const profile = currentProfile();
+    if (!profile) {
+      setDeviceStatus('locked', 'Select a private profile first', 'Workshop OS linking is disabled until the active profile is explicitly Bill or Aimee.');
+      return;
+    }
     const key = readKey();
     if (!validKey(key)) {
       setDeviceStatus('locked', 'Private sync is not connected', 'Create or connect the private sync key above first.');
@@ -77,16 +97,13 @@
         headers: {
           Accept: 'application/json',
           'X-Filament-Sync-Key': key,
-          'X-Filament-Profile': currentProfile(),
+          'X-Filament-Profile': profile,
         },
         cache: 'no-store',
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || `Display feed failed (${response.status}).`);
-      if (result.contractVersion !== 1) throw new Error('Workshop OS display contract is not version 1.');
-      if (typeof result.stale !== 'boolean' || !result.summary || typeof result.summary !== 'object') {
-        throw new Error('Display feed returned an invalid contract payload.');
-      }
+      validateDisplayFeed(result);
       setDeviceStatus(result.stale ? 'stale' : 'ready', result.stale ? 'Feed is valid but stale' : 'Workshop OS feed is ready', summaryText(result));
     } catch (error) {
       setDeviceStatus('error', 'Workshop OS feed needs attention', error?.message || 'Could not validate the display feed.');
@@ -150,8 +167,10 @@
   function render() {
     const card = document.getElementById('workshopDeviceCard');
     if (!card) return;
+    const profile = currentProfile();
     const key = readKey();
     const connected = validKey(key);
+    const ready = Boolean(profile) && connected;
     const urlNode = document.getElementById('workshopDisplayFeedValue');
     const profileNode = document.getElementById('workshopProfileValue');
     const credentialState = document.getElementById('workshopCredentialState');
@@ -159,12 +178,14 @@
     const test = document.getElementById('testWorkshopFeedBtn');
 
     if (urlNode) urlNode.textContent = endpoint();
-    if (profileNode) profileNode.textContent = currentProfile();
+    if (profileNode) profileNode.textContent = profile || 'Select profile';
     if (credentialState) credentialState.textContent = connected ? 'Ready to copy' : 'Connect private sync first';
-    if (copyKey) copyKey.disabled = !connected;
-    if (test) test.disabled = !connected || !navigator.onLine;
+    if (copyKey) copyKey.disabled = !ready;
+    if (test) test.disabled = !ready || !navigator.onLine;
 
-    if (!navigator.onLine) {
+    if (!profile) {
+      setDeviceStatus('locked', 'Select a private profile first', 'No profile is inferred. Choose Bill or Aimee before linking Workshop OS.');
+    } else if (!navigator.onLine) {
       setDeviceStatus('offline', 'Offline', 'The connection values remain available, but the display feed cannot be validated until this browser reconnects.');
     } else if (!connected) {
       setDeviceStatus('locked', 'Connect private sync first', 'Create or connect the private sync key above; no Workshop OS credential is available until then.');
@@ -176,6 +197,7 @@
   function bind() {
     document.getElementById('copyWorkshopUrlBtn')?.addEventListener('click', () => copyText(endpoint(), 'Workshop OS display-feed URL copied.'));
     document.getElementById('copyWorkshopKeyBtn')?.addEventListener('click', () => {
+      if (!currentProfile()) return render();
       const key = readKey();
       if (!validKey(key)) return render();
       copyText(key, 'Private Workshop OS credential copied. Paste it only into the device.');
@@ -186,7 +208,11 @@
   function ensureCard() {
     scheduled = false;
     const workflow = document.querySelector('#syncView .sync-workflow');
-    if (!workflow || document.getElementById('workshopDeviceCard')) return;
+    if (!workflow) return;
+    if (document.getElementById('workshopDeviceCard')) {
+      render();
+      return;
+    }
     const primary = workflow.querySelector('.sync-primary-card');
     const wrapper = document.createElement('div');
     wrapper.innerHTML = markup().trim();
@@ -206,7 +232,7 @@
   function init() {
     scheduleEnsure();
     observer = new MutationObserver(scheduleEnsure);
-    observer.observe(document.body, {subtree:true, childList:true});
+    observer.observe(document.body, {subtree:true, childList:true, attributes:true});
     window.addEventListener('online', render);
     window.addEventListener('offline', render);
     window.addEventListener('storage', event => {
