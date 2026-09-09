@@ -1,10 +1,25 @@
-/* V12 Home decision surface ------------------------------------------------
-   Home answers the next operational question before presenting inventory
-   totals. Domain state remains owned by personal-core/personal-dashboard.
+/* Workshop Command Center --------------------------------------------------
+   Home is an operational surface: workshop status, evidence-backed action
+   queue, quick actions, and explicit loaded placement. Domain truth remains
+   owned by personal-core/personal-dashboard.
 */
 
+html.fi-v11.fi-ux-v12 .fi-home-intro {
+  display: grid;
+  gap: 18px;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-kicker,
+html.fi-v11.fi-ux-v12 .fi-home-section-kicker,
 html.fi-v11.fi-ux-v12 .fi-home-decision-label {
-  margin: 18px 0 5px;
+  margin: 0 0 5px;
   color: var(--color-accent);
   font-family: var(--font-mono);
   font-size: 10px;
@@ -13,49 +28,176 @@ html.fi-v11.fi-ux-v12 .fi-home-decision-label {
   text-transform: uppercase;
 }
 
-html.fi-v11.fi-ux-v12 .fi-home-intro .lead.fi-home-decision {
-  max-width: 48ch;
+html.fi-v11.fi-ux-v12 .fi-home-heading-row h2 {
+  margin: 0;
+  font-size: clamp(30px, 5vw, 46px);
+  line-height: 1.02;
+  letter-spacing: -.04em;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-subtitle {
+  max-width: 62ch;
+  margin: 8px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-status-pill {
+  flex: 0 0 auto;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 11px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+html.fi-v11.fi-ux-v12 .fi-workshop-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr);
+  gap: 18px;
+  align-items: stretch;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+html.fi-v11.fi-ux-v12 .fi-workshop-status[data-home-status="attention"] {
+  border-color: color-mix(in srgb, var(--color-warning) 36%, var(--color-border));
+}
+
+html.fi-v11.fi-ux-v12 .fi-workshop-status[data-home-status="ready"] {
+  border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-border));
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-decision {
+  max-width: 34ch;
   margin: 0;
   color: var(--color-text);
-  font-size: clamp(18px, 2.2vw, 22px);
-  font-weight: 620;
-  line-height: 1.3;
-  letter-spacing: -.015em;
+  font-size: clamp(20px, 2.4vw, 28px);
+  font-weight: 680;
+  line-height: 1.15;
+  letter-spacing: -.025em;
 }
 
 html.fi-v11.fi-ux-v12 .fi-home-decision-detail {
-  max-width: 64ch;
-  margin: 6px 0 0;
+  max-width: 58ch;
+  margin: 7px 0 0;
   color: var(--color-text-muted);
   font-size: 12.5px;
   line-height: 1.5;
 }
 
-html.fi-v11.fi-ux-v12 .fi-home-summary {
-  max-width: 74ch;
-  margin: 9px 0 0;
-  color: var(--color-text-subtle);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  line-height: 1.45;
+html.fi-v11.fi-ux-v12 .fi-workshop-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
-html.fi-v11.fi-ux-v12 .fi-home-summary[hidden],
-html.fi-v11.fi-ux-v12 .fi-home-actions [hidden] {
-  display: none;
+html.fi-v11.fi-ux-v12 .fi-workshop-metrics > div {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  min-height: 72px;
+  padding: 12px 13px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
+}
+
+html.fi-v11.fi-ux-v12 .fi-workshop-metrics strong {
+  color: var(--color-text);
+  font-size: clamp(20px, 3vw, 28px);
+  line-height: 1;
+  letter-spacing: -.035em;
+}
+
+html.fi-v11.fi-ux-v12 .fi-workshop-metrics span {
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
 }
 
 html.fi-v11.fi-ux-v12 .fi-home-actions {
-  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 0;
 }
 
 html.fi-v11.fi-ux-v12 .fi-home-section {
-  padding-top: 3px;
+  display: grid;
+  gap: 10px;
+  padding-top: 22px;
+  border-top: 1px solid var(--color-border-subtle);
 }
 
-html.fi-v11.fi-ux-v12 .fi-home-attention {
-  border-top: 1px solid var(--color-border-subtle);
-  padding-top: 20px;
+html.fi-v11.fi-ux-v12 .fi-home-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-section-head h3 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -.02em;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-section-copy {
+  max-width: 70ch;
+  margin: -3px 0 2px;
+  color: var(--color-text-subtle);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+html.fi-v11.fi-ux-v12 .fi-inbox-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+html.fi-v11.fi-ux-v12 .fi-inbox-main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: center;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+html.fi-v11.fi-ux-v12 .fi-inbox-main:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+html.fi-v11.fi-ux-v12 .fi-inbox-action {
+  min-width: 112px;
+  min-height: 44px;
 }
 
 html.fi-v11.fi-ux-v12 .fi-home-row .fi-status-chip[data-state="danger"],
@@ -63,24 +205,85 @@ html.fi-v11.fi-ux-v12 .fi-home-row .fi-status-chip[data-state="warning"] {
   font-weight: 800;
 }
 
-@media (max-width: 640px) {
-  html.fi-v11.fi-ux-v12 .fi-home-decision-label {
-    margin-top: 15px;
+html.fi-v11.fi-ux-v12 .fi-home-empty .fi-home-attention,
+html.fi-v11.fi-ux-v12 .fi-home-empty .fi-home-secondary {
+  display: none;
+}
+
+html.fi-v11.fi-ux-v12 .fi-home-actions [hidden] {
+  display: none;
+}
+
+@media (max-width: 820px) {
+  html.fi-v11.fi-ux-v12 .fi-workshop-status {
+    grid-template-columns: 1fr;
   }
 
-  html.fi-v11.fi-ux-v12 .fi-home-intro .lead.fi-home-decision {
-    font-size: 18px;
+  html.fi-v11.fi-ux-v12 .fi-workshop-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-workshop-metrics > div {
+    min-height: 66px;
+  }
+}
+
+@media (max-width: 640px) {
+  html.fi-v11.fi-ux-v12 .fi-home-intro {
+    gap: 14px;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-heading-row {
+    display: grid;
+    gap: 12px;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-status-pill {
+    justify-self: start;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-heading-row h2 {
+    font-size: 32px;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-workshop-status {
+    padding: 14px;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-decision {
+    font-size: 20px;
   }
 
   html.fi-v11.fi-ux-v12 .fi-home-decision-detail {
     font-size: 12px;
   }
 
-  html.fi-v11.fi-ux-v12 .fi-home-summary {
-    font-size: 10px;
+  html.fi-v11.fi-ux-v12 .fi-workshop-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  html.fi-v11.fi-ux-v12 .fi-home-attention {
-    padding-top: 16px;
+  html.fi-v11.fi-ux-v12 .fi-home-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-actions .btn {
+    min-height: 46px;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-actions .btn-primary {
+    grid-column: 1 / -1;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-home-section {
+    padding-top: 17px;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-inbox-row {
+    grid-template-columns: 1fr;
+  }
+
+  html.fi-v11.fi-ux-v12 .fi-inbox-action {
+    width: 100%;
   }
 }
