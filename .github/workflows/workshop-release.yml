@@ -15,7 +15,7 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         ref: ${{ github.event.pull_request.head.sha || github.sha }}
     - name: Validate JSON
@@ -42,7 +42,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 20
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         ref: ${{ github.event.pull_request.head.sha || github.sha }}
     - name: Install XcodeGen
@@ -61,7 +61,7 @@ jobs:
   validate-release:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         ref: ${{ github.event.pull_request.head.sha || github.sha }}
     - name: Validate repository release policy
@@ -104,7 +104,7 @@ jobs:
   migration:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         fetch-depth: 0
         ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -132,7 +132,7 @@ jobs:
         assert all(job[''result''] == ''success'' for job in results.values()), results
 
         PYTHON'
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         fetch-depth: 0
         ref: ${{ github.event.pull_request.head.sha }}
