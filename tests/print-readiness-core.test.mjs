@@ -181,7 +181,8 @@ test('completing a print converts the stale scale reading into a usage estimate 
   assert.equal(done.spool.remainingEvidenceSource,'print-job');
   assert.equal(done.spool.lastPrintJobId,done.job.id);
   assert.equal(core.measurement(done.spool).source,'Estimated');
-  assert.equal(core.measurement(done.spool).evidence,'usage');
+  assert.equal(core.measurement(done.spool).evidence,'quantity-evidence');
+  assert.equal(core.measurement(done.spool).method,'Printer-estimated usage');
 });
 
 test('completion reports when actual consumption makes later queue commitments unsafe', () => {
