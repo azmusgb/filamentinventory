@@ -39,9 +39,7 @@
     return {grams:null, percent:null, source:'Unknown', evidence:'none', measured:false};
   }
 
-  function remaining(spool, now = Date.now()) {
-    return measurement(spool, now).grams;
-  }
+  function remaining(spool, now = Date.now()) { return measurement(spool, now).grams; }
 
   function freshness(spool, now = Date.now()) {
     const current = measurement(spool, now);
@@ -55,6 +53,7 @@
       evidenceId:clean(current.evidenceId, 120) || null,
       method:clean(current.method, 80) || clean(current.source, 40) || 'Unknown',
       source:clean(current.source, 40) || 'Unknown',
+      remainingGrams:number(current.grams),
       observedAt:iso(current.observedAt),
       staleAfter:iso(current.staleAfter),
       stale:Boolean(current.stale),
@@ -78,17 +77,10 @@
     const needed = quantityState === 'known' ? parsedGrams : quantityState === 'non-positive' ? parsedGrams : null;
     const safetyMargin = clamp(Math.max(0, number(query.safetyMargin) || 0), 0, 100);
     return Object.freeze({
-      jobName:clean(query.jobName, 100),
-      material:clean(query.material, 80),
-      color:clean(query.color, 80),
-      grams:needed,
-      quantityState,
-      quantityKnown:quantityState === 'known',
-      safetyMargin,
+      jobName:clean(query.jobName, 100), material:clean(query.material, 80), color:clean(query.color, 80), grams:needed,
+      quantityState, quantityKnown:quantityState === 'known', safetyMargin,
       required:quantityState === 'known' ? Math.ceil(parsedGrams * (1 + safetyMargin / 100)) : null,
-      printer:clean(query.printer, 60),
-      feeder:clean(query.feeder, 60),
-      slot:clean(query.slot, 24),
+      printer:clean(query.printer, 60), feeder:clean(query.feeder, 60), slot:clean(query.slot, 24),
     });
   }
 
@@ -98,9 +90,7 @@
     const color = normalizeColor(requirement.color);
     const spoolMaterial = normalizeMaterial(spool?.material);
     const spoolColor = normalizeColor(spool?.colorName);
-    return active(spool)
-      && (!material || spoolMaterial === material)
-      && (!color || spoolColor.includes(color) || color.includes(spoolColor));
+    return active(spool) && (!material || spoolMaterial === material) && (!color || spoolColor.includes(color) || color.includes(spoolColor));
   }
 
   function assignment(spool = {}) {
@@ -111,9 +101,7 @@
   function placementRecommendation(spool = {}, allSpools = [], query = {}) {
     const requirement = normalizeRequirement(query);
     const current = assignment(spool);
-    if (current) {
-      return Object.freeze({status:'already-loaded', printer:current.printer, feeder:current.feeder, slot:current.slot, label:[current.printer || 'Printer', current.feeder, current.slot ? `Slot ${current.slot}` : ''].filter(Boolean).join(' · ')});
-    }
+    if (current) return Object.freeze({status:'already-loaded', printer:current.printer, feeder:current.feeder, slot:current.slot, label:[current.printer || 'Printer', current.feeder, current.slot ? `Slot ${current.slot}` : ''].filter(Boolean).join(' · ')});
     const loaded = allSpools.filter(row => active(row) && row.placementState === 'Loaded');
     const knownPrinters = [...new Set(loaded.map(row => clean(row.printerName, 60)).filter(Boolean))];
     const printer = requirement.printer || (knownPrinters.length === 1 ? knownPrinters[0] : '');
@@ -146,7 +134,7 @@
       id:clean(job.id,120), status, jobName:clean(job.jobName,100), spoolId:clean(job.spoolId,64), material:clean(job.material,80), color:clean(job.color,80),
       modelGrams:Math.max(0,number(job.modelGrams)||0), safetyMargin:clamp(Math.max(0,number(job.safetyMargin)||0),0,100), requiredGrams:Math.max(0,number(job.requiredGrams)||0),
       remainingAtPlan:number(job.remainingAtPlan), reservedBeforePlan:Math.max(0,number(job.reservedBeforePlan)||0), availableAtPlan:number(job.availableAtPlan), remainingAtStart:number(job.remainingAtStart), reservedAtStart:Math.max(0,number(job.reservedAtStart)||0), availableAtStart:number(job.availableAtStart), remainingAfter:number(job.remainingAfter), consumedGrams:number(job.consumedGrams),
-      evidenceAtPlan:clean(job.evidenceAtPlan,24), evidenceAtStart:clean(job.evidenceAtStart,24),
+      evidenceAtPlan:clean(job.evidenceAtPlan,24), evidenceAtStart:clean(job.evidenceAtStart,24), completionEvidenceId:clean(job.completionEvidenceId,120),
       quantityEvidenceAtPlan:job.quantityEvidenceAtPlan && typeof job.quantityEvidenceAtPlan === 'object' ? {...job.quantityEvidenceAtPlan} : null,
       quantityEvidenceAtStart:job.quantityEvidenceAtStart && typeof job.quantityEvidenceAtStart === 'object' ? {...job.quantityEvidenceAtStart} : null,
       plannedAt:iso(job.plannedAt), startedAt:iso(job.startedAt), completedAt:iso(job.completedAt), cancelledAt:iso(job.cancelledAt), updatedAt:iso(job.updatedAt)||iso(job.completedAt)||iso(job.startedAt)||iso(job.cancelledAt)||iso(job.plannedAt), placement:job.placement && typeof job.placement === 'object' ? {...job.placement} : null,
@@ -218,8 +206,24 @@
 
   function cloneState(state = {}) { return {...state,spools:(Array.isArray(state.spools)?state.spools:[]).map(spool=>({...spool,quantityEvidence:Array.isArray(spool.quantityEvidence)?spool.quantityEvidence.map(row=>({...row})):spool.quantityEvidence})),printJobs:normalizePrintJobs(state.printJobs).map(job=>({...job,placement:job.placement?{...job.placement}:null,quantityEvidenceAtPlan:job.quantityEvidenceAtPlan?{...job.quantityEvidenceAtPlan}:null,quantityEvidenceAtStart:job.quantityEvidenceAtStart?{...job.quantityEvidenceAtStart}:null}))}; }
   function makeJobId(state,spoolId,at) { const stamp=String(at||new Date().toISOString()).replace(/\D/g,'').slice(0,14); const base=`print-${stamp}-${clean(spoolId,32).toLowerCase()||'spool'}`; const used=new Set(normalizePrintJobs(state?.printJobs).map(job=>job.id)); if(!used.has(base))return base; let index=2; while(used.has(`${base}-${index}`))index+=1; return `${base}-${index}`; }
+  function makeEvidenceId(jobId, phase) { return `qe-${clean(jobId,92).replace(/[^a-z0-9._-]+/gi,'-').toLowerCase()}-${phase}`.slice(0,120); }
   function findSpool(state,spoolId) { const id=clean(spoolId,64).toLowerCase(); return (Array.isArray(state?.spools)?state.spools:[]).find(spool=>clean(spool?.id,64).toLowerCase()===id)||null; }
   function findJob(state,jobId) { const id=clean(jobId,120); return normalizePrintJobs(state?.printJobs).find(job=>job.id===id)||null; }
+  function evidenceById(spool,evidenceId) { const id=clean(evidenceId,120).toLowerCase(); if(!id)return null; return (Array.isArray(spool?.quantityEvidence)?spool.quantityEvidence:[]).find(row=>clean(row?.evidenceId,120).toLowerCase()===id)||null; }
+
+  function materializeStartEvidence(spool, current, job, at) {
+    if (current?.evidenceId) return current;
+    if (current?.source !== 'Measured' || !finite(current?.grams)) return current;
+    const evidenceId=makeEvidenceId(job.id,'start');
+    const existing=evidenceById(spool,evidenceId);
+    if (existing) return measurement(spool,Date.parse(at)||Date.now());
+    const gross=number(spool.gross),tare=number(spool.tare);
+    if (gross===null||tare===null||gross<tare) return current;
+    const observedAt=iso(current.observedAt)||iso(spool.remainingEvidenceAt)||iso(spool.updatedAt)||at;
+    const evidence=contract?.normalizeQuantityEvidence ? contract.normalizeQuantityEvidence({evidenceId,spoolId:spool.id,method:'Measured',grossGrams:gross,tareGrams:tare,remainingGrams:current.grams,source:'legacy-scale-snapshot',observedAt,confidence:'Confirmed'},{spoolId:spool.id}) : {evidenceId,spoolId:spool.id,method:'Measured',grossGrams:gross,tareGrams:tare,remainingGrams:current.grams,source:'legacy-scale-snapshot',observedAt,confidence:'Confirmed',staleAfter:null,derivedFromEvidenceId:''};
+    spool.quantityEvidence=[...(Array.isArray(spool.quantityEvidence)?spool.quantityEvidence:[]),evidence];
+    return measurement(spool,Date.parse(at)||Date.now());
+  }
 
   function planJob(stateRaw = {}, query = {}, spoolId = '', at = new Date().toISOString()) {
     const state=cloneState(stateRaw); const requirement=normalizeRequirement(query); if(!requirement.quantityKnown)return{changed:false,reason:'grams-required',state,requirement};
@@ -244,18 +248,24 @@
   }
 
   function startJob(stateRaw = {}, jobId = '', at = new Date().toISOString()) {
-    const check=startEligibility(stateRaw,jobId); if(!check.ok)return{changed:false,...check}; const{state,job,spool,measurement:current,evidence,reservedOther,availableForJob}=check;
+    const check=startEligibility(stateRaw,jobId); if(!check.ok)return{changed:false,...check}; const{state,job,spool,reservedOther,availableForJob}=check;
+    const current=materializeStartEvidence(spool,check.measurement,job,at); const evidence=evidenceSnapshot(current);
+    if(!evidence.evidenceId)return{changed:false,reason:'start-evidence-id-required',state,job,spool,measurement:current,evidence};
     job.status='in-progress'; job.startedAt=at; job.updatedAt=at; job.remainingAtStart=current.grams; job.reservedAtStart=reservedOther; job.availableAtStart=availableForJob; job.evidenceAtStart=current.source; job.quantityEvidenceAtStart=evidence; job.verificationRequired=false; job.placement=placementRecommendation(spool,state.spools,{printer:spool.printerName,feeder:spool.feederName,slot:spool.feederSlot}); state.printJobs=normalizePrintJobs(state.printJobs); return{changed:true,state,job,spool,measurement:current,evidence,reservedOther,availableForJob};
   }
 
   function completeJob(stateRaw = {}, jobId = '', consumedGrams, at = new Date().toISOString()) {
-    const state=cloneState(stateRaw); const job=state.printJobs.find(row=>row.id===clean(jobId,120)); if(!job)return{changed:false,reason:'job-not-found',state}; if(job.status!=='in-progress')return{changed:false,reason:'job-not-running',state,job}; const spool=findSpool(state,job.spoolId); if(!spool||spool.archivedAt)return{changed:false,reason:'spool-unavailable',state,job};
+    const state=cloneState(stateRaw); const job=state.printJobs.find(row=>row.id===clean(jobId,120)); if(!job)return{changed:false,reason:'job-not-found',state}; if(job.status!=='in-progress')return{changed:false,reason:job.status==='completed'?'job-already-completed':'job-not-running',state,job}; const spool=findSpool(state,job.spoolId); if(!spool||spool.archivedAt)return{changed:false,reason:'spool-unavailable',state,job};
     const consumed=number(consumedGrams); if(consumed===null||consumed<=0)return{changed:false,reason:'consumption-required',state,job,spool}; const base=number(job.remainingAtStart); if(base===null)return{changed:false,reason:'start-remaining-unknown',state,job,spool}; if(consumed>base)return{changed:false,reason:'consumption-exceeds-start',state,job,spool};
-    const remainingAfter=Math.max(0,Math.round((base-consumed)*10)/10); const completedAt=at;
+    const startEvidenceId=clean(job.quantityEvidenceAtStart?.evidenceId,120); if(!startEvidenceId)return{changed:false,reason:'start-evidence-id-required',state,job,spool}; const parent=evidenceById(spool,startEvidenceId); if(!parent)return{changed:false,reason:'start-evidence-missing',state,job,spool}; if(clean(parent.spoolId||spool.id,64).toLowerCase()!==clean(spool.id,64).toLowerCase())return{changed:false,reason:'start-evidence-spool-mismatch',state,job,spool};
+    const remainingAfter=Math.max(0,Math.round((base-consumed)*10)/10); const completedAt=at; const completionEvidenceId=makeEvidenceId(job.id,'complete');
+    if(evidenceById(spool,completionEvidenceId))return{changed:false,reason:'completion-evidence-exists',state,job,spool};
+    const usageEvidence=contract?.normalizeQuantityEvidence ? contract.normalizeQuantityEvidence({evidenceId:completionEvidenceId,spoolId:spool.id,method:'Printer-estimated usage',remainingGrams:remainingAfter,source:`print-job:${job.id}`,observedAt:completedAt,confidence:'Medium',derivedFromEvidenceId:startEvidenceId},{spoolId:spool.id}) : {evidenceId:completionEvidenceId,spoolId:spool.id,method:'Printer-estimated usage',grossGrams:null,tareGrams:null,remainingGrams:remainingAfter,source:`print-job:${job.id}`.slice(0,120),observedAt:completedAt,confidence:'Medium',staleAfter:null,derivedFromEvidenceId:startEvidenceId};
+    spool.quantityEvidence=[...(Array.isArray(spool.quantityEvidence)?spool.quantityEvidence:[]),usageEvidence];
     spool.estimatedRemainingGrams=remainingAfter; spool.gross=null; spool.visualPercent=null; spool.remainingEvidenceSource='print-job'; spool.remainingEvidenceAt=completedAt; spool.lastUsedAt=completedAt; spool.lastPrintJobId=job.id; spool.lastPrintConsumptionGrams=Math.round(consumed*10)/10; spool.updatedAt=completedAt;
-    job.status='completed'; job.completedAt=completedAt; job.updatedAt=completedAt; job.consumedGrams=Math.round(consumed*10)/10; job.consumptionSource='reported'; job.remainingAfter=remainingAfter; state.printJobs=normalizePrintJobs(state.printJobs);
+    job.status='completed'; job.completedAt=completedAt; job.updatedAt=completedAt; job.consumedGrams=Math.round(consumed*10)/10; job.consumptionSource='reported'; job.remainingAfter=remainingAfter; job.completionEvidenceId=completionEvidenceId; state.printJobs=normalizePrintJobs(state.printJobs);
     const reservedAfter=reservedGramsForSpool(state.printJobs,spool.id); const reservationShortfall=Math.max(0,Math.round((reservedAfter-remainingAfter)*10)/10); const reorder=finite(spool.reorderThreshold)?Math.max(0,Number(spool.reorderThreshold)):250;
-    return{changed:true,state,job,spool,remainingAfter,reservedAfter,reservationShortfall,reorderNeeded:remainingAfter<=reorder};
+    return{changed:true,state,job,spool,quantityEvidence:usageEvidence,remainingAfter,reservedAfter,reservationShortfall,reorderNeeded:remainingAfter<=reorder};
   }
 
   function cancelJob(stateRaw = {}, jobId = '', at = new Date().toISOString()) { const state=cloneState(stateRaw); const job=state.printJobs.find(row=>row.id===clean(jobId,120)); if(!job)return{changed:false,reason:'job-not-found',state}; if(job.status==='completed'||job.status==='cancelled')return{changed:false,reason:'job-final',state,job}; job.status='cancelled'; job.cancelledAt=at; job.updatedAt=at; state.printJobs=normalizePrintJobs(state.printJobs); return{changed:true,state,job}; }
