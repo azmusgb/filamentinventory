@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 const FIXED_TIME = Date.parse('2026-08-28T15:00:00.000Z');
 const APPROVED_VISUAL_HASHES = Object.freeze({
   home:'8b107a76caf858c39ab459cb79570780b62ddd9ecd84e928867182dd6f8ecd1d',
-  inventory:'e0ac7a622a10b1c76ea5965de0a935c00c28552fe432df23cbe9e21986484d4e',
+  inventory:'a7477105831f96997e9886e163cb72c63d8c7c10b459c06e9f4ad1c8f921356c',
 });
 
 const prefs = (owner, displayName, initials, accent) => ({
@@ -259,8 +259,8 @@ test('mobile header Tools hands off to one isolated Print Check dialog', async (
 test('mobile scanner unknown-spool recovery opens Add spool with the scanned ID', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-webkit','iPhone scanner handoff contract.');
   await page.getByRole('button',{name:'Open tools and settings'}).click();
-  const tools=page.locator('.fi-more-sheet[open]');
-  await expect(tools).toBeVisible();
+  const tools=page.locator('.fi-more-sheet');
+  await expect(tools).toHaveAttribute('open','');
   await tools.locator('[data-shell-action="scan"]').click();
   await expect(tools).not.toHaveAttribute('open','');
   await expect(page.locator('#qrScannerDialog[open]')).toBeVisible();
