@@ -6,8 +6,10 @@
   const PHYSICAL_KEY = /^filament-user-v1:(bill|aimee):inventory$/i;
   const $ = id => document.getElementById(id);
   let pendingMeasurement = null;
+  let pendingNominalEdit = null;
 
   const parse = (value, fallback = null) => { try { return JSON.parse(String(value)); } catch { return fallback; } };
+  const numeric = value => value === '' || value === null || value === undefined || !Number.isFinite(Number(value)) ? null : Number(value);
   const readState = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; } };
   const currentSpool = () => {
     const state = readState();
@@ -39,6 +41,49 @@
     pendingMeasurement = {spoolId:spool.id, evidence};
   }
 
+  function captureNominalEdit(event) {
+    if (event.target?.id !== 'spoolForm') return;
+    const id = String($('spoolId')?.value || '').trim();
+    if (!id) return;
+    pendingNominalEdit = {spoolId:id, value:numeric($('startWeight')?.value)};
+  }
+
+  function protectUnknownNominal(incoming, previous) {
+    if (!incoming?.spools) return;
+    const previousById = new Map((previous?.spools || []).map(spool => [String(spool?.id || '').trim().toLowerCase(), spool]));
+    incoming.spools.forEach(spool => {
+      const id = String(spool?.id || '').trim().toLowerCase();
+      if (!id) return;
+      const explicit = pendingNominalEdit && sameSpool(pendingNominalEdit.spoolId, spool.id);
+      if (explicit) {
+        spool.startWeight = pendingNominalEdit.value;
+        return;
+      }
+      const prior = previousById.get(id);
+      if (prior && numeric(prior.startWeight) === null && Number(spool.startWeight) === 1000) spool.startWeight = null;
+    });
+  }
+
+  function appendPendingEvidence(incoming, previous) {
+    if (!pendingMeasurement || !incoming?.spools) return false;
+    const target = incoming.spools.find(spool => sameSpool(spool?.id, pendingMeasurement.spoolId));
+    if (!target) return false;
+    if (Number(target.gross) !== Number(pendingMeasurement.evidence.grossGrams) || Number(target.tare) !== Number(pendingMeasurement.evidence.tareGrams)) return false;
+
+    const priorSpool = previous?.spools?.find(spool => sameSpool(spool?.id, pendingMeasurement.spoolId));
+    const priorEvidence = Array.isArray(priorSpool?.quantityEvidence) ? priorSpool.quantityEvidence : [];
+    const incomingEvidence = Array.isArray(target.quantityEvidence) ? target.quantityEvidence : [];
+    const byId = new Map();
+    [...priorEvidence, ...incomingEvidence].forEach(evidence => {
+      const id = evidenceKey(evidence);
+      if (id) byId.set(id, evidence);
+    });
+    byId.set(pendingMeasurement.evidence.evidenceId, pendingMeasurement.evidence);
+    target.quantityEvidence = [...byId.values()];
+    target.remainingEvidenceAt = pendingMeasurement.evidence.observedAt;
+    return true;
+  }
+
   function installMeasurementPersistence() {
     if (!globalThis.Storage || globalThis.__filamentSmartWeighEvidenceStorageInstalled) return;
     globalThis.__filamentSmartWeighEvidenceStorageInstalled = true;
@@ -46,40 +91,28 @@
     const priorSet = proto.setItem;
 
     proto.setItem = function(key, value) {
-      if (this !== localStorage || !inventoryKey(key) || !pendingMeasurement) return priorSet.call(this, key, value);
+      if (this !== localStorage || !inventoryKey(key)) return priorSet.call(this, key, value);
       const incoming = parse(value, null);
       if (!incoming?.spools) return priorSet.call(this, key, value);
-
-      const target = incoming.spools.find(spool => sameSpool(spool?.id, pendingMeasurement.spoolId));
-      if (!target) return priorSet.call(this, key, value);
-      if (Number(target.gross) !== Number(pendingMeasurement.evidence.grossGrams) || Number(target.tare) !== Number(pendingMeasurement.evidence.tareGrams)) {
-        return priorSet.call(this, key, value);
-      }
-
       const previous = parse(localStorage.getItem(key), null);
-      const priorSpool = previous?.spools?.find(spool => sameSpool(spool?.id, pendingMeasurement.spoolId));
-      const priorEvidence = Array.isArray(priorSpool?.quantityEvidence) ? priorSpool.quantityEvidence : [];
-      const incomingEvidence = Array.isArray(target.quantityEvidence) ? target.quantityEvidence : [];
-      const byId = new Map();
-      [...priorEvidence, ...incomingEvidence].forEach(evidence => {
-        const id = evidenceKey(evidence);
-        if (id) byId.set(id, evidence);
-      });
-      byId.set(pendingMeasurement.evidence.evidenceId, pendingMeasurement.evidence);
-      target.quantityEvidence = [...byId.values()];
-      target.remainingEvidenceAt = pendingMeasurement.evidence.observedAt;
 
-      const applied = pendingMeasurement;
-      pendingMeasurement = null;
+      protectUnknownNominal(incoming, previous);
+      const evidenceApplied = appendPendingEvidence(incoming, previous);
+      const applied = evidenceApplied ? pendingMeasurement : null;
+      if (evidenceApplied) pendingMeasurement = null;
+      if (pendingNominalEdit && incoming.spools.some(spool => sameSpool(spool?.id, pendingNominalEdit.spoolId))) pendingNominalEdit = null;
+
       const result = priorSet.call(this, key, JSON.stringify(incoming));
-      queueMicrotask(() => {
-        globalThis.FilamentInventoryEvents?.emit('quantity-evidence:saved', {
-          spoolId:applied.spoolId,
-          evidenceId:applied.evidence.evidenceId,
-          method:applied.evidence.method,
-          observedAt:applied.evidence.observedAt,
+      if (applied) {
+        queueMicrotask(() => {
+          globalThis.FilamentInventoryEvents?.emit('quantity-evidence:saved', {
+            spoolId:applied.spoolId,
+            evidenceId:applied.evidence.evidenceId,
+            method:applied.evidence.method,
+            observedAt:applied.evidence.observedAt,
+          });
         });
-      });
+      }
       return result;
     };
   }
@@ -207,10 +240,24 @@
     if (previewTitle) previewTitle.textContent = 'Remaining filament';
   }
 
-  function refresh(preferredId = '') { rankOptions(preferredId); renderSuggestion(); }
+  function reconcilePreview() {
+    const spool = currentSpool();
+    const gross = $('grossWeight')?.value;
+    const tare = $('tareWeight')?.value;
+    const result = spool ? core.preview(spool, gross, tare) : null;
+    if (!result?.valid) return;
+    const percent = $('calcPercent');
+    const status = $('calcStatus');
+    if (percent) percent.textContent = result.percent === null ? 'Unknown · nominal weight needed' : `${result.percent.toFixed(1)}%`;
+    if (status && result.percent === null) status.textContent = result.reorder ? 'REORDER · measured grams' : 'Quantity known · level unknown';
+  }
+
+  function schedulePreviewReconcile() { queueMicrotask(reconcilePreview); }
+  function refresh(preferredId = '') { rankOptions(preferredId); renderSuggestion(); schedulePreviewReconcile(); }
 
   installMeasurementPersistence();
   document.addEventListener('submit', captureMeasurement, true);
+  document.addEventListener('submit', captureNominalEdit, true);
 
   document.addEventListener('DOMContentLoaded', () => {
     structureWeigh();
@@ -218,6 +265,7 @@
     if (!select) return;
     setTimeout(() => refresh(), 0);
     select.addEventListener('change', renderSuggestion);
+    ['grossWeight','tareWeight','weighSpool'].forEach(id => $(id)?.addEventListener(id === 'weighSpool' ? 'change' : 'input', schedulePreviewReconcile));
     globalThis.FilamentInventoryEvents?.on('inventory:changed', () => refresh());
     globalThis.FilamentInventoryEvents?.on('measurement:saved', event => refresh(event.detail.spoolId));
     globalThis.FilamentInventoryEvents?.on('quantity-evidence:saved', event => refresh(event.detail.spoolId));
