@@ -28,6 +28,8 @@
     'Imported estimate': 200,
     'Unknown': 0,
   });
+  const QUANTITY_CONFLICT_WINDOW_MS = 5 * 60 * 1000;
+  const QUANTITY_CONFLICT_MIN_GRAMS = 10;
 
   const isFiniteNumber = value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value));
   const numberOrNull = value => isFiniteNumber(value) ? Number(value) : null;
@@ -127,6 +129,67 @@
     })[0] || normalizeQuantityEvidence({spoolId:spool.id, method:'Unknown'}, {spoolId:spool.id});
   }
 
+  function evidenceAgeDays(evidence = {}, now = Date.now()) {
+    const stamp = evidenceTimestamp(evidence);
+    if (!stamp) return null;
+    return Math.max(0, Math.floor((Number(now) - stamp) / 86400000));
+  }
+
+  function isEvidenceStale(evidence = {}, now = Date.now()) {
+    const staleAt = Date.parse(evidence.staleAfter || '');
+    return Number.isFinite(staleAt) ? Number(now) > staleAt : false;
+  }
+
+  function quantityEvidenceAssessment(spool = {}, now = Date.now()) {
+    const explicit = normalizeQuantityEvidenceList(spool.quantityEvidence, {spoolId:spool.id});
+    const selected = strongestQuantityEvidence(spool);
+    const known = explicit.filter(evidence => evidence.remainingGrams !== null && evidence.method !== 'Unknown' && evidenceTimestamp(evidence));
+    const conflicts = [];
+
+    for (let firstIndex = 0; firstIndex < known.length; firstIndex += 1) {
+      for (let secondIndex = firstIndex + 1; secondIndex < known.length; secondIndex += 1) {
+        const first = known[firstIndex];
+        const second = known[secondIndex];
+        if (first.derivedFromEvidenceId && lowerId(first.derivedFromEvidenceId) === lowerId(second.evidenceId)) continue;
+        if (second.derivedFromEvidenceId && lowerId(second.derivedFromEvidenceId) === lowerId(first.evidenceId)) continue;
+        const timeDelta = Math.abs(evidenceTimestamp(first) - evidenceTimestamp(second));
+        if (timeDelta > QUANTITY_CONFLICT_WINDOW_MS) continue;
+        const largest = Math.max(first.remainingGrams, second.remainingGrams, 1);
+        const tolerance = Math.max(QUANTITY_CONFLICT_MIN_GRAMS, largest * 0.02);
+        if (Math.abs(first.remainingGrams - second.remainingGrams) <= tolerance) continue;
+        conflicts.push(Object.freeze({
+          evidenceIds:Object.freeze([first.evidenceId || null, second.evidenceId || null]),
+          remainingGrams:Object.freeze([first.remainingGrams, second.remainingGrams]),
+          observedAt:Object.freeze([first.observedAt, second.observedAt]),
+          differenceGrams:Math.round(Math.abs(first.remainingGrams - second.remainingGrams) * 10) / 10,
+        }));
+      }
+    }
+
+    const stale = isEvidenceStale(selected, now);
+    const conflictEvidenceIds = [...new Set(conflicts.flatMap(conflict => conflict.evidenceIds).filter(Boolean))];
+    const status = selected.method === 'Unknown' || selected.remainingGrams === null
+      ? 'unknown'
+      : conflicts.length
+        ? 'conflict'
+        : stale
+          ? 'stale'
+          : 'current';
+
+    return Object.freeze({
+      status,
+      selected,
+      explicit:explicit.length > 0,
+      evidenceCount:explicit.length,
+      ageDays:evidenceAgeDays(selected, now),
+      stale,
+      conflict:conflicts.length > 0,
+      conflicts:Object.freeze(conflicts),
+      conflictEvidenceIds:Object.freeze(conflictEvidenceIds),
+      verificationRequired:status !== 'current',
+    });
+  }
+
   function normalizeSpool(input = {}, {owner = 'Bill'} = {}) {
     const id = safeText(input.id, 64);
     const nominal = isFiniteNumber(input.startWeight) && Number(input.startWeight) > 0 ? Number(input.startWeight) : null;
@@ -183,20 +246,22 @@
     };
   }
 
-  function measurement(spool = {}) {
+  function measurement(spool = {}, now = Date.now()) {
     const nominal = isFiniteNumber(spool.startWeight) && Number(spool.startWeight) > 0 ? Number(spool.startWeight) : null;
     const explicit = Array.isArray(spool.quantityEvidence) && spool.quantityEvidence.length > 0;
     if (explicit) {
-      const evidence = strongestQuantityEvidence(spool);
+      const assessment = quantityEvidenceAssessment(spool, now);
+      const evidence = assessment.selected;
       const grams = evidence.remainingGrams;
       const percent = grams !== null && nominal ? Math.round(clamp(grams / nominal * 100, 0, 100) * 10) / 10 : null;
+      const base = {evidence:'quantity-evidence', evidenceId:evidence.evidenceId || null, method:evidence.method, observedAt:evidence.observedAt, staleAfter:evidence.staleAfter, stale:assessment.stale, conflict:assessment.conflict, evidenceStatus:assessment.status, verificationRequired:assessment.verificationRequired};
       if (evidence.method === 'Measured' || evidence.method === 'Calculated from measured') {
-        return {grams, percent, source:'Measured', evidence:'quantity-evidence', measured:true, evidenceId:evidence.evidenceId || null, method:evidence.method, observedAt:evidence.observedAt};
+        return {...base, grams, percent, source:'Measured', measured:true};
       }
       if (evidence.method !== 'Unknown') {
-        return {grams, percent, source:'Estimated', evidence:'quantity-evidence', measured:false, evidenceId:evidence.evidenceId || null, method:evidence.method, observedAt:evidence.observedAt};
+        return {...base, grams, percent, source:'Estimated', measured:false};
       }
-      return {grams:null, percent:null, source:'Unknown', evidence:'quantity-evidence', measured:false, evidenceId:evidence.evidenceId || null, method:'Unknown', observedAt:evidence.observedAt};
+      return {...base, grams:null, percent:null, source:'Unknown', measured:false};
     }
 
     if (isFiniteNumber(spool.gross) && isFiniteNumber(spool.tare) && Number(spool.gross) >= Number(spool.tare)) {
@@ -207,6 +272,8 @@
         source: 'Measured',
         evidence: 'scale',
         measured: true,
+        evidenceStatus:'legacy',
+        verificationRequired:false,
       };
     }
     if (isFiniteNumber(spool.estimatedRemainingGrams)) {
@@ -217,6 +284,8 @@
         source: 'Estimated',
         evidence: 'usage',
         measured: false,
+        evidenceStatus:'legacy',
+        verificationRequired:true,
       };
     }
     if (isFiniteNumber(spool.visualPercent)) {
@@ -227,9 +296,11 @@
         source: 'Estimated',
         evidence: 'visual',
         measured: false,
+        evidenceStatus:'legacy',
+        verificationRequired:true,
       };
     }
-    return {grams:null, percent:null, source:'Unknown', evidence:'none', measured:false};
+    return {grams:null, percent:null, source:'Unknown', evidence:'none', measured:false, evidenceStatus:'unknown', verificationRequired:true};
   }
 
   function stockState(spool = {}) {
@@ -268,8 +339,9 @@
 
   function evidenceLabel(spool = {}) {
     const remaining = measurement(spool);
-    if (remaining.source === 'Measured') return remaining.method ? `${remaining.method} · evidence` : 'Measured · scale';
-    if (remaining.evidence === 'quantity-evidence' && remaining.method) return `${remaining.method}${remaining.grams === null ? ' · amount unknown' : ''}`;
+    const caveat = remaining.conflict ? ' · conflict' : remaining.stale ? ' · stale' : '';
+    if (remaining.source === 'Measured') return remaining.method ? `${remaining.method} · evidence${caveat}` : 'Measured · scale';
+    if (remaining.evidence === 'quantity-evidence' && remaining.method) return `${remaining.method}${remaining.grams === null ? ' · amount unknown' : ''}${caveat}`;
     if (remaining.evidence === 'usage') return remaining.grams === null ? 'Estimated · usage · amount unknown' : 'Estimated · usage';
     if (remaining.evidence === 'visual') return remaining.grams === null ? 'Estimated · visual · nominal unknown' : 'Estimated · visual';
     return 'Unknown · verify';
@@ -280,7 +352,7 @@
     const remaining = measurement(spool);
     const stock = stockState(spool);
     const life = lifecycle(spool);
-    return Object.freeze({spool, productLabel:productLabel(spool), placementLabel:placementLabel(spool), lifecycle:life, stock, measurement:remaining, evidenceLabel:evidenceLabel(spool), reorderNeeded:reorderNeeded(spool), needsMeasurement:remaining.grams === null || remaining.source !== 'Measured', loaded:spool.placementState === 'Loaded' && !spool.archivedAt, archived:Boolean(spool.archivedAt)});
+    return Object.freeze({spool, productLabel:productLabel(spool), placementLabel:placementLabel(spool), lifecycle:life, stock, measurement:remaining, evidenceLabel:evidenceLabel(spool), reorderNeeded:reorderNeeded(spool), needsMeasurement:remaining.grams === null || remaining.source !== 'Measured' || remaining.verificationRequired, loaded:spool.placementState === 'Loaded' && !spool.archivedAt, archived:Boolean(spool.archivedAt)});
   }
 
   function validateSpool(input = {}, options = {}) {
@@ -311,6 +383,8 @@
       }
     }
 
+    const assessment = quantityEvidenceAssessment(spool);
+    if (assessment.conflict) warnings.push({code:'quantity-evidence-conflict', field:'quantityEvidence', evidenceIds:assessment.conflictEvidenceIds, message:'Quantity evidence contains contemporaneous conflicting remaining-weight values; verify before relying on one value.'});
     const remaining = measurement(spool);
     if (remaining.measured && spool.startWeight !== null && remaining.grams !== null && remaining.grams > spool.startWeight) warnings.push({code:'remaining-above-nominal', field:'gross', message:'Measured filament remaining exceeds the nominal filament weight; verify tare and nominal weight.'});
     if (spool.diameterMm !== null && (spool.diameterMm < 1 || spool.diameterMm > 3)) warnings.push({code:'diameter-unusual', field:'diameterMm', message:'Filament diameter is outside the typical 1–3 mm range.'});
@@ -355,12 +429,17 @@
     STOCK_STATES,
     CONFIDENCE_LEVELS,
     QUANTITY_EVIDENCE_METHODS,
+    QUANTITY_CONFLICT_WINDOW_MS,
+    QUANTITY_CONFLICT_MIN_GRAMS,
     isFiniteNumber,
     numberOrNull,
     normalizeOwner,
     normalizeQuantityEvidence,
     normalizeQuantityEvidenceList,
     strongestQuantityEvidence,
+    evidenceAgeDays,
+    isEvidenceStale,
+    quantityEvidenceAssessment,
     normalizeSpool,
     normalizeState,
     measurement,
