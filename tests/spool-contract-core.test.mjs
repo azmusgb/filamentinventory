@@ -7,24 +7,8 @@ const contract = require('../spool-contract-core.js');
 
 test('normalizes canonical product and physical spool metadata without dropping compatible fields', () => {
   const spool = contract.normalizeSpool({
-    id:' S042 ',
-    brand:'Bambu Lab',
-    productLine:'PLA Tough',
-    material:'PLA',
-    colorName:'Blue Grey',
-    colorHex:'#667788',
-    diameterMm:'1.75',
-    manufacturerSku:' 123-ABC ',
-    lotBatch:'LOT-9',
-    startWeight:'1000',
-    owner:'Aimee',
-    placementState:'Loaded',
-    printerName:'P1S',
-    feederName:'AMS 1',
-    feederSlot:'2',
-    customFutureField:'preserved',
+    id:' S042 ', brand:'Bambu Lab', productLine:'PLA Tough', material:'PLA', colorName:'Blue Grey', colorHex:'#667788', diameterMm:'1.75', manufacturerSku:' 123-ABC ', lotBatch:'LOT-9', startWeight:'1000', owner:'Aimee', placementState:'Loaded', printerName:'P1S', feederName:'AMS 1', feederSlot:'2', customFutureField:'preserved',
   });
-
   assert.equal(spool.id, 'S042');
   assert.equal(spool.productLine, 'PLA Tough');
   assert.equal(spool.diameterMm, 1.75);
@@ -37,42 +21,18 @@ test('normalizes canonical product and physical spool metadata without dropping 
 test('scale evidence is authoritative and visual evidence is explicitly estimated', () => {
   const measured = contract.measurement({startWeight:1000,gross:742,tare:215,visualPercent:90});
   assert.deepEqual(measured, {grams:527,percent:52.7,source:'Measured',evidence:'scale',measured:true});
-
   const estimated = contract.measurement({startWeight:1000,visualPercent:63});
   assert.deepEqual(estimated, {grams:630,percent:63,source:'Estimated',evidence:'visual',measured:false});
-
   const unknown = contract.measurement({startWeight:1000});
   assert.deepEqual(unknown, {grams:null,percent:null,source:'Unknown',evidence:'none',measured:false});
 });
 
 test('first-class quantity evidence takes precedence over legacy quantity fields', () => {
-  const spool = contract.normalizeSpool({
-    id:'S100',
-    startWeight:1000,
-    gross:900,
-    tare:200,
-    quantityEvidence:[
-      {
-        evidenceId:'qe-visual',
-        method:'Visual estimate',
-        remainingGrams:800,
-        source:'intake',
-        observedAt:'2026-09-09T12:00:00Z',
-        confidence:'Low',
-      },
-      {
-        evidenceId:'qe-scale',
-        method:'Measured',
-        grossGrams:710,
-        tareGrams:210,
-        source:'workshop-scale',
-        observedAt:'2026-09-08T12:00:00Z',
-        confidence:'Confirmed',
-      },
-    ],
-  });
-
-  const result = contract.measurement(spool);
+  const spool = contract.normalizeSpool({id:'S100',startWeight:1000,gross:900,tare:200,quantityEvidence:[
+    {evidenceId:'qe-visual',method:'Visual estimate',remainingGrams:800,source:'intake',observedAt:'2026-09-09T12:00:00Z',confidence:'Low'},
+    {evidenceId:'qe-scale',method:'Measured',grossGrams:710,tareGrams:210,source:'workshop-scale',observedAt:'2026-09-08T12:00:00Z',confidence:'Confirmed'},
+  ]});
+  const result = contract.measurement(spool, Date.parse('2026-09-10T00:00:00Z'));
   assert.equal(result.grams, 500);
   assert.equal(result.percent, 50);
   assert.equal(result.source, 'Measured');
@@ -82,50 +42,31 @@ test('first-class quantity evidence takes precedence over legacy quantity fields
 });
 
 test('quantity evidence preserves explicit Unknown instead of falling back to legacy values', () => {
-  const spool = contract.normalizeSpool({
-    id:'S101',
-    startWeight:1000,
-    gross:900,
-    tare:200,
-    quantityEvidence:[{
-      evidenceId:'qe-unknown',
-      method:'Unknown',
-      source:'migration',
-      observedAt:'2026-09-10T01:00:00Z',
-    }],
-  });
-
-  const result = contract.measurement(spool);
+  const spool = contract.normalizeSpool({id:'S101',startWeight:1000,gross:900,tare:200,quantityEvidence:[{evidenceId:'qe-unknown',method:'Unknown',source:'migration',observedAt:'2026-09-10T01:00:00Z'}]});
+  const result = contract.measurement(spool, Date.parse('2026-09-10T02:00:00Z'));
   assert.equal(result.grams, null);
   assert.equal(result.source, 'Unknown');
   assert.equal(result.evidenceId, 'qe-unknown');
+  assert.equal(result.verificationRequired, true);
 });
 
 test('quantity evidence precedence is method-first then newest observation', () => {
-  const spool = contract.normalizeSpool({
-    id:'S102',
-    quantityEvidence:[
-      {evidenceId:'estimated-new', method:'Printer-estimated usage', remainingGrams:200, observedAt:'2026-09-10T01:00:00Z'},
-      {evidenceId:'measured-old', method:'Measured', grossGrams:650, tareGrams:200, observedAt:'2026-09-01T01:00:00Z'},
-      {evidenceId:'measured-new', method:'Measured', grossGrams:620, tareGrams:200, observedAt:'2026-09-09T01:00:00Z'},
-    ],
-  });
-
+  const spool = contract.normalizeSpool({id:'S102',quantityEvidence:[
+    {evidenceId:'estimated-new',method:'Printer-estimated usage',remainingGrams:200,observedAt:'2026-09-10T01:00:00Z'},
+    {evidenceId:'measured-old',method:'Measured',grossGrams:650,tareGrams:200,observedAt:'2026-09-01T01:00:00Z'},
+    {evidenceId:'measured-new',method:'Measured',grossGrams:620,tareGrams:200,observedAt:'2026-09-09T01:00:00Z'},
+  ]});
   assert.equal(contract.strongestQuantityEvidence(spool).evidenceId, 'measured-new');
-  assert.equal(contract.measurement(spool).grams, 420);
+  assert.equal(contract.measurement(spool, Date.parse('2026-09-10T00:00:00Z')).grams, 420);
 });
 
 test('quantity evidence validation rejects cross-spool and internally impossible evidence', () => {
-  const result = contract.validateSpool({
-    id:'S103',
-    quantityEvidence:[
-      {evidenceId:'bad-owner', spoolId:'S999', method:'Measured', grossGrams:500, tareGrams:200},
-      {evidenceId:'bad-weight', method:'Measured', grossGrams:100, tareGrams:200},
-      {evidenceId:'duplicate', method:'Visual estimate', remainingGrams:200},
-      {evidenceId:'duplicate', method:'Visual estimate', remainingGrams:180},
-    ],
-  });
-
+  const result = contract.validateSpool({id:'S103',quantityEvidence:[
+    {evidenceId:'bad-owner',spoolId:'S999',method:'Measured',grossGrams:500,tareGrams:200},
+    {evidenceId:'bad-weight',method:'Measured',grossGrams:100,tareGrams:200},
+    {evidenceId:'duplicate',method:'Visual estimate',remainingGrams:200},
+    {evidenceId:'duplicate',method:'Visual estimate',remainingGrams:180},
+  ]});
   assert.equal(result.valid, false);
   assert.equal(result.errors.some(issue => issue.code === 'quantity-evidence-spool-mismatch'), true);
   assert.equal(result.errors.some(issue => issue.code === 'quantity-evidence-gross-below-tare'), true);
@@ -133,18 +74,58 @@ test('quantity evidence validation rejects cross-spool and internally impossible
 });
 
 test('derived measured evidence warns when its source evidence is missing', () => {
-  const result = contract.validateSpool({
-    id:'S104',
-    quantityEvidence:[{
-      evidenceId:'derived-1',
-      method:'Calculated from measured',
-      remainingGrams:333,
-      observedAt:'2026-09-10T01:00:00Z',
-    }],
-  });
-
+  const result = contract.validateSpool({id:'S104',quantityEvidence:[{evidenceId:'derived-1',method:'Calculated from measured',remainingGrams:333,observedAt:'2026-09-10T01:00:00Z'}]});
   assert.equal(result.valid, true);
   assert.equal(result.warnings.some(issue => issue.code === 'derived-evidence-missing-source'), true);
+});
+
+test('staleAfter marks selected evidence stale without discarding the measured value', () => {
+  const spool = contract.normalizeSpool({id:'S105',startWeight:1000,quantityEvidence:[{evidenceId:'scale-stale',method:'Measured',grossGrams:700,tareGrams:200,observedAt:'2026-09-01T10:00:00Z',staleAfter:'2026-09-05T10:00:00Z',confidence:'Confirmed'}]});
+  const assessment = contract.quantityEvidenceAssessment(spool, Date.parse('2026-09-10T10:00:00Z'));
+  assert.equal(assessment.status, 'stale');
+  assert.equal(assessment.stale, true);
+  assert.equal(assessment.verificationRequired, true);
+  const result = contract.measurement(spool, Date.parse('2026-09-10T10:00:00Z'));
+  assert.equal(result.grams, 500);
+  assert.equal(result.source, 'Measured');
+  assert.equal(result.stale, true);
+  assert.equal(result.verificationRequired, true);
+  assert.equal(contract.evidenceLabel(spool).includes('stale'), true);
+});
+
+test('contemporaneous conflicting evidence is surfaced instead of silently treated as clean', () => {
+  const spool = contract.normalizeSpool({id:'S106',quantityEvidence:[
+    {evidenceId:'scale-a',method:'Measured',grossGrams:700,tareGrams:200,observedAt:'2026-09-10T10:00:00Z',confidence:'Confirmed'},
+    {evidenceId:'scale-b',method:'Measured',grossGrams:650,tareGrams:200,observedAt:'2026-09-10T10:03:00Z',confidence:'Confirmed'},
+  ]});
+  const assessment = contract.quantityEvidenceAssessment(spool, Date.parse('2026-09-10T10:04:00Z'));
+  assert.equal(assessment.status, 'conflict');
+  assert.equal(assessment.conflict, true);
+  assert.equal(assessment.conflicts.length, 1);
+  assert.deepEqual(new Set(assessment.conflictEvidenceIds), new Set(['scale-a','scale-b']));
+  const result = contract.measurement(spool, Date.parse('2026-09-10T10:04:00Z'));
+  assert.equal(result.evidenceId, 'scale-b');
+  assert.equal(result.conflict, true);
+  assert.equal(result.verificationRequired, true);
+  const validation = contract.validateSpool(spool);
+  assert.equal(validation.warnings.some(issue => issue.code === 'quantity-evidence-conflict'), true);
+});
+
+test('derived evidence does not conflict with the measured evidence it derives from', () => {
+  const spool = contract.normalizeSpool({id:'S107',quantityEvidence:[
+    {evidenceId:'scale-base',method:'Measured',grossGrams:700,tareGrams:200,observedAt:'2026-09-10T10:00:00Z'},
+    {evidenceId:'calc-child',method:'Calculated from measured',remainingGrams:470,observedAt:'2026-09-10T10:02:00Z',derivedFromEvidenceId:'scale-base'},
+  ]});
+  assert.equal(contract.quantityEvidenceAssessment(spool, Date.parse('2026-09-10T10:03:00Z')).conflict, false);
+});
+
+test('measurements outside the conflict window are history, not an automatic conflict', () => {
+  const spool = contract.normalizeSpool({id:'S108',quantityEvidence:[
+    {evidenceId:'scale-old',method:'Measured',grossGrams:700,tareGrams:200,observedAt:'2026-09-10T10:00:00Z'},
+    {evidenceId:'scale-new',method:'Measured',grossGrams:600,tareGrams:200,observedAt:'2026-09-10T10:30:00Z'},
+  ]});
+  assert.equal(contract.quantityEvidenceAssessment(spool, Date.parse('2026-09-10T10:31:00Z')).conflict, false);
+  assert.equal(contract.strongestQuantityEvidence(spool).evidenceId, 'scale-new');
 });
 
 test('lifecycle and stock state preserve low-stock attention even while a spool is loaded', () => {
@@ -153,7 +134,6 @@ test('lifecycle and stock state preserve low-stock attention even while a spool 
   assert.equal(contract.lifecycle({startWeight:1000,gross:800,tare:200,placementState:'Loaded'}), 'Loaded');
   assert.equal(contract.lifecycle({startWeight:1000,gross:400,tare:200,reorderThreshold:250,placementState:'Stored'}), 'Low');
   assert.equal(contract.lifecycle({startWeight:1000,gross:900,tare:200,reorderThreshold:250,placementState:'Stored'}), 'Available');
-
   const loadedLow = {startWeight:1000,gross:400,tare:200,reorderThreshold:250,placementState:'Loaded'};
   assert.equal(contract.lifecycle(loadedLow), 'Loaded');
   assert.equal(contract.stockState(loadedLow), 'Low');
@@ -161,11 +141,7 @@ test('lifecycle and stock state preserve low-stock attention even while a spool 
 });
 
 test('workflow summary separates lifecycle, stock, placement and evidence', () => {
-  const summary = contract.workflowSummary({
-    id:'S9', brand:'Bambu Lab', productLine:'PLA Basic', material:'PLA', colorName:'Blue Grey',
-    startWeight:1000, visualPercent:20, reorderThreshold:250,
-    placementState:'Loaded', printerName:'P1S', feederName:'AMS 1', feederSlot:'2',
-  });
+  const summary = contract.workflowSummary({id:'S9',brand:'Bambu Lab',productLine:'PLA Basic',material:'PLA',colorName:'Blue Grey',startWeight:1000,visualPercent:20,reorderThreshold:250,placementState:'Loaded',printerName:'P1S',feederName:'AMS 1',feederSlot:'2'});
   assert.equal(summary.lifecycle, 'Loaded');
   assert.equal(summary.stock, 'Low');
   assert.equal(summary.reorderNeeded, true);
@@ -179,22 +155,17 @@ test('validation rejects impossible weights and warns when measured filament exc
   const invalid = contract.validateSpool({id:'S1',startWeight:1000,gross:150,tare:200});
   assert.equal(invalid.valid, false);
   assert.equal(invalid.errors.some(issue => issue.code === 'gross-below-tare'), true);
-
   const suspicious = contract.validateSpool({id:'S2',startWeight:1000,gross:1400,tare:200});
   assert.equal(suspicious.valid, true);
   assert.equal(suspicious.warnings.some(issue => issue.code === 'remaining-above-nominal'), true);
 });
 
 test('state validation prevents duplicate spool ids and duplicate physical slot assignments', () => {
-  const result = contract.validateState({
-    profile:'Bill',
-    spools:[
-      {id:'S1',placementState:'Loaded',printerName:'P1S',feederName:'AMS 1',feederSlot:'1'},
-      {id:'s1',placementState:'Stored'},
-      {id:'S3',placementState:'Loaded',printerName:'P1S',feederName:'AMS 1',feederSlot:'1'},
-    ],
-  });
-
+  const result = contract.validateState({profile:'Bill',spools:[
+    {id:'S1',placementState:'Loaded',printerName:'P1S',feederName:'AMS 1',feederSlot:'1'},
+    {id:'s1',placementState:'Stored'},
+    {id:'S3',placementState:'Loaded',printerName:'P1S',feederName:'AMS 1',feederSlot:'1'},
+  ]});
   assert.equal(result.valid, false);
   assert.equal(result.errors.some(issue => issue.code === 'duplicate-id'), true);
   assert.equal(result.errors.some(issue => issue.code === 'slot-conflict'), true);
