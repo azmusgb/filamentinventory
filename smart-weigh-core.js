@@ -14,29 +14,37 @@
   const archived = spool => Boolean(spool?.archivedAt);
   const loaded = spool => !archived(spool) && spool?.placementState === 'Loaded';
   const contract = () => resolveContract?.() || null;
+  const nominalWeight = spool => finite(spool?.startWeight) && Number(spool.startWeight) > 0 ? Number(spool.startWeight) : null;
+
+  function percentFor(grams, spool = {}) {
+    const nominal = nominalWeight(spool);
+    if (!finite(grams) || nominal === null) return null;
+    return Math.round(Math.max(0, Math.min(100, Number(grams) / nominal * 100)) * 10) / 10;
+  }
 
   function canonicalMeasurement(spool = {}) {
     const result = contract()?.measurement?.(spool);
     if (result) return result;
     if (finite(spool.gross) && finite(spool.tare) && Number(spool.gross) >= Number(spool.tare)) {
-      const start = finite(spool.startWeight) && Number(spool.startWeight) > 0 ? Number(spool.startWeight) : 1000;
       const grams = Math.max(0, Number(spool.gross) - Number(spool.tare));
-      return {grams, percent:Math.round(Math.min(100, grams / start * 100) * 10) / 10, source:'Measured', evidence:'scale', measured:true};
+      return {grams, percent:percentFor(grams, spool), source:'Measured', evidence:'scale', measured:true};
     }
     if (finite(spool.estimatedRemainingGrams)) {
-      const start = finite(spool.startWeight) && Number(spool.startWeight) > 0 ? Number(spool.startWeight) : 1000;
       const grams = Math.max(0, Number(spool.estimatedRemainingGrams));
-      return {grams, percent:Math.round(Math.min(100, grams / start * 100) * 10) / 10, source:'Estimated', evidence:'usage', measured:false};
+      return {grams, percent:percentFor(grams, spool), source:'Estimated', evidence:'usage', measured:false};
     }
     if (finite(spool.visualPercent)) {
       const percent = Math.max(0, Math.min(100, Number(spool.visualPercent)));
-      const start = finite(spool.startWeight) && Number(spool.startWeight) > 0 ? Number(spool.startWeight) : 1000;
-      return {grams:Math.round(start * percent / 100), percent, source:'Estimated', evidence:'visual', measured:false};
+      const nominal = nominalWeight(spool);
+      return {grams:nominal === null ? null : Math.round(nominal * percent / 100), percent, source:'Estimated', evidence:'visual', measured:false};
     }
     return {grams:null, percent:null, source:'Unknown', evidence:'none', measured:false};
   }
 
   function latestMeasurementAt(spool = {}, weighLog = []) {
+    const explicit = contract()?.strongestQuantityEvidence?.(spool);
+    const explicitStamp = Date.parse(explicit?.observedAt || '');
+    if (Number.isFinite(explicitStamp) && explicit?.method !== 'Unknown') return explicitStamp;
     const matches = weighLog.filter(row => text(row?.id) === text(spool?.id) && row?.at).map(row => Date.parse(row.at)).filter(Number.isFinite);
     if (matches.length) return Math.max(...matches);
     const fallback = Date.parse(spool.updatedAt || '');
@@ -85,12 +93,31 @@
     if (!finite(gross) || !finite(tare)) return null;
     const g = Number(gross); const t = Number(tare);
     if (g < 0 || t < 0 || g < t) return {valid:false, reason:'Gross weight must be greater than or equal to tare.'};
-    const start = finite(spool.startWeight) && Number(spool.startWeight) > 0 ? Number(spool.startWeight) : 1000;
     const grams = Math.max(0, g - t);
-    const percent = Math.round(Math.min(100, grams / start * 100) * 10) / 10;
+    const percent = percentFor(grams, spool);
     const threshold = finite(spool.reorderThreshold) ? Number(spool.reorderThreshold) : 250;
     return {valid:true, grams, percent, threshold, delta:grams - threshold, reorder:grams <= threshold};
   }
 
-  return Object.freeze({rankSpools, tareSuggestion, preview, latestMeasurementAt, hasKnownRemaining, canonicalMeasurement});
+  function measuredEvidence(spool = {}, gross, tare, options = {}) {
+    const result = preview(spool, gross, tare);
+    if (!result?.valid) return null;
+    const observedAt = options.observedAt && !Number.isNaN(Date.parse(String(options.observedAt))) ? String(options.observedAt) : new Date().toISOString();
+    const raw = {
+      evidenceId:String(options.evidenceId || '').trim(),
+      spoolId:String(spool.id || '').trim(),
+      method:'Measured',
+      grossGrams:Number(gross),
+      tareGrams:Number(tare),
+      remainingGrams:result.grams,
+      source:String(options.source || 'smart-weigh').trim(),
+      observedAt,
+      confidence:'Confirmed',
+      staleAfter:options.staleAfter || null,
+      derivedFromEvidenceId:'',
+    };
+    return contract()?.normalizeQuantityEvidence?.(raw, {spoolId:raw.spoolId}) || Object.freeze(raw);
+  }
+
+  return Object.freeze({rankSpools, tareSuggestion, preview, latestMeasurementAt, hasKnownRemaining, canonicalMeasurement, measuredEvidence});
 });
