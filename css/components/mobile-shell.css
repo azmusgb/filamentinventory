@@ -10,6 +10,7 @@
   html.fi-app-frame .topbar .brand h1 { font-size: 16px; line-height: 1.1; white-space: nowrap; }
   html.fi-app-frame .topbar .brand p { display: none; }
   html.fi-app-frame .top-actions { flex: 0 0 auto; margin-left: auto; gap: 6px; }
+  html.fi-app-frame .top-actions > .scan-launch { display: none; }
   html.fi-app-frame .profile-chip { min-height: 48px; max-width: 144px; padding: 5px 9px 5px 5px; gap: 7px; }
   html.fi-app-frame .profile-avatar { width: 36px; height: 36px; flex: 0 0 36px; }
   html.fi-app-frame .profile-chip-copy { min-width: 0; }
