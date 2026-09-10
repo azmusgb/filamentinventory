@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 
 const FIXED_TIME = Date.parse('2026-08-28T15:00:00.000Z');
 const APPROVED_VISUAL_HASHES = Object.freeze({
-  home:'75fa3fb4d373df1f96de004f2fd93788ab52f29116e76abecfb3d2017767c104',
+  home:'8b107a76f255ad5b85b9c4435bb2b4d6f48b4c5c5e35dd038af8c7806b946f18',
   inventory:'e0ac7a622a10b1c76ea5965de0a935c00c28552fe432df23cbe9e21986484d4e',
 });
 
@@ -258,7 +258,11 @@ test('mobile header Tools hands off to one isolated Print Check dialog', async (
 
 test('mobile scanner unknown-spool recovery opens Add spool with the scanned ID', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-webkit','iPhone scanner handoff contract.');
-  await page.locator('#qrScanLaunch').click();
+  await page.getByRole('button',{name:'Open tools and settings'}).click();
+  const tools=page.locator('.fi-more-sheet[open]');
+  await expect(tools).toBeVisible();
+  await tools.locator('[data-shell-action="scan"]').click();
+  await expect(tools).not.toHaveAttribute('open','');
   await expect(page.locator('#qrScannerDialog[open]')).toBeVisible();
   await page.locator('#qrManualId').fill('T999');
   await page.getByRole('button',{name:'Find spool'}).click();
