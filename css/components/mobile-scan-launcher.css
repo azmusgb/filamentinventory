@@ -1,4 +1,0 @@
-/* PR #140: the global scanner remains available through Tools; do not spend scarce mobile header space on a duplicate launcher. */
-@media (max-width: 959px) {
-  html.fi-app-frame .top-actions > .scan-launch { display: none; }
-}
