@@ -45,6 +45,108 @@ test('scale evidence is authoritative and visual evidence is explicitly estimate
   assert.deepEqual(unknown, {grams:null,percent:null,source:'Unknown',evidence:'none',measured:false});
 });
 
+test('first-class quantity evidence takes precedence over legacy quantity fields', () => {
+  const spool = contract.normalizeSpool({
+    id:'S100',
+    startWeight:1000,
+    gross:900,
+    tare:200,
+    quantityEvidence:[
+      {
+        evidenceId:'qe-visual',
+        method:'Visual estimate',
+        remainingGrams:800,
+        source:'intake',
+        observedAt:'2026-09-09T12:00:00Z',
+        confidence:'Low',
+      },
+      {
+        evidenceId:'qe-scale',
+        method:'Measured',
+        grossGrams:710,
+        tareGrams:210,
+        source:'workshop-scale',
+        observedAt:'2026-09-08T12:00:00Z',
+        confidence:'Confirmed',
+      },
+    ],
+  });
+
+  const result = contract.measurement(spool);
+  assert.equal(result.grams, 500);
+  assert.equal(result.percent, 50);
+  assert.equal(result.source, 'Measured');
+  assert.equal(result.evidence, 'quantity-evidence');
+  assert.equal(result.evidenceId, 'qe-scale');
+  assert.equal(result.method, 'Measured');
+});
+
+test('quantity evidence preserves explicit Unknown instead of falling back to legacy values', () => {
+  const spool = contract.normalizeSpool({
+    id:'S101',
+    startWeight:1000,
+    gross:900,
+    tare:200,
+    quantityEvidence:[{
+      evidenceId:'qe-unknown',
+      method:'Unknown',
+      source:'migration',
+      observedAt:'2026-09-10T01:00:00Z',
+    }],
+  });
+
+  const result = contract.measurement(spool);
+  assert.equal(result.grams, null);
+  assert.equal(result.source, 'Unknown');
+  assert.equal(result.evidenceId, 'qe-unknown');
+});
+
+test('quantity evidence precedence is method-first then newest observation', () => {
+  const spool = contract.normalizeSpool({
+    id:'S102',
+    quantityEvidence:[
+      {evidenceId:'estimated-new', method:'Printer-estimated usage', remainingGrams:200, observedAt:'2026-09-10T01:00:00Z'},
+      {evidenceId:'measured-old', method:'Measured', grossGrams:650, tareGrams:200, observedAt:'2026-09-01T01:00:00Z'},
+      {evidenceId:'measured-new', method:'Measured', grossGrams:620, tareGrams:200, observedAt:'2026-09-09T01:00:00Z'},
+    ],
+  });
+
+  assert.equal(contract.strongestQuantityEvidence(spool).evidenceId, 'measured-new');
+  assert.equal(contract.measurement(spool).grams, 420);
+});
+
+test('quantity evidence validation rejects cross-spool and internally impossible evidence', () => {
+  const result = contract.validateSpool({
+    id:'S103',
+    quantityEvidence:[
+      {evidenceId:'bad-owner', spoolId:'S999', method:'Measured', grossGrams:500, tareGrams:200},
+      {evidenceId:'bad-weight', method:'Measured', grossGrams:100, tareGrams:200},
+      {evidenceId:'duplicate', method:'Visual estimate', remainingGrams:200},
+      {evidenceId:'duplicate', method:'Visual estimate', remainingGrams:180},
+    ],
+  });
+
+  assert.equal(result.valid, false);
+  assert.equal(result.errors.some(issue => issue.code === 'quantity-evidence-spool-mismatch'), true);
+  assert.equal(result.errors.some(issue => issue.code === 'quantity-evidence-gross-below-tare'), true);
+  assert.equal(result.errors.some(issue => issue.code === 'duplicate-quantity-evidence-id'), true);
+});
+
+test('derived measured evidence warns when its source evidence is missing', () => {
+  const result = contract.validateSpool({
+    id:'S104',
+    quantityEvidence:[{
+      evidenceId:'derived-1',
+      method:'Calculated from measured',
+      remainingGrams:333,
+      observedAt:'2026-09-10T01:00:00Z',
+    }],
+  });
+
+  assert.equal(result.valid, true);
+  assert.equal(result.warnings.some(issue => issue.code === 'derived-evidence-missing-source'), true);
+});
+
 test('lifecycle and stock state preserve low-stock attention even while a spool is loaded', () => {
   assert.equal(contract.lifecycle({archivedAt:'2026-08-28T12:00:00Z',placementState:'Loaded'}), 'Archived');
   assert.equal(contract.lifecycle({startWeight:1000,gross:200,tare:200,placementState:'Loaded'}), 'Empty');
