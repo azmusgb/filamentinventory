@@ -30,3 +30,47 @@ test('preview reports threshold delta without mutation', () => {
   assert.deepEqual(result, {valid:true, grams:536, percent:53.6, threshold:250, delta:286, reorder:false});
   assert.equal(spool.gross, undefined);
 });
+
+test('preview never invents nominal filament weight when it is unknown', () => {
+  const result = core.preview({id:'S5', reorderThreshold:250}, 748, 212);
+  assert.deepEqual(result, {valid:true, grams:536, percent:null, threshold:250, delta:286, reorder:false});
+});
+
+test('canonical measurement preserves known measured grams while percent stays unknown without nominal weight', () => {
+  const result = core.canonicalMeasurement({id:'S6', gross:748, tare:212});
+  assert.equal(result.grams, 536);
+  assert.equal(result.percent, null);
+  assert.equal(result.source, 'Measured');
+});
+
+test('measuredEvidence emits first-class measured provenance with deterministic gross minus tare', () => {
+  const result = core.measuredEvidence({id:'S7', startWeight:1000}, 748, 212, {
+    evidenceId:'qe-s7-1',
+    observedAt:'2026-09-10T06:30:00Z',
+    source:'workshop-scale',
+  });
+
+  assert.equal(result.evidenceId, 'qe-s7-1');
+  assert.equal(result.spoolId, 'S7');
+  assert.equal(result.method, 'Measured');
+  assert.equal(result.grossGrams, 748);
+  assert.equal(result.tareGrams, 212);
+  assert.equal(result.remainingGrams, 536);
+  assert.equal(result.source, 'workshop-scale');
+  assert.equal(result.confidence, 'Confirmed');
+});
+
+test('latest measurement timestamp can come from first-class quantity evidence', () => {
+  const at = core.latestMeasurementAt({
+    id:'S8',
+    quantityEvidence:[{
+      evidenceId:'qe-s8',
+      method:'Measured',
+      grossGrams:700,
+      tareGrams:200,
+      observedAt:'2026-09-10T05:00:00Z',
+    }],
+  }, [{id:'S8', at:'2026-09-01T05:00:00Z'}]);
+
+  assert.equal(at, Date.parse('2026-09-10T05:00:00Z'));
+});
