@@ -12,6 +12,22 @@
   const STOCK_STATES = Object.freeze(['Unknown', 'Available', 'Low', 'Empty', 'Archived']);
   const CONFIDENCE_LEVELS = Object.freeze(['Confirmed', 'High', 'Medium', 'Low', 'Unknown']);
   const TRI_STATES = Object.freeze(['Yes', 'No', 'Unknown']);
+  const QUANTITY_EVIDENCE_METHODS = Object.freeze([
+    'Measured',
+    'Calculated from measured',
+    'Printer-estimated usage',
+    'Visual estimate',
+    'Imported estimate',
+    'Unknown',
+  ]);
+  const QUANTITY_EVIDENCE_PRIORITY = Object.freeze({
+    'Measured': 600,
+    'Calculated from measured': 500,
+    'Printer-estimated usage': 400,
+    'Visual estimate': 300,
+    'Imported estimate': 200,
+    'Unknown': 0,
+  });
 
   const isFiniteNumber = value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value));
   const numberOrNull = value => isFiniteNumber(value) ? Number(value) : null;
@@ -22,9 +38,97 @@
   const validHex = value => /^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value) : '#64748b';
   const normalizeTriState = value => TRI_STATES.includes(String(value)) ? String(value) : 'Unknown';
   const normalizeOwner = (value, fallback = 'Bill') => OWNERS.includes(String(value)) ? String(value) : (OWNERS.includes(String(fallback)) ? String(fallback) : 'Bill');
-  const lowerId = value => safeText(value, 24).toLowerCase();
+  const lowerId = value => safeText(value, 64).toLowerCase();
+
+  function normalizeQuantityEvidence(input = {}, {spoolId = ''} = {}) {
+    const method = QUANTITY_EVIDENCE_METHODS.includes(String(input.method)) ? String(input.method) : 'Unknown';
+    const grossGrams = isFiniteNumber(input.grossGrams) ? Math.max(0, Number(input.grossGrams)) : null;
+    const tareGrams = isFiniteNumber(input.tareGrams) ? Math.max(0, Number(input.tareGrams)) : null;
+    let remainingGrams = isFiniteNumber(input.remainingGrams) ? Math.max(0, Number(input.remainingGrams)) : null;
+    if (method === 'Measured' && grossGrams !== null && tareGrams !== null && grossGrams >= tareGrams) {
+      remainingGrams = Math.max(0, grossGrams - tareGrams);
+    }
+    if (method === 'Unknown') remainingGrams = null;
+
+    return Object.freeze({
+      evidenceId: safeText(input.evidenceId, 120),
+      spoolId: safeText(input.spoolId || spoolId, 64),
+      method,
+      grossGrams,
+      tareGrams,
+      remainingGrams,
+      source: safeText(input.source, 120),
+      observedAt: validIso(input.observedAt),
+      confidence: CONFIDENCE_LEVELS.includes(String(input.confidence)) ? String(input.confidence) : 'Unknown',
+      staleAfter: validIso(input.staleAfter),
+      derivedFromEvidenceId: safeText(input.derivedFromEvidenceId, 120),
+    });
+  }
+
+  function normalizeQuantityEvidenceList(value, {spoolId = ''} = {}) {
+    if (!Array.isArray(value)) return [];
+    return value.map(row => normalizeQuantityEvidence(row, {spoolId}));
+  }
+
+  function legacyQuantityEvidence(spool = {}) {
+    const spoolId = safeText(spool.id, 64);
+    if (isFiniteNumber(spool.gross) && isFiniteNumber(spool.tare) && Number(spool.gross) >= Number(spool.tare)) {
+      return normalizeQuantityEvidence({
+        evidenceId: '',
+        spoolId,
+        method: 'Measured',
+        grossGrams: Number(spool.gross),
+        tareGrams: Number(spool.tare),
+        remainingGrams: Number(spool.gross) - Number(spool.tare),
+        source: 'legacy-scale',
+        observedAt: spool.remainingEvidenceAt || spool.updatedAt,
+        confidence: 'Confirmed',
+      }, {spoolId});
+    }
+    if (isFiniteNumber(spool.estimatedRemainingGrams)) {
+      return normalizeQuantityEvidence({
+        evidenceId: '',
+        spoolId,
+        method: 'Printer-estimated usage',
+        remainingGrams: Number(spool.estimatedRemainingGrams),
+        source: 'legacy-usage',
+        observedAt: spool.remainingEvidenceAt || spool.updatedAt,
+        confidence: spool.confidence,
+      }, {spoolId});
+    }
+    if (isFiniteNumber(spool.visualPercent)) {
+      const nominal = isFiniteNumber(spool.startWeight) && Number(spool.startWeight) > 0 ? Number(spool.startWeight) : null;
+      const percent = clamp(Number(spool.visualPercent), 0, 100);
+      return normalizeQuantityEvidence({
+        evidenceId: '',
+        spoolId,
+        method: 'Visual estimate',
+        remainingGrams: nominal === null ? null : Math.round(nominal * percent / 100),
+        source: 'legacy-visual',
+        observedAt: spool.remainingEvidenceAt || spool.updatedAt,
+        confidence: spool.confidence,
+      }, {spoolId});
+    }
+    return normalizeQuantityEvidence({spoolId, method:'Unknown', source:'legacy-unknown'}, {spoolId});
+  }
+
+  function evidenceTimestamp(evidence = {}) {
+    const stamp = Date.parse(evidence.observedAt || '');
+    return Number.isFinite(stamp) ? stamp : 0;
+  }
+
+  function strongestQuantityEvidence(spool = {}) {
+    const explicit = normalizeQuantityEvidenceList(spool.quantityEvidence, {spoolId:spool.id});
+    if (!explicit.length) return legacyQuantityEvidence(spool);
+    return explicit.slice().sort((a, b) => {
+      const priority = (QUANTITY_EVIDENCE_PRIORITY[b.method] || 0) - (QUANTITY_EVIDENCE_PRIORITY[a.method] || 0);
+      if (priority) return priority;
+      return evidenceTimestamp(b) - evidenceTimestamp(a);
+    })[0] || normalizeQuantityEvidence({spoolId:spool.id, method:'Unknown'}, {spoolId:spool.id});
+  }
 
   function normalizeSpool(input = {}, {owner = 'Bill'} = {}) {
+    const id = safeText(input.id, 64);
     const nominal = isFiniteNumber(input.startWeight) && Number(input.startWeight) > 0 ? Number(input.startWeight) : null;
     const gross = isFiniteNumber(input.gross) ? Math.max(0, Number(input.gross)) : null;
     const tare = isFiniteNumber(input.tare) ? Math.max(0, Number(input.tare)) : null;
@@ -40,7 +144,7 @@
 
     return {
       ...input,
-      id: safeText(input.id, 24),
+      id,
       brand: safeText(input.brand || 'Unknown', 60) || 'Unknown',
       productLine: safeText(input.productLine, 80),
       material: safeText(input.material || 'Unknown', 80) || 'Unknown',
@@ -55,6 +159,7 @@
       estimatedRemainingGrams,
       gross,
       tare,
+      quantityEvidence: normalizeQuantityEvidenceList(input.quantityEvidence, {spoolId:id}),
       location: safeText(input.location, 80),
       confidence: CONFIDENCE_LEVELS.includes(String(input.confidence)) ? String(input.confidence) : 'Unknown',
       opened: normalizeTriState(input.opened),
@@ -80,6 +185,20 @@
 
   function measurement(spool = {}) {
     const nominal = isFiniteNumber(spool.startWeight) && Number(spool.startWeight) > 0 ? Number(spool.startWeight) : null;
+    const explicit = Array.isArray(spool.quantityEvidence) && spool.quantityEvidence.length > 0;
+    if (explicit) {
+      const evidence = strongestQuantityEvidence(spool);
+      const grams = evidence.remainingGrams;
+      const percent = grams !== null && nominal ? Math.round(clamp(grams / nominal * 100, 0, 100) * 10) / 10 : null;
+      if (evidence.method === 'Measured' || evidence.method === 'Calculated from measured') {
+        return {grams, percent, source:'Measured', evidence:'quantity-evidence', measured:true, evidenceId:evidence.evidenceId || null, method:evidence.method, observedAt:evidence.observedAt};
+      }
+      if (evidence.method !== 'Unknown') {
+        return {grams, percent, source:'Estimated', evidence:'quantity-evidence', measured:false, evidenceId:evidence.evidenceId || null, method:evidence.method, observedAt:evidence.observedAt};
+      }
+      return {grams:null, percent:null, source:'Unknown', evidence:'quantity-evidence', measured:false, evidenceId:evidence.evidenceId || null, method:'Unknown', observedAt:evidence.observedAt};
+    }
+
     if (isFiniteNumber(spool.gross) && isFiniteNumber(spool.tare) && Number(spool.gross) >= Number(spool.tare)) {
       const grams = Math.max(0, Number(spool.gross) - Number(spool.tare));
       return {
@@ -149,7 +268,8 @@
 
   function evidenceLabel(spool = {}) {
     const remaining = measurement(spool);
-    if (remaining.source === 'Measured') return 'Measured · scale';
+    if (remaining.source === 'Measured') return remaining.method ? `${remaining.method} · evidence` : 'Measured · scale';
+    if (remaining.evidence === 'quantity-evidence' && remaining.method) return `${remaining.method}${remaining.grams === null ? ' · amount unknown' : ''}`;
     if (remaining.evidence === 'usage') return remaining.grams === null ? 'Estimated · usage · amount unknown' : 'Estimated · usage';
     if (remaining.evidence === 'visual') return remaining.grams === null ? 'Estimated · visual · nominal unknown' : 'Estimated · visual';
     return 'Unknown · verify';
@@ -169,8 +289,30 @@
     const warnings = [];
     if (!spool.id) errors.push({code:'id-required', field:'id', message:'Spool ID is required.'});
     if (spool.gross !== null && spool.tare !== null && spool.gross < spool.tare) errors.push({code:'gross-below-tare', field:'gross', message:'Gross weight cannot be less than tare weight.'});
+
+    const evidenceIds = new Set();
+    for (const evidence of spool.quantityEvidence) {
+      if (evidence.spoolId && lowerId(evidence.spoolId) !== lowerId(spool.id)) {
+        errors.push({code:'quantity-evidence-spool-mismatch', field:'quantityEvidence', evidenceId:evidence.evidenceId, message:'Quantity evidence belongs to a different spool.'});
+      }
+      if (evidence.evidenceId) {
+        const evidenceKey = lowerId(evidence.evidenceId);
+        if (evidenceIds.has(evidenceKey)) errors.push({code:'duplicate-quantity-evidence-id', field:'quantityEvidence', evidenceId:evidence.evidenceId, message:`Duplicate quantity evidence ID: ${evidence.evidenceId}.`});
+        else evidenceIds.add(evidenceKey);
+      }
+      if (evidence.grossGrams !== null && evidence.tareGrams !== null && evidence.grossGrams < evidence.tareGrams) {
+        errors.push({code:'quantity-evidence-gross-below-tare', field:'quantityEvidence', evidenceId:evidence.evidenceId, message:'Quantity evidence gross weight cannot be less than tare weight.'});
+      }
+      if (evidence.method === 'Measured' && (evidence.grossGrams === null || evidence.tareGrams === null)) {
+        warnings.push({code:'measured-evidence-missing-gross-or-tare', field:'quantityEvidence', evidenceId:evidence.evidenceId, message:'Measured quantity evidence should preserve both gross and tare grams.'});
+      }
+      if (evidence.method === 'Calculated from measured' && !evidence.derivedFromEvidenceId) {
+        warnings.push({code:'derived-evidence-missing-source', field:'quantityEvidence', evidenceId:evidence.evidenceId, message:'Calculated quantity evidence should identify its source evidence.'});
+      }
+    }
+
     const remaining = measurement(spool);
-    if (remaining.measured && spool.startWeight !== null && remaining.grams > spool.startWeight) warnings.push({code:'remaining-above-nominal', field:'gross', message:'Measured filament remaining exceeds the nominal filament weight; verify tare and nominal weight.'});
+    if (remaining.measured && spool.startWeight !== null && remaining.grams !== null && remaining.grams > spool.startWeight) warnings.push({code:'remaining-above-nominal', field:'gross', message:'Measured filament remaining exceeds the nominal filament weight; verify tare and nominal weight.'});
     if (spool.diameterMm !== null && (spool.diameterMm < 1 || spool.diameterMm > 3)) warnings.push({code:'diameter-unusual', field:'diameterMm', message:'Filament diameter is outside the typical 1–3 mm range.'});
     if (spool.placementState === 'Loaded' && !spool.printerName) warnings.push({code:'loaded-without-printer', field:'printerName', message:'Loaded spool does not identify a printer.'});
     return {spool, errors, warnings, valid:errors.length === 0};
@@ -205,5 +347,31 @@
     return {state, errors, warnings, valid:errors.length === 0};
   }
 
-  return Object.freeze({DEFAULT_REORDER_GRAMS, OWNERS, PLACEMENT_STATES, LIFECYCLE_STATES, STOCK_STATES, CONFIDENCE_LEVELS, isFiniteNumber, numberOrNull, normalizeOwner, normalizeSpool, normalizeState, measurement, stockState, lifecycle, reorderNeeded, productLabel, placementLabel, evidenceLabel, workflowSummary, validateSpool, validateState});
+  return Object.freeze({
+    DEFAULT_REORDER_GRAMS,
+    OWNERS,
+    PLACEMENT_STATES,
+    LIFECYCLE_STATES,
+    STOCK_STATES,
+    CONFIDENCE_LEVELS,
+    QUANTITY_EVIDENCE_METHODS,
+    isFiniteNumber,
+    numberOrNull,
+    normalizeOwner,
+    normalizeQuantityEvidence,
+    normalizeQuantityEvidenceList,
+    strongestQuantityEvidence,
+    normalizeSpool,
+    normalizeState,
+    measurement,
+    stockState,
+    lifecycle,
+    reorderNeeded,
+    productLabel,
+    placementLabel,
+    evidenceLabel,
+    workflowSummary,
+    validateSpool,
+    validateState,
+  });
 });
