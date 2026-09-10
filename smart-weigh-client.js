@@ -3,12 +3,86 @@
   const core = globalThis.FilamentInventorySmartWeigh;
   if (!core) return;
   const STORAGE_KEY = 'filament-inventory-v1';
+  const PHYSICAL_KEY = /^filament-user-v1:(bill|aimee):inventory$/i;
   const $ = id => document.getElementById(id);
+  let pendingMeasurement = null;
+
+  const parse = (value, fallback = null) => { try { return JSON.parse(String(value)); } catch { return fallback; } };
   const readState = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; } };
   const currentSpool = () => {
     const state = readState();
     return (state.spools || []).find(spool => String(spool.id) === String($('weighSpool')?.value));
   };
+  const inventoryKey = key => key === STORAGE_KEY || PHYSICAL_KEY.test(String(key || ''));
+  const evidenceKey = evidence => String(evidence?.evidenceId || '').trim();
+  const sameSpool = (first, second) => String(first || '').trim().toLowerCase() === String(second || '').trim().toLowerCase();
+
+  function makeEvidenceId(spoolId, observedAt) {
+    const stamp = String(observedAt || new Date().toISOString()).replace(/[^0-9]/g, '').slice(0, 17);
+    const suffix = globalThis.crypto?.randomUUID?.().slice(0, 8) || Math.random().toString(36).slice(2, 10);
+    return `qe-${String(spoolId || 'spool').trim().toLowerCase()}-${stamp}-${suffix}`;
+  }
+
+  function captureMeasurement(event) {
+    if (event.target?.id !== 'weighForm') return;
+    const spool = currentSpool();
+    const gross = $('grossWeight')?.value;
+    const tare = $('tareWeight')?.value;
+    if (!spool) return;
+    const observedAt = new Date().toISOString();
+    const evidence = core.measuredEvidence(spool, gross, tare, {
+      evidenceId:makeEvidenceId(spool.id, observedAt),
+      observedAt,
+      source:'smart-weigh',
+    });
+    if (!evidence) return;
+    pendingMeasurement = {spoolId:spool.id, evidence};
+  }
+
+  function installMeasurementPersistence() {
+    if (!globalThis.Storage || globalThis.__filamentSmartWeighEvidenceStorageInstalled) return;
+    globalThis.__filamentSmartWeighEvidenceStorageInstalled = true;
+    const proto = Storage.prototype;
+    const priorSet = proto.setItem;
+
+    proto.setItem = function(key, value) {
+      if (this !== localStorage || !inventoryKey(key) || !pendingMeasurement) return priorSet.call(this, key, value);
+      const incoming = parse(value, null);
+      if (!incoming?.spools) return priorSet.call(this, key, value);
+
+      const target = incoming.spools.find(spool => sameSpool(spool?.id, pendingMeasurement.spoolId));
+      if (!target) return priorSet.call(this, key, value);
+      if (Number(target.gross) !== Number(pendingMeasurement.evidence.grossGrams) || Number(target.tare) !== Number(pendingMeasurement.evidence.tareGrams)) {
+        return priorSet.call(this, key, value);
+      }
+
+      const previous = parse(localStorage.getItem(key), null);
+      const priorSpool = previous?.spools?.find(spool => sameSpool(spool?.id, pendingMeasurement.spoolId));
+      const priorEvidence = Array.isArray(priorSpool?.quantityEvidence) ? priorSpool.quantityEvidence : [];
+      const incomingEvidence = Array.isArray(target.quantityEvidence) ? target.quantityEvidence : [];
+      const byId = new Map();
+      [...priorEvidence, ...incomingEvidence].forEach(evidence => {
+        const id = evidenceKey(evidence);
+        if (id) byId.set(id, evidence);
+      });
+      byId.set(pendingMeasurement.evidence.evidenceId, pendingMeasurement.evidence);
+      target.quantityEvidence = [...byId.values()];
+      target.remainingEvidenceAt = pendingMeasurement.evidence.observedAt;
+
+      const applied = pendingMeasurement;
+      pendingMeasurement = null;
+      const result = priorSet.call(this, key, JSON.stringify(incoming));
+      queueMicrotask(() => {
+        globalThis.FilamentInventoryEvents?.emit('quantity-evidence:saved', {
+          spoolId:applied.spoolId,
+          evidenceId:applied.evidence.evidenceId,
+          method:applied.evidence.method,
+          observedAt:applied.evidence.observedAt,
+        });
+      });
+      return result;
+    };
+  }
 
   function suggestionText(suggestion) {
     if (!suggestion) return '';
@@ -135,6 +209,9 @@
 
   function refresh(preferredId = '') { rankOptions(preferredId); renderSuggestion(); }
 
+  installMeasurementPersistence();
+  document.addEventListener('submit', captureMeasurement, true);
+
   document.addEventListener('DOMContentLoaded', () => {
     structureWeigh();
     const select = $('weighSpool');
@@ -143,6 +220,7 @@
     select.addEventListener('change', renderSuggestion);
     globalThis.FilamentInventoryEvents?.on('inventory:changed', () => refresh());
     globalThis.FilamentInventoryEvents?.on('measurement:saved', event => refresh(event.detail.spoolId));
+    globalThis.FilamentInventoryEvents?.on('quantity-evidence:saved', event => refresh(event.detail.spoolId));
     window.addEventListener('storage', event => { if (event.key === STORAGE_KEY) refresh(); });
   });
 })();
