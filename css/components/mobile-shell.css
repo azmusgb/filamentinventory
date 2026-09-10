@@ -15,8 +15,7 @@
   html.fi-app-frame .profile-chip-copy { min-width: 0; }
   html.fi-app-frame .profile-chip-copy strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
   html.fi-app-frame .profile-chip-copy small { display: none; }
-  html.fi-app-frame .header-tools-launch,
-  html.fi-app-frame .header-scan-launch { width: 48px; min-width: 48px; height: 48px; min-height: 48px; padding: 0; border-radius: 12px; }
+  html.fi-app-frame .header-tools-launch { width: 48px; min-width: 48px; height: 48px; min-height: 48px; padding: 0; border-radius: 12px; }
   html.fi-app-frame .app-shell > main { width: 100%; min-width: 0; padding: 18px 16px 22px; overflow-x: clip; }
   html.fi-app-frame .view, html.fi-app-frame .panel, html.fi-app-frame .fi-page { min-width: 0; max-width: 100%; }
   html.fi-app-frame .fi-page-header { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px 12px; margin: 0 0 16px; }
@@ -33,7 +32,7 @@
   html.fi-app-frame .mobile-bottom-nav button > span { font-size: 17px; }
   html.fi-app-frame .mobile-bottom-nav button > small { font-size: 10px; line-height: 1.05; }
 
-  html.fi-app-frame dialog.fi-more-sheet[open] { width: min(100%, 620px); max-height: min(82dvh,720px); overflow: hidden; }
+  html.fi-app-frame dialog.fi-more-sheet[open] { width: min(100%,620px); max-height: min(82dvh,720px); overflow: hidden; }
   html.fi-app-frame .fi-more-sheet .dialog-head { position: relative; display: flex; align-items: center; min-height: 74px; padding: 16px 18px 12px; }
   html.fi-app-frame .fi-more-sheet .dialog-head::before { content: ''; position: absolute; top: 7px; left: 50%; width: 38px; height: 4px; transform: translateX(-50%); border-radius: 999px; background: var(--color-border-strong); }
   html.fi-app-frame .fi-more-sheet .dialog-head h3 { margin-top: 3px; font-size: 22px; }
@@ -51,6 +50,27 @@
   html.fi-app-frame .fi-more-action b { justify-self: end; color: var(--color-text-subtle); font-size: 22px; font-weight: 400; }
   html.fi-app-frame .fi-more-action:active { background: var(--color-surface-strong); }
 
+  html.fi-app-frame .fi-page-inventory > .fi-page-header { grid-template-columns: minmax(0,1fr) auto; align-items: start; }
+  html.fi-app-frame .fi-page-inventory .fi-page-header-actions { display: flex; gap: 6px; }
+  html.fi-app-frame .fi-page-inventory .fi-page-header-actions .btn { min-height: 44px; padding-inline: 12px; font-size: 12px; }
+  html.fi-app-frame .fi-page-inventory .inventory-command-modes { max-width: 100%; scroll-snap-type: x proximity; }
+  html.fi-app-frame .fi-page-inventory .inventory-command-mode { scroll-snap-align: start; min-height: 40px; }
+  html.fi-app-frame .fi-page-inventory .inventory-compact-controls { grid-template-columns: minmax(0,1fr) auto; gap: 8px; }
+  html.fi-app-frame .fi-page-inventory .inventory-compact-controls .field,
+  html.fi-app-frame .fi-page-inventory .inventory-filter-open { min-height: 48px; }
+  html.fi-app-frame .fi-page-inventory .inventory-filter-open { min-width: 92px; }
+  html.fi-app-frame .fi-page-inventory .spool-card-more { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+
+  html.fi-app-frame .fi-llm-view, html.fi-app-frame .fi-llm-layout, html.fi-app-frame .fi-llm-chat, html.fi-app-frame .fi-llm-side { min-width: 0; max-width: 100%; }
+  html.fi-app-frame .fi-llm-layout { grid-template-columns: minmax(0,1fr); overflow: hidden; }
+  html.fi-app-frame .fi-llm-chat { min-height: 0; overflow: hidden; }
+  html.fi-app-frame .fi-llm-section-head { min-width: 0; align-items: flex-start; }
+  html.fi-app-frame .fi-llm-section-head > div { min-width: 0; max-width: 100%; }
+  html.fi-app-frame .fi-llm-section-head p { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  html.fi-app-frame .fi-llm-prompts { max-width: 100%; }
+  html.fi-app-frame .fi-llm-composer, html.fi-app-frame .fi-llm-composer textarea { min-width: 0; max-width: 100%; box-sizing: border-box; }
+  html.fi-app-frame .fi-llm-side { grid-template-columns: minmax(0,1fr); }
+
   html.fi-app-frame #historyView > .fi-page-header #exportHistoryBtn { display: none; }
   html.fi-app-frame .fi-activity-panel { min-width: 0; }
   html.fi-app-frame .audit-content-head { align-items: flex-start; }
@@ -65,6 +85,11 @@
   html.fi-app-frame .app-shell > main { padding: 16px 14px 20px; }
   html.fi-app-frame .fi-page-header-copy h2 { font-size: 26px; }
   html.fi-app-frame .fi-page-header-copy p { font-size: 12.5px; }
+  html.fi-app-frame .fi-page-inventory .fi-page-header-copy p { max-width: 24ch; }
+  html.fi-app-frame .fi-page-inventory .fi-page-header-actions { align-self: start; }
+  html.fi-app-frame .fi-page-inventory .fi-page-header-actions .btn { flex: 0 0 auto; }
+  html.fi-app-frame .fi-llm-page-head { grid-template-columns: minmax(0,1fr); }
+  html.fi-app-frame .fi-llm-mode { width: 100%; max-width: 100%; box-sizing: border-box; }
 }
 
 @media (prefers-reduced-motion: reduce) {
