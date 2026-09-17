@@ -1,55 +1,93 @@
-import type { Config, Context } from '@netlify/functions';
-import { getStore } from '@netlify/blobs';
+import type { Config } from '@netlify/functions';
+import { getDeployStore, getStore } from '@netlify/blobs';
+import { createHash } from 'node:crypto';
 import { buildDeviceFeedV1, type InventoryEnvelope } from '../lib/device-feed-v1.mts';
 
-const ALLOWED_PROFILES = new Set(['Bill', 'Aimee']);
+declare const Netlify: any;
 
-function json(body:unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
+const STORE_NAME = 'filament-inventory-sync';
+const KEY_HEADER = 'x-filament-sync-key';
+const PROFILE_HEADER = 'x-filament-profile';
+
+function json(data:unknown, status = 200, headers:HeadersInit = {}) {
+  return Response.json(data, {
     status,
     headers:{
-      'content-type':'application/json; charset=utf-8',
-      'cache-control':'no-store',
-      'x-content-type-options':'nosniff',
+      'Cache-Control':'no-store',
+      'Content-Type':'application/json; charset=utf-8',
+      'X-Content-Type-Options':'nosniff',
+      ...headers,
     },
   });
 }
 
-function authorized(request:Request) {
-  const configured = String(process.env.FILAMENT_SYNC_KEY || '').trim();
-  const supplied = String(request.headers.get('x-filament-sync-key') || '').trim();
-  return Boolean(configured && supplied && configured === supplied);
+function blobStore() {
+  if (Netlify.context?.deploy?.context === 'production') {
+    return getStore(STORE_NAME, {consistency:'strong'});
+  }
+  return getDeployStore(STORE_NAME);
 }
 
-function profileFrom(request:Request) {
-  const profile = String(request.headers.get('x-filament-profile') || '').trim();
-  return ALLOWED_PROFILES.has(profile) ? profile : null;
+function syncKey(req:Request):string|null {
+  const key = String(req.headers.get(KEY_HEADER) || '').trim();
+  return /^[A-Za-z0-9_-]{32,128}$/.test(key) ? key : null;
 }
 
-export default async (request:Request, context:Context) => {
-  if (request.method !== 'GET') return json({ok:false,error:'Method not allowed.'}, 405);
-  if (!authorized(request)) return json({ok:false,error:'A valid private sync key is required.'}, 401);
+function profile(req:Request):'Bill'|'Aimee'|null {
+  const value = String(req.headers.get(PROFILE_HEADER) || '').trim();
+  return value === 'Bill' || value === 'Aimee' ? value : null;
+}
 
-  const profile = profileFrom(request);
-  if (!profile) return json({ok:false,error:'A valid profile scope is required.'}, 400);
+function stateKey(key:string, owner:'Bill'|'Aimee'):string {
+  const hash = createHash('sha256')
+    .update(`${owner.toLowerCase()}:${key}`)
+    .digest('hex');
+  return `inventory-${hash}`;
+}
 
-  const store = getStore({name:'filament-inventory', siteID:context.site?.id});
-  const key = `inventory-${profile.toLowerCase()}`;
-  const envelope = await store.get(key, {type:'json'}) as InventoryEnvelope | null;
-  if (!envelope || typeof envelope !== 'object') {
-    return json({
-      schemaVersion:1,
-      generatedAt:new Date().toISOString(),
-      scope:{type:'profile',id:profile},
-      freshness:{sourceUpdatedAt:null,ageSeconds:null,stale:true},
-      inventory:{status:'unavailable',spools:[]},
-      readiness:{state:'Undetermined',reason:'No authoritative Filament Inventory state is available for this profile.',requiredGrams:null},
-      unknowns:['Inventory unavailable','Print readiness undetermined'],
-      attention:[{kind:'inventory-unavailable',message:'Filament Inventory has no authoritative state for this profile.'}],
-    }, 200);
+function unavailable(owner:'Bill'|'Aimee') {
+  return {
+    schemaVersion:1,
+    generatedAt:new Date().toISOString(),
+    scope:{type:'profile' as const,id:owner},
+    freshness:{sourceUpdatedAt:null,ageSeconds:null,stale:true},
+    inventory:{status:'unavailable' as const,spools:[]},
+    readiness:{state:'Undetermined' as const,reason:'No authoritative Filament Inventory state is available for this profile.',requiredGrams:null},
+    unknowns:['Inventory unavailable','Print readiness undetermined'],
+    attention:[{kind:'inventory-unavailable',message:'Filament Inventory has no authoritative state for this profile.'}],
+  };
+}
+
+export default async (req:Request) => {
+  if (req.method !== 'GET') {
+    return json({ok:false,error:'Method not allowed.'}, 405, {Allow:'GET'});
   }
 
-  return json(buildDeviceFeedV1({...envelope,key}, profile));
+  const key = syncKey(req);
+  if (!key) return json({ok:false,error:'A valid private sync key is required.'}, 401);
+
+  const owner = profile(req);
+  if (!owner) return json({ok:false,error:'A valid inventory profile is required.'}, 400);
+
+  const store = blobStore();
+  const keyName = stateKey(key, owner);
+  const envelope = await store.get(keyName, {type:'json'});
+
+  // Resolve exactly one credential-derived private profile scope. Never enumerate
+  // inventory blobs or aggregate data across member profiles.
+  if (!envelope?.state || !Array.isArray(envelope.state.spools)) {
+    return json(unavailable(owner));
+  }
+
+  const source:InventoryEnvelope = {
+    key:keyName,
+    updatedAt:String(envelope.updatedAt || ''),
+    state:envelope.state,
+  };
+  return json(buildDeviceFeedV1(source, owner, new Date()));
 };
 
-export const config:Config = {path:'/api/device-feed/v1'};
+export const config:Config = {
+  path:'/api/device-feed/v1',
+  rateLimit:{windowLimit:60,windowSize:60,aggregateBy:['ip','domain']},
+};
