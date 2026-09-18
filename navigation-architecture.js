@@ -8,13 +8,13 @@
   let scheduled = false;
 
   function ensurePresentationAssets() {
-    const stylesheets = ['/css/components/inventory-mobile.css', '/css/components/llm.css', '/css/components/workshop-device-link.css'];
+    const stylesheets = ['/css/components/inventory-mobile.css', '/css/components/llm.css', '/css/components/workshop-device-link.css', '/css/components/mobile-shell.css'];
     for (const stylesheet of stylesheets) {
       if (document.querySelector(`link[href="${stylesheet}"]`)) continue;
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = stylesheet;
-      link.dataset.fiPresentation = stylesheet.includes('llm') ? 'llm' : (stylesheet.includes('workshop-device-link') ? 'workshop-device-link' : 'inventory-mobile');
+      link.dataset.fiPresentation = stylesheet.includes('llm') ? 'llm' : (stylesheet.includes('workshop-device-link') ? 'workshop-device-link' : (stylesheet.includes('mobile-shell') ? 'mobile-shell' : 'inventory-mobile'));
       document.head.appendChild(link);
     }
 
@@ -132,7 +132,7 @@
     if (!topActions || topActions.querySelector('[data-v12-more]')) return;
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'btn icon-btn header-tools-launch header-scan-launch';
+    button.className = 'btn icon-btn header-tools-launch';
     button.dataset.bottomMore = '';
     button.dataset.v12More = '';
     button.setAttribute('aria-haspopup', 'dialog');
