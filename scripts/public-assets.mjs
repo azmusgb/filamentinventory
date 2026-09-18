@@ -12,6 +12,7 @@ export const PUBLIC_ASSETS = Object.freeze([
   'css/components/preferences-v12.css',
   'css/components/v11-workflows.css',
   'css/components/inventory-mobile.css',
+  'css/components/mobile-shell.css',
   'css/components/dashboard.css',
   'css/components/printer.css',
   'css/components/printer-ams.css',
