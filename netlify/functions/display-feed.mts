@@ -32,6 +32,9 @@ function syncKey(req: Request): string | null {
   return /^[A-Za-z0-9_-]{32,128}$/.test(key) ? key : null;
 }
 
+// Transitional profile names remain accepted at the storage boundary until the
+// Household -> Member migration is complete. The returned feed exposes only the
+// authenticated scope and never enumerates or joins another private profile.
 function profile(req: Request): 'Bill' | 'Aimee' | null {
   const value = String(req.headers.get(PROFILE_HEADER) || '').trim();
   return value === 'Bill' || value === 'Aimee' ? value : null;
@@ -75,7 +78,7 @@ export default async (req: Request) => {
     state:envelope.state,
   };
 
-  return json(buildDisplayFeed([source], new Date()));
+  return json(buildDisplayFeed([source], new Date(), {profileId:owner}));
 };
 
 export const config: Config = {
