@@ -76,7 +76,9 @@ jobs:
           test -f dist/spool-actions-client.js
           test -f dist/bulk-actions-core.js
           test -f dist/bulk-actions-client.js
+          test -f dist/usage-forecast-core.js
           test -f dist/print-readiness-core.js
+          test -f dist/household-core.js
           test -f dist/print-readiness-client.js
           test -f dist/ux-cohesion-client.js
           test -f dist/preferences-v12-client.js
