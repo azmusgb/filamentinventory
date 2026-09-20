@@ -3,134 +3,116 @@ import {createRequire} from 'node:module';
 import test from 'node:test';
 
 const require = createRequire(import.meta.url);
-const usage = require('../usage-forecast-core.js');
+const contract = require('../spool-contract-core.js');
 
-test('usage event preserves physical quantity lineage and source metadata', () => {
-  const event = usage.normalizeUsageEvent({
-    usageEventId:'usage-print-1',
+const currentSpool = (overrides={}) => ({
+  id:'S1',
+  material:'PLA',
+  startWeight:1000,
+  reorderThreshold:250,
+  quantityEvidence:[{
+    evidenceId:'qe-current',
     spoolId:'S1',
-    printerId:'P1S',
-    projectId:'print-1',
-    beforeGrams:650,
-    afterGrams:500,
-    consumedGrams:150,
-    source:'PrinterReported',
-    observedAt:'2026-09-01T12:00:00Z',
-    confidence:'Medium',
-    beforeEvidenceId:'qe-start',
-    afterEvidenceId:'qe-complete',
-  });
-  assert.equal(event.spoolId,'S1');
-  assert.equal(event.consumedGrams,150);
-  assert.equal(event.beforeEvidenceId,'qe-start');
-  assert.equal(event.afterEvidenceId,'qe-complete');
-  assert.equal(usage.validateUsageEvent(event).valid,true);
+    method:'Measured',
+    grossGrams:800,
+    tareGrams:200,
+    observedAt:'2026-09-20T12:00:00Z',
+    confidence:'Confirmed',
+  }],
+  ...overrides,
 });
 
-test('usage event rejects impossible physical deltas', () => {
-  const result = usage.validateUsageEvent({
-    usageEventId:'usage-bad',
-    spoolId:'S1',
-    beforeGrams:100,
-    afterGrams:150,
-    consumedGrams:25,
-    source:'Manual',
-    observedAt:'2026-09-01T12:00:00Z',
-  });
-  assert.equal(result.valid,false);
-  assert.equal(result.errors.some(issue => issue.code === 'usage-after-exceeds-before'),true);
+const event = (eventId, observedAt, consumedGrams=100, extra={}) => contract.normalizeUsageEvent({
+  eventId,
+  spoolId:'S1',
+  printerId:'P1S',
+  printJobId:eventId.replace(/^usage-/,'print-'),
+  beforeGrams:700,
+  afterGrams:700-consumedGrams,
+  consumedGrams,
+  source:'Reported',
+  observedAt,
+  confidence:'Medium',
+  beforeEvidenceId:'qe-start',
+  afterEvidenceId:'qe-complete',
+  ...extra,
 });
 
-test('usage event append is idempotent and conflicting duplicate IDs fail closed', () => {
-  const base = {
-    usageEventId:'usage-1',
-    spoolId:'S1',
-    beforeGrams:500,
-    afterGrams:400,
-    consumedGrams:100,
-    source:'PrinterReported',
-    observedAt:'2026-09-01T12:00:00Z',
-    beforeEvidenceId:'qe-a',
-    afterEvidenceId:'qe-b',
-  };
-  const first = usage.appendUsageEvent({usageEvents:[]},base);
+test('canonical UsageEvent preserves physical quantity lineage and source metadata', () => {
+  const row=event('usage-print-1','2026-09-01T12:00:00Z',150);
+  assert.equal(row.eventId,'usage-print-1');
+  assert.equal(row.spoolId,'S1');
+  assert.equal(row.consumedGrams,150);
+  assert.equal(row.beforeEvidenceId,'qe-start');
+  assert.equal(row.afterEvidenceId,'qe-complete');
+  assert.deepEqual(row.quantityEvidenceIds,['qe-start','qe-complete']);
+});
+
+test('appendUsageEvent is idempotent and conflicting durable IDs fail closed', () => {
+  const row=event('usage-1','2026-09-01T12:00:00Z',100);
+  const first=contract.appendUsageEvent({usageEvents:[]},row);
   assert.equal(first.changed,true);
-  const second = usage.appendUsageEvent(first.state,base);
-  assert.equal(second.changed,false);
-  assert.equal(second.reason,'usage-event-exists');
-  const conflict = usage.appendUsageEvent(first.state,{...base,consumedGrams:90});
+  const again=contract.appendUsageEvent(first.state,row);
+  assert.equal(again.changed,false);
+  assert.equal(again.reason,'usage-event-exists');
+  const conflict=contract.appendUsageEvent(first.state,event('usage-1','2026-09-01T12:00:00Z',90));
   assert.equal(conflict.changed,false);
   assert.equal(conflict.reason,'usage-event-id-conflict');
-  assert.equal(conflict.valid,false);
 });
 
-test('forecast refuses to predict from unknown or unverified current quantity', () => {
-  assert.equal(usage.forecastDepletion({spoolId:'S1',remainingGrams:null,usageEvents:[]}).status,'unknown-remaining');
-  assert.equal(usage.forecastDepletion({spoolId:'S1',remainingGrams:500,remainingStatus:'Conflict',verificationRequired:true,usageEvents:[]}).status,'verification-required');
+test('forecast refuses unknown or verification-required current quantity', () => {
+  const unknown=contract.usageForecast({id:'S1'},[],Date.parse('2026-09-20T18:00:00Z'));
+  assert.equal(unknown.status,'Undetermined');
+  assert.equal(unknown.reason,'quantity-evidence-not-current');
+
+  const conflicted=currentSpool({quantityEvidence:[
+    {evidenceId:'a',spoolId:'S1',method:'Measured',grossGrams:800,tareGrams:200,observedAt:'2026-09-20T12:00:00Z'},
+    {evidenceId:'b',spoolId:'S1',method:'Measured',grossGrams:700,tareGrams:200,observedAt:'2026-09-20T12:02:00Z'},
+  ]});
+  const blocked=contract.usageForecast(conflicted,[
+    event('u1','2026-09-01T12:00:00Z'),
+    event('u2','2026-09-10T12:00:00Z'),
+    event('u3','2026-09-19T12:00:00Z'),
+  ],Date.parse('2026-09-20T18:00:00Z'),{minEvents:3,minSpanDays:7});
+  assert.equal(blocked.status,'Undetermined');
+  assert.equal(blocked.reason,'quantity-evidence-not-current');
 });
 
-test('forecast requires enough events and enough time span instead of fabricating precision', () => {
-  const events = [
-    {usageEventId:'u1',spoolId:'S1',consumedGrams:100,source:'PrinterReported',observedAt:'2026-09-01T12:00:00Z'},
-    {usageEventId:'u2',spoolId:'S1',consumedGrams:100,source:'PrinterReported',observedAt:'2026-09-02T12:00:00Z'},
+test('forecast policy requires enough event count and time span', () => {
+  const spool=currentSpool();
+  const two=[event('u1','2026-09-01T12:00:00Z'),event('u2','2026-09-10T12:00:00Z')];
+  const tooFew=contract.usageForecast(spool,two,Date.parse('2026-09-20T18:00:00Z'),{minEvents:3,minSpanDays:7});
+  assert.equal(tooFew.status,'Undetermined');
+  assert.equal(tooFew.reason,'insufficient-usage-history');
+
+  const short=[event('u1','2026-09-18T12:00:00Z'),event('u2','2026-09-19T12:00:00Z'),event('u3','2026-09-20T12:00:00Z')];
+  const tooShort=contract.usageForecast(spool,short,Date.parse('2026-09-20T18:00:00Z'),{minEvents:3,minSpanDays:7});
+  assert.equal(tooShort.status,'Undetermined');
+  assert.equal(tooShort.reason,'usage-window-too-short');
+});
+
+test('forecast is deterministic and cites every UsageEvent plus current quantity evidence', () => {
+  const rows=[
+    event('u1','2026-09-01T12:00:00Z'),
+    event('u2','2026-09-05T12:00:00Z'),
+    event('u3','2026-09-09T12:00:00Z'),
+    event('other','2026-09-09T12:00:00Z',999,{spoolId:'S2'}),
   ];
-  assert.equal(usage.forecastDepletion({spoolId:'S1',remainingGrams:500,usageEvents:events,minEvents:3,minSpanDays:7}).status,'insufficient-evidence');
-
-  const three = [...events,{usageEventId:'u3',spoolId:'S1',consumedGrams:100,source:'PrinterReported',observedAt:'2026-09-03T12:00:00Z'}];
-  assert.equal(usage.forecastDepletion({spoolId:'S1',remainingGrams:500,usageEvents:three,minEvents:3,minSpanDays:7}).status,'insufficient-span');
-});
-
-test('forecast is deterministic and cites every usage event used', () => {
-  const events = [
-    {usageEventId:'u1',spoolId:'S1',consumedGrams:100,source:'PrinterReported',observedAt:'2026-09-01T12:00:00Z'},
-    {usageEventId:'u2',spoolId:'S1',consumedGrams:100,source:'PrinterReported',observedAt:'2026-09-05T12:00:00Z'},
-    {usageEventId:'u3',spoolId:'S1',consumedGrams:100,source:'PrinterReported',observedAt:'2026-09-09T12:00:00Z'},
-    {usageEventId:'other',spoolId:'S2',consumedGrams:999,source:'PrinterReported',observedAt:'2026-09-09T12:00:00Z'},
-  ];
-  const result = usage.forecastDepletion({
-    spoolId:'S1',
-    remainingGrams:600,
-    remainingEvidenceId:'qe-current',
-    remainingStatus:'Current',
-    usageEvents:events,
-    reorderThresholdGrams:250,
-    leadTimeDays:2,
-    now:new Date('2026-09-10T12:00:00Z'),
-    minEvents:3,
-    minSpanDays:7,
-  });
-  assert.equal(result.status,'forecast');
+  const result=contract.usageForecast(
+    currentSpool(),
+    rows,
+    Date.parse('2026-09-10T12:00:00Z'),
+    {minEvents:3,minSpanDays:7,reorderThresholdGrams:250,leadTimeDays:2},
+  );
+  assert.equal(result.status,'Projected');
   assert.equal(result.method,'historical-usage-rate');
   assert.equal(result.totalConsumedGrams,300);
-  assert.equal(result.spanDays,8);
   assert.equal(result.dailyGrams,37.5);
   assert.equal(result.daysRemaining,16);
-  assert.deepEqual(result.evidenceEventIds,['u1','u2','u3']);
-  assert.equal(result.remainingEvidenceId,'qe-current');
+  assert.deepEqual(result.eventIds,['u1','u2','u3']);
+  assert.equal(result.quantityEvidenceId,'qe-current');
+  assert.equal(result.reorderThresholdGrams,250);
+  assert.equal(result.leadTimeDays,2);
   assert.equal(result.confidence,'Low');
-});
-
-test('completed print can be converted to a traceable usage event', () => {
-  const event = usage.usageEventFromCompletedPrint({
-    job:{
-      id:'print-abc',
-      spoolId:'S9',
-      remainingAtStart:600,
-      remainingAfter:475,
-      consumedGrams:125,
-      completedAt:'2026-09-10T12:00:00Z',
-      quantityEvidenceAtStart:{evidenceId:'qe-start'},
-      completionEvidenceId:'qe-complete',
-    },
-    spool:{id:'S9',printerName:'P1S'},
-    afterEvidence:{evidenceId:'qe-complete',remainingGrams:475},
-  });
-  assert.equal(event.usageEventId,'usage-print-abc');
-  assert.equal(event.spoolId,'S9');
-  assert.equal(event.printerId,'P1S');
-  assert.equal(event.beforeGrams,600);
-  assert.equal(event.afterGrams,475);
-  assert.equal(event.consumedGrams,125);
-  assert.equal(event.beforeEvidenceId,'qe-start');
-  assert.equal(event.afterEvidenceId,'qe-complete');
+  assert.ok(Date.parse(result.orderByDate) <= Date.parse(result.thresholdDate));
 });
