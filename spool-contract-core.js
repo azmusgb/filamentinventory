@@ -226,14 +226,20 @@
 
   function normalizePlacement(input = {}, legacy = {}) {
     const raw=input && typeof input==='object'?input:{};
-    const source=safeText(raw.source || legacy.source || (Object.keys(raw).length?'placement-evidence':'legacy-placement'),120);
-    const observedAt=validIso(raw.observedAt || raw.timestamp || legacy.observedAt || legacy.loadedAt || legacy.updatedAt);
+    const hasExplicit=Object.keys(raw).length>0;
+    const fallback=hasExplicit?{}:legacy;
+    const source=safeText(raw.source || fallback.source || (hasExplicit?'placement-evidence':'legacy-placement'),120);
+    const observedAt=validIso(raw.observedAt || raw.timestamp || fallback.observedAt || fallback.loadedAt || fallback.updatedAt);
     const explicitlyStale=raw.stale===true || String(raw.freshness||'').toLowerCase()==='stale';
-    const printerId=safeText(raw.printerId || legacy.printerId || legacy.printerName,64);
-    const feederId=safeText(raw.feederId || raw.amsId || legacy.feederId || legacy.feederName,64);
-    const rawSlot=isFiniteNumber(raw.slot ?? raw.slotId ?? legacy.slot ?? legacy.feederSlot) ? Number(raw.slot ?? raw.slotId ?? legacy.slot ?? legacy.feederSlot) : null;
+    // An explicit placement object is authoritative as an observation. Never
+    // complete a partial explicit observation from unrelated legacy fields.
+    // Incomplete explicit placement must surface Conflict/Unknown.
+    const printerId=safeText(raw.printerId || fallback.printerId || fallback.printerName,64);
+    const feederId=safeText(raw.feederId || raw.amsId || fallback.feederId || fallback.feederName,64);
+    const slotValue=raw.slot ?? raw.slotId ?? fallback.slot ?? fallback.feederSlot;
+    const rawSlot=isFiniteNumber(slotValue) ? Number(slotValue) : null;
     const slot=rawSlot===null?null:Math.trunc(rawSlot);
-    const kindText=String(raw.kind || raw.type || raw.state || legacy.kind || legacy.state || '').toLowerCase();
+    const kindText=String(raw.kind || raw.type || raw.state || fallback.kind || fallback.state || '').toLowerCase();
     if (['stored','unloaded'].includes(kindText)) {
       const conflict=Boolean(printerId||feederId||slot!==null||raw.external===true);
       return Object.freeze({kind:'Stored',state:'Stored',printerId:null,feederId:null,slot:null,external:false,source,observedAt,status:conflict?'Conflict':explicitlyStale?'Stale':'Current',verificationRequired:conflict||explicitlyStale});
