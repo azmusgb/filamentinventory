@@ -2,7 +2,8 @@
   'use strict';
 
   const core = globalThis.FilamentInventoryPrinter;
-  if (!core) return;
+  const spoolContract = globalThis.FilamentInventorySpoolContract;
+  if (!core || !spoolContract?.normalizePlacement) return;
 
   const STORAGE_KEY = 'filament-inventory-v1';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -428,29 +429,108 @@
     toast(existing ? 'Printer updated.' : 'Printer added.');
   }
 
-  function setPlacement(id, placement) {
+  function canonicalPlacementEvidence(raw = {}, at = nowIso()) {
+    const normalized = spoolContract.normalizePlacement({...raw,source:'operator:printer-ui',observedAt:at});
+    if (!normalized || normalized.verificationRequired || normalized.status !== 'Current') return null;
+    return {
+      kind:normalized.kind,
+      printerId:normalized.printerId,
+      feederId:normalized.feederId,
+      slot:normalized.slot,
+      external:normalized.external,
+      source:'operator:printer-ui',
+      observedAt:normalized.observedAt,
+    };
+  }
+
+  function applyPlacement(spool, descriptor = {}, at = nowIso()) {
+    if (!spool) return false;
+    const kind = text(descriptor.kind || descriptor.state);
+    const evidence = canonicalPlacementEvidence(descriptor,at);
+    if (!evidence) return false;
+
+    spool.placement = evidence;
+    spool.updatedAt = at;
+
+    if (evidence.kind === 'Stored') {
+      Object.assign(spool,{
+        placementState:'Stored',
+        printerId:'',
+        printerName:'',
+        feederId:'',
+        feederName:'',
+        feederSlot:'',
+        loadedAt:null,
+      });
+      return true;
+    }
+
+    const printerName = text(descriptor.printerName);
+    if (!printerName) return false;
+    const loadedAt = spool.loadedAt || at;
+
+    if (evidence.kind === 'External') {
+      Object.assign(spool,{
+        placementState:'Loaded',
+        printerId:evidence.printerId || '',
+        printerName,
+        feederId:'',
+        feederName:'',
+        feederSlot:'',
+        loadedAt,
+      });
+      return true;
+    }
+
+    const feederName = text(descriptor.feederName);
+    if (!feederName || evidence.slot === null) return false;
+    Object.assign(spool,{
+      placementState:'Loaded',
+      printerId:evidence.printerId || '',
+      printerName,
+      feederId:evidence.feederId || '',
+      feederName,
+      feederSlot:String(evidence.slot),
+      loadedAt,
+    });
+    return true;
+  }
+
+  function setPlacement(id, descriptor) {
     const value = readState();
     const spool = value.spools.find(row => String(row.id) === String(id));
     if (!spool) return false;
-    Object.assign(spool,placement,{updatedAt:nowIso()});
+    const at = nowIso();
+    if (!applyPlacement(spool,descriptor,at)) return false;
     writeState(value);
     return true;
   }
 
   function unload(id) {
     if (!id) return;
-    if (!setPlacement(id,{placementState:'Stored',printerId:'',printerName:'',feederId:'',feederName:'',feederSlot:'',loadedAt:null})) return;
+    if (!setPlacement(id,{kind:'Stored'})) {
+      toast(`Could not verify the unload for ${id}. No placement change was saved.`);
+      return;
+    }
     render();
     toast(`${id} unloaded to storage.`);
   }
 
   function commitLoad(value, spool, placement, conflict=null) {
-    if (conflict) Object.assign(conflict,{placementState:'Stored',printerId:'',printerName:'',feederId:'',feederName:'',feederSlot:'',loadedAt:null,updatedAt:nowIso()});
-    Object.assign(spool,placement,{updatedAt:nowIso()});
+    const at = nowIso();
+    if (conflict && !applyPlacement(conflict,{kind:'Stored'},at)) {
+      toast(`Could not verify the existing placement for ${conflict.id}. No placement change was saved.`);
+      return false;
+    }
+    if (!applyPlacement(spool,placement,at)) {
+      toast(`Could not verify the target placement for ${spool.id}. No placement change was saved.`);
+      return false;
+    }
     writeState(value);
     document.querySelector('.printer-load-dialog')?.close();
     render();
     toast(`${spool.id} loaded on ${placement.printerName}.`);
+    return true;
   }
 
   function loadSelected() {
@@ -463,16 +543,34 @@
     if (!printer) { toast('Add or choose a configured printer first.'); document.getElementById('movePrinterV8')?.focus(); return; }
     const feeder = core.feederByRef(printer,document.getElementById('moveFeederV8')?.value);
     const slot = feeder ? text(document.getElementById('moveSlotV8')?.value) : '';
-    const placement = {
+    if (feeder && !slot) {
+      toast('Choose a feeder slot before loading this spool.');
+      document.getElementById('moveSlotV8')?.focus();
+      return;
+    }
+    const placement = feeder
+      ? {
+          kind:'Feeder',
+          printerId:printer.id,
+          printerName:printer.name,
+          feederId:feeder.id,
+          feederName:feeder.name,
+          slot:Number(slot),
+        }
+      : {
+          kind:'External',
+          printerId:printer.id,
+          printerName:printer.name,
+          external:true,
+        };
+    const wantedKey = feeder && slot ? core.slotKey({
       placementState:'Loaded',
       printerId:printer.id,
       printerName:printer.name,
-      feederId:feeder?.id || '',
-      feederName:feeder?.name || '',
+      feederId:feeder.id,
+      feederName:feeder.name,
       feederSlot:slot,
-      loadedAt:spool.loadedAt || nowIso(),
-    };
-    const wantedKey = feeder && slot ? core.slotKey(placement) : '';
+    }) : '';
     const conflict = wantedKey ? value.spools.find(row => !row.archivedAt && String(row.id) !== String(id) && core.slotKey(row) === wantedKey) : null;
     if (!conflict) { commitLoad(value,spool,placement); return; }
     pendingLoad = {value,spool,placement,conflict};
