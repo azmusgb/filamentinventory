@@ -329,9 +329,21 @@ test('stock state is evidence-backed and does not classify stale or conflicting 
           staleAfter:'2026-09-17T21:00:00Z',
         }],
       },
+      {
+        id:'spool-empty',
+        reorderThreshold:250,
+        quantityEvidence:[{
+          evidenceId:'qe-empty',
+          method:'Measured',
+          remainingGrams:0,
+          observedAt:'2026-09-17T21:58:00Z',
+          staleAfter:'2026-09-18T21:58:00Z',
+        }],
+      },
     ]},
   }, 'Bill', new Date('2026-09-17T22:00:00Z'));
 
   assert.equal(feed.inventory.spools[0].stockState, 'Low');
   assert.equal(feed.inventory.spools[1].stockState, 'Unknown');
+  assert.equal(feed.inventory.spools[2].stockState, 'Empty');
 });
