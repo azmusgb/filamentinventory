@@ -41,6 +41,10 @@ function validCredential(value:any):value is DeviceCredentialRecord {
   );
 }
 
+function serviceUnavailable(message:string) {
+  return json({ok:false,error:message}, 503, {'Retry-After':'5'});
+}
+
 function unavailable(owner:'Bill'|'Aimee') {
   return {
     schemaVersion:1,
@@ -68,7 +72,13 @@ export default async (req:Request) => {
 
   const tokenHash = hashDeviceToken(token);
   const store = getStore(STORE_NAME, {consistency:'strong'});
-  const credential = await store.get(deviceCredentialKey(tokenHash), {type:'json'});
+  let credential:any;
+  try {
+    credential = await store.get(deviceCredentialKey(tokenHash), {type:'json'});
+  } catch (error) {
+    console.error('device-feed credential lookup failed', error);
+    return serviceUnavailable('Device credential verification is temporarily unavailable.');
+  }
 
   if (!validCredential(credential) || credential.tokenHash !== tokenHash) {
     return json({ok:false,error:'Device credential is invalid or revoked.'}, 401, {
@@ -79,7 +89,13 @@ export default async (req:Request) => {
   // A device token resolves exactly one read-only private inventory scope. The
   // WS350 never receives the broader browser sync key and cannot select another
   // member/profile by changing request headers.
-  const envelope = await store.get(credential.inventoryKey, {type:'json'});
+  let envelope:any;
+  try {
+    envelope = await store.get(credential.inventoryKey, {type:'json'});
+  } catch (error) {
+    console.error('device-feed inventory lookup failed', error);
+    return serviceUnavailable('Inventory data is temporarily unavailable.');
+  }
   if (!envelope?.state || !Array.isArray(envelope.state.spools)) {
     return json(unavailable(credential.profile));
   }
