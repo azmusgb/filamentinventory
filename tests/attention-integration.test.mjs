@@ -24,6 +24,15 @@ test('Workshop Inbox is driven by evidence-aware attention rather than the legac
   assert.doesNotMatch(source,/core\(\)\.workshopInbox\(snapshot,owner,99\)/);
 });
 
+test('Workshop Inbox fails closed when the attention engine is unavailable', async () => {
+  const source = await read('personal-dashboard.js');
+  assert.match(source,/if \(!engine\?\.buildAttention\) return null/);
+  assert.match(source,/Attention unavailable/);
+  assert.match(source,/Do not treat this as an all-clear/);
+  assert.match(source,/state:'degraded'/);
+  assert.match(source,/CHECK UNAVAILABLE/);
+});
+
 test('attention core is present in deploy, offline cache, and exact build gates', async () => {
   const [assets,sw,netlify,ci] = await Promise.all([
     read('scripts/public-assets.mjs'),
