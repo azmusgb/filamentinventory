@@ -89,6 +89,12 @@ test('mobile user can add a printer, configure AMS and manage a true four-slot b
   expect(spool.feederName).toBe('AMS 1');
   expect(spool.feederId).toBe(stored.printers[0].feeders[0].id);
   expect(spool.feederSlot).toBe('1');
+  expect(spool.placement.kind).toBe('Feeder');
+  expect(spool.placement.printerId).toBe(stored.printers[0].id);
+  expect(spool.placement.feederId).toBe(stored.printers[0].feeders[0].id);
+  expect(spool.placement.slot).toBe(1);
+  expect(spool.placement.source).toBe('operator:printer-ui');
+  expect(Number.isNaN(Date.parse(spool.placement.observedAt))).toBe(false);
 
   await page.evaluate(() => {
     const value=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}');
