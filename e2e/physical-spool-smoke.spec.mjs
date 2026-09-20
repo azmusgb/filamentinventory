@@ -101,8 +101,9 @@ test('scan Load move opens authoritative Printer AMS dialog and supports load th
   await load.locator('[data-printer-load-save]').click();
   await expect.poll(() => page.evaluate(() => {
     const s=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}'); const row=(s.spools||[]).find(x=>x.id==='T001');
-    return `${row?.placementState}|${row?.printerName}|${row?.feederName}|${row?.feederSlot}`;
-  })).toBe('Loaded|P1S|AMS 1|1');
+    const p=row?.placement||{};
+    return `${row?.placementState}|${row?.printerName}|${row?.feederName}|${row?.feederSlot}|${p.kind}|${p.printerId}|${p.feederId}|${p.slot}|${p.source}`;
+  })).toMatch(/^Loaded\|P1S\|AMS 1\|1\|Feeder\|.+\|.+\|1\|operator:printer-ui$/);
 
   await scan(page,'T001'); const loadedPhysical=page.locator('#spoolActionDialog[open]'); await expect(loadedPhysical).toBeVisible();
   const loadedPlacement=loadedPhysical.locator('[data-spool-sheet-action="placement"]');
@@ -112,8 +113,9 @@ test('scan Load move opens authoritative Printer AMS dialog and supports load th
   await loadedDialog.locator('[data-printer-unload-selected]').click();
   await expect.poll(() => page.evaluate(() => {
     const s=JSON.parse(localStorage.getItem('filament-inventory-v1')||'{}'); const row=(s.spools||[]).find(x=>x.id==='T001');
-    return `${row?.placementState}|${row?.printerName||''}|${row?.feederName||''}|${row?.feederSlot||''}`;
-  })).toBe('Stored|||');
+    const p=row?.placement||{};
+    return `${row?.placementState}|${row?.printerName||''}|${row?.feederName||''}|${row?.feederSlot||''}|${p.kind}|${p.printerId||''}|${p.feederId||''}|${p.slot??''}|${p.source}`;
+  })).toBe('Stored||||Stored||||operator:printer-ui');
 });
 
 test('scan QR-label handoff selects only the scanned spool', async ({page}) => {
