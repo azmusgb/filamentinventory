@@ -12,6 +12,13 @@ export type QuantityMethod =
   | 'ImportedEstimate'
   | 'Unknown';
 
+export type QuantityEvidenceStatus =
+  | 'Current'
+  | 'Stale'
+  | 'Conflict'
+  | 'InvalidLineage'
+  | 'Unknown';
+
 export type ReadinessState =
   | 'Ready'
   | 'ReadyWithSubstitute'
@@ -31,14 +38,20 @@ export type DeviceFeedV1 = {
     material:string|null;
     color:string|null;
     quantity:{
+      evidenceId:string|null;
       remainingGrams:number|null;
       method:QuantityMethod;
       source:string|null;
       grossGrams:number|null;
       tareGrams:number|null;
       observedAt:string|null;
-      confidence:number|null;
-      stale:boolean;
+      staleAfter:string|null;
+      confidence:string|null;
+      status:QuantityEvidenceStatus;
+      evidenceCount:number;
+      conflict:boolean;
+      conflictEvidenceIds:string[];
+      verificationRequired:boolean;
     };
     placement:{
       state:string;
@@ -55,10 +68,31 @@ export type DeviceFeedV1 = {
 };
 
 const STALE_AFTER_MS = 30 * 60 * 1000;
-const QUANTITY_METHODS = new Set<QuantityMethod>([
-  'Measured','CalculatedFromMeasured','PrinterEstimatedUsage',
-  'VisualEstimate','ImportedEstimate','Unknown',
+const QUANTITY_CONFLICT_WINDOW_MS = 5 * 60 * 1000;
+const QUANTITY_CONFLICT_MIN_GRAMS = 10;
+
+const QUANTITY_METHODS = new Map<string, QuantityMethod>([
+  ['Measured','Measured'],
+  ['Calculated from measured','CalculatedFromMeasured'],
+  ['CalculatedFromMeasured','CalculatedFromMeasured'],
+  ['Printer-estimated usage','PrinterEstimatedUsage'],
+  ['PrinterEstimatedUsage','PrinterEstimatedUsage'],
+  ['Visual estimate','VisualEstimate'],
+  ['VisualEstimate','VisualEstimate'],
+  ['Imported estimate','ImportedEstimate'],
+  ['ImportedEstimate','ImportedEstimate'],
+  ['Unknown','Unknown'],
 ]);
+
+const QUANTITY_PRIORITY:Record<QuantityMethod,number> = {
+  Measured:600,
+  CalculatedFromMeasured:500,
+  PrinterEstimatedUsage:400,
+  VisualEstimate:300,
+  ImportedEstimate:200,
+  Unknown:0,
+};
+
 const READINESS = new Set<ReadinessState>([
   'Ready','ReadyWithSubstitute','NeedsLoad','NeedsDry',
   'InsufficientQuantity','EvidenceStale','Undetermined',
@@ -81,74 +115,268 @@ function iso(value:unknown):string|null {
   const n = time(value);
   return n ? new Date(n).toISOString() : null;
 }
-function confidence(value:unknown):number|null {
-  const n = finite(value);
-  if (n === null) return null;
-  return Math.max(0, Math.min(1, n > 1 ? n / 100 : n));
+function evidenceId(value:unknown):string|null {
+  return text(value);
+}
+function normalizeMethod(value:unknown):QuantityMethod {
+  return QUANTITY_METHODS.get(String(value ?? '')) || 'Unknown';
+}
+function confidence(value:unknown):string|null {
+  const s = text(value);
+  return s ? s.slice(0, 32) : null;
+}
+function lower(value:unknown):string {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+type NormalizedEvidence = {
+  evidenceId:string|null;
+  derivedFromEvidenceId:string|null;
+  method:QuantityMethod;
+  grossGrams:number|null;
+  tareGrams:number|null;
+  remainingGrams:number|null;
+  source:string|null;
+  observedAt:string|null;
+  staleAfter:string|null;
+  confidence:string|null;
+};
+
+function normalizeEvidence(row:any):NormalizedEvidence {
+  const method = normalizeMethod(row?.method ?? row?.type);
+  const grossGrams = finite(row?.grossGrams ?? row?.gross);
+  const tareGrams = finite(row?.tareGrams ?? row?.tare);
+  let remainingGrams = finite(row?.remainingGrams);
+  if (remainingGrams === null && grossGrams !== null && tareGrams !== null && grossGrams >= tareGrams) {
+    remainingGrams = grossGrams - tareGrams;
+  }
+  if (method === 'Unknown') remainingGrams = null;
+
+  return {
+    evidenceId:evidenceId(row?.evidenceId),
+    derivedFromEvidenceId:evidenceId(row?.derivedFromEvidenceId),
+    method,
+    grossGrams:grossGrams === null ? null : Math.max(0, grossGrams),
+    tareGrams:tareGrams === null ? null : Math.max(0, tareGrams),
+    remainingGrams:remainingGrams === null ? null : Math.max(0, remainingGrams),
+    source:text(row?.source),
+    observedAt:iso(row?.observedAt ?? row?.timestamp),
+    staleAfter:iso(row?.staleAfter),
+    confidence:confidence(row?.confidence),
+  };
+}
+
+function quantityHistory(spool:any):NormalizedEvidence[] {
+  return Array.isArray(spool?.quantityEvidence)
+    ? spool.quantityEvidence.filter(Boolean).map(normalizeEvidence)
+    : [];
+}
+
+function lineageAssessment(history:NormalizedEvidence[]) {
+  const byId = new Map<string,NormalizedEvidence>();
+  const childParentIds = new Set<string>();
+  const invalidIds = new Set<string>();
+  let invalid = false;
+
+  for (const row of history) {
+    const id = lower(row.evidenceId);
+    if (id && !byId.has(id)) byId.set(id,row);
+  }
+
+  for (const row of history) {
+    const id = lower(row.evidenceId);
+    const parentId = lower(row.derivedFromEvidenceId);
+    if (!parentId) continue;
+    if (!id || id === parentId || !byId.has(parentId)) {
+      invalid = true;
+      if (id) invalidIds.add(id);
+      continue;
+    }
+    childParentIds.add(parentId);
+  }
+
+  for (const row of history) {
+    const startId = lower(row.evidenceId);
+    if (!startId) continue;
+    const seen = new Set<string>();
+    let current:NormalizedEvidence|undefined = row;
+    while (current?.derivedFromEvidenceId) {
+      const currentId = lower(current.evidenceId);
+      const parentId = lower(current.derivedFromEvidenceId);
+      if (!currentId || !parentId) break;
+      if (seen.has(currentId) || parentId === currentId) {
+        invalid = true;
+        seen.forEach(id => invalidIds.add(id));
+        invalidIds.add(currentId);
+        break;
+      }
+      seen.add(currentId);
+      current = byId.get(parentId);
+      if (!current) break;
+    }
+  }
+
+  let terminals = history.filter(row => {
+    const id = lower(row.evidenceId);
+    return !id || (!childParentIds.has(id) && !invalidIds.has(id));
+  });
+  if (!terminals.length) terminals = history.slice();
+
+  const newest = Math.max(0,...terminals.map(row => time(row.observedAt)));
+  const currentHeads = terminals.filter(row => newest === 0 || newest - time(row.observedAt) <= QUANTITY_CONFLICT_WINDOW_MS);
+  const pool = currentHeads.length ? currentHeads : terminals;
+  const selected = pool.slice().sort((a,b) => {
+    const timeDelta = time(b.observedAt) - time(a.observedAt);
+    if (Math.abs(timeDelta) > QUANTITY_CONFLICT_WINDOW_MS) return timeDelta;
+    const priorityDelta = QUANTITY_PRIORITY[b.method] - QUANTITY_PRIORITY[a.method];
+    return priorityDelta || timeDelta;
+  })[0] || null;
+
+  const conflictEvidenceIds = new Set<string>();
+  for (let i=0;i<currentHeads.length;i+=1) {
+    for (let j=i+1;j<currentHeads.length;j+=1) {
+      const first = currentHeads[i];
+      const second = currentHeads[j];
+      if (first.remainingGrams === null || second.remainingGrams === null) continue;
+
+      const firstId = lower(first.evidenceId);
+      const secondId = lower(second.evidenceId);
+      const related = firstId && secondId && (
+        lower(first.derivedFromEvidenceId) === secondId ||
+        lower(second.derivedFromEvidenceId) === firstId
+      );
+      if (related) continue;
+
+      const delta = Math.abs(time(first.observedAt) - time(second.observedAt));
+      if (delta > QUANTITY_CONFLICT_WINDOW_MS) continue;
+      const largest = Math.max(first.remainingGrams, second.remainingGrams, 1);
+      const tolerance = Math.max(QUANTITY_CONFLICT_MIN_GRAMS, largest * 0.02);
+      if (Math.abs(first.remainingGrams - second.remainingGrams) <= tolerance) continue;
+      if (first.evidenceId) conflictEvidenceIds.add(first.evidenceId);
+      if (second.evidenceId) conflictEvidenceIds.add(second.evidenceId);
+    }
+  }
+
+  return {
+    selected,
+    invalid,
+    conflictEvidenceIds:[...conflictEvidenceIds],
+  };
 }
 
 function quantityFor(spool:any, nowMs:number) {
-  const evidence = spool?.quantityEvidence && typeof spool.quantityEvidence === 'object'
-    ? spool.quantityEvidence : null;
-  if (evidence) {
-    const rawMethod = String(evidence.method || evidence.type || 'Unknown') as QuantityMethod;
-    const method:QuantityMethod = QUANTITY_METHODS.has(rawMethod) ? rawMethod : 'Unknown';
-    const gross = finite(evidence.grossGrams ?? evidence.gross);
-    const tare = finite(evidence.tareGrams ?? evidence.tare);
-    let remaining = finite(evidence.remainingGrams);
-    if (remaining === null && gross !== null && tare !== null && gross >= tare) remaining = gross - tare;
-    const observedAt = iso(evidence.observedAt ?? evidence.timestamp);
-    const stale = observedAt ? nowMs - Date.parse(observedAt) > STALE_AFTER_MS : true;
+  const history = quantityHistory(spool);
+  if (history.length) {
+    const lineage = lineageAssessment(history);
+    const evidence = lineage.selected;
+    if (!evidence) {
+      return {
+        evidenceId:null,
+        remainingGrams:null,
+        method:'Unknown' as QuantityMethod,
+        source:null,
+        grossGrams:null,
+        tareGrams:null,
+        observedAt:null,
+        staleAfter:null,
+        confidence:null,
+        status:'Unknown' as QuantityEvidenceStatus,
+        evidenceCount:history.length,
+        conflict:false,
+        conflictEvidenceIds:[],
+        verificationRequired:true,
+      };
+    }
+
+    const staleAt = time(evidence.staleAfter);
+    const stale = staleAt > 0 && nowMs > staleAt;
+    const conflict = lineage.conflictEvidenceIds.length > 0;
+    const unknown = evidence.method === 'Unknown' || evidence.remainingGrams === null;
+    const status:QuantityEvidenceStatus = unknown
+      ? 'Unknown'
+      : lineage.invalid
+        ? 'InvalidLineage'
+        : conflict
+          ? 'Conflict'
+          : stale
+            ? 'Stale'
+            : 'Current';
+
     return {
-      remainingGrams:remaining === null ? null : Math.max(0, remaining),
-      method,
-      source:text(evidence.source),
-      grossGrams:gross,
-      tareGrams:tare,
-      observedAt,
-      confidence:confidence(evidence.confidence),
-      stale,
+      evidenceId:evidence.evidenceId,
+      remainingGrams:evidence.remainingGrams,
+      method:evidence.method,
+      source:evidence.source,
+      grossGrams:evidence.grossGrams,
+      tareGrams:evidence.tareGrams,
+      observedAt:evidence.observedAt,
+      staleAfter:evidence.staleAfter,
+      confidence:evidence.confidence,
+      status,
+      evidenceCount:history.length,
+      conflict,
+      conflictEvidenceIds:lineage.conflictEvidenceIds,
+      verificationRequired:status !== 'Current',
     };
   }
 
   const gross = finite(spool?.gross);
   const tare = finite(spool?.tare);
   if (gross !== null && tare !== null && gross >= tare) {
+    const observedAt = iso(spool?.weighedAt ?? spool?.remainingEvidenceAt ?? spool?.updatedAt);
     return {
+      evidenceId:null,
       remainingGrams:Math.max(0, gross - tare),
       method:'CalculatedFromMeasured' as QuantityMethod,
       source:'legacy-gross-minus-tare',
       grossGrams:gross,
       tareGrams:tare,
-      observedAt:iso(spool?.weighedAt ?? spool?.updatedAt),
-      confidence:null,
-      stale:!time(spool?.weighedAt ?? spool?.updatedAt) || nowMs - time(spool?.weighedAt ?? spool?.updatedAt) > STALE_AFTER_MS,
+      observedAt,
+      staleAfter:null,
+      confidence:confidence(spool?.confidence),
+      status:'Current' as QuantityEvidenceStatus,
+      evidenceCount:0,
+      conflict:false,
+      conflictEvidenceIds:[],
+      verificationRequired:false,
     };
   }
 
   const legacyEstimate = finite(spool?.estimatedRemainingGrams);
   if (legacyEstimate !== null) {
     return {
+      evidenceId:null,
       remainingGrams:Math.max(0, legacyEstimate),
-      method:'Unknown' as QuantityMethod,
+      method:'PrinterEstimatedUsage' as QuantityMethod,
       source:'legacy-estimatedRemainingGrams',
       grossGrams:null,
       tareGrams:null,
-      observedAt:iso(spool?.updatedAt),
-      confidence:null,
-      stale:true,
+      observedAt:iso(spool?.remainingEvidenceAt ?? spool?.updatedAt),
+      staleAfter:null,
+      confidence:confidence(spool?.confidence),
+      status:'Current' as QuantityEvidenceStatus,
+      evidenceCount:0,
+      conflict:false,
+      conflictEvidenceIds:[],
+      verificationRequired:false,
     };
   }
 
   return {
+    evidenceId:null,
     remainingGrams:null,
     method:(finite(spool?.visualPercent) !== null ? 'VisualEstimate' : 'Unknown') as QuantityMethod,
     source:finite(spool?.visualPercent) !== null ? 'legacy-visual-percent-without-authoritative-grams' : null,
     grossGrams:null,
     tareGrams:null,
     observedAt:iso(spool?.updatedAt),
-    confidence:null,
-    stale:true,
+    staleAfter:null,
+    confidence:confidence(spool?.confidence),
+    status:'Unknown' as QuantityEvidenceStatus,
+    evidenceCount:0,
+    conflict:false,
+    conflictEvidenceIds:[],
+    verificationRequired:true,
   };
 }
 
@@ -181,22 +409,28 @@ export function buildDeviceFeedV1(
   const attention:DeviceFeedV1['attention'] = [];
 
   const spools = (Array.isArray(state.spools) ? state.spools : [])
-    .filter((spool:any) => spool && !spool.archivedAt && text(spool.id))
+    .filter((spool:any) => spool && !spool.archivedAt && text(spool.spoolId ?? spool.id))
     .map((spool:any) => {
-      const spoolId = String(spool.id).trim();
+      const spoolId = String(spool.spoolId ?? spool.id).trim();
       const quantity = quantityFor(spool, nowMs);
       const placement = placementFor(spool);
+
       if (quantity.remainingGrams === null) {
         unknowns.push(`Quantity unknown for spool ${spoolId}`);
         attention.push({kind:'quantity-unknown', message:'Weigh or verify this spool before relying on remaining quantity.', spoolId});
-      } else if (quantity.stale) {
-        attention.push({kind:'quantity-stale', message:'Quantity evidence is stale or has no reliable timestamp.', spoolId});
+      } else if (quantity.status === 'Conflict') {
+        attention.push({kind:'quantity-conflict', message:'Quantity evidence conflicts and requires verification before use.', spoolId});
+      } else if (quantity.status === 'InvalidLineage') {
+        attention.push({kind:'quantity-lineage-invalid', message:'Quantity evidence lineage is invalid and requires repair before use.', spoolId});
+      } else if (quantity.status === 'Stale') {
+        attention.push({kind:'quantity-stale', message:'Quantity evidence is stale and should be re-verified.', spoolId});
       }
+
       if (placement.state === 'Unknown') unknowns.push(`Placement unknown for spool ${spoolId}`);
       return {
         spoolId,
         material:text(spool.material ?? spool.type),
-        color:text(spool.color ?? spool.colorHex),
+        color:text(spool.colorName ?? spool.color ?? spool.colorHex),
         quantity,
         placement,
       };
