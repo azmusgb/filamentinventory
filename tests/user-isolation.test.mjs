@@ -28,6 +28,11 @@ test('legacy combined inventory splits by owner without cross-user rows', () => 
       {id:'a1',at:'2026-08-01T01:00:00.000Z',type:'edit',summary:'Bill edit',spoolId:'S1',owner:'Bill'},
       {id:'a2',at:'2026-08-01T02:00:00.000Z',type:'edit',summary:'Aimee edit',spoolId:'S2',owner:'Aimee'},
     ],
+    usageEvents:[
+      {usageEventId:'u1',spoolId:'S1',consumedGrams:100,observedAt:'2026-08-01T01:30:00.000Z'},
+      {usageEventId:'u2',spoolId:'S2',consumedGrams:75,observedAt:'2026-08-01T02:30:00.000Z'},
+      {usageEventId:'u-unknown',spoolId:'MISSING',consumedGrams:10,observedAt:'2026-08-01T02:45:00.000Z'},
+    ],
     tombstones:{deadbill:'2026-08-01T03:00:00.000Z'},
   };
   const split = users.splitLegacyState(legacy, {schemaVersion:10, at:'2026-08-27T00:00:00.000Z'});
@@ -37,6 +42,10 @@ test('legacy combined inventory splits by owner without cross-user rows', () => 
   assert.deepEqual(split.Aimee.weighLog.map(row => row.id), ['S2']);
   assert.deepEqual(split.Bill.auditLog.map(row => row.id), ['a1']);
   assert.deepEqual(split.Aimee.auditLog.map(row => row.id), ['a2']);
+  assert.deepEqual(split.Bill.usageEvents.map(row => row.usageEventId), ['u1']);
+  assert.deepEqual(split.Aimee.usageEvents.map(row => row.usageEventId), ['u2']);
+  assert.equal(split.Bill.usageEvents.some(row => row.usageEventId === 'u-unknown'), false);
+  assert.equal(split.Aimee.usageEvents.some(row => row.usageEventId === 'u-unknown'), false);
   assert.equal(split.Bill.profile, 'Bill');
   assert.equal(split.Aimee.profile, 'Aimee');
   assert.equal(split.Bill.version, 10);
@@ -56,12 +65,19 @@ test('write boundary rejects rows owned by the other user', () => {
       {id:'ab',owner:'Bill',spoolId:'B1'},
       {id:'aa',owner:'Aimee',spoolId:'A1'},
     ],
+    usageEvents:[
+      {usageEventId:'ub',spoolId:'B1'},
+      {usageEventId:'ua',spoolId:'A1'},
+      {usageEventId:'ul',spoolId:'LEGACY'},
+      {usageEventId:'ux',spoolId:'MISSING'},
+    ],
   };
   const bill = users.enforceUserState(incoming, 'Bill', 10);
   assert.deepEqual(bill.spools.map(row => row.id), ['B1','LEGACY']);
   assert.ok(bill.spools.every(row => row.owner === 'Bill'));
   assert.deepEqual(bill.weighLog.map(row => row.id), ['B1','LEGACY']);
   assert.deepEqual(bill.auditLog.map(row => row.id), ['ab']);
+  assert.deepEqual(bill.usageEvents.map(row => row.usageEventId), ['ub','ul']);
   assert.equal(bill.profile, 'Bill');
   assert.equal(bill.version, 10);
 });
@@ -73,4 +89,5 @@ test('isolated empty state is explicitly profile-scoped', () => {
   assert.deepEqual(state.spools, []);
   assert.deepEqual(state.weighLog, []);
   assert.deepEqual(state.auditLog, []);
+  assert.deepEqual(state.usageEvents, []);
 });
