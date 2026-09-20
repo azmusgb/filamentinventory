@@ -209,6 +209,7 @@ test('completion rejects impossible consumption instead of silently clamping inv
 test('V11 shell lazy-loads readiness modules and exposes one print-check action', async () => {
   const shell = await read('app-shell-client.js');
   const client = await read('print-readiness-client.js');
+  assert.match(shell,/usage-forecast-core\.js/);
   assert.match(shell,/print-readiness-core\.js/);
   assert.match(shell,/print-readiness-client\.js/);
   assert.match(shell,/const scriptLoads = new Map\(\)/);
