@@ -42,6 +42,7 @@ export type DeviceFeedV1 = {
   inventory:{status:'available'|'unavailable'; spools:Array<{
     spoolId:string;
     material:string|null;
+    stockState:'Available'|'Low'|'Empty'|'Unknown';
     color:string|null;
     quantity:{
       evidenceId:string|null;
@@ -573,9 +574,18 @@ export function buildDeviceFeedV1(
       } else if (placement.status === 'Stale') {
         attention.push({kind:'placement-stale', message:'Placement evidence is explicitly stale and requires verification.', spoolId});
       }
+      let stockState:'Available'|'Low'|'Empty'|'Unknown' = 'Unknown';
+      if (quantity.status === 'Current' && quantity.remainingGrams !== null) {
+        if (quantity.remainingGrams <= 0) stockState = 'Empty';
+        else {
+          const threshold = finite(spool.reorderThreshold);
+          stockState = threshold !== null && quantity.remainingGrams <= Math.max(0, threshold) ? 'Low' : 'Available';
+        }
+      }
       return {
         spoolId,
         material:text(spool.material ?? spool.type),
+        stockState,
         color:text(spool.colorName ?? spool.color ?? spool.colorHex),
         quantity,
         placement,
