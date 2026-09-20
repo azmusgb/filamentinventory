@@ -197,19 +197,45 @@ export function normalizeUsageEvents(value: unknown): any[] {
   return rows.sort((a,b) => usageEventTime(a) - usageEventTime(b) || String(a.usageEventId).localeCompare(String(b.usageEventId))).slice(-MAX_USAGE_EVENTS);
 }
 
+function rawUsageRows(value: unknown): any[] {
+  return (Array.isArray(value) ? value : []).map(raw => {
+    const usageEventId = String(raw?.usageEventId || raw?.id || '').trim().slice(0,120);
+    const spoolId = String(raw?.spoolId || '').trim().slice(0,64);
+    const observedAt = String(raw?.observedAt || raw?.timestamp || '');
+    const consumedGrams = Number(raw?.consumedGrams);
+    if (!usageEventId || !spoolId || !timestamp(observedAt) || !Number.isFinite(consumedGrams) || consumedGrams <= 0) return null;
+    return {
+      ...raw,
+      usageEventId,
+      spoolId,
+      printerId:String(raw?.printerId || raw?.printer || '').trim().slice(0,80),
+      projectId:String(raw?.projectId || raw?.jobId || '').trim().slice(0,120),
+      beforeGrams:Number.isFinite(Number(raw?.beforeGrams)) ? Math.max(0,Number(raw.beforeGrams)) : null,
+      afterGrams:Number.isFinite(Number(raw?.afterGrams)) ? Math.max(0,Number(raw.afterGrams)) : null,
+      consumedGrams:Math.max(0,consumedGrams),
+      source:String(raw?.source || 'Manual').trim().slice(0,40),
+      observedAt,
+      confidence:String(raw?.confidence || 'Unknown').trim().slice(0,24),
+      beforeEvidenceId:String(raw?.beforeEvidenceId || '').trim().slice(0,120),
+      afterEvidenceId:String(raw?.afterEvidenceId || '').trim().slice(0,120),
+    };
+  }).filter(Boolean);
+}
+
 export function mergeUsageEvents(remoteValue: unknown, incomingValue: unknown) {
-  const remote = normalizeUsageEvents(remoteValue);
-  const incoming = normalizeUsageEvents(incomingValue);
-  const byId = new Map<string,any>(remote.map(row => [String(row.usageEventId).toLowerCase(),row]));
+  const groups = [rawUsageRows(remoteValue), rawUsageRows(incomingValue)];
+  const byId = new Map<string,any>();
   const conflicts:string[] = [];
-  for (const row of incoming) {
-    const key = String(row.usageEventId).toLowerCase();
-    const current = byId.get(key);
-    if (!current) {
-      byId.set(key,row);
-      continue;
+  for (const group of groups) {
+    for (const row of group) {
+      const key = String(row.usageEventId).toLowerCase();
+      const current = byId.get(key);
+      if (!current) {
+        byId.set(key,row);
+        continue;
+      }
+      if (JSON.stringify(current) !== JSON.stringify(row) && !conflicts.includes(row.usageEventId) && conflicts.length < 25) conflicts.push(row.usageEventId);
     }
-    if (JSON.stringify(current) !== JSON.stringify(row) && conflicts.length < 25) conflicts.push(row.usageEventId);
   }
   const rows = [...byId.values()].sort((a,b) => usageEventTime(a) - usageEventTime(b) || String(a.usageEventId).localeCompare(String(b.usageEventId))).slice(-MAX_USAGE_EVENTS);
   return {rows, conflicts};
