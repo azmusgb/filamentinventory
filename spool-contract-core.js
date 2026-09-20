@@ -14,7 +14,7 @@
   const TRI_STATES = Object.freeze(['Yes', 'No', 'Unknown']);
   const RESOURCE_VISIBILITY = Object.freeze(['Private', 'Shared']);
   const PLACEMENT_KINDS = Object.freeze(['Stored', 'Feeder', 'External', 'Unknown']);
-  const USAGE_SOURCES = Object.freeze(['Printer', 'Reported', 'Calculated', 'Imported', 'Unknown']);
+  const USAGE_SOURCES = Object.freeze(['Printer', 'Reported', 'Calculated', 'Imported', 'Manual', 'Unknown']);
   const QUANTITY_EVIDENCE_METHODS = Object.freeze(['Measured','Calculated from measured','Printer-estimated usage','Visual estimate','Imported estimate','Unknown']);
   const QUANTITY_EVIDENCE_PRIORITY = Object.freeze({'Measured':600,'Calculated from measured':500,'Printer-estimated usage':400,'Visual estimate':300,'Imported estimate':200,'Unknown':0});
   const QUANTITY_CONFLICT_WINDOW_MS = 5 * 60 * 1000;
@@ -254,17 +254,26 @@
     const afterGrams=isFiniteNumber(input.afterGrams)?Math.max(0,Number(input.afterGrams)):null;
     let consumedGrams=isFiniteNumber(input.consumedGrams)?Math.max(0,Number(input.consumedGrams)):null;
     if (consumedGrams===null&&beforeGrams!==null&&afterGrams!==null&&beforeGrams>=afterGrams) consumedGrams=Math.round((beforeGrams-afterGrams)*10)/10;
+    const beforeEvidenceId=safeText(input.beforeEvidenceId,120);
+    const afterEvidenceId=safeText(input.afterEvidenceId,120);
+    const evidenceIds=[
+      ...(Array.isArray(input.quantityEvidenceIds)?input.quantityEvidenceIds:[]),
+      beforeEvidenceId,
+      afterEvidenceId,
+    ].map(v=>safeText(v,120)).filter(Boolean);
     return Object.freeze({
-      eventId:safeText(input.eventId || input.id,120),
+      eventId:safeText(input.eventId || input.usageEventId || input.id,120),
       spoolId:safeText(input.spoolId,64),
-      printerId:safeText(input.printerId,64),
+      printerId:safeText(input.printerId || input.printer,64),
       projectId:safeText(input.projectId,120),
-      printJobId:safeText(input.printJobId,120),
+      printJobId:safeText(input.printJobId || input.jobId,120),
       beforeGrams,afterGrams,consumedGrams,
       source:USAGE_SOURCES.includes(String(input.source))?String(input.source):'Unknown',
       observedAt:validIso(input.observedAt || input.timestamp),
       confidence:CONFIDENCE_LEVELS.includes(String(input.confidence))?String(input.confidence):'Unknown',
-      quantityEvidenceIds:Object.freeze([...new Set((Array.isArray(input.quantityEvidenceIds)?input.quantityEvidenceIds:[]).map(v=>safeText(v,120)).filter(Boolean))]),
+      beforeEvidenceId,
+      afterEvidenceId,
+      quantityEvidenceIds:Object.freeze([...new Set(evidenceIds)]),
     });
   }
 
@@ -273,27 +282,72 @@
     const byId=new Map();
     for (const raw of value) {
       const row=normalizeUsageEvent(raw);
-      if (!row.eventId || !row.spoolId || !row.observedAt) continue;
+      if (!row.eventId || !row.spoolId || !row.observedAt || row.consumedGrams===null || row.consumedGrams<=0) continue;
       const key=lowerId(row.eventId);
-      if (!byId.has(key) || Date.parse(row.observedAt)>=Date.parse(byId.get(key).observedAt)) byId.set(key,row);
+      const old=byId.get(key);
+      if (!old) byId.set(key,row);
+      else if (JSON.stringify(old)!==JSON.stringify(row)) {
+        // Keep the first immutable event. Conflict detection belongs at the write/sync boundary.
+        continue;
+      }
     }
-    return [...byId.values()].sort((a,b)=>Date.parse(a.observedAt)-Date.parse(b.observedAt));
+    return [...byId.values()].sort((a,b)=>Date.parse(a.observedAt)-Date.parse(b.observedAt)||a.eventId.localeCompare(b.eventId));
   }
 
-  function usageForecast(spool = {}, usageEvents = [], now = Date.now()) {
+  function appendUsageEvent(stateRaw = {}, eventRaw = {}) {
+    const state={...stateRaw,usageEvents:normalizeUsageEvents(stateRaw.usageEvents)};
+    const event=normalizeUsageEvent(eventRaw);
+    if (!event.eventId) return {changed:false,reason:'usage-event-id-required',state,event};
+    if (!event.spoolId) return {changed:false,reason:'usage-event-spool-required',state,event};
+    if (!event.observedAt) return {changed:false,reason:'usage-event-time-required',state,event};
+    if (event.consumedGrams===null || event.consumedGrams<=0) return {changed:false,reason:'usage-event-consumption-required',state,event};
+    if (event.beforeGrams!==null&&event.afterGrams!==null&&event.afterGrams>event.beforeGrams) return {changed:false,reason:'usage-event-negative-consumption',state,event};
+    const existing=state.usageEvents.find(row=>lowerId(row.eventId)===lowerId(event.eventId));
+    if (existing) {
+      const same=JSON.stringify(existing)===JSON.stringify(event);
+      return {changed:false,reason:same?'usage-event-exists':'usage-event-id-conflict',state,event:existing};
+    }
+    state.usageEvents=normalizeUsageEvents([...state.usageEvents,event]);
+    return {changed:true,state,event};
+  }
+
+  function usageForecast(spool = {}, usageEvents = [], now = Date.now(), options = {}) {
     const current=measurement(spool,now);
-    if (current.grams===null || current.verificationRequired) return Object.freeze({status:'Undetermined',reason:'quantity-evidence-not-current',dailyGrams:null,daysRemaining:null,depletionDate:null,eventIds:Object.freeze([])});
+    if (current.grams===null || current.verificationRequired) return Object.freeze({status:'Undetermined',reason:'quantity-evidence-not-current',dailyGrams:null,daysRemaining:null,depletionDate:null,eventIds:Object.freeze([]),quantityEvidenceId:current.evidenceId||null});
     const rows=normalizeUsageEvents(usageEvents).filter(row=>lowerId(row.spoolId)===lowerId(spool.id)&&row.consumedGrams!==null&&row.consumedGrams>0);
-    if (rows.length<2) return Object.freeze({status:'Undetermined',reason:'insufficient-usage-history',dailyGrams:null,daysRemaining:null,depletionDate:null,eventIds:Object.freeze(rows.map(row=>row.eventId))});
+    const minEvents=Math.max(2,Number(options.minEvents)||2);
+    const minSpanDays=Math.max(1,Number(options.minSpanDays)||1);
+    if (rows.length<minEvents) return Object.freeze({status:'Undetermined',reason:'insufficient-usage-history',dailyGrams:null,daysRemaining:null,depletionDate:null,eventIds:Object.freeze(rows.map(row=>row.eventId)),quantityEvidenceId:current.evidenceId||null});
     const first=Date.parse(rows[0].observedAt),last=Date.parse(rows[rows.length-1].observedAt);
     const spanDays=(last-first)/86400000;
-    if (!Number.isFinite(spanDays)||spanDays<1) return Object.freeze({status:'Undetermined',reason:'usage-window-too-short',dailyGrams:null,daysRemaining:null,depletionDate:null,eventIds:Object.freeze(rows.map(row=>row.eventId))});
+    if (!Number.isFinite(spanDays)||spanDays<minSpanDays) return Object.freeze({status:'Undetermined',reason:'usage-window-too-short',dailyGrams:null,daysRemaining:null,depletionDate:null,eventIds:Object.freeze(rows.map(row=>row.eventId)),quantityEvidenceId:current.evidenceId||null});
     const total=Math.round(rows.reduce((sum,row)=>sum+row.consumedGrams,0)*10)/10;
     const daily=Math.round((total/spanDays)*10)/10;
-    if (!(daily>0)) return Object.freeze({status:'Undetermined',reason:'usage-rate-unavailable',dailyGrams:null,daysRemaining:null,depletionDate:null,eventIds:Object.freeze(rows.map(row=>row.eventId))});
+    if (!(daily>0)) return Object.freeze({status:'Undetermined',reason:'usage-rate-unavailable',dailyGrams:null,daysRemaining:null,depletionDate:null,eventIds:Object.freeze(rows.map(row=>row.eventId)),quantityEvidenceId:current.evidenceId||null});
     const daysRemaining=Math.max(0,Math.round((current.grams/daily)*10)/10);
     const depletionDate=new Date(Number(now)+daysRemaining*86400000).toISOString();
-    return Object.freeze({status:'Projected',reason:'usage-history',dailyGrams:daily,daysRemaining,depletionDate,eventIds:Object.freeze(rows.map(row=>row.eventId)),quantityEvidenceId:current.evidenceId||null});
+    const threshold=isFiniteNumber(options.reorderThresholdGrams)?Math.max(0,Number(options.reorderThresholdGrams)):(isFiniteNumber(spool.reorderThreshold)?Math.max(0,Number(spool.reorderThreshold)):DEFAULT_REORDER_GRAMS);
+    const daysToThreshold=Math.max(0,Math.round(((Math.max(0,current.grams-threshold))/daily)*10)/10);
+    const thresholdDate=new Date(Number(now)+daysToThreshold*86400000).toISOString();
+    const leadDays=Math.max(0,Number(options.leadTimeDays)||0);
+    const orderByDate=new Date(Math.max(Number(now),Date.parse(thresholdDate)-leadDays*86400000)).toISOString();
+    const confidence=rows.length>=10&&spanDays>=30?'High':rows.length>=5&&spanDays>=14?'Medium':'Low';
+    return Object.freeze({
+      status:'Projected',
+      reason:'usage-history',
+      method:'historical-usage-rate',
+      dailyGrams:daily,
+      totalConsumedGrams:total,
+      daysRemaining,
+      depletionDate,
+      reorderThresholdGrams:threshold,
+      thresholdDate,
+      leadTimeDays:leadDays,
+      orderByDate,
+      confidence,
+      eventIds:Object.freeze(rows.map(row=>row.eventId)),
+      quantityEvidenceId:current.evidenceId||null,
+    });
   }
 
   function normalizeSpool(input = {}, {owner = 'Bill', householdId = 'default-household'} = {}) {
@@ -411,5 +465,5 @@
     return {state,errors,warnings,valid:errors.length===0};
   }
 
-  return Object.freeze({DEFAULT_REORDER_GRAMS,OWNERS,PLACEMENT_STATES,LIFECYCLE_STATES,STOCK_STATES,CONFIDENCE_LEVELS,RESOURCE_VISIBILITY,PLACEMENT_KINDS,USAGE_SOURCES,QUANTITY_EVIDENCE_METHODS,QUANTITY_CONFLICT_WINDOW_MS,QUANTITY_CONFLICT_MIN_GRAMS,isFiniteNumber,numberOrNull,normalizeOwner,normalizeMemberId,normalizeHouseholdMember,normalizeHousehold,normalizeResourceScope,normalizePlacement,normalizeUsageEvent,normalizeUsageEvents,usageForecast,normalizeQuantityEvidence,normalizeQuantityEvidenceList,quantityEvidenceLineage,strongestQuantityEvidence,evidenceAgeDays,isEvidenceStale,quantityEvidenceAssessment,normalizeSpool,normalizeState,measurement,stockState,lifecycle,reorderNeeded,productLabel,placementLabel,evidenceLabel,workflowSummary,validateSpool,validateState});
+  return Object.freeze({DEFAULT_REORDER_GRAMS,OWNERS,PLACEMENT_STATES,LIFECYCLE_STATES,STOCK_STATES,CONFIDENCE_LEVELS,RESOURCE_VISIBILITY,PLACEMENT_KINDS,USAGE_SOURCES,QUANTITY_EVIDENCE_METHODS,QUANTITY_CONFLICT_WINDOW_MS,QUANTITY_CONFLICT_MIN_GRAMS,isFiniteNumber,numberOrNull,normalizeOwner,normalizeMemberId,normalizeHouseholdMember,normalizeHousehold,normalizeResourceScope,normalizePlacement,normalizeUsageEvent,normalizeUsageEvents,appendUsageEvent,usageForecast,normalizeQuantityEvidence,normalizeQuantityEvidenceList,quantityEvidenceLineage,strongestQuantityEvidence,evidenceAgeDays,isEvidenceStale,quantityEvidenceAssessment,normalizeSpool,normalizeState,measurement,stockState,lifecycle,reorderNeeded,productLabel,placementLabel,evidenceLabel,workflowSummary,validateSpool,validateState});
 });
