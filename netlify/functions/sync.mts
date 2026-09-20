@@ -166,12 +166,29 @@ export function mergePrintJobs(remoteValue: unknown, incomingValue: unknown): an
   ]);
 }
 
-function normalizeUsageEventRow(raw: any): any | null {
+function usageEventInputIssue(raw: any, index = 0) {
   const eventId = String(raw?.eventId || raw?.usageEventId || raw?.id || '').trim().slice(0,120);
   const spoolId = String(raw?.spoolId || '').trim().slice(0,64);
   const observedAt = String(raw?.observedAt || raw?.timestamp || '');
   const consumedGrams = Number(raw?.consumedGrams);
-  if (!eventId || !spoolId || !timestamp(observedAt) || !Number.isFinite(consumedGrams) || consumedGrams <= 0) return null;
+  const beforeGrams = Number.isFinite(Number(raw?.beforeGrams)) ? Math.max(0,Number(raw.beforeGrams)) : null;
+  const afterGrams = Number.isFinite(Number(raw?.afterGrams)) ? Math.max(0,Number(raw.afterGrams)) : null;
+  const issue = (code:string, message:string) => ({index,eventId:eventId || null,spoolId:spoolId || null,code,message});
+
+  if (!eventId) return issue('usage-event-id-required','Usage event ID is required.');
+  if (!spoolId) return issue('usage-event-spool-required','Usage event spool ID is required.');
+  if (!observedAt || Number.isNaN(Date.parse(observedAt))) return issue('usage-event-time-required','Usage event timestamp must be a valid date-time.');
+  if (!Number.isFinite(consumedGrams) || consumedGrams <= 0) return issue('usage-event-consumption-required','Usage event must record positive consumed grams.');
+  if (beforeGrams !== null && afterGrams !== null && afterGrams > beforeGrams) return issue('usage-event-negative-consumption','Usage event afterGrams cannot exceed beforeGrams.');
+  return null;
+}
+
+function normalizeUsageEventRow(raw: any): any | null {
+  if (usageEventInputIssue(raw)) return null;
+  const eventId = String(raw?.eventId || raw?.usageEventId || raw?.id || '').trim().slice(0,120);
+  const spoolId = String(raw?.spoolId || '').trim().slice(0,64);
+  const observedAt = String(raw?.observedAt || raw?.timestamp || '');
+  const consumedGrams = Number(raw?.consumedGrams);
   const beforeEvidenceId = String(raw?.beforeEvidenceId || '').trim().slice(0,120);
   const afterEvidenceId = String(raw?.afterEvidenceId || '').trim().slice(0,120);
   const quantityEvidenceIds = [...new Set([
@@ -179,6 +196,16 @@ function normalizeUsageEventRow(raw: any): any | null {
     beforeEvidenceId,
     afterEvidenceId,
   ].map((value:any)=>String(value || '').trim().slice(0,120)).filter(Boolean))];
+  const sourceRaw = String(raw?.source || 'Manual').trim().slice(0,40);
+  const sourceAliases:Record<string,string> = {
+    PrinterReported:'Reported',
+    PrinterEstimated:'Printer',
+    MeasuredDelta:'Calculated',
+  };
+  const allowedSources = new Set(['Printer','Reported','Calculated','Imported','Manual','Unknown']);
+  const source = allowedSources.has(sourceRaw) ? sourceRaw : (sourceAliases[sourceRaw] || 'Unknown');
+  const confidenceRaw = String(raw?.confidence || 'Unknown').trim().slice(0,24);
+  const confidence = ['Confirmed','High','Medium','Low','Unknown'].includes(confidenceRaw) ? confidenceRaw : 'Unknown';
 
   // Store only canonical UsageEvent fields. Legacy aliases are accepted on
   // input but must not become part of immutable-event equality.
@@ -191,9 +218,9 @@ function normalizeUsageEventRow(raw: any): any | null {
     beforeGrams:Number.isFinite(Number(raw?.beforeGrams)) ? Math.max(0,Number(raw.beforeGrams)) : null,
     afterGrams:Number.isFinite(Number(raw?.afterGrams)) ? Math.max(0,Number(raw.afterGrams)) : null,
     consumedGrams:Math.max(0,consumedGrams),
-    source:String(raw?.source || 'Manual').trim().slice(0,40),
+    source,
     observedAt,
-    confidence:String(raw?.confidence || 'Unknown').trim().slice(0,24),
+    confidence,
     beforeEvidenceId,
     afterEvidenceId,
     quantityEvidenceIds,
@@ -214,12 +241,25 @@ export function normalizeUsageEvents(value: unknown): any[] {
   return rows.sort((a,b) => usageEventTime(a) - usageEventTime(b) || String(a.eventId).localeCompare(String(b.eventId))).slice(-MAX_USAGE_EVENTS);
 }
 
-function rawUsageRows(value: unknown): any[] {
-  return (Array.isArray(value) ? value : []).map(normalizeUsageEventRow).filter(Boolean);
+function rawUsageRows(value: unknown) {
+  const rows:any[] = [];
+  const invalid:any[] = [];
+  for (const [index,raw] of (Array.isArray(value) ? value : []).entries()) {
+    const issue = usageEventInputIssue(raw,index);
+    if (issue) {
+      if (invalid.length < 25) invalid.push(issue);
+      continue;
+    }
+    const row = normalizeUsageEventRow(raw);
+    if (row) rows.push(row);
+  }
+  return {rows,invalid};
 }
 
 export function mergeUsageEvents(remoteValue: unknown, incomingValue: unknown) {
-  const groups = [rawUsageRows(remoteValue), rawUsageRows(incomingValue)];
+  const remote = rawUsageRows(remoteValue);
+  const incoming = rawUsageRows(incomingValue);
+  const groups = [remote.rows,incoming.rows];
   const byId = new Map<string,any>();
   const conflicts:string[] = [];
   for (const group of groups) {
@@ -234,7 +274,7 @@ export function mergeUsageEvents(remoteValue: unknown, incomingValue: unknown) {
     }
   }
   const rows = [...byId.values()].sort((a,b) => usageEventTime(a) - usageEventTime(b) || String(a.eventId).localeCompare(String(b.eventId))).slice(-MAX_USAGE_EVENTS);
-  return {rows, conflicts};
+  return {rows, conflicts, invalid:[...remote.invalid,...incoming.invalid].slice(0,25)};
 }
 
 function normalizeFeeder(raw: any, index: number) {
@@ -412,7 +452,15 @@ export function mergeStates(remoteRaw: any, incomingRaw: any) {
 
   return {
     state:{ version, spools, printers, weighLog, auditLog, printJobs, usageEvents, tombstones },
-    stats:{ incomingWins, remoteWins, deletedApplied, usageEventConflicts:usageMerge.conflicts.length, usageEventConflictIds:usageMerge.conflicts }
+    stats:{
+      incomingWins,
+      remoteWins,
+      deletedApplied,
+      usageEventConflicts:usageMerge.conflicts.length,
+      usageEventConflictIds:usageMerge.conflicts,
+      usageEventInvalids:usageMerge.invalid.length,
+      usageEventInvalidIssues:usageMerge.invalid,
+    }
   };
 }
 
@@ -522,11 +570,14 @@ export default async (req: Request) => {
     const concurrent = Boolean(current && baseRevision && baseRevision !== current.revision);
     const baseEnvelope = concurrent ? await getSnapshotByRevision(store, hash, baseRevision) : null;
     const twoWayMerged = mergeStates(current?.state, body.state);
-    if (twoWayMerged.stats.usageEventConflicts > 0) {
+    if (twoWayMerged.stats.usageEventConflicts > 0 || twoWayMerged.stats.usageEventInvalids > 0) {
       return json({
         ok:false,
-        error:'Usage ledger conflict detected. Sync stopped without overwriting either side.',
-        conflicts:{usageEventIds:twoWayMerged.stats.usageEventConflictIds},
+        error:'Usage ledger integrity check failed. Sync stopped without overwriting either side.',
+        conflicts:{
+          usageEventIds:twoWayMerged.stats.usageEventConflictIds,
+          invalidUsageEvents:twoWayMerged.stats.usageEventInvalidIssues,
+        },
       }, 409);
     }
     const reconciliation = baseEnvelope && current
