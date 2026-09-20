@@ -39,13 +39,22 @@ test('display feed emits a redacted profile-scoped evidence contract', () => {
   assert.deepEqual(feed.capabilities, [
     'inventory-summary',
     'quantity-evidence-summary',
+    'quantity-evidence-lineage',
     'placement-summary',
     'queue-summary',
     'staleness',
     'readiness-undetermined',
   ]);
   assert.deepEqual(feed.summary, {spools:2, loaded:1, low:1, unknown:0, queue:1});
-  assert.deepEqual(feed.evidence, {measured:1, calculated:0, estimated:1, unknown:0, conflicting:0});
+  assert.deepEqual(feed.evidence, {
+    measured:1,
+    calculated:0,
+    estimated:1,
+    unknown:0,
+    stale:0,
+    conflicting:0,
+    invalidLineage:0,
+  });
   assert.deepEqual(feed.placement, {loaded:1, external:0, feeder:1, unknown:0, conflicting:0});
   assert.deepEqual(feed.readiness, {state:'undetermined', reason:'No print requirement was supplied to the device summary.'});
   assert.equal(feed.status, '1 spool low');
@@ -92,6 +101,83 @@ test('explicit conflicting quantity evidence is surfaced instead of silently cho
 
   assert.equal(feed.evidence.conflicting, 1);
   assert.match(feed.status, /needs review/);
+});
+
+test('derived quantity history selects terminal evidence without flagging parent-child change as conflict', () => {
+  const feed = buildDisplayFeed([
+    {
+      key:'inventory-alpha',
+      updatedAt:'2026-08-30T02:25:00.000Z',
+      state:{spools:[{
+        id:'A1',
+        reorderThreshold:250,
+        placementState:'Stored',
+        quantityEvidence:[
+          {evidenceId:'m1',method:'Measured',remainingGrams:500,observedAt:'2026-08-30T02:20:00Z'},
+          {evidenceId:'u1',derivedFromEvidenceId:'m1',method:'Printer-estimated usage',remainingGrams:240,observedAt:'2026-08-30T02:22:00Z'},
+        ],
+      }], printJobs:[]},
+    },
+  ], new Date('2026-08-30T02:30:00.000Z'));
+
+  assert.equal(feed.evidence.conflicting, 0);
+  assert.equal(feed.evidence.invalidLineage, 0);
+  assert.equal(feed.summary.low, 1);
+  assert.equal(feed.status, '1 spool low');
+});
+
+test('invalid quantity lineage is surfaced and cannot drive low-stock classification', () => {
+  const feed = buildDisplayFeed([
+    {
+      key:'inventory-alpha',
+      updatedAt:'2026-08-30T02:25:00.000Z',
+      state:{spools:[{
+        id:'A1',
+        reorderThreshold:250,
+        placementState:'Stored',
+        quantityEvidence:[
+          {
+            evidenceId:'u1',
+            derivedFromEvidenceId:'missing-parent',
+            method:'Printer-estimated usage',
+            remainingGrams:100,
+            observedAt:'2026-08-30T02:22:00Z',
+          },
+        ],
+      }], printJobs:[]},
+    },
+  ], new Date('2026-08-30T02:30:00.000Z'));
+
+  assert.equal(feed.evidence.invalidLineage, 1);
+  assert.equal(feed.summary.low, 0);
+  assert.match(feed.status, /needs review/);
+});
+
+test('stale quantity evidence is surfaced and cannot drive low-stock classification', () => {
+  const feed = buildDisplayFeed([
+    {
+      key:'inventory-alpha',
+      updatedAt:'2026-08-30T02:25:00.000Z',
+      state:{spools:[{
+        id:'A1',
+        reorderThreshold:250,
+        placementState:'Stored',
+        quantityEvidence:[
+          {
+            evidenceId:'m1',
+            method:'Measured',
+            remainingGrams:100,
+            observedAt:'2026-08-30T02:20:00Z',
+            staleAfter:'2026-08-30T02:25:00Z',
+          },
+        ],
+      }], printJobs:[]},
+    },
+  ], new Date('2026-08-30T02:30:00.000Z'));
+
+  assert.equal(feed.evidence.stale, 1);
+  assert.equal(feed.summary.low, 0);
+  assert.equal(feed.status, '1 spool need re-verification');
 });
 
 test('invalid canonical placement is surfaced as conflict and never counted loaded', () => {
