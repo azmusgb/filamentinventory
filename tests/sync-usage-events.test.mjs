@@ -13,7 +13,7 @@ const event = (id, observedAt, extra = {}) => ({
   beforeGrams:600,
   afterGrams:500,
   consumedGrams:100,
-  source:'PrinterReported',
+  source:'Reported',
   confidence:'Medium',
   beforeEvidenceId:'qe-start',
   afterEvidenceId:'qe-complete',
@@ -116,6 +116,35 @@ test('state merge preserves same-payload UsageEvent conflict evidence before nor
   assert.deepEqual(result.stats.usageEventConflictIds,['u1']);
   assert.equal(result.state.usageEvents.length,1);
   assert.equal(result.state.usageEvents[0].consumedGrams,100);
+});
+
+test('state merge surfaces invalid UsageEvents instead of silently discarding them', () => {
+  const result = mergeStates(
+    {version:6,spools:[{id:'S1'}],usageEvents:[]},
+    {
+      version:6,
+      spools:[{id:'S1'}],
+      usageEvents:[
+        event('bad-delta','2026-09-01T12:00:00Z',{beforeGrams:400,afterGrams:500,consumedGrams:100}),
+        event('bad-consumption','2026-09-02T12:00:00Z',{consumedGrams:0}),
+      ],
+    }
+  );
+  assert.equal(result.stats.usageEventInvalids,2);
+  assert.deepEqual(result.stats.usageEventInvalidIssues.map(issue=>issue.code),[
+    'usage-event-negative-consumption',
+    'usage-event-consumption-required',
+  ]);
+  assert.equal(result.state.usageEvents.length,0);
+});
+
+test('sync normalization constrains UsageEvent provenance and confidence to canonical values', () => {
+  const [row] = normalizeUsageEvents([event('u1','2026-09-01T12:00:00Z',{
+    source:'not-a-real-source',
+    confidence:'certain-ish',
+  })]);
+  assert.equal(row.source,'Unknown');
+  assert.equal(row.confidence,'Unknown');
 });
 
 test('two-way state merge preserves usage events from both devices and reports no conflict', () => {
