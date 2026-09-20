@@ -395,6 +395,7 @@ function placementFor(spool:any) {
   if (evidence) {
     const rawKind = String(evidence.kind ?? evidence.type ?? '').trim().toLowerCase();
     const explicitState = String(evidence.state ?? '').trim();
+    const stateLower = explicitState.toLowerCase();
     const printerId = text(evidence.printerId);
     const feederId = text(evidence.feederId ?? evidence.amsId);
     const rawSlot = finite(evidence.slot ?? evidence.slotId);
@@ -403,7 +404,12 @@ function placementFor(spool:any) {
     const source = text(evidence.source) || 'placement-evidence';
     const explicitlyStale = evidence.stale === true || String(evidence.freshness || '').toLowerCase() === 'stale';
 
-    if (rawKind === 'unloaded' || rawKind === 'stored' || explicitState === 'Stored') {
+    if (
+      rawKind === 'unloaded' ||
+      rawKind === 'stored' ||
+      stateLower === 'stored' ||
+      stateLower === 'unloaded'
+    ) {
       const conflicting = Boolean(printerId || feederId || slot !== null || evidence.external === true);
       return {
         status:(conflicting ? 'Conflict' : explicitlyStale ? 'Stale' : 'Current') as PlacementStatus,
@@ -452,7 +458,7 @@ function placementFor(spool:any) {
     // Compatibility for an explicitly persisted object from an earlier
     // contract. It is accepted only when it contains the complete canonical
     // identifiers required by the claimed state.
-    if (explicitState === 'Loaded') {
+    if (stateLower === 'loaded') {
       const external = evidence.external === true;
       const validFeeder = Boolean(printerId && feederId && slot !== null && slot >= 0 && !external);
       const validExternal = Boolean(printerId && external && !feederId && slot === null);
@@ -487,8 +493,8 @@ function placementFor(spool:any) {
   // do not contain durable canonical printer/feeder identifiers. Preserve the
   // loaded/stored fact while requiring verification before treating a loaded
   // path as canonical placement.
-  const legacyState = String(spool?.placementState || '');
-  if (legacyState === 'Stored') {
+  const legacyState = String(spool?.placementState || '').trim().toLowerCase();
+  if (legacyState === 'stored' || legacyState === 'unloaded') {
     return {
       status:'Current' as PlacementStatus,
       state:'Stored' as const,
@@ -501,7 +507,7 @@ function placementFor(spool:any) {
       verificationRequired:false,
     };
   }
-  if (legacyState === 'Loaded') {
+  if (legacyState === 'loaded') {
     return {
       status:'Conflict' as PlacementStatus,
       state:'Loaded' as const,
