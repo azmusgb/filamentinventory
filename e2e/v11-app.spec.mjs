@@ -188,6 +188,14 @@ test('measured loaded spool can be planned, started and completed through print 
     row.gross=800;
     row.tare=200;
     row.visualPercent=80;
+    row.placement={
+      kind:'Feeder',
+      printerId:'P1S',
+      feederId:'AMS 1',
+      slot:1,
+      source:'e2e',
+      observedAt:'2026-08-28T14:00:00.000Z',
+    };
     row.placementState='Loaded';
     row.printerName='P1S';
     row.feederName='AMS 1';
