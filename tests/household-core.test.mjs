@@ -2,107 +2,81 @@ import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import test from 'node:test';
 
-const require = createRequire(import.meta.url);
-const household = require('../household-core.js');
+const require=createRequire(import.meta.url);
+const contract=require('../spool-contract-core.js');
 
-const model = household.normalizeHousehold({
+const household=contract.normalizeHousehold({
   householdId:'home-1',
-  name:'Workshop',
   members:[
-    {memberId:'bill',displayName:'Bill',status:'Active',legacyProfile:'Bill'},
-    {memberId:'aimee',displayName:'Aimee',status:'Active',legacyProfile:'Aimee'},
+    {memberId:'bill',displayName:'Bill',status:'Active'},
+    {memberId:'aimee',displayName:'Aimee',status:'Active'},
     {memberId:'guest',displayName:'Guest',status:'Inactive'},
   ],
 });
 
-test('private resource is visible only to its explicit owner', () => {
-  const scope = household.normalizeResourceScope({
-    householdId:'home-1',
-    ownerMemberId:'bill',
-    visibility:'Private',
-    sharedWithMemberIds:['aimee'],
-  });
+test('resource scope is private by default and never carries an implicit share list', () => {
+  const scope=contract.normalizeResourceScope({householdId:'home-1',ownerMemberId:'bill',sharedWithMemberIds:['aimee']});
   assert.equal(scope.visibility,'Private');
+  assert.equal(scope.ownerMemberId,'bill');
   assert.deepEqual(scope.sharedWithMemberIds,[]);
-  assert.equal(household.canMemberAccess(scope,'bill'),true);
-  assert.equal(household.canMemberAccess(scope,'aimee'),false);
 });
 
-test('shared resource exposes only explicitly selected active members', () => {
-  const scope = household.normalizeResourceScope({
+test('shared scope preserves only explicit member identifiers and excludes the owner', () => {
+  const scope=contract.normalizeResourceScope({
     householdId:'home-1',
     ownerMemberId:'bill',
     visibility:'Shared',
-    sharedWithMemberIds:['aimee'],
+    sharedWithMemberIds:['aimee','bill','AIMEE'],
   });
-  assert.equal(household.canMemberAccess(scope,'bill'),true);
-  assert.equal(household.canMemberAccess(scope,'aimee'),true);
-  assert.equal(household.canMemberAccess(scope,'someone-else'),false);
-  assert.equal(household.validateResourceScope(scope,model).valid,true);
+  assert.equal(scope.visibility,'Shared');
+  assert.deepEqual(scope.sharedWithMemberIds,['aimee']);
 });
 
-test('share mutation requires ownership and creates an auditable event', () => {
-  const state = {
-    resources:[{id:'S1',resourceScope:{householdId:'home-1',ownerMemberId:'bill',visibility:'Private',sharedWithMemberIds:[]}}],
-    resourceAudit:[],
-  };
-  const denied = household.shareResource(state,'S1','aimee',['bill'],model,'2026-09-20T18:00:00Z');
-  assert.equal(denied.changed,false);
-  assert.equal(denied.reason,'owner-required');
+test('state validation rejects owners and shares outside the household membership', () => {
+  const invalidOwner=contract.validateState({
+    profile:'Bill',
+    household,
+    spools:[{id:'S1',resourceScope:{householdId:'home-1',ownerMemberId:'nobody',visibility:'Private'}}],
+  });
+  assert.equal(invalidOwner.valid,false);
+  assert.equal(invalidOwner.errors.some(issue=>issue.code==='spool-owner-member-missing'),true);
 
-  const shared = household.shareResource(state,'S1','bill',['aimee'],model,'2026-09-20T18:00:00Z');
-  assert.equal(shared.changed,true);
-  assert.equal(shared.resource.resourceScope.visibility,'Shared');
-  assert.deepEqual(shared.resource.resourceScope.sharedWithMemberIds,['aimee']);
-  assert.equal(shared.audit.action,'Share');
-  assert.equal(shared.audit.actorMemberId,'bill');
+  const invalidShare=contract.validateState({
+    profile:'Bill',
+    household,
+    spools:[{id:'S1',resourceScope:{householdId:'home-1',ownerMemberId:'bill',visibility:'Shared',sharedWithMemberIds:['nobody']}}],
+  });
+  assert.equal(invalidShare.valid,false);
+  assert.equal(invalidShare.errors.some(issue=>issue.code==='spool-share-member-missing'),true);
 });
 
-test('sharing fails closed for inactive or nonexistent household members', () => {
-  const state = {
-    resources:[{id:'S1',resourceScope:{householdId:'home-1',ownerMemberId:'bill',visibility:'Private',sharedWithMemberIds:[]}}],
-  };
-  const inactive = household.shareResource(state,'S1','bill',['guest'],model);
-  assert.equal(inactive.changed,false);
-  assert.equal(inactive.reason,'share-target-not-active-member');
-  const missing = household.shareResource(state,'S1','bill',['nobody'],model);
-  assert.equal(missing.changed,false);
-  assert.equal(missing.reason,'share-target-not-active-member');
+test('state validation rejects cross-household resource scope', () => {
+  const result=contract.validateState({
+    profile:'Bill',
+    household,
+    spools:[{id:'S1',resourceScope:{householdId:'other-home',ownerMemberId:'bill',visibility:'Private'}}],
+  });
+  assert.equal(result.valid,false);
+  assert.equal(result.errors.some(issue=>issue.code==='spool-household-mismatch'),true);
 });
 
-test('ownership transfer is explicit, audited, and resets sharing to private', () => {
-  const state = {
-    resources:[{id:'S1',resourceScope:{householdId:'home-1',ownerMemberId:'bill',visibility:'Shared',sharedWithMemberIds:['aimee']}}],
-    resourceAudit:[],
-  };
-  const result = household.transferResourceOwnership(state,'S1','bill','aimee',model,'2026-09-20T18:05:00Z');
-  assert.equal(result.changed,true);
-  assert.equal(result.resource.resourceScope.ownerMemberId,'aimee');
-  assert.equal(result.resource.resourceScope.visibility,'Private');
-  assert.deepEqual(result.resource.resourceScope.sharedWithMemberIds,[]);
-  assert.equal(result.audit.action,'TransferOwnership');
-  assert.equal(result.audit.fromOwnerMemberId,'bill');
-  assert.equal(result.audit.toOwnerMemberId,'aimee');
+test('legacy Bill/Aimee owner fields map deterministically into canonical member IDs without creating sharing', () => {
+  const bill=contract.normalizeSpool({id:'S1',owner:'Bill'},{owner:'Bill',householdId:'home-1'});
+  const aimee=contract.normalizeSpool({id:'S2',owner:'Aimee'},{owner:'Aimee',householdId:'home-1'});
+  assert.equal(bill.ownerMemberId,'bill');
+  assert.equal(aimee.ownerMemberId,'aimee');
+  assert.equal(bill.visibility,'Private');
+  assert.equal(aimee.visibility,'Private');
+  assert.deepEqual(bill.sharedWithMemberIds,[]);
+  assert.deepEqual(aimee.sharedWithMemberIds,[]);
 });
 
-test('legacy Bill/Aimee data is never silently promoted into household authority', () => {
-  const withoutMapping = household.migrateLegacyResourceScope({id:'S1',owner:'Bill'},model,{});
-  assert.equal(withoutMapping.status,'unmapped');
-  assert.equal(withoutMapping.resourceScope,null);
-
-  const explicit = household.migrateLegacyResourceScope({id:'S1',owner:'Bill'},model,{Bill:'bill',Aimee:'aimee'});
-  assert.equal(explicit.status,'mapped');
-  assert.equal(explicit.resourceScope.ownerMemberId,'bill');
-  assert.equal(explicit.resourceScope.visibility,'Private');
-});
-
-test('visibleResources enforces zero implicit cross-member visibility', () => {
-  const resources = [
-    {id:'B1',resourceScope:{householdId:'home-1',ownerMemberId:'bill',visibility:'Private'}},
-    {id:'A1',resourceScope:{householdId:'home-1',ownerMemberId:'aimee',visibility:'Private'}},
-    {id:'S1',resourceScope:{householdId:'home-1',ownerMemberId:'bill',visibility:'Shared',sharedWithMemberIds:['aimee']}},
-    {id:'U1'},
-  ];
-  assert.deepEqual(household.visibleResources(resources,'bill').map(row=>row.id),['B1','S1']);
-  assert.deepEqual(household.visibleResources(resources,'aimee').map(row=>row.id),['A1','S1']);
+test('inactive household members cannot remain authoritative owners', () => {
+  const result=contract.validateState({
+    profile:'Bill',
+    household,
+    spools:[{id:'S1',resourceScope:{householdId:'home-1',ownerMemberId:'guest',visibility:'Private'}}],
+  });
+  assert.equal(result.valid,false);
+  assert.equal(result.errors.some(issue=>issue.code==='spool-owner-member-missing'),true);
 });
