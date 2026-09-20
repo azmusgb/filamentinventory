@@ -1,12 +1,17 @@
 (function(root, factory) {
   let contract = null;
+  let usage = null;
   if (typeof module === 'object' && module.exports) {
     try { contract = require('./spool-contract-core.js'); } catch {}
-  } else if (root) contract = root.FilamentInventorySpoolContract;
-  const api = factory(contract);
+    try { usage = require('./usage-forecast-core.js'); } catch {}
+  } else if (root) {
+    contract = root.FilamentInventorySpoolContract;
+    usage = root.FilamentInventoryUsageForecast;
+  }
+  const api = factory(contract, usage);
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.FilamentInventoryPrintReadiness = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function(contract) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function(contract, usage) {
   'use strict';
 
   const MAX_PRINT_JOBS = 250;
@@ -204,7 +209,14 @@
     return Object.freeze({status,needed:requirement.grams,safetyMargin:requirement.safetyMargin,required:requirement.required,requirement,recommended,alternatives:candidates.filter(row=>row!==recommended),candidates,counts:Object.freeze({matches:candidates.length,measuredReady:candidates.filter(row=>row.enough&&row.measurement.source==='Measured'&&!row.verificationRequired).length,measuredCaveat:candidates.filter(row=>row.enough&&row.measurement.source==='Measured'&&row.verificationRequired).length,estimatedReady:candidates.filter(row=>row.enough&&row.measurement.source==='Estimated').length,unknown:candidates.filter(row=>row.measurement.source==='Unknown').length,reserved:candidates.filter(row=>row.reservedGrams>0).length})});
   }
 
-  function cloneState(state = {}) { return {...state,spools:(Array.isArray(state.spools)?state.spools:[]).map(spool=>({...spool,quantityEvidence:Array.isArray(spool.quantityEvidence)?spool.quantityEvidence.map(row=>({...row})):spool.quantityEvidence})),printJobs:normalizePrintJobs(state.printJobs).map(job=>({...job,placement:job.placement?{...job.placement}:null,quantityEvidenceAtPlan:job.quantityEvidenceAtPlan?{...job.quantityEvidenceAtPlan}:null,quantityEvidenceAtStart:job.quantityEvidenceAtStart?{...job.quantityEvidenceAtStart}:null}))}; }
+  function cloneState(state = {}) {
+    return {
+      ...state,
+      spools:(Array.isArray(state.spools)?state.spools:[]).map(spool=>({...spool,quantityEvidence:Array.isArray(spool.quantityEvidence)?spool.quantityEvidence.map(row=>({...row})):spool.quantityEvidence})),
+      printJobs:normalizePrintJobs(state.printJobs).map(job=>({...job,placement:job.placement?{...job.placement}:null,quantityEvidenceAtPlan:job.quantityEvidenceAtPlan?{...job.quantityEvidenceAtPlan}:null,quantityEvidenceAtStart:job.quantityEvidenceAtStart?{...job.quantityEvidenceAtStart}:null})),
+      usageEvents:usage?.normalizeUsageEvents ? usage.normalizeUsageEvents(state.usageEvents) : (Array.isArray(state.usageEvents)?state.usageEvents.map(row=>({...row})):[]),
+    };
+  }
   function makeJobId(state,spoolId,at) { const stamp=String(at||new Date().toISOString()).replace(/\D/g,'').slice(0,14); const base=`print-${stamp}-${clean(spoolId,32).toLowerCase()||'spool'}`; const used=new Set(normalizePrintJobs(state?.printJobs).map(job=>job.id)); if(!used.has(base))return base; let index=2; while(used.has(`${base}-${index}`))index+=1; return `${base}-${index}`; }
   function makeEvidenceId(jobId, phase) { return `qe-${clean(jobId,92).replace(/[^a-z0-9._-]+/gi,'-').toLowerCase()}-${phase}`.slice(0,120); }
   function findSpool(state,spoolId) { const id=clean(spoolId,64).toLowerCase(); return (Array.isArray(state?.spools)?state.spools:[]).find(spool=>clean(spool?.id,64).toLowerCase()===id)||null; }
@@ -255,17 +267,30 @@
   }
 
   function completeJob(stateRaw = {}, jobId = '', consumedGrams, at = new Date().toISOString()) {
-    const state=cloneState(stateRaw); const job=state.printJobs.find(row=>row.id===clean(jobId,120)); if(!job)return{changed:false,reason:'job-not-found',state}; if(job.status!=='in-progress')return{changed:false,reason:job.status==='completed'?'job-already-completed':'job-not-running',state,job}; const spool=findSpool(state,job.spoolId); if(!spool||spool.archivedAt)return{changed:false,reason:'spool-unavailable',state,job};
+    const state=cloneState(stateRaw); const job=state.printJobs.find(row=>row.id===clean(jobId,120)); if(!job)return{changed:false,reason:'job-not-found',state};
+    if (!usage?.usageEventFromCompletedPrint || !usage?.appendUsageEvent) return {changed:false,reason:'usage-ledger-unavailable',state,job}; if(job.status!=='in-progress')return{changed:false,reason:job.status==='completed'?'job-already-completed':'job-not-running',state,job}; const spool=findSpool(state,job.spoolId); if(!spool||spool.archivedAt)return{changed:false,reason:'spool-unavailable',state,job};
     const consumed=number(consumedGrams); if(consumed===null||consumed<=0)return{changed:false,reason:'consumption-required',state,job,spool}; const base=number(job.remainingAtStart); if(base===null)return{changed:false,reason:'start-remaining-unknown',state,job,spool}; if(consumed>base)return{changed:false,reason:'consumption-exceeds-start',state,job,spool};
     const startEvidenceId=clean(job.quantityEvidenceAtStart?.evidenceId,120); if(!startEvidenceId)return{changed:false,reason:'start-evidence-id-required',state,job,spool}; const parent=evidenceById(spool,startEvidenceId); if(!parent)return{changed:false,reason:'start-evidence-missing',state,job,spool}; if(clean(parent.spoolId||spool.id,64).toLowerCase()!==clean(spool.id,64).toLowerCase())return{changed:false,reason:'start-evidence-spool-mismatch',state,job,spool};
     const remainingAfter=Math.max(0,Math.round((base-consumed)*10)/10); const completedAt=at; const completionEvidenceId=makeEvidenceId(job.id,'complete');
     if(evidenceById(spool,completionEvidenceId))return{changed:false,reason:'completion-evidence-exists',state,job,spool};
     const usageEvidence=contract?.normalizeQuantityEvidence ? contract.normalizeQuantityEvidence({evidenceId:completionEvidenceId,spoolId:spool.id,method:'Printer-estimated usage',remainingGrams:remainingAfter,source:`print-job:${job.id}`,observedAt:completedAt,confidence:'Medium',derivedFromEvidenceId:startEvidenceId},{spoolId:spool.id}) : {evidenceId:completionEvidenceId,spoolId:spool.id,method:'Printer-estimated usage',grossGrams:null,tareGrams:null,remainingGrams:remainingAfter,source:`print-job:${job.id}`.slice(0,120),observedAt:completedAt,confidence:'Medium',staleAfter:null,derivedFromEvidenceId:startEvidenceId};
+    const usageEvent=usage.usageEventFromCompletedPrint({
+      job:{...job,remainingAfter,consumedGrams:Math.round(consumed*10)/10,completedAt,completionEvidenceId},
+      spool,
+      beforeEvidence:parent,
+      afterEvidence:usageEvidence,
+      observedAt:completedAt,
+      source:'PrinterReported',
+      confidence:'Medium',
+    });
+    const ledger=usage.appendUsageEvent({usageEvents:state.usageEvents},usageEvent);
+    if (!ledger.changed && ledger.reason!=='usage-event-exists') return {changed:false,reason:ledger.reason,state,job,spool,usageEvent,usageErrors:ledger.errors||[]};
+    state.usageEvents=ledger.state.usageEvents;
     spool.quantityEvidence=[...(Array.isArray(spool.quantityEvidence)?spool.quantityEvidence:[]),usageEvidence];
     spool.estimatedRemainingGrams=remainingAfter; spool.gross=null; spool.visualPercent=null; spool.remainingEvidenceSource='print-job'; spool.remainingEvidenceAt=completedAt; spool.lastUsedAt=completedAt; spool.lastPrintJobId=job.id; spool.lastPrintConsumptionGrams=Math.round(consumed*10)/10; spool.updatedAt=completedAt;
-    job.status='completed'; job.completedAt=completedAt; job.updatedAt=completedAt; job.consumedGrams=Math.round(consumed*10)/10; job.consumptionSource='reported'; job.remainingAfter=remainingAfter; job.completionEvidenceId=completionEvidenceId; state.printJobs=normalizePrintJobs(state.printJobs);
+    job.status='completed'; job.completedAt=completedAt; job.updatedAt=completedAt; job.consumedGrams=Math.round(consumed*10)/10; job.consumptionSource='reported'; job.remainingAfter=remainingAfter; job.completionEvidenceId=completionEvidenceId; job.usageEventId=usageEvent.usageEventId; state.printJobs=normalizePrintJobs(state.printJobs);
     const reservedAfter=reservedGramsForSpool(state.printJobs,spool.id); const reservationShortfall=Math.max(0,Math.round((reservedAfter-remainingAfter)*10)/10); const reorder=finite(spool.reorderThreshold)?Math.max(0,Number(spool.reorderThreshold)):250;
-    return{changed:true,state,job,spool,quantityEvidence:usageEvidence,remainingAfter,reservedAfter,reservationShortfall,reorderNeeded:remainingAfter<=reorder};
+    return{changed:true,state,job,spool,quantityEvidence:usageEvidence,usageEvent,remainingAfter,reservedAfter,reservationShortfall,reorderNeeded:remainingAfter<=reorder};
   }
 
   function cancelJob(stateRaw = {}, jobId = '', at = new Date().toISOString()) { const state=cloneState(stateRaw); const job=state.printJobs.find(row=>row.id===clean(jobId,120)); if(!job)return{changed:false,reason:'job-not-found',state}; if(job.status==='completed'||job.status==='cancelled')return{changed:false,reason:'job-final',state,job}; job.status='cancelled'; job.cancelledAt=at; job.updatedAt=at; state.printJobs=normalizePrintJobs(state.printJobs); return{changed:true,state,job}; }
