@@ -72,6 +72,24 @@ test('conflicting duplicate event IDs inside one payload are also surfaced', () 
   assert.equal(result.rows[0].consumedGrams,100);
 });
 
+test('state merge preserves same-payload UsageEvent conflict evidence before normalization', () => {
+  const result = mergeStates(
+    {version:6,spools:[{id:'S1'}],usageEvents:[]},
+    {
+      version:6,
+      spools:[{id:'S1'}],
+      usageEvents:[
+        event('u1','2026-09-01T12:00:00Z',{consumedGrams:100}),
+        event('u1','2026-09-01T12:00:00Z',{consumedGrams:90}),
+      ],
+    }
+  );
+  assert.equal(result.stats.usageEventConflicts,1);
+  assert.deepEqual(result.stats.usageEventConflictIds,['u1']);
+  assert.equal(result.state.usageEvents.length,1);
+  assert.equal(result.state.usageEvents[0].consumedGrams,100);
+});
+
 test('two-way state merge preserves usage events from both devices and reports no conflict', () => {
   const remote = {version:6,spools:[{id:'S1'}],usageEvents:[event('u1','2026-09-01T12:00:00Z')]};
   const incoming = {version:6,spools:[{id:'S1'}],usageEvents:[event('u2','2026-09-02T12:00:00Z')]};
