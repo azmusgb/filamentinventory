@@ -1,13 +1,15 @@
 import type { Config } from '@netlify/functions';
-import { getDeployStore, getStore } from '@netlify/blobs';
-import { createHash } from 'node:crypto';
+import { getStore } from '@netlify/blobs';
+import {
+  DEVICE_CREDENTIAL_SCOPE,
+  deviceCredentialKey,
+  hashDeviceToken,
+  validDeviceToken,
+  type DeviceCredentialRecord,
+} from '../lib/device-credential.mts';
 import { buildDeviceFeedV1, type InventoryEnvelope } from '../lib/device-feed-v1.mts';
 
-declare const Netlify: any;
-
 const STORE_NAME = 'filament-inventory-sync';
-const KEY_HEADER = 'x-filament-sync-key';
-const PROFILE_HEADER = 'x-filament-profile';
 
 function json(data:unknown, status = 200, headers:HeadersInit = {}) {
   return Response.json(data, {
@@ -21,28 +23,22 @@ function json(data:unknown, status = 200, headers:HeadersInit = {}) {
   });
 }
 
-function blobStore() {
-  if (Netlify.context?.deploy?.context === 'production') {
-    return getStore(STORE_NAME, {consistency:'strong'});
-  }
-  return getDeployStore(STORE_NAME);
+function bearerToken(req:Request):string|null {
+  const value = String(req.headers.get('authorization') || '').trim();
+  const match = /^Bearer\s+(.+)$/i.exec(value);
+  return match ? validDeviceToken(match[1]) : null;
 }
 
-function syncKey(req:Request):string|null {
-  const key = String(req.headers.get(KEY_HEADER) || '').trim();
-  return /^[A-Za-z0-9_-]{32,128}$/.test(key) ? key : null;
-}
-
-function profile(req:Request):'Bill'|'Aimee'|null {
-  const value = String(req.headers.get(PROFILE_HEADER) || '').trim();
-  return value === 'Bill' || value === 'Aimee' ? value : null;
-}
-
-function stateKey(key:string, owner:'Bill'|'Aimee'):string {
-  const hash = createHash('sha256')
-    .update(`${owner.toLowerCase()}:${key}`)
-    .digest('hex');
-  return `inventory-${hash}`;
+function validCredential(value:any):value is DeviceCredentialRecord {
+  return Boolean(
+    value &&
+    value.schemaVersion === 1 &&
+    value.scope === DEVICE_CREDENTIAL_SCOPE &&
+    (value.profile === 'Bill' || value.profile === 'Aimee') &&
+    /^inventory-[0-9a-f]{64}$/.test(String(value.inventoryKey || '')) &&
+    /^[0-9a-f]{64}$/.test(String(value.tokenHash || '')) &&
+    String(value.credentialId || '').trim()
+  );
 }
 
 function unavailable(owner:'Bill'|'Aimee') {
@@ -63,28 +59,37 @@ export default async (req:Request) => {
     return json({ok:false,error:'Method not allowed.'}, 405, {Allow:'GET'});
   }
 
-  const key = syncKey(req);
-  if (!key) return json({ok:false,error:'A valid private sync key is required.'}, 401);
+  const token = bearerToken(req);
+  if (!token) {
+    return json({ok:false,error:'A valid device-scoped bearer credential is required.'}, 401, {
+      'WWW-Authenticate':'Bearer realm="Filament Inventory device feed"',
+    });
+  }
 
-  const owner = profile(req);
-  if (!owner) return json({ok:false,error:'A valid inventory profile is required.'}, 400);
+  const tokenHash = hashDeviceToken(token);
+  const store = getStore(STORE_NAME, {consistency:'strong'});
+  const credential = await store.get(deviceCredentialKey(tokenHash), {type:'json'});
 
-  const store = blobStore();
-  const keyName = stateKey(key, owner);
-  const envelope = await store.get(keyName, {type:'json'});
+  if (!validCredential(credential) || credential.tokenHash !== tokenHash) {
+    return json({ok:false,error:'Device credential is invalid or revoked.'}, 401, {
+      'WWW-Authenticate':'Bearer realm="Filament Inventory device feed"',
+    });
+  }
 
-  // Resolve exactly one credential-derived private profile scope. Never enumerate
-  // inventory blobs or aggregate data across member profiles.
+  // A device token resolves exactly one read-only private inventory scope. The
+  // WS350 never receives the broader browser sync key and cannot select another
+  // member/profile by changing request headers.
+  const envelope = await store.get(credential.inventoryKey, {type:'json'});
   if (!envelope?.state || !Array.isArray(envelope.state.spools)) {
-    return json(unavailable(owner));
+    return json(unavailable(credential.profile));
   }
 
   const source:InventoryEnvelope = {
-    key:keyName,
+    key:credential.inventoryKey,
     updatedAt:String(envelope.updatedAt || ''),
     state:envelope.state,
   };
-  return json(buildDeviceFeedV1(source, owner, new Date()));
+  return json(buildDeviceFeedV1(source, credential.profile, new Date()));
 };
 
 export const config:Config = {
