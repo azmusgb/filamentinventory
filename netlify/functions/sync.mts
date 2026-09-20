@@ -371,6 +371,9 @@ function asEnvelope(raw: any): Envelope | null {
 }
 
 export function mergeStates(remoteRaw: any, incomingRaw: any) {
+  // UsageEvent IDs are immutable. Detect duplicate-ID conflicts from the raw
+  // payloads before normalizeState can deduplicate them for bounded storage.
+  const usageMerge = mergeUsageEvents(remoteRaw?.usageEvents, incomingRaw?.usageEvents);
   const remote = normalizeState(remoteRaw || {});
   const incoming = normalizeState(incomingRaw || {});
   const tombstones: Record<string,string> = { ...remote.tombstones };
@@ -417,7 +420,6 @@ export function mergeStates(remoteRaw: any, incomingRaw: any) {
   const weighLog = [...logMap.values()].sort((a,b) => timestamp(a.at) - timestamp(b.at)).slice(-MAX_LOGS);
   const auditLog = normalizeAuditLog([...remote.auditLog, ...incoming.auditLog]);
   const printJobs = mergePrintJobs(remote.printJobs, incoming.printJobs);
-  const usageMerge = mergeUsageEvents(remote.usageEvents, incoming.usageEvents);
   const usageEvents = usageMerge.rows;
   const printers = mergePrinters(remote.printers, incoming.printers);
   const version = Math.max(Number(remote.version) || 0, Number(incoming.version) || 0, 6);
