@@ -36,6 +36,8 @@ test('device feed preserves measured evidence history and explicit placement', (
   assert.equal(feed.inventory.spools[0].quantity.evidenceCount, 1);
   assert.equal(feed.inventory.spools[0].quantity.verificationRequired, false);
   assert.equal(feed.inventory.spools[0].placement.slot, 2);
+  assert.equal(feed.inventory.spools[0].placement.status, 'Current');
+  assert.equal(feed.inventory.spools[0].placement.verificationRequired, false);
   assert.equal(feed.readiness.state, 'Undetermined');
 });
 
@@ -52,6 +54,8 @@ test('device feed never invents quantity or placement', () => {
   assert.equal(spool.quantity.status, 'Unknown');
   assert.equal(spool.quantity.verificationRequired, true);
   assert.equal(spool.placement.state, 'Unknown');
+  assert.equal(spool.placement.status, 'Unknown');
+  assert.equal(spool.placement.verificationRequired, true);
   assert.equal(feed.freshness.stale, true);
   assert.ok(feed.unknowns.includes('Quantity unknown for spool spool-2'));
   assert.ok(feed.unknowns.includes('Placement unknown for spool spool-2'));
@@ -193,4 +197,104 @@ test('device feed surfaces invalid quantity lineage without discarding the numer
   assert.equal(quantity.status, 'InvalidLineage');
   assert.equal(quantity.verificationRequired, true);
   assert.ok(feed.attention.some(row => row.kind === 'quantity-lineage-invalid' && row.spoolId === 'spool-invalid-lineage'));
+});
+
+
+test('canonical feeder placement kind is projected with durable identifiers', () => {
+  const feed = buildDeviceFeedV1({
+    key:'inventory-bill',
+    updatedAt:'2026-09-17T21:59:00Z',
+    state:{spools:[{
+      id:'spool-placement',
+      placement:{
+        kind:'feeder',
+        printerId:'printer-p1s',
+        feederId:'ams-1',
+        slot:3,
+        source:'manual-load',
+        observedAt:'2026-09-17T21:58:00Z',
+      },
+    }]},
+  }, 'Bill', new Date('2026-09-17T22:00:00Z'));
+
+  const placement = feed.inventory.spools[0].placement;
+  assert.equal(placement.status, 'Current');
+  assert.equal(placement.state, 'Loaded');
+  assert.equal(placement.printerId, 'printer-p1s');
+  assert.equal(placement.feederId, 'ams-1');
+  assert.equal(placement.slot, 3);
+  assert.equal(placement.external, false);
+  assert.equal(placement.source, 'manual-load');
+  assert.equal(placement.verificationRequired, false);
+});
+
+test('canonical external placement remains explicit and never invents feeder assignment', () => {
+  const feed = buildDeviceFeedV1({
+    key:'inventory-bill',
+    updatedAt:'2026-09-17T21:59:00Z',
+    state:{spools:[{
+      id:'spool-external',
+      placement:{
+        kind:'external',
+        printerId:'printer-p1s',
+        source:'manual-load',
+        observedAt:'2026-09-17T21:58:00Z',
+      },
+    }]},
+  }, 'Bill', new Date('2026-09-17T22:00:00Z'));
+
+  const placement = feed.inventory.spools[0].placement;
+  assert.equal(placement.status, 'Current');
+  assert.equal(placement.state, 'Loaded');
+  assert.equal(placement.printerId, 'printer-p1s');
+  assert.equal(placement.feederId, null);
+  assert.equal(placement.slot, null);
+  assert.equal(placement.external, true);
+  assert.equal(placement.verificationRequired, false);
+});
+
+test('malformed canonical placement is surfaced as conflict instead of partially trusted', () => {
+  const feed = buildDeviceFeedV1({
+    key:'inventory-bill',
+    updatedAt:'2026-09-17T21:59:00Z',
+    state:{spools:[{
+      id:'spool-placement-conflict',
+      placement:{
+        kind:'feeder',
+        printerId:'printer-p1s',
+        feederId:'ams-1',
+        observedAt:'2026-09-17T21:58:00Z',
+      },
+    }]},
+  }, 'Bill', new Date('2026-09-17T22:00:00Z'));
+
+  const placement = feed.inventory.spools[0].placement;
+  assert.equal(placement.status, 'Conflict');
+  assert.equal(placement.state, 'Loaded');
+  assert.equal(placement.slot, null);
+  assert.equal(placement.verificationRequired, true);
+  assert.ok(feed.attention.some(row => row.kind === 'placement-conflict' && row.spoolId === 'spool-placement-conflict'));
+});
+
+test('legacy loaded placement preserves loaded fact but requires canonical verification', () => {
+  const feed = buildDeviceFeedV1({
+    key:'inventory-bill',
+    updatedAt:'2026-09-17T21:59:00Z',
+    state:{spools:[{
+      id:'spool-legacy-loaded',
+      placementState:'Loaded',
+      printerName:'P1S',
+      feederName:'AMS 1',
+      feederSlot:'2',
+      loadedAt:'2026-09-17T21:58:00Z',
+    }]},
+  }, 'Bill', new Date('2026-09-17T22:00:00Z'));
+
+  const placement = feed.inventory.spools[0].placement;
+  assert.equal(placement.state, 'Loaded');
+  assert.equal(placement.status, 'Conflict');
+  assert.equal(placement.printerId, null);
+  assert.equal(placement.feederId, null);
+  assert.equal(placement.slot, null);
+  assert.equal(placement.verificationRequired, true);
 });
