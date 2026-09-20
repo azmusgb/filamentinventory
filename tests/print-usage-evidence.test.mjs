@@ -57,7 +57,7 @@ test('print completion appends printer-estimated usage derived from exact start 
   assert.equal(done.spool.quantityEvidence.length,2);
   assert.equal(done.spool.quantityEvidence[0].evidenceId,'scale-verified');
   assert.equal(done.job.completionEvidenceId,done.quantityEvidence.evidenceId);
-  assert.equal(done.usageEvent.usageEventId,`usage-${start.job.id}`);
+  assert.equal(done.usageEvent.eventId,`usage-${start.job.id}`);
   assert.equal(done.usageEvent.spoolId,'S1');
   assert.equal(done.usageEvent.beforeGrams,650);
   assert.equal(done.usageEvent.afterGrams,363);
@@ -65,7 +65,7 @@ test('print completion appends printer-estimated usage derived from exact start 
   assert.equal(done.usageEvent.beforeEvidenceId,'scale-verified');
   assert.equal(done.usageEvent.afterEvidenceId,done.quantityEvidence.evidenceId);
   assert.equal(done.state.usageEvents.length,1);
-  assert.equal(done.job.usageEventId,done.usageEvent.usageEventId);
+  assert.equal(done.job.usageEventId,done.usageEvent.eventId);
   const current = contract.measurement(done.spool,Date.parse('2026-09-10T12:01:00Z'));
   assert.equal(current.evidenceId,done.quantityEvidence.evidenceId);
   assert.equal(current.grams,363);
