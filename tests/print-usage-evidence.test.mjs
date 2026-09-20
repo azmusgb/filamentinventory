@@ -57,6 +57,15 @@ test('print completion appends printer-estimated usage derived from exact start 
   assert.equal(done.spool.quantityEvidence.length,2);
   assert.equal(done.spool.quantityEvidence[0].evidenceId,'scale-verified');
   assert.equal(done.job.completionEvidenceId,done.quantityEvidence.evidenceId);
+  assert.equal(done.usageEvent.usageEventId,`usage-${start.job.id}`);
+  assert.equal(done.usageEvent.spoolId,'S1');
+  assert.equal(done.usageEvent.beforeGrams,650);
+  assert.equal(done.usageEvent.afterGrams,363);
+  assert.equal(done.usageEvent.consumedGrams,287);
+  assert.equal(done.usageEvent.beforeEvidenceId,'scale-verified');
+  assert.equal(done.usageEvent.afterEvidenceId,done.quantityEvidence.evidenceId);
+  assert.equal(done.state.usageEvents.length,1);
+  assert.equal(done.job.usageEventId,done.usageEvent.usageEventId);
   const current = contract.measurement(done.spool,Date.parse('2026-09-10T12:01:00Z'));
   assert.equal(current.evidenceId,done.quantityEvidence.evidenceId);
   assert.equal(current.grams,363);
@@ -79,10 +88,12 @@ test('completion is idempotent and cannot append evidence twice', () => {
   const first = core.completeJob(start.state,start.job.id,100,'2026-09-10T11:00:00Z');
   assert.equal(first.changed,true);
   const count = first.spool.quantityEvidence.length;
+  const usageCount = first.state.usageEvents.length;
   const second = core.completeJob(first.state,start.job.id,100,'2026-09-10T11:01:00Z');
   assert.equal(second.changed,false);
   assert.equal(second.reason,'job-already-completed');
   assert.equal(second.state.spools[0].quantityEvidence.length,count);
+  assert.equal(second.state.usageEvents.length,usageCount);
   assert.equal(second.state.spools[0].estimatedRemainingGrams,550);
 });
 
