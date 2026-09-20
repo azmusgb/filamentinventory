@@ -36,10 +36,15 @@ test('placement writes continue through one local state boundary for audit and s
   const writes = client.match(/localStorage\.setItem\(STORAGE_KEY/g) || [];
   assert.equal(writes.length,1,'Printer should centralize persistence in writeState');
   assert.match(client, /function writeState\(value\).*localStorage\.setItem\(STORAGE_KEY,\s*JSON\.stringify\(value\)\)/s);
-  assert.match(client, /function setPlacement\(id, placement\)/);
-  assert.match(client, /updatedAt:nowIso\(\)/);
+  assert.match(client, /function canonicalPlacementEvidence\(raw = \{\}, at = nowIso\(\)\)/);
+  assert.match(client, /spoolContract\.normalizePlacement/);
+  assert.match(client, /function applyPlacement\(spool, descriptor = \{\}, at = nowIso\(\)\)/);
+  assert.match(client, /function setPlacement\(id, descriptor\)/);
+  assert.match(client, /source:'operator:printer-ui'/);
   assert.match(client, /placementState:'Stored'/);
   assert.match(client, /placementState:'Loaded'/);
+  assert.match(client, /kind:'Feeder'/);
+  assert.match(client, /kind:'External'/);
   assert.match(client, /printerId/);
   assert.match(client, /feederId/);
   assert.doesNotMatch(client, /fetch\(/);
