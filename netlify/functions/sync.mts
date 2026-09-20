@@ -11,6 +11,7 @@ const MAX_PRINTERS = 50;
 const MAX_LOGS = 5000;
 const MAX_AUDIT = 1500;
 const MAX_PRINT_JOBS = 250;
+const MAX_USAGE_EVENTS = 2000;
 const MAX_BODY_BYTES = 2_000_000;
 const MAX_SNAPSHOTS = 12;
 const MAX_ACTIVITY = 24;
@@ -90,6 +91,10 @@ function printJobTime(job: any): number {
   );
 }
 
+function usageEventTime(event: any): number {
+  return timestamp(event?.observedAt || event?.timestamp);
+}
+
 function normalizeTombstones(value: unknown): Record<string,string> {
   const out: Record<string,string> = {};
   if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
@@ -161,6 +166,55 @@ export function mergePrintJobs(remoteValue: unknown, incomingValue: unknown): an
   ]);
 }
 
+export function normalizeUsageEvents(value: unknown): any[] {
+  const rows:any[] = [];
+  const seen = new Set<string>();
+  for (const raw of Array.isArray(value) ? value : []) {
+    const usageEventId = String(raw?.usageEventId || raw?.id || '').trim().slice(0,120);
+    const spoolId = String(raw?.spoolId || '').trim().slice(0,64);
+    const observedAt = String(raw?.observedAt || raw?.timestamp || '');
+    const consumedGrams = Number(raw?.consumedGrams);
+    if (!usageEventId || !spoolId || !timestamp(observedAt) || !Number.isFinite(consumedGrams) || consumedGrams <= 0) continue;
+    const key = usageEventId.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({
+      ...raw,
+      usageEventId,
+      spoolId,
+      printerId:String(raw?.printerId || raw?.printer || '').trim().slice(0,80),
+      projectId:String(raw?.projectId || raw?.jobId || '').trim().slice(0,120),
+      beforeGrams:Number.isFinite(Number(raw?.beforeGrams)) ? Math.max(0,Number(raw.beforeGrams)) : null,
+      afterGrams:Number.isFinite(Number(raw?.afterGrams)) ? Math.max(0,Number(raw.afterGrams)) : null,
+      consumedGrams:Math.max(0,consumedGrams),
+      source:String(raw?.source || 'Manual').trim().slice(0,40),
+      observedAt,
+      confidence:String(raw?.confidence || 'Unknown').trim().slice(0,24),
+      beforeEvidenceId:String(raw?.beforeEvidenceId || '').trim().slice(0,120),
+      afterEvidenceId:String(raw?.afterEvidenceId || '').trim().slice(0,120),
+    });
+  }
+  return rows.sort((a,b) => usageEventTime(a) - usageEventTime(b) || String(a.usageEventId).localeCompare(String(b.usageEventId))).slice(-MAX_USAGE_EVENTS);
+}
+
+export function mergeUsageEvents(remoteValue: unknown, incomingValue: unknown) {
+  const remote = normalizeUsageEvents(remoteValue);
+  const incoming = normalizeUsageEvents(incomingValue);
+  const byId = new Map<string,any>(remote.map(row => [String(row.usageEventId).toLowerCase(),row]));
+  const conflicts:string[] = [];
+  for (const row of incoming) {
+    const key = String(row.usageEventId).toLowerCase();
+    const current = byId.get(key);
+    if (!current) {
+      byId.set(key,row);
+      continue;
+    }
+    if (JSON.stringify(current) !== JSON.stringify(row) && conflicts.length < 25) conflicts.push(row.usageEventId);
+  }
+  const rows = [...byId.values()].sort((a,b) => usageEventTime(a) - usageEventTime(b) || String(a.usageEventId).localeCompare(String(b.usageEventId))).slice(-MAX_USAGE_EVENTS);
+  return {rows, conflicts};
+}
+
 function normalizeFeeder(raw: any, index: number) {
   const name = String(raw?.name || `Feeder ${index + 1}`).trim().slice(0,80);
   const type = String(raw?.type || (/\bams\b/i.test(name) ? 'AMS' : 'Feeder')).trim().slice(0,40);
@@ -220,12 +274,13 @@ export function normalizeState(value: any) {
   const spools = Array.isArray(value?.spools) ? value.spools.filter((s:any) => s && String(s.id || '').trim()).slice(0, MAX_SPOOLS) : [];
   const weighLog = Array.isArray(value?.weighLog) ? value.weighLog.filter((x:any) => x && String(x.id || '').trim()).slice(-MAX_LOGS) : [];
   return {
-    version:Math.max(Number(value?.version) || 0, 5),
+    version:Math.max(Number(value?.version) || 0, 6),
     spools,
     printers:normalizePrinters(value?.printers),
     weighLog,
     auditLog:normalizeAuditLog(value?.auditLog),
     printJobs:normalizePrintJobs(value?.printJobs),
+    usageEvents:normalizeUsageEvents(value?.usageEvents),
     tombstones:normalizeTombstones(value?.tombstones),
   };
 }
@@ -258,7 +313,7 @@ function asEnvelope(raw: any): Envelope | null {
   if (!raw) return null;
   if (raw.state && Array.isArray(raw.state.spools)) {
     return {
-      protocol:Math.max(Number(raw.protocol) || 0, 5),
+      protocol:Math.max(Number(raw.protocol) || 0, 6),
       revision:String(raw.revision || revision()),
       updatedAt:String(raw.updatedAt || new Date().toISOString()),
       state:normalizeState(raw.state),
@@ -268,7 +323,7 @@ function asEnvelope(raw: any): Envelope | null {
   }
   if (Array.isArray(raw.spools)) {
     return {
-      protocol:5,
+      protocol:6,
       revision:revision(),
       updatedAt:String(raw.updatedAt || new Date().toISOString()),
       state:normalizeState(raw),
@@ -326,12 +381,14 @@ export function mergeStates(remoteRaw: any, incomingRaw: any) {
   const weighLog = [...logMap.values()].sort((a,b) => timestamp(a.at) - timestamp(b.at)).slice(-MAX_LOGS);
   const auditLog = normalizeAuditLog([...remote.auditLog, ...incoming.auditLog]);
   const printJobs = mergePrintJobs(remote.printJobs, incoming.printJobs);
+  const usageMerge = mergeUsageEvents(remote.usageEvents, incoming.usageEvents);
+  const usageEvents = usageMerge.rows;
   const printers = mergePrinters(remote.printers, incoming.printers);
-  const version = Math.max(Number(remote.version) || 0, Number(incoming.version) || 0, 5);
+  const version = Math.max(Number(remote.version) || 0, Number(incoming.version) || 0, 6);
 
   return {
-    state:{ version, spools, printers, weighLog, auditLog, printJobs, tombstones },
-    stats:{ incomingWins, remoteWins, deletedApplied }
+    state:{ version, spools, printers, weighLog, auditLog, printJobs, usageEvents, tombstones },
+    stats:{ incomingWins, remoteWins, deletedApplied, usageEventConflicts:usageMerge.conflicts.length, usageEventConflictIds:usageMerge.conflicts }
   };
 }
 
@@ -367,6 +424,7 @@ async function listSnapshots(store: ReturnType<typeof getStore>, hash: string) {
       printerCount:item.state.printers.length,
       logCount:item.state.weighLog.length,
       printJobCount:item.state.printJobs.length,
+      usageEventCount:item.state.usageEvents.length,
     });
   }
   return rows;
@@ -424,7 +482,7 @@ export default async (req: Request) => {
       await saveSnapshot(store, hash, current);
       const at = new Date().toISOString();
       const restored:Envelope = {
-        protocol:5,
+        protocol:6,
         revision:revision(),
         updatedAt:at,
         state:normalizeState(snapshot.state),
@@ -440,6 +498,13 @@ export default async (req: Request) => {
     const concurrent = Boolean(current && baseRevision && baseRevision !== current.revision);
     const baseEnvelope = concurrent ? await getSnapshotByRevision(store, hash, baseRevision) : null;
     const twoWayMerged = mergeStates(current?.state, body.state);
+    if (twoWayMerged.stats.usageEventConflicts > 0) {
+      return json({
+        ok:false,
+        error:'Usage ledger conflict detected. Sync stopped without overwriting either side.',
+        conflicts:{usageEventIds:twoWayMerged.stats.usageEventConflictIds},
+      }, 409);
+    }
     const reconciliation = baseEnvelope && current
       ? reconcileConcurrentState(baseEnvelope.state, current.state, body.state, twoWayMerged.state)
       : {
@@ -468,12 +533,12 @@ export default async (req: Request) => {
     await saveSnapshot(store, hash, current);
     const at = new Date().toISOString();
     const next:Envelope = {
-      protocol:5,
+      protocol:6,
       revision:revision(),
       updatedAt:at,
       state:merged.state,
       devices:updateDevices(current?.devices || [], device, 'sync', at),
-      activity:addActivity(current?.activity || [], device, 'sync', `${merged.state.spools.length} spools · ${merged.state.printers.length} printers · ${merged.state.weighLog.length} measurements · ${merged.state.printJobs.length} print jobs`, at),
+      activity:addActivity(current?.activity || [], device, 'sync', `${merged.state.spools.length} spools · ${merged.state.printers.length} printers · ${merged.state.weighLog.length} measurements · ${merged.state.printJobs.length} print jobs · ${merged.state.usageEvents.length} usage events`, at),
     };
     await store.setJSON(blobKey, next);
     return json({ ok:true, state:next.state, meta:publicMeta(next), merge:{...merged.stats, concurrent, changed:true} });
