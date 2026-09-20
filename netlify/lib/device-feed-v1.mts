@@ -19,6 +19,12 @@ export type QuantityEvidenceStatus =
   | 'InvalidLineage'
   | 'Unknown';
 
+export type PlacementStatus =
+  | 'Current'
+  | 'Stale'
+  | 'Conflict'
+  | 'Unknown';
+
 export type ReadinessState =
   | 'Ready'
   | 'ReadyWithSubstitute'
@@ -54,12 +60,15 @@ export type DeviceFeedV1 = {
       verificationRequired:boolean;
     };
     placement:{
-      state:string;
+      status:PlacementStatus;
+      state:'Stored'|'Loaded'|'Unknown';
       printerId:string|null;
       feederId:string|null;
       slot:number|null;
       external:boolean|null;
       observedAt:string|null;
+      source:string|null;
+      verificationRequired:boolean;
     };
   }>};
   readiness:{state:ReadinessState; reason:string; requiredGrams:number|null};
@@ -382,15 +391,140 @@ function quantityFor(spool:any, nowMs:number) {
 
 function placementFor(spool:any) {
   const evidence = spool?.placement && typeof spool.placement === 'object' ? spool.placement : null;
-  const state = text(evidence?.state ?? spool?.placementState) || 'Unknown';
-  const slot = finite(evidence?.slot ?? spool?.slot);
+
+  if (evidence) {
+    const rawKind = String(evidence.kind ?? evidence.type ?? '').trim().toLowerCase();
+    const explicitState = String(evidence.state ?? '').trim();
+    const printerId = text(evidence.printerId);
+    const feederId = text(evidence.feederId ?? evidence.amsId);
+    const rawSlot = finite(evidence.slot ?? evidence.slotId);
+    const slot = rawSlot === null ? null : Math.trunc(rawSlot);
+    const observedAt = iso(evidence.observedAt ?? evidence.timestamp);
+    const source = text(evidence.source) || 'placement-evidence';
+    const explicitlyStale = evidence.stale === true || String(evidence.freshness || '').toLowerCase() === 'stale';
+
+    if (rawKind === 'unloaded' || rawKind === 'stored' || explicitState === 'Stored') {
+      const conflicting = Boolean(printerId || feederId || slot !== null || evidence.external === true);
+      return {
+        status:(conflicting ? 'Conflict' : explicitlyStale ? 'Stale' : 'Current') as PlacementStatus,
+        state:'Stored' as const,
+        printerId:null,
+        feederId:null,
+        slot:null,
+        external:false,
+        observedAt,
+        source,
+        verificationRequired:conflicting || explicitlyStale,
+      };
+    }
+
+    if (rawKind === 'external' || rawKind === 'external-spool') {
+      const conflicting = !printerId || Boolean(feederId) || slot !== null;
+      return {
+        status:(conflicting ? 'Conflict' : explicitlyStale ? 'Stale' : 'Current') as PlacementStatus,
+        state:'Loaded' as const,
+        printerId,
+        feederId:null,
+        slot:null,
+        external:true,
+        observedAt,
+        source,
+        verificationRequired:conflicting || explicitlyStale,
+      };
+    }
+
+    if (rawKind === 'feeder' || rawKind === 'ams') {
+      const validSlot = slot !== null && slot >= 0;
+      const conflicting = !printerId || !feederId || !validSlot || evidence.external === true;
+      return {
+        status:(conflicting ? 'Conflict' : explicitlyStale ? 'Stale' : 'Current') as PlacementStatus,
+        state:'Loaded' as const,
+        printerId,
+        feederId,
+        slot:validSlot ? slot : null,
+        external:false,
+        observedAt,
+        source,
+        verificationRequired:conflicting || explicitlyStale,
+      };
+    }
+
+    // Compatibility for an explicitly persisted object from an earlier
+    // contract. It is accepted only when it contains the complete canonical
+    // identifiers required by the claimed state.
+    if (explicitState === 'Loaded') {
+      const external = evidence.external === true;
+      const validFeeder = Boolean(printerId && feederId && slot !== null && slot >= 0 && !external);
+      const validExternal = Boolean(printerId && external && !feederId && slot === null);
+      const valid = validFeeder || validExternal;
+      return {
+        status:(valid ? explicitlyStale ? 'Stale' : 'Current' : 'Conflict') as PlacementStatus,
+        state:'Loaded' as const,
+        printerId,
+        feederId:external ? null : feederId,
+        slot:external ? null : slot,
+        external,
+        observedAt,
+        source,
+        verificationRequired:!valid || explicitlyStale,
+      };
+    }
+
+    return {
+      status:'Unknown' as PlacementStatus,
+      state:'Unknown' as const,
+      printerId:null,
+      feederId:null,
+      slot:null,
+      external:null,
+      observedAt,
+      source,
+      verificationRequired:true,
+    };
+  }
+
+  // Transitional legacy fields are explicit historical observations, but they
+  // do not contain durable canonical printer/feeder identifiers. Preserve the
+  // loaded/stored fact while requiring verification before treating a loaded
+  // path as canonical placement.
+  const legacyState = String(spool?.placementState || '');
+  if (legacyState === 'Stored') {
+    return {
+      status:'Current' as PlacementStatus,
+      state:'Stored' as const,
+      printerId:null,
+      feederId:null,
+      slot:null,
+      external:false,
+      observedAt:iso(spool?.placementUpdatedAt ?? spool?.updatedAt),
+      source:'legacy-placement',
+      verificationRequired:false,
+    };
+  }
+  if (legacyState === 'Loaded') {
+    return {
+      status:'Conflict' as PlacementStatus,
+      state:'Loaded' as const,
+      printerId:null,
+      feederId:null,
+      slot:null,
+      external:null,
+      observedAt:iso(spool?.loadedAt ?? spool?.placementUpdatedAt ?? spool?.updatedAt),
+      source:'legacy-placement',
+      verificationRequired:true,
+    };
+  }
+
   return {
-    state,
-    printerId:text(evidence?.printerId ?? spool?.printerId),
-    feederId:text(evidence?.feederId ?? evidence?.amsId ?? spool?.feederId ?? spool?.amsId),
-    slot:slot === null ? null : Math.trunc(slot),
-    external:typeof evidence?.external === 'boolean' ? evidence.external : null,
-    observedAt:iso(evidence?.observedAt ?? evidence?.timestamp ?? spool?.placementUpdatedAt),
+    status:'Unknown' as PlacementStatus,
+    state:'Unknown' as const,
+    printerId:null,
+    feederId:null,
+    slot:null,
+    external:null,
+    observedAt:null,
+    source:null,
+    verificationRequired:true,
   };
 }
 
@@ -426,7 +560,13 @@ export function buildDeviceFeedV1(
         attention.push({kind:'quantity-stale', message:'Quantity evidence is stale and should be re-verified.', spoolId});
       }
 
-      if (placement.state === 'Unknown') unknowns.push(`Placement unknown for spool ${spoolId}`);
+      if (placement.status === 'Unknown') {
+        unknowns.push(`Placement unknown for spool ${spoolId}`);
+      } else if (placement.status === 'Conflict') {
+        attention.push({kind:'placement-conflict', message:'Placement evidence is incomplete or conflicting and requires verification.', spoolId});
+      } else if (placement.status === 'Stale') {
+        attention.push({kind:'placement-stale', message:'Placement evidence is explicitly stale and requires verification.', spoolId});
+      }
       return {
         spoolId,
         material:text(spool.material ?? spool.type),
