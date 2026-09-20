@@ -68,6 +68,22 @@ test('canonical AMS placement requires explicit printer feeder and slot identifi
   assert.equal(invalid.placement.verificationRequired,true);
 });
 
+test('canonical placement IDs remain authoritative while compatibility labels stay human-readable', () => {
+  const spool = contract.normalizeSpool({
+    id:'S-LABEL',
+    printerName:'P1S',
+    feederName:'AMS 1',
+    feederSlot:'2',
+    placement:{kind:'ams',printerId:'printer-p1s',feederId:'feeder-ams-1',slot:2,source:'operator',observedAt:'2026-09-20T12:00:00Z'},
+  });
+  assert.equal(spool.placement.printerId,'printer-p1s');
+  assert.equal(spool.placement.feederId,'feeder-ams-1');
+  assert.equal(spool.placement.slot,2);
+  assert.equal(spool.printerName,'P1S');
+  assert.equal(spool.feederName,'AMS 1');
+  assert.equal(spool.feederSlot,'2');
+});
+
 test('external spool path is represented explicitly and never invents an AMS slot', () => {
   const spool = contract.normalizeSpool({
     id:'S-EXT',
