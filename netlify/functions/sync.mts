@@ -166,70 +166,56 @@ export function mergePrintJobs(remoteValue: unknown, incomingValue: unknown): an
   ]);
 }
 
+function normalizeUsageEventRow(raw: any): any | null {
+  const eventId = String(raw?.eventId || raw?.usageEventId || raw?.id || '').trim().slice(0,120);
+  const spoolId = String(raw?.spoolId || '').trim().slice(0,64);
+  const observedAt = String(raw?.observedAt || raw?.timestamp || '');
+  const consumedGrams = Number(raw?.consumedGrams);
+  if (!eventId || !spoolId || !timestamp(observedAt) || !Number.isFinite(consumedGrams) || consumedGrams <= 0) return null;
+  const beforeEvidenceId = String(raw?.beforeEvidenceId || '').trim().slice(0,120);
+  const afterEvidenceId = String(raw?.afterEvidenceId || '').trim().slice(0,120);
+  const quantityEvidenceIds = [...new Set([
+    ...(Array.isArray(raw?.quantityEvidenceIds) ? raw.quantityEvidenceIds : []),
+    beforeEvidenceId,
+    afterEvidenceId,
+  ].map((value:any)=>String(value || '').trim().slice(0,120)).filter(Boolean))];
+
+  // Store only canonical UsageEvent fields. Legacy aliases are accepted on
+  // input but must not become part of immutable-event equality.
+  return {
+    eventId,
+    spoolId,
+    printerId:String(raw?.printerId || raw?.printer || '').trim().slice(0,80),
+    projectId:String(raw?.projectId || '').trim().slice(0,120),
+    printJobId:String(raw?.printJobId || raw?.jobId || '').trim().slice(0,120),
+    beforeGrams:Number.isFinite(Number(raw?.beforeGrams)) ? Math.max(0,Number(raw.beforeGrams)) : null,
+    afterGrams:Number.isFinite(Number(raw?.afterGrams)) ? Math.max(0,Number(raw.afterGrams)) : null,
+    consumedGrams:Math.max(0,consumedGrams),
+    source:String(raw?.source || 'Manual').trim().slice(0,40),
+    observedAt,
+    confidence:String(raw?.confidence || 'Unknown').trim().slice(0,24),
+    beforeEvidenceId,
+    afterEvidenceId,
+    quantityEvidenceIds,
+  };
+}
+
 export function normalizeUsageEvents(value: unknown): any[] {
   const rows:any[] = [];
   const seen = new Set<string>();
   for (const raw of Array.isArray(value) ? value : []) {
-    const eventId = String(raw?.eventId || raw?.usageEventId || raw?.id || '').trim().slice(0,120);
-    const spoolId = String(raw?.spoolId || '').trim().slice(0,64);
-    const observedAt = String(raw?.observedAt || raw?.timestamp || '');
-    const consumedGrams = Number(raw?.consumedGrams);
-    if (!eventId || !spoolId || !timestamp(observedAt) || !Number.isFinite(consumedGrams) || consumedGrams <= 0) continue;
-    const key = eventId.toLowerCase();
+    const row = normalizeUsageEventRow(raw);
+    if (!row) continue;
+    const key = row.eventId.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    rows.push({
-      ...raw,
-      eventId,
-      spoolId,
-      printerId:String(raw?.printerId || raw?.printer || '').trim().slice(0,80),
-      projectId:String(raw?.projectId || raw?.jobId || '').trim().slice(0,120),
-      beforeGrams:Number.isFinite(Number(raw?.beforeGrams)) ? Math.max(0,Number(raw.beforeGrams)) : null,
-      afterGrams:Number.isFinite(Number(raw?.afterGrams)) ? Math.max(0,Number(raw.afterGrams)) : null,
-      consumedGrams:Math.max(0,consumedGrams),
-      source:String(raw?.source || 'Manual').trim().slice(0,40),
-      observedAt,
-      confidence:String(raw?.confidence || 'Unknown').trim().slice(0,24),
-      beforeEvidenceId:String(raw?.beforeEvidenceId || '').trim().slice(0,120),
-      afterEvidenceId:String(raw?.afterEvidenceId || '').trim().slice(0,120),
-      quantityEvidenceIds:[...new Set([
-        ...(Array.isArray(raw?.quantityEvidenceIds) ? raw.quantityEvidenceIds : []),
-        raw?.beforeEvidenceId,
-        raw?.afterEvidenceId,
-      ].map((value:any)=>String(value || '').trim().slice(0,120)).filter(Boolean))],
-    });
+    rows.push(row);
   }
   return rows.sort((a,b) => usageEventTime(a) - usageEventTime(b) || String(a.eventId).localeCompare(String(b.eventId))).slice(-MAX_USAGE_EVENTS);
 }
 
 function rawUsageRows(value: unknown): any[] {
-  return (Array.isArray(value) ? value : []).map(raw => {
-    const eventId = String(raw?.eventId || raw?.usageEventId || raw?.id || '').trim().slice(0,120);
-    const spoolId = String(raw?.spoolId || '').trim().slice(0,64);
-    const observedAt = String(raw?.observedAt || raw?.timestamp || '');
-    const consumedGrams = Number(raw?.consumedGrams);
-    if (!eventId || !spoolId || !timestamp(observedAt) || !Number.isFinite(consumedGrams) || consumedGrams <= 0) return null;
-    return {
-      ...raw,
-      eventId,
-      spoolId,
-      printerId:String(raw?.printerId || raw?.printer || '').trim().slice(0,80),
-      projectId:String(raw?.projectId || raw?.jobId || '').trim().slice(0,120),
-      beforeGrams:Number.isFinite(Number(raw?.beforeGrams)) ? Math.max(0,Number(raw.beforeGrams)) : null,
-      afterGrams:Number.isFinite(Number(raw?.afterGrams)) ? Math.max(0,Number(raw.afterGrams)) : null,
-      consumedGrams:Math.max(0,consumedGrams),
-      source:String(raw?.source || 'Manual').trim().slice(0,40),
-      observedAt,
-      confidence:String(raw?.confidence || 'Unknown').trim().slice(0,24),
-      beforeEvidenceId:String(raw?.beforeEvidenceId || '').trim().slice(0,120),
-      afterEvidenceId:String(raw?.afterEvidenceId || '').trim().slice(0,120),
-      quantityEvidenceIds:[...new Set([
-        ...(Array.isArray(raw?.quantityEvidenceIds) ? raw.quantityEvidenceIds : []),
-        raw?.beforeEvidenceId,
-        raw?.afterEvidenceId,
-      ].map((value:any)=>String(value || '').trim().slice(0,120)).filter(Boolean))],
-    };
-  }).filter(Boolean);
+  return (Array.isArray(value) ? value : []).map(normalizeUsageEventRow).filter(Boolean);
 }
 
 export function mergeUsageEvents(remoteValue: unknown, incomingValue: unknown) {
