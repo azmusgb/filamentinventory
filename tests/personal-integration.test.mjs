@@ -48,8 +48,9 @@ test('Workshop Command Center promotes scoped health and Inbox before quiet oper
     read('scripts/public-assets.mjs'),
     read('sw.js'),
   ]);
-  assert.match(source, /workshopStatus/);
-  assert.match(source, /workshopInbox/);
+  assert.match(source, /FilamentInventoryAttention/);
+  assert.match(source, /buildAttention/);
+  assert.match(source, /attentionRows/);
   assert.match(source, /data-home-status-title/);
   assert.match(source, /data-home-status-detail/);
   assert.match(source, /INVENTORY HEALTHY/);

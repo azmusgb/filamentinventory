@@ -12,8 +12,9 @@
   const parse = (value,fallback=null) => { try { return JSON.parse(value); } catch { return fallback; } };
   const esc = value => String(value ?? '').replace(/[&<>"']/g,c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const currentUser = () => globalThis.FilamentInventoryUsers?.currentUser?.() || String(localStorage.getItem(CURRENT_USER_KEY) || 'Bill');
-  const state = () => parse(localStorage.getItem(STORAGE_KEY),{spools:[],weighLog:[],auditLog:[]}) || {spools:[],weighLog:[],auditLog:[]};
+  const state = () => parse(localStorage.getItem(STORAGE_KEY),{spools:[],weighLog:[],auditLog:[],usageEvents:[]}) || {spools:[],weighLog:[],auditLog:[],usageEvents:[]};
   const core = () => globalThis.FilamentInventoryPersonal;
+  const attentionCore = () => globalThis.FilamentInventoryAttention;
 
   function scheduleRender() {
     if (renderQueued) return;
@@ -126,22 +127,35 @@
     return `${Math.round(value.grams)} g${percent}`;
   }
 
-  function inboxMarkup(snapshot, owner, summary) {
+  function attentionRows(snapshot) {
+    const engine = attentionCore();
+    if (!engine?.buildAttention) return [];
+    return engine.buildAttention(snapshot,{
+      now:Date.now(),
+      forecastHorizonDays:7,
+      leadTimeDays:3,
+      minForecastEvents:3,
+      minForecastSpanDays:7,
+    });
+  }
+
+  function inboxMarkup(summary, inbox) {
     if (!summary.activeCount) return `<div class="empty"><strong>No inventory yet</strong>Add or scan a spool to establish your first authoritative record.</div>`;
-    const inbox = core().workshopInbox(snapshot, owner, 6);
-    if (!inbox.length) return `<div class="empty"><strong>All caught up</strong>No low-stock or unknown-quantity inventory actions need attention.</div>`;
-    return inbox.map(item => {
+    if (!inbox.length) return `<div class="empty"><strong>All caught up</strong>No evidence-backed inventory actions need attention.</div>`;
+    return inbox.slice(0,6).map(item => {
       const spool = summary.active.find(row => String(row.id) === String(item.spoolId));
       const swatch = spool?.colorHex || '#666d7d';
-      const state = item.kind === 'low' ? 'danger' : 'warning';
-      const chip = item.kind === 'low' ? 'LOW' : 'UNKNOWN';
+      const state = item.severity === 'critical' ? 'danger' : item.severity === 'warning' ? 'warning' : 'neutral';
+      const chip = item.action === 'weigh' ? 'WEIGH' : item.action === 'reorder' ? 'REORDER' : 'VERIFY';
+      const title = spool ? `${spool.material || 'Unknown material'} · ${spool.colorName || 'Unknown color'}` : `Spool ${item.spoolId}`;
+      const actionLabel = chip === 'WEIGH' ? 'Weigh' : chip === 'REORDER' ? 'Review stock' : 'Verify';
       return `<div class="fi-home-row fi-inbox-row">
         <button class="fi-inbox-main" type="button" data-home-action="${esc(item.action)}" data-spool="${esc(item.spoolId)}">
           <i class="fi-spool-swatch" style="background:${esc(swatch)}"></i>
-          <span class="fi-row-copy"><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></span>
+          <span class="fi-row-copy"><strong>${esc(title)}</strong><small>${esc(item.message)}</small></span>
           <span class="fi-status-chip" data-state="${state}">${chip}</span>
         </button>
-        <button class="btn fi-inbox-action" type="button" data-home-action="${esc(item.action)}" data-spool="${esc(item.spoolId)}">${esc(item.actionLabel)}</button>
+        <button class="btn fi-inbox-action" type="button" data-home-action="${esc(item.action)}" data-spool="${esc(item.spoolId)}">${actionLabel}</button>
       </div>`;
     }).join('');
   }
@@ -161,11 +175,15 @@
       const owner = currentUser();
       const snapshot = state();
       const summary = core().summarizeOwner(snapshot,owner);
-      const status = core().workshopStatus(snapshot,owner);
       const name = identity(owner).displayName;
       const view = $('dashboardView');
       const empty = summary.activeCount === 0;
-      const inbox = core().workshopInbox(snapshot,owner,99);
+      const inbox = attentionRows(snapshot);
+      const status = empty
+        ? {state:'empty',label:'SET UP',title:'Start your workshop inventory',detail:'Add or scan a spool to establish the first authoritative inventory record.'}
+        : inbox.length
+          ? {state:'attention',label:'NEEDS ATTENTION',title:`${inbox.length} evidence-backed item${inbox.length === 1 ? '' : 's'} need review`,detail:'Resolve quantity, placement, or reorder evidence before it changes your next workshop action.'}
+          : {state:'healthy',label:'INVENTORY HEALTHY',title:'No inventory actions need attention',detail:'No current evidence-backed inventory exceptions require action. Print readiness remains job-specific.'};
 
       view.classList.toggle('fi-home-empty',empty);
       view.classList.toggle('fi-home-has-attention',inbox.length > 0);
@@ -209,7 +227,7 @@
       const loaded = view.querySelector('[data-home-loaded]');
       if (attention) attention.textContent = String(inbox.length);
       if (loadedCount) loadedCount.textContent = String(summary.loadedCount);
-      const inboxHtml = inboxMarkup(snapshot,owner,summary);
+      const inboxHtml = inboxMarkup(summary,inbox);
       const loadedHtml = loadedMarkup(summary);
       if (priority && priority.innerHTML !== inboxHtml) priority.innerHTML = inboxHtml;
       if (loaded && loaded.innerHTML !== loadedHtml) loaded.innerHTML = loadedHtml;

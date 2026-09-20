@@ -187,3 +187,8 @@
   for = "/api/*"
   [headers.values]
     Cache-Control = "no-store"
+
+[[headers]]
+  for = "/attention-core.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
