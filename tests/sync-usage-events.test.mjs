@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 import {mergeStates,mergeUsageEvents,normalizeState,normalizeUsageEvents} from '../netlify/functions/sync.mts';
 
 const event = (id, observedAt, extra = {}) => ({
-  usageEventId:id,
+  eventId:id,
   spoolId:'S1',
   printerId:'P1S',
   projectId:'print-1',
@@ -24,11 +24,11 @@ test('cloud state normalizes and retains UsageEvent ledger', () => {
   const state = normalizeState({
     version:6,
     spools:[{id:'S1'}],
-    usageEvents:[event('u1','2026-09-01T12:00:00Z'),{usageEventId:'bad',spoolId:'S1',consumedGrams:0,observedAt:'2026-09-01T12:00:00Z'}],
+    usageEvents:[event('u1','2026-09-01T12:00:00Z'),{eventId:'bad',spoolId:'S1',consumedGrams:0,observedAt:'2026-09-01T12:00:00Z'}],
   });
   assert.equal(state.version,6);
   assert.equal(state.usageEvents.length,1);
-  assert.equal(state.usageEvents[0].usageEventId,'u1');
+  assert.equal(state.usageEvents[0].eventId,'u1');
   assert.equal(state.usageEvents[0].beforeEvidenceId,'qe-start');
   assert.equal(state.usageEvents[0].afterEvidenceId,'qe-complete');
 });
@@ -38,7 +38,7 @@ test('usage ledger merge keeps independent immutable events', () => {
     [event('u1','2026-09-01T12:00:00Z')],
     [event('u2','2026-09-02T12:00:00Z')]
   );
-  assert.deepEqual(result.rows.map(row=>row.usageEventId),['u1','u2']);
+  assert.deepEqual(result.rows.map(row=>row.eventId),['u1','u2']);
   assert.deepEqual(result.conflicts,[]);
 });
 
@@ -49,7 +49,7 @@ test('identical usage events deduplicate by durable event ID', () => {
   assert.deepEqual(result.conflicts,[]);
 });
 
-test('conflicting duplicate usage event IDs are surfaced instead of silently overwritten', () => {
+test('conflicting duplicate event IDs are surfaced instead of silently overwritten', () => {
   const result = mergeUsageEvents(
     [event('u1','2026-09-01T12:00:00Z',{consumedGrams:100})],
     [event('u1','2026-09-01T12:00:00Z',{consumedGrams:90})]
@@ -59,7 +59,7 @@ test('conflicting duplicate usage event IDs are surfaced instead of silently ove
   assert.equal(result.rows[0].consumedGrams,100);
 });
 
-test('conflicting duplicate usage event IDs inside one payload are also surfaced', () => {
+test('conflicting duplicate event IDs inside one payload are also surfaced', () => {
   const result = mergeUsageEvents(
     [],
     [
@@ -76,7 +76,7 @@ test('two-way state merge preserves usage events from both devices and reports n
   const remote = {version:6,spools:[{id:'S1'}],usageEvents:[event('u1','2026-09-01T12:00:00Z')]};
   const incoming = {version:6,spools:[{id:'S1'}],usageEvents:[event('u2','2026-09-02T12:00:00Z')]};
   const merged = mergeStates(remote,incoming);
-  assert.deepEqual(merged.state.usageEvents.map(row=>row.usageEventId),['u1','u2']);
+  assert.deepEqual(merged.state.usageEvents.map(row=>row.eventId),['u1','u2']);
   assert.equal(merged.stats.usageEventConflicts,0);
 });
 
@@ -93,5 +93,5 @@ test('normalizer keeps ledger bounded and ordered by observation time', () => {
     event('later','2026-09-03T12:00:00Z'),
     event('earlier','2026-09-01T12:00:00Z'),
   ]);
-  assert.deepEqual(rows.map(row=>row.usageEventId),['earlier','later']);
+  assert.deepEqual(rows.map(row=>row.eventId),['earlier','later']);
 });
