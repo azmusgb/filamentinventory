@@ -170,17 +170,17 @@ export function normalizeUsageEvents(value: unknown): any[] {
   const rows:any[] = [];
   const seen = new Set<string>();
   for (const raw of Array.isArray(value) ? value : []) {
-    const usageEventId = String(raw?.usageEventId || raw?.id || '').trim().slice(0,120);
+    const eventId = String(raw?.eventId || raw?.usageEventId || raw?.id || '').trim().slice(0,120);
     const spoolId = String(raw?.spoolId || '').trim().slice(0,64);
     const observedAt = String(raw?.observedAt || raw?.timestamp || '');
     const consumedGrams = Number(raw?.consumedGrams);
-    if (!usageEventId || !spoolId || !timestamp(observedAt) || !Number.isFinite(consumedGrams) || consumedGrams <= 0) continue;
-    const key = usageEventId.toLowerCase();
+    if (!eventId || !spoolId || !timestamp(observedAt) || !Number.isFinite(consumedGrams) || consumedGrams <= 0) continue;
+    const key = eventId.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     rows.push({
       ...raw,
-      usageEventId,
+      eventId,
       spoolId,
       printerId:String(raw?.printerId || raw?.printer || '').trim().slice(0,80),
       projectId:String(raw?.projectId || raw?.jobId || '').trim().slice(0,120),
@@ -192,21 +192,26 @@ export function normalizeUsageEvents(value: unknown): any[] {
       confidence:String(raw?.confidence || 'Unknown').trim().slice(0,24),
       beforeEvidenceId:String(raw?.beforeEvidenceId || '').trim().slice(0,120),
       afterEvidenceId:String(raw?.afterEvidenceId || '').trim().slice(0,120),
+      quantityEvidenceIds:[...new Set([
+        ...(Array.isArray(raw?.quantityEvidenceIds) ? raw.quantityEvidenceIds : []),
+        raw?.beforeEvidenceId,
+        raw?.afterEvidenceId,
+      ].map((value:any)=>String(value || '').trim().slice(0,120)).filter(Boolean))],
     });
   }
-  return rows.sort((a,b) => usageEventTime(a) - usageEventTime(b) || String(a.usageEventId).localeCompare(String(b.usageEventId))).slice(-MAX_USAGE_EVENTS);
+  return rows.sort((a,b) => usageEventTime(a) - usageEventTime(b) || String(a.eventId).localeCompare(String(b.eventId))).slice(-MAX_USAGE_EVENTS);
 }
 
 function rawUsageRows(value: unknown): any[] {
   return (Array.isArray(value) ? value : []).map(raw => {
-    const usageEventId = String(raw?.usageEventId || raw?.id || '').trim().slice(0,120);
+    const eventId = String(raw?.eventId || raw?.usageEventId || raw?.id || '').trim().slice(0,120);
     const spoolId = String(raw?.spoolId || '').trim().slice(0,64);
     const observedAt = String(raw?.observedAt || raw?.timestamp || '');
     const consumedGrams = Number(raw?.consumedGrams);
-    if (!usageEventId || !spoolId || !timestamp(observedAt) || !Number.isFinite(consumedGrams) || consumedGrams <= 0) return null;
+    if (!eventId || !spoolId || !timestamp(observedAt) || !Number.isFinite(consumedGrams) || consumedGrams <= 0) return null;
     return {
       ...raw,
-      usageEventId,
+      eventId,
       spoolId,
       printerId:String(raw?.printerId || raw?.printer || '').trim().slice(0,80),
       projectId:String(raw?.projectId || raw?.jobId || '').trim().slice(0,120),
@@ -218,6 +223,11 @@ function rawUsageRows(value: unknown): any[] {
       confidence:String(raw?.confidence || 'Unknown').trim().slice(0,24),
       beforeEvidenceId:String(raw?.beforeEvidenceId || '').trim().slice(0,120),
       afterEvidenceId:String(raw?.afterEvidenceId || '').trim().slice(0,120),
+      quantityEvidenceIds:[...new Set([
+        ...(Array.isArray(raw?.quantityEvidenceIds) ? raw.quantityEvidenceIds : []),
+        raw?.beforeEvidenceId,
+        raw?.afterEvidenceId,
+      ].map((value:any)=>String(value || '').trim().slice(0,120)).filter(Boolean))],
     };
   }).filter(Boolean);
 }
@@ -228,16 +238,16 @@ export function mergeUsageEvents(remoteValue: unknown, incomingValue: unknown) {
   const conflicts:string[] = [];
   for (const group of groups) {
     for (const row of group) {
-      const key = String(row.usageEventId).toLowerCase();
+      const key = String(row.eventId).toLowerCase();
       const current = byId.get(key);
       if (!current) {
         byId.set(key,row);
         continue;
       }
-      if (JSON.stringify(current) !== JSON.stringify(row) && !conflicts.includes(row.usageEventId) && conflicts.length < 25) conflicts.push(row.usageEventId);
+      if (JSON.stringify(current) !== JSON.stringify(row) && !conflicts.includes(row.eventId) && conflicts.length < 25) conflicts.push(row.eventId);
     }
   }
-  const rows = [...byId.values()].sort((a,b) => usageEventTime(a) - usageEventTime(b) || String(a.usageEventId).localeCompare(String(b.usageEventId))).slice(-MAX_USAGE_EVENTS);
+  const rows = [...byId.values()].sort((a,b) => usageEventTime(a) - usageEventTime(b) || String(a.eventId).localeCompare(String(b.eventId))).slice(-MAX_USAGE_EVENTS);
   return {rows, conflicts};
 }
 
