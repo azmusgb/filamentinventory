@@ -1,6 +1,7 @@
 import type { Config } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { createHash, randomBytes } from 'node:crypto';
+import { revokeDeviceCredentials } from '../lib/device-credential.mts';
 
 declare const Netlify: any;
 
@@ -156,17 +157,20 @@ export default async (req: Request) => {
     const verify = await store.get(stateKey(newHash), {type:'json'});
     if (!verify?.state) return json({ok:false, error:'The new cloud key could not be verified. The old key remains active.'}, 500);
 
+    const revokedDevices = await revokeDeviceCredentials(store, oldHash);
     await deleteCloudScope(store, oldHash, oldSnapshotKeys);
-    return json({ok:true, rotated:true, meta:publicMeta(rotated)});
+    return json({ok:true, rotated:true, revokedDeviceCredentials:revokedDevices.revoked, meta:publicMeta(rotated)});
   }
 
   if (action === 'wipe') {
     if (!current) {
+      const revokedDevices = await revokeDeviceCredentials(store, oldHash);
       const removedSnapshots = await deleteCloudScope(store, oldHash);
-      return json({ok:true, deleted:true, removedSnapshots, existed:false});
+      return json({ok:true, deleted:true, removedSnapshots, revokedDeviceCredentials:revokedDevices.revoked, existed:false});
     }
+    const revokedDevices = await revokeDeviceCredentials(store, oldHash);
     const removedSnapshots = await deleteCloudScope(store, oldHash);
-    return json({ok:true, deleted:true, removedSnapshots, existed:true});
+    return json({ok:true, deleted:true, removedSnapshots, revokedDeviceCredentials:revokedDevices.revoked, existed:true});
   }
 
   return json({ok:false, error:'Unknown security action.'}, 400);

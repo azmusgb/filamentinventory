@@ -6,6 +6,7 @@
   const SYNC_SETTINGS_STORAGE = 'filament-sync-settings-v1';
   const DEVICE_ID_STORAGE = 'filament-device-id-v1';
   const API = '/api/sync';
+  const DEVICE_CREDENTIAL_API = '/api/device-credentials';
   const VERSION = 5;
   const currentProfile = () => globalThis.FilamentInventoryUsers?.currentUser?.() || 'Bill';
 
@@ -17,6 +18,7 @@
   let applyingRemote = false;
   let cloudMeta = null;
   let snapshotRows = [];
+  let deviceCredentialRows = [];
   let confirmAction = null;
 
   const parse = (text, fallback = null) => { try { return JSON.parse(text); } catch { return fallback; } };
@@ -197,6 +199,92 @@
     el.innerHTML = devices.slice().sort((a,b) => Date.parse(b.lastSeenAt || 0)-Date.parse(a.lastSeenAt || 0)).slice(0,8).map(device => `<div class="sync-row"><div><strong>${esc(device.name || 'Device')}${device.id === mine ? ' · this device' : ''}</strong><span>${esc(formatWhen(device.lastSeenAt))}</span></div><span>${esc(device.lastAction || 'sync')}</span></div>`).join('');
   }
 
+  function renderDeviceCredentials() {
+    const el = document.getElementById('workshopDeviceCredentials');
+    if (!el) return;
+    if (!deviceCredentialRows.length) {
+      el.innerHTML='<div class="sync-empty">No Workshop OS credentials yet. Create one when you are ready to link a WS350.</div>';
+      return;
+    }
+    el.innerHTML=deviceCredentialRows.map(row => `<div class="sync-row"><div><strong>${esc(row.deviceName || 'Workshop OS')}</strong><span>Created ${esc(formatWhen(row.createdAt))} · read-only device feed</span></div><button class="btn btn-danger" data-revoke-device-credential="${esc(row.credentialId || '')}" type="button">Revoke</button></div>`).join('');
+  }
+
+  async function deviceCredentialRequest(action, extra={}) {
+    const key=readKey();
+    if (!validKey(key)) throw new Error('Connect private sync before managing Workshop OS access.');
+    const response=await fetch(DEVICE_CREDENTIAL_API,{
+      method:'POST',
+      headers:{
+        Accept:'application/json',
+        'Content-Type':'application/json',
+        'X-Filament-Sync-Key':key,
+        'X-Filament-Profile':currentProfile(),
+      },
+      body:JSON.stringify({action,...extra}),
+      cache:'no-store',
+    });
+    const result=await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || `Device access request failed (${response.status}).`);
+    return result;
+  }
+
+  async function loadDeviceCredentials({silent=true}={}) {
+    if (!validKey(readKey()) || !navigator.onLine) {
+      deviceCredentialRows=[];
+      renderDeviceCredentials();
+      return false;
+    }
+    try {
+      const result=await deviceCredentialRequest('list');
+      deviceCredentialRows=Array.isArray(result.credentials) ? result.credentials : [];
+      renderDeviceCredentials();
+      return true;
+    } catch (error) {
+      if (!silent) toast(error.message || 'Could not load Workshop OS access.');
+      return false;
+    }
+  }
+
+  async function issueWorkshopDeviceCredential() {
+    const input=document.getElementById('workshopDeviceNameInput');
+    const name=String(input?.value || '').trim().slice(0,60) || 'Workshop OS WS350';
+    const button=document.getElementById('createWorkshopDeviceCredentialBtn');
+    if (button) button.disabled=true;
+    try {
+      const result=await deviceCredentialRequest('issue',{device:{id:`ws350-${makeId(8)}`,name}});
+      if (!result?.token) throw new Error('Device token was not returned.');
+      deviceCredentialRows=[result.credential,...deviceCredentialRows].filter(Boolean);
+      renderDeviceCredentials();
+      showKeyDialog(
+        result.token,
+        'Workshop OS device token',
+        'Read-only and profile-scoped. Paste this token into the WS350 secure device-feed setup. It is shown only once and can be revoked here.'
+      );
+      try {
+        await navigator.clipboard.writeText(result.token);
+        toast('Workshop OS token copied. It is read-only and can be revoked at any time.');
+      } catch {
+        toast('Workshop OS token created. Copy it from the dialog now.');
+      }
+    } catch (error) {
+      toast(error.message || 'Could not create Workshop OS access.');
+    } finally {
+      if (button) button.disabled=false;
+    }
+  }
+
+  async function revokeWorkshopDeviceCredential(credentialId) {
+    if (!credentialId) return;
+    try {
+      await deviceCredentialRequest('revoke',{credentialId});
+      deviceCredentialRows=deviceCredentialRows.filter(row => row.credentialId !== credentialId);
+      renderDeviceCredentials();
+      toast('Workshop OS device access revoked.');
+    } catch (error) {
+      toast(error.message || 'Could not revoke Workshop OS access.');
+    }
+  }
+
   function renderActivity() {
     const el = document.getElementById('syncActivity');
     if (!el) return;
@@ -240,6 +328,7 @@
     renderDevices();
     renderActivity();
     renderSnapshots();
+    renderDeviceCredentials();
 
     if (!navigator.onLine) setStatus('offline','Offline','Local inventory is still available. Sync resumes when this device reconnects.');
     else if (syncInFlight) setStatus('working','Syncing…','Merging this device with the private cloud inventory.');
@@ -378,11 +467,13 @@
 
   function generateKey() { return makeId(32); }
 
-  function showKeyDialog(key,title='Private sync key') {
+  function showKeyDialog(key,title='Private sync key',copy='Store this key in your password manager. Anyone with the key can access this profile\'s cloud inventory.') {
     const dialog = document.getElementById('syncKeyDialog');
     const input = document.getElementById('syncKeyReveal');
     if (!dialog || !input) return;
     dialog.querySelector('[data-key-title]').textContent = title;
+    const copyNode=dialog.querySelector('[data-key-copy]');
+    if (copyNode) copyNode.textContent=copy;
     input.value = key;
     dialog.showModal();
     setTimeout(() => input.select(),30);
@@ -421,6 +512,7 @@
     writeSettings({enabled:false,lastRevision:''});
     cloudMeta = null;
     snapshotRows = [];
+    deviceCredentialRows = [];
     clearTimeout(syncTimer);
     renderSync();
     updateHealthBadge();
@@ -467,9 +559,20 @@
       const dialog=document.createElement('dialog');
       dialog.id='syncKeyDialog';
       dialog.className='sync-key-dialog';
-      dialog.innerHTML=`<div class="dialog-head"><div><span class="eyebrow">Private sync key</span><h3 data-key-title>Private sync key</h3></div><button class="btn icon-btn" type="button" data-key-close aria-label="Close">×</button></div><div class="dialog-body"><p class="muted">Store this key in your password manager. Anyone with the key can access this profile's cloud inventory.</p><input class="field sync-key-reveal" id="syncKeyReveal" readonly><div class="dialog-actions"><button class="btn btn-primary" type="button" data-key-close>Done</button></div></div>`;
+      dialog.innerHTML=`<div class="dialog-head"><div><span class="eyebrow">Private credential</span><h3 data-key-title>Private sync key</h3></div><button class="btn icon-btn" type="button" data-key-close aria-label="Close">×</button></div><div class="dialog-body"><p class="muted" data-key-copy>Store this key in your password manager. Anyone with the key can access this profile's cloud inventory.</p><input class="field sync-key-reveal" id="syncKeyReveal" readonly><div class="dialog-actions"><button class="btn btn-primary" type="button" data-key-close>Done</button></div></div>`;
       document.body.appendChild(dialog);
     }
+  }
+
+  function injectDeviceCredentialUi() {
+    const body=document.querySelector('#syncView .sync-advanced-body');
+    if (!body || document.getElementById('workshopDeviceAccessSection')) return;
+    const section=document.createElement('section');
+    section.id='workshopDeviceAccessSection';
+    section.className='sync-section';
+    section.innerHTML=`<div class="sync-section-head"><div><span class="eyebrow">Workshop OS</span><h3>WS350 device access</h3><p>Create a revocable, read-only token for the Filament Inventory device feed. The WS350 never needs your broader private sync key.</p></div></div><div class="device-name-row"><input class="field" id="workshopDeviceNameInput" maxlength="60" value="Workshop OS WS350" aria-label="Workshop OS device name"><button class="btn btn-primary" id="createWorkshopDeviceCredentialBtn" type="button">Create device token</button></div><div class="sync-list" id="workshopDeviceCredentials"><div class="sync-empty">Load device access after cloud sync is connected.</div></div>`;
+    const security=body.querySelector('.sync-security-note');
+    body.insertBefore(section,security || null);
   }
 
   function injectUi() {
@@ -493,6 +596,7 @@
       dataView.parentNode.insertBefore(section,dataView);
     }
     ensureDialogs();
+    injectDeviceCredentialUi();
   }
 
   function bind() {
@@ -503,6 +607,19 @@
     document.getElementById('syncForgetBtn')?.addEventListener('click',() => showConfirm({title:'Forget this device key?',copy:'This removes the private sync key from this device only. The cloud inventory is not deleted.',confirmText:'Forget key',danger:true,onConfirm:performForgetKey}));
     document.getElementById('loadSnapshotsBtn')?.addEventListener('click',loadSnapshots);
     document.getElementById('saveDeviceNameBtn')?.addEventListener('click',saveDeviceName);
+    document.getElementById('createWorkshopDeviceCredentialBtn')?.addEventListener('click',issueWorkshopDeviceCredential);
+    document.getElementById('workshopDeviceCredentials')?.addEventListener('click',event => {
+      const button=event.target.closest('[data-revoke-device-credential]');
+      if (!button) return;
+      const credentialId=button.dataset.revokeDeviceCredential;
+      showConfirm({
+        title:'Revoke Workshop OS access?',
+        copy:'This device token will stop working immediately. Browser sync and other device tokens are unchanged.',
+        confirmText:'Revoke access',
+        danger:true,
+        onConfirm:() => revokeWorkshopDeviceCredential(credentialId),
+      });
+    });
     document.getElementById('snapshotList')?.addEventListener('click',event => {
       const button=event.target.closest('[data-restore-revision]');
       if (!button) return;
@@ -520,9 +637,9 @@
       }
       if (event.target.closest('[data-key-close]')) document.getElementById('syncKeyDialog')?.close();
     });
-    window.addEventListener('online',() => { renderSync(); loadCloudMeta(); scheduleSync(); });
+    window.addEventListener('online',() => { renderSync(); loadCloudMeta(); loadDeviceCredentials(); scheduleSync(); });
     window.addEventListener('offline',renderSync);
-    window.addEventListener('focus',() => { if(validKey(readKey()) && navigator.onLine) loadCloudMeta(); });
+    window.addEventListener('focus',() => { if(validKey(readKey()) && navigator.onLine) { loadCloudMeta(); loadDeviceCredentials(); } });
   }
 
   function updateHealthBadge() {
@@ -547,10 +664,16 @@
     bind();
     renderSync();
     updateHealthBadge();
-    if (validKey(readKey()) && navigator.onLine) { loadCloudMeta(); scheduleSync(); }
+    if (validKey(readKey()) && navigator.onLine) { loadCloudMeta(); loadDeviceCredentials(); scheduleSync(); }
   }
 
-  globalThis.FilamentInventorySync = Object.freeze({syncNow,loadCloudMeta,connected:() => validKey(readKey())});
+  globalThis.FilamentInventorySync = Object.freeze({
+    syncNow,
+    loadCloudMeta,
+    loadDeviceCredentials,
+    issueWorkshopDeviceCredential,
+    connected:() => validKey(readKey()),
+  });
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',init,{once:true});
   else init();
