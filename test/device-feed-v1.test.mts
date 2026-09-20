@@ -35,6 +35,7 @@ test('device feed preserves measured evidence history and explicit placement', (
   assert.equal(feed.inventory.spools[0].quantity.status, 'Current');
   assert.equal(feed.inventory.spools[0].quantity.evidenceCount, 1);
   assert.equal(feed.inventory.spools[0].quantity.verificationRequired, false);
+  assert.equal(feed.inventory.spools[0].stockState, 'Available');
   assert.equal(feed.inventory.spools[0].placement.slot, 2);
   assert.equal(feed.inventory.spools[0].placement.status, 'Current');
   assert.equal(feed.inventory.spools[0].placement.verificationRequired, false);
@@ -53,6 +54,7 @@ test('device feed never invents quantity or placement', () => {
   assert.equal(spool.quantity.method, 'Unknown');
   assert.equal(spool.quantity.status, 'Unknown');
   assert.equal(spool.quantity.verificationRequired, true);
+  assert.equal(spool.stockState, 'Unknown');
   assert.equal(spool.placement.state, 'Unknown');
   assert.equal(spool.placement.status, 'Unknown');
   assert.equal(spool.placement.verificationRequired, true);
@@ -297,4 +299,39 @@ test('legacy loaded placement preserves loaded fact but requires canonical verif
   assert.equal(placement.feederId, null);
   assert.equal(placement.slot, null);
   assert.equal(placement.verificationRequired, true);
+});
+
+
+test('stock state is evidence-backed and does not classify stale or conflicting quantity as low', () => {
+  const feed = buildDeviceFeedV1({
+    key:'inventory-bill',
+    updatedAt:'2026-09-17T21:59:00Z',
+    state:{spools:[
+      {
+        id:'spool-low',
+        reorderThreshold:250,
+        quantityEvidence:[{
+          evidenceId:'qe-low',
+          method:'Measured',
+          remainingGrams:200,
+          observedAt:'2026-09-17T21:58:00Z',
+          staleAfter:'2026-09-18T21:58:00Z',
+        }],
+      },
+      {
+        id:'spool-stale-low',
+        reorderThreshold:250,
+        quantityEvidence:[{
+          evidenceId:'qe-stale-low',
+          method:'Measured',
+          remainingGrams:100,
+          observedAt:'2026-09-17T20:00:00Z',
+          staleAfter:'2026-09-17T21:00:00Z',
+        }],
+      },
+    ]},
+  }, 'Bill', new Date('2026-09-17T22:00:00Z'));
+
+  assert.equal(feed.inventory.spools[0].stockState, 'Low');
+  assert.equal(feed.inventory.spools[1].stockState, 'Unknown');
 });
