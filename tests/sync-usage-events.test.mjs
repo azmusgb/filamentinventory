@@ -8,7 +8,8 @@ const event = (id, observedAt, extra = {}) => ({
   eventId:id,
   spoolId:'S1',
   printerId:'P1S',
-  projectId:'print-1',
+  projectId:'project-1',
+  printJobId:'print-1',
   beforeGrams:600,
   afterGrams:500,
   consumedGrams:100,
@@ -47,6 +48,33 @@ test('identical usage events deduplicate by durable event ID', () => {
   const result = mergeUsageEvents([row],[{...row}]);
   assert.equal(result.rows.length,1);
   assert.deepEqual(result.conflicts,[]);
+});
+
+test('legacy aliases normalize to the same immutable UsageEvent payload', () => {
+  const canonical = event('u1','2026-09-01T12:00:00Z');
+  const legacy = {
+    usageEventId:'u1',
+    spoolId:'S1',
+    printer:'P1S',
+    projectId:'project-1',
+    jobId:'print-1',
+    beforeGrams:600,
+    afterGrams:500,
+    consumedGrams:100,
+    source:'PrinterReported',
+    confidence:'Medium',
+    beforeEvidenceId:'qe-start',
+    afterEvidenceId:'qe-complete',
+    timestamp:'2026-09-01T12:00:00Z',
+    ignoredLegacyField:'must-not-affect-equality',
+  };
+  const result = mergeUsageEvents([canonical],[legacy]);
+  assert.equal(result.rows.length,1);
+  assert.deepEqual(result.conflicts,[]);
+  assert.equal(result.rows[0].eventId,'u1');
+  assert.equal(result.rows[0].projectId,'project-1');
+  assert.equal(result.rows[0].printJobId,'print-1');
+  assert.equal('ignoredLegacyField' in result.rows[0],false);
 });
 
 test('conflicting duplicate event IDs are surfaced instead of silently overwritten', () => {
