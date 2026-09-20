@@ -47,5 +47,6 @@ test('sync function normalizes and merges audit events alongside printer and pri
   assert.match(source, /const printers = mergePrinters\(remote\.printers, incoming\.printers\);/);
   assert.match(source, /const auditLog = normalizeAuditLog\(\[\.\.\.remote\.auditLog, \.\.\.incoming\.auditLog\]\);/);
   assert.match(source, /const printJobs = mergePrintJobs\(remote\.printJobs, incoming\.printJobs\);/);
-  assert.match(source, /state:\{ version, spools, printers, weighLog, auditLog, printJobs, tombstones \}/);
+  assert.match(source, /const usageEvents = usageMerge\.rows;/);
+  assert.match(source, /state:\{ version, spools, printers, weighLog, auditLog, printJobs, usageEvents, tombstones \}/);
 });

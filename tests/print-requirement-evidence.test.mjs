@@ -13,6 +13,7 @@ const measured = () => ({
   gross:850,
   tare:200,
   reorderThreshold:250,
+  placementState:'Stored',
   updatedAt:'2026-09-06T12:00:00Z',
 });
 

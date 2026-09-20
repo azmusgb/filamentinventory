@@ -198,7 +198,7 @@ test('completion reports when actual consumption makes later queue commitments u
 });
 
 test('completion rejects impossible consumption instead of silently clamping inventory', () => {
-  const state = {spools:[measured({placementState:'Loaded',printerName:'P1S'})],printJobs:[]};
+  const state = {spools:[measured({placementState:'Loaded',printerName:'P1S',feederName:'AMS 1',feederSlot:'1'})],printJobs:[]};
   const plan = core.planJob(state,{material:'PLA',color:'Black',grams:100,safetyMargin:0},'S1','2026-08-28T14:00:00Z');
   const start = core.startJob(plan.state,plan.job.id,'2026-08-28T14:05:00Z');
   const done = core.completeJob(start.state,start.job.id,900,'2026-08-28T15:00:00Z');

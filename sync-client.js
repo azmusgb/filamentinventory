@@ -7,7 +7,7 @@
   const DEVICE_ID_STORAGE = 'filament-device-id-v1';
   const API = '/api/sync';
   const DEVICE_CREDENTIAL_API = '/api/device-credentials';
-  const VERSION = 5;
+  const VERSION = 6;
   const currentProfile = () => globalThis.FilamentInventoryUsers?.currentUser?.() || 'Bill';
 
   const nativeSetItem = Storage.prototype.setItem;
@@ -128,13 +128,14 @@
       weighLog:Array.isArray(local.weighLog) ? local.weighLog : [],
       auditLog:Array.isArray(local.auditLog) ? local.auditLog : [],
       printJobs:Array.isArray(local.printJobs) ? local.printJobs : [],
+      usageEvents:Array.isArray(local.usageEvents) ? local.usageEvents : [],
       tombstones:normalizeTombstones(local.tombstones),
     };
   }
 
   function fingerprint(state) {
     if (!state) return '';
-    return JSON.stringify({spools:state.spools || [],printers:state.printers || [],weighLog:state.weighLog || [],auditLog:state.auditLog || [],printJobs:state.printJobs || [],tombstones:state.tombstones || {}});
+    return JSON.stringify({spools:state.spools || [],printers:state.printers || [],weighLog:state.weighLog || [],auditLog:state.auditLog || [],printJobs:state.printJobs || [],usageEvents:state.usageEvents || [],tombstones:state.tombstones || {}});
   }
 
   function applyRemoteState(remote) {
@@ -150,6 +151,7 @@
       weighLog:Array.isArray(remote.weighLog) ? remote.weighLog : [],
       auditLog:Array.isArray(remote.auditLog) ? remote.auditLog : [],
       printJobs:Array.isArray(remote.printJobs) ? remote.printJobs : [],
+      usageEvents:Array.isArray(remote.usageEvents) ? remote.usageEvents : [],
       tombstones:normalizeTombstones(remote.tombstones),
     };
     applyingRemote = true;
