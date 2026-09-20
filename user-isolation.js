@@ -55,7 +55,7 @@
   }
 
   function splitLegacyState(input,{schemaVersion=10,at=nowIso()}={}){
-    const legacy=input&&Array.isArray(input.spools)?input:{spools:[],printers:[],weighLog:[],auditLog:[],printJobs:[],tombstones:{},meta:{}};
+    const legacy=input&&Array.isArray(input.spools)?input:{spools:[],printers:[],weighLog:[],auditLog:[],printJobs:[],usageEvents:[],tombstones:{},meta:{}};
     const states={};
     const spoolOwners=new Map();
     const deletedOwners=new Map();
@@ -68,9 +68,10 @@
       const weighLog=(legacy.weighLog||[]).filter(row=>{const id=lowerId(row?.id);return (spoolOwners.get(id)||deletedOwners.get(id)||'Bill')===owner;});
       const auditLog=(legacy.auditLog||[]).filter(row=>(ownerForAudit(row,spoolOwners)||'Bill')===owner).map(row=>({...row,owner:strictOwner(row?.owner)||owner}));
       const printJobs=(legacy.printJobs||[]).filter(row=>ids.has(lowerId(row?.spoolId)));
+      const usageEvents=(legacy.usageEvents||[]).filter(row=>ids.has(lowerId(row?.spoolId)));
       const tombstones={};
       for(const [idRaw,when] of Object.entries(legacy.tombstones||{})){const id=lowerId(idRaw);const tombOwner=spoolOwners.get(id)||deletedOwners.get(id)||'Bill';if(id&&tombOwner===owner)tombstones[id]=when;}
-      states[owner]={...legacy,version:Math.max(Number(legacy.version)||0,schemaVersion),profile:owner,savedAt:at,meta:{...(legacy.meta||{}),userIsolationMigratedAt:at},spools,printers,weighLog,auditLog,printJobs,tombstones};
+      states[owner]={...legacy,version:Math.max(Number(legacy.version)||0,schemaVersion),profile:owner,savedAt:at,meta:{...(legacy.meta||{}),userIsolationMigratedAt:at},spools,printers,weighLog,auditLog,printJobs,usageEvents,tombstones};
     }
     return states;
   }
@@ -84,10 +85,11 @@
     const auditLog=(Array.isArray(input.auditLog)?input.auditLog:[]).filter(row=>{const declared=strictOwner(row?.owner);if(declared)return declared===current;const id=lowerId(row?.spoolId);return !id||ids.has(id)||strictOwner(row?.actor)===current;}).map(row=>({...row,owner:strictOwner(row?.owner)||current}));
     const weighLog=(Array.isArray(input.weighLog)?input.weighLog:[]).filter(row=>ids.has(lowerId(row?.id)));
     const printJobs=(Array.isArray(input.printJobs)?input.printJobs:[]).filter(row=>ids.has(lowerId(row?.spoolId)));
-    return {...input,version:Math.max(Number(input.version)||0,schemaVersion),profile:current,spools:allowedSpools,printers,weighLog,auditLog,printJobs};
+    const usageEvents=(Array.isArray(input.usageEvents)?input.usageEvents:[]).filter(row=>ids.has(lowerId(row?.spoolId)));
+    return {...input,version:Math.max(Number(input.version)||0,schemaVersion),profile:current,spools:allowedSpools,printers,weighLog,auditLog,printJobs,usageEvents};
   }
 
-  function emptyState(owner,schemaVersion=10,{at=nowIso(),meta={}}={}){return {version:schemaVersion,profile:normalizeOwner(owner),savedAt:at,meta,spools:[],printers:[],weighLog:[],auditLog:[],printJobs:[],tombstones:{}};}
+  function emptyState(owner,schemaVersion=10,{at=nowIso(),meta={}}={}){return {version:schemaVersion,profile:normalizeOwner(owner),savedAt:at,meta,spools:[],printers:[],weighLog:[],auditLog:[],printJobs:[],usageEvents:[],tombstones:{}};}
 
   function starterState(owner='Bill',schemaVersion=10,{at=nowIso()}={}){
     const current=normalizeOwner(owner);
