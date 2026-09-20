@@ -65,6 +65,7 @@
   async function ensurePrintReadiness() {
     if (globalThis.FilamentInventoryPrintReadinessUI) return true;
     try {
+      if (!globalThis.FilamentInventoryUsageForecast) await loadScript('/usage-forecast-core.js');
       if (!globalThis.FilamentInventoryPrintReadiness) await loadScript('/print-readiness-core.js');
       if (!globalThis.FilamentInventoryPrintReadinessUI) await loadScript('/print-readiness-client.js');
       return Boolean(globalThis.FilamentInventoryPrintReadinessUI);
