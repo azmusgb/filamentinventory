@@ -129,7 +129,7 @@
 
   function attentionRows(snapshot) {
     const engine = attentionCore();
-    if (!engine?.buildAttention) return [];
+    if (!engine?.buildAttention) return null;
     return engine.buildAttention(snapshot,{
       now:Date.now(),
       forecastHorizonDays:7,
@@ -141,6 +141,7 @@
 
   function inboxMarkup(summary, inbox) {
     if (!summary.activeCount) return `<div class="empty"><strong>No inventory yet</strong>Add or scan a spool to establish your first authoritative record.</div>`;
+    if (!Array.isArray(inbox)) return `<div class="empty"><strong>Attention unavailable</strong>The evidence-aware attention engine did not initialize. Inventory facts remain available; do not treat this as an all-clear.</div>`;
     if (!inbox.length) return `<div class="empty"><strong>All caught up</strong>No evidence-backed inventory actions need attention.</div>`;
     return inbox.slice(0,6).map(item => {
       const spool = summary.active.find(row => String(row.id) === String(item.spoolId));
@@ -179,14 +180,18 @@
       const view = $('dashboardView');
       const empty = summary.activeCount === 0;
       const inbox = attentionRows(snapshot);
+      const attentionReady = Array.isArray(inbox);
+      const attentionItems = attentionReady ? inbox : [];
       const status = empty
         ? {state:'empty',label:'SET UP',title:'Start your workshop inventory',detail:'Add or scan a spool to establish the first authoritative inventory record.'}
-        : inbox.length
-          ? {state:'attention',label:'NEEDS ATTENTION',title:`${inbox.length} evidence-backed item${inbox.length === 1 ? '' : 's'} need review`,detail:'Resolve quantity, placement, or reorder evidence before it changes your next workshop action.'}
-          : {state:'healthy',label:'INVENTORY HEALTHY',title:'No inventory actions need attention',detail:'No current evidence-backed inventory exceptions require action. Print readiness remains job-specific.'};
+        : !attentionReady
+          ? {state:'degraded',label:'CHECK UNAVAILABLE',title:'Inventory attention is temporarily unavailable',detail:'Inventory facts remain available, but the attention engine did not initialize. Do not treat this as an all-clear.'}
+          : attentionItems.length
+            ? {state:'attention',label:'NEEDS ATTENTION',title:`${attentionItems.length} evidence-backed item${attentionItems.length === 1 ? '' : 's'} need review`,detail:'Resolve quantity, placement, or reorder evidence before it changes your next workshop action.'}
+            : {state:'healthy',label:'INVENTORY HEALTHY',title:'No inventory actions need attention',detail:'No current evidence-backed inventory exceptions require action. Print readiness remains job-specific.'};
 
       view.classList.toggle('fi-home-empty',empty);
-      view.classList.toggle('fi-home-has-attention',inbox.length > 0);
+      view.classList.toggle('fi-home-has-attention',attentionItems.length > 0);
       view.dataset.empty = String(empty);
       view.dataset.homeStatus = status.state;
 
@@ -225,7 +230,7 @@
       const loadedCount = view.querySelector('[data-home-loaded-count]');
       const priority = $('priorityList');
       const loaded = view.querySelector('[data-home-loaded]');
-      if (attention) attention.textContent = String(inbox.length);
+      if (attention) attention.textContent = attentionReady ? String(attentionItems.length) : '—';
       if (loadedCount) loadedCount.textContent = String(summary.loadedCount);
       const inboxHtml = inboxMarkup(summary,inbox);
       const loadedHtml = loadedMarkup(summary);
