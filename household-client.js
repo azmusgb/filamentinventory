@@ -10,6 +10,7 @@
   const OWNERS = ['Bill', 'Aimee'];
   const priorGetItem = Storage.prototype.getItem;
   const priorSetItem = Storage.prototype.setItem;
+  const spoolContract = globalThis.FilamentInventorySpoolContract;
   let inventoryObserver = null;
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -21,14 +22,31 @@
   const validIso = value => value && !Number.isNaN(Date.parse(String(value))) ? String(value) : null;
 
   function normalizeHousehold(spool = {}, fallback = {}) {
-    const owner = normalizeOwner(spool.owner ?? fallback.owner);
-    let placementState = String(spool.placementState ?? fallback.placementState ?? '').trim();
-    const printerName = safeText(spool.printerName ?? fallback.printerName);
-    const feederName = safeText(spool.feederName ?? fallback.feederName);
-    const feederSlot = safeText(spool.feederSlot ?? fallback.feederSlot, 24);
-    if (!['Stored','Loaded'].includes(placementState)) placementState = printerName || feederName || feederSlot ? 'Loaded' : 'Stored';
-    const loadedAt = placementState === 'Loaded' ? (validIso(spool.loadedAt) || validIso(fallback.loadedAt) || nowIso()) : null;
-    return {owner, placementState, printerName:placementState === 'Loaded' ? printerName : '', feederName:placementState === 'Loaded' ? feederName : '', feederSlot:placementState === 'Loaded' ? feederSlot : '', loadedAt};
+    const merged = {...fallback,...spool};
+    if (spoolContract?.normalizeSpool) {
+      const canonical = spoolContract.normalizeSpool(merged,{owner:currentUser(),householdId:merged.householdId || 'default-household'});
+      const placementState = canonical?.placement?.state || 'Unknown';
+      return {
+        owner:normalizeOwner(canonical.owner),
+        placementState,
+        printerName:placementState === 'Loaded' ? safeText(canonical.printerName || canonical.placement?.printerId) : '',
+        feederName:placementState === 'Loaded' && !canonical.placement?.external ? safeText(canonical.feederName || canonical.placement?.feederId) : '',
+        feederSlot:placementState === 'Loaded' && canonical.placement?.slot !== null && canonical.placement?.slot !== undefined ? String(canonical.placement.slot) : '',
+        loadedAt:placementState === 'Loaded' ? (canonical.loadedAt || canonical.placement?.observedAt || null) : null,
+        placementStatus:canonical?.placement?.status || 'Unknown',
+        verificationRequired:Boolean(canonical?.placement?.verificationRequired),
+      };
+    }
+    return {
+      owner:normalizeOwner(merged.owner),
+      placementState:'Unknown',
+      printerName:'',
+      feederName:'',
+      feederSlot:'',
+      loadedAt:null,
+      placementStatus:'Unknown',
+      verificationRequired:true,
+    };
   }
 
   function currentUser() {
@@ -52,16 +70,8 @@
   }
 
   function measurement(spool) {
-    const start = validNum(spool?.startWeight) && Number(spool.startWeight) > 0 ? Number(spool.startWeight) : 1000;
-    if (validNum(spool?.gross) && validNum(spool?.tare) && Number(spool.gross) >= Number(spool.tare)) {
-      const grams = Math.min(start, Math.max(0, Number(spool.gross) - Number(spool.tare)));
-      return {grams, percent:Math.round(grams / start * 1000) / 10, source:'Measured'};
-    }
-    if (validNum(spool?.visualPercent)) {
-      const percent = Math.max(0, Math.min(100, Number(spool.visualPercent)));
-      return {grams:Math.round(start * percent / 100), percent, source:'Visual'};
-    }
-    return {grams:null, percent:null, source:'Unknown'};
+    if (spoolContract?.measurement) return spoolContract.measurement(spool);
+    return {grams:null,percent:null,source:'Unknown',verificationRequired:true};
   }
 
   function statusFor(percent) {
@@ -76,15 +86,16 @@
   }
 
   function reorderNeeded(spool) {
-    if (spool?.archivedAt) return false;
-    const m = measurement(spool);
-    return m.grams !== null && m.grams <= Number(spool.reorderThreshold ?? 250);
+    if (spoolContract?.reorderNeeded) return spoolContract.reorderNeeded(spool);
+    return false;
   }
 
   function loadedLabel(spool) {
+    if (spool?.placementState === 'Unknown') return 'Placement unknown · verify';
     if (spool?.placementState !== 'Loaded') return `Stored${spool?.location ? ` · ${spool.location}` : ''}`;
     const parts = [spool.printerName || 'Printer not named', spool.feederName, spool.feederSlot ? `Slot ${spool.feederSlot}` : ''].filter(Boolean);
-    return `Loaded · ${parts.join(' · ')}`;
+    const caveat = spool.verificationRequired ? ' · verify' : '';
+    return `Loaded · ${parts.join(' · ')}${caveat}`;
   }
 
   function injectOwnerFilter() {
@@ -267,7 +278,7 @@
   function backupComplete() { const state=readState(),exportedAt=nowIso();state.meta={...(state.meta||{}),lastBackupAt:exportedAt};writeState(state);download(`filament-inventory-${VERSION_LABEL}-${exportedAt.slice(0,10)}.json`,JSON.stringify({...state,version:VERSION,appVersion:APP_VERSION,exportedAt},null,2),'application/json');toast(`Complete ${VERSION_LABEL} backup exported.`); }
 
   async function restoreComplete(file) {
-    try { const parsed=JSON.parse(await file.text());if(!parsed||!Array.isArray(parsed.spools))throw new Error('Backup does not contain a spools array.');const incoming=augmentState(parsed,parsed),replace=confirm(`Restore ${incoming.spools.length} spools. OK = replace local inventory; Cancel = merge by spool ID.`);if(replace){if(!confirm('Replace the current local inventory and measurement history?'))return;writeState(incoming);}else{const current=readState(),mergeBackupStates=globalThis.FilamentInventoryStateMerge?.mergeBackupStates;if(!mergeBackupStates)throw new Error('Backup merge engine is unavailable. Refresh and try again.');const merged=mergeBackupStates(current,incoming);writeState(merged);}alert(`${VERSION_LABEL} backup restored. The app will reload.`);location.reload(); } catch(error){alert(`Restore failed: ${error.message}`);}
+    try { const parsed=JSON.parse(await file.text());if(!parsed||!Array.isArray(parsed.spools))throw new Error('Backup does not contain a spools array.');const incoming=spoolContract?.normalizeState?spoolContract.normalizeState(parsed,{owner:currentUser()}):null;if(!incoming||!Array.isArray(incoming.spools))throw new Error('Canonical inventory normalizer is unavailable. Refresh and try again.');const replace=confirm(`Restore ${incoming.spools.length} spools. OK = replace local inventory; Cancel = merge by spool ID.`);if(replace){if(!confirm('Replace the current local inventory and measurement history?'))return;writeState(incoming);}else{const current=readState(),mergeBackupStates=globalThis.FilamentInventoryStateMerge?.mergeBackupStates;if(!mergeBackupStates)throw new Error('Backup merge engine is unavailable. Refresh and try again.');const merged=mergeBackupStates(current,incoming);writeState(merged);}alert(`${VERSION_LABEL} backup restored. The app will reload.`);location.reload(); } catch(error){alert(`Restore failed: ${error.message}`);}
   }
 
   function decorateLabels() {
