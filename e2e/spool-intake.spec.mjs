@@ -40,9 +40,8 @@ test('guided Add spool standardizes common choices, supports custom values and l
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('.spool-intake-summary')).toBeVisible();
   await expect(dialog.locator('#intakeBanner')).toBeHidden();
-  const placementFields=dialog.locator('.spool-intake-placement-field');
-  await expect(placementFields).toHaveCount(4);
-  expect(await placementFields.evaluateAll(nodes => nodes.every(node => getComputedStyle(node).display === 'none'))).toBe(true);
+  await expect(dialog.locator('.spool-intake-placement-field')).toHaveCount(0);
+  await expect(dialog.locator('#placementV8, #printerV8, #feederV8, #slotV8')).toHaveCount(0);
   await expect(dialog.locator('#startWeight')).toHaveValue('750');
   await expect(dialog.locator('#reorderThreshold')).toHaveValue('200');
   await expect(dialog.locator('[data-intake-next]')).toContainText('Next: brand');
