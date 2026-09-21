@@ -254,9 +254,14 @@
   function navigatePrinter(id='') {
     document.querySelector('.tab[data-view="printer"]')?.click();
     setTimeout(()=>{
-      const target=id
-        ? document.querySelector(`[data-printer-unload="${CSS.escape(id)}"],[data-printer-weigh="${CSS.escape(id)}"],[data-spool-actions-open="${CSS.escape(id)}"]`)
-        : document.getElementById('printerView');
+      if (id) {
+        const openLoad = globalThis.FilamentInventoryPrinterUI?.openLoad;
+        if (typeof openLoad === 'function') {
+          openLoad(id);
+          return;
+        }
+      }
+      const target=document.getElementById('printerView');
       target?.scrollIntoView?.({behavior:'smooth',block:'center'});
       target?.focus?.({preventScroll:true});
     },80);
@@ -283,7 +288,7 @@
 
   function decorateLabels() {
     const state=readState(),byId=new Map(state.spools.map(s=>[String(s.id),s]));
-    document.querySelectorAll('#labelPreviewGrid .label-preview').forEach(card=>{const id=card.querySelector('strong')?.textContent?.trim(),s=byId.get(id);if(!s||card.querySelector('.v8-label-owner'))return;const tag=document.createElement('div');tag.className='label-line v8-label-owner';tag.textContent=`Owner: ${normalizeOwner(s.owner)} · ${loadedLabel(s)}`;card.querySelector('div')?.appendChild(tag);});
+    document.querySelectorAll('#labelPreviewGrid .label-preview').forEach(card=>{const id=card.querySelector('strong')?.textContent?.trim(),s=byId.get(id);if(!s||card.querySelector('.v8-label-owner'))return;const hh=normalizeHousehold(s);const tag=document.createElement('div');tag.className='label-line v8-label-owner';tag.textContent=`Owner: ${hh.owner} · ${loadedLabel({...s,...hh})}`;card.querySelector('div')?.appendChild(tag);});
   }
 
   function bind() {
