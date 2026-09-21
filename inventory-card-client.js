@@ -166,8 +166,9 @@
     }
 
     const {spool,stock,loaded,archived,placementLabel} = summary;
+    const placementState = spool?.placement?.state || (loaded ? 'Loaded' : 'Unknown');
     card.dataset.stockState = String(stock || '').toLowerCase();
-    card.dataset.placementState = loaded ? 'loaded' : 'stored';
+    card.dataset.placementState = String(placementState || 'Unknown').toLowerCase();
     card.dataset.quantityEvidence = evidenceModel(card,summary).tone;
 
     const spoken = [];
@@ -182,14 +183,18 @@
         row.appendChild(stateChip('Low stock','low'));
         spoken.push('Low stock');
       }
-      if (loaded) {
+      if (placementState === 'Loaded') {
         row.appendChild(stateChip('Loaded','loaded'));
         spoken.push('Loaded');
       }
 
       const placement = document.createElement('span');
       placement.className = 'inventory-placement';
-      placement.textContent = loaded ? placementLabel : `Stored · ${spool.location || 'Unassigned'}`;
+      placement.textContent = placementState === 'Loaded'
+        ? placementLabel
+        : placementState === 'Stored'
+          ? `Stored · ${spool.location || 'Unassigned'}`
+          : 'Placement unknown · verify';
       row.appendChild(placement);
       spoken.push(placement.textContent);
     }
