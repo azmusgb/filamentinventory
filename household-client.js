@@ -10,8 +10,6 @@
   const OWNERS = ['Bill', 'Aimee'];
   const priorGetItem = Storage.prototype.getItem;
   const priorSetItem = Storage.prototype.setItem;
-  const pendingMeta = new Map();
-  let resetting = false;
   let inventoryObserver = null;
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -32,52 +30,6 @@
     const loadedAt = placementState === 'Loaded' ? (validIso(spool.loadedAt) || validIso(fallback.loadedAt) || nowIso()) : null;
     return {owner, placementState, printerName:placementState === 'Loaded' ? printerName : '', feederName:placementState === 'Loaded' ? feederName : '', feederSlot:placementState === 'Loaded' ? feederSlot : '', loadedAt};
   }
-
-  function augmentState(next, previous = null) {
-    if (!next || !Array.isArray(next.spools)) return next;
-    const priorById = new Map((previous?.spools || []).map(s => [String(s?.id || '').trim().toLowerCase(), s]));
-    next.version = Math.max(Number(next.version) || 0, VERSION);
-    next.spools = next.spools.map(spool => {
-      const id = String(spool?.id || '').trim().toLowerCase();
-      const old = priorById.get(id) || {};
-      const forcedChanged = pendingMeta.has(id);
-      const forced = pendingMeta.get(id) || {};
-      const hh = normalizeHousehold({...old, ...spool, ...forced}, old);
-      if (spool?.archivedAt) {
-        hh.placementState = 'Stored';
-        hh.printerName = '';
-        hh.feederName = '';
-        hh.feederSlot = '';
-        hh.loadedAt = null;
-      }
-      const oldTime = Date.parse(String(old.updatedAt || '')) || 0;
-      const newTime = Date.parse(String(spool?.updatedAt || '')) || 0;
-      const updatedAt = forcedChanged ? nowIso() : (oldTime > newTime ? old.updatedAt : spool?.updatedAt);
-      return {...spool, ...hh, updatedAt};
-    });
-    return next;
-  }
-
-  Storage.prototype.getItem = function(key) {
-    const raw = priorGetItem.call(this, key);
-    if (this === localStorage && key === STORAGE_KEY && raw) {
-      const state = parse(raw, null);
-      if (state?.spools) return JSON.stringify(augmentState(state, state));
-    }
-    return raw;
-  };
-
-  Storage.prototype.setItem = function(key, value) {
-    if (this === localStorage && key === STORAGE_KEY) {
-      const incoming = parse(String(value), null);
-      if (incoming?.spools) {
-        const previous = resetting ? null : parse(priorGetItem.call(localStorage, STORAGE_KEY), null);
-        value = JSON.stringify(augmentState(incoming, previous));
-        pendingMeta.clear();
-      }
-    }
-    return priorSetItem.call(this, key, value);
-  };
 
   function currentUser() {
     const value = String(priorGetItem.call(localStorage, CURRENT_USER_KEY) || '');
@@ -133,92 +85,6 @@
     if (spool?.placementState !== 'Loaded') return `Stored${spool?.location ? ` · ${spool.location}` : ''}`;
     const parts = [spool.printerName || 'Printer not named', spool.feederName, spool.feederSlot ? `Slot ${spool.feederSlot}` : ''].filter(Boolean);
     return `Loaded · ${parts.join(' · ')}`;
-  }
-
-  function migrateLegacy() {
-    const raw = priorGetItem.call(localStorage, STORAGE_KEY);
-    if (!raw) return;
-    const state = parse(raw, null);
-    if (!state?.spools) return;
-    const needs = Number(state.version || 0) < VERSION || state.spools.some(s => !OWNERS.includes(String(s.owner)) || !['Stored','Loaded'].includes(String(s.placementState)));
-    if (needs) {
-      const migrated = augmentState(state, state);
-      priorSetItem.call(localStorage, STORAGE_KEY, JSON.stringify(migrated));
-    }
-  }
-
-  function injectFormFields() {
-    const notes = document.getElementById('notes')?.closest('.form-field');
-    if (!notes || document.getElementById('ownerV8')) return;
-    const holder = document.createElement('div');
-    holder.innerHTML = `
-      <div class="form-field"><label for="ownerV8">Owner</label><select class="select" id="ownerV8"><option>Bill</option><option>Aimee</option></select></div>
-      <div class="form-field"><label for="placementV8">Physical state</label><select class="select" id="placementV8"><option>Stored</option><option>Loaded</option></select></div>
-      <div class="form-field v8-load-field"><label for="printerV8">Printer</label><input class="field" id="printerV8" maxlength="60" placeholder="Bambu X1C / P1S / A1…"/></div>
-      <div class="form-field v8-load-field"><label for="feederV8">AMS / feeder</label><input class="field" id="feederV8" maxlength="60" placeholder="AMS 1 / AMS Lite / External"/></div>
-      <div class="form-field v8-load-field"><label for="slotV8">Slot / bay</label><input class="field" id="slotV8" maxlength="24" placeholder="1 / 2 / 3 / 4 / External"/></div>`;
-    while (holder.firstChild) notes.parentNode.insertBefore(holder.firstChild, notes);
-    document.getElementById('placementV8')?.addEventListener('change', toggleLoadFields);
-  }
-
-  function toggleLoadFields() {
-    const loaded = document.getElementById('placementV8')?.value === 'Loaded';
-    document.querySelectorAll('.v8-load-field').forEach(el => {
-      el.style.opacity = loaded ? '1' : '.55';
-      el.querySelectorAll('input').forEach(input => input.disabled = !loaded);
-    });
-  }
-
-  function populateHouseholdFields() {
-    const dialog = document.getElementById('spoolDialog');
-    if (!dialog?.open) return;
-    const originalId = String(document.getElementById('editOriginalId')?.value || '').trim();
-    const state = readState();
-    const spool = state.spools.find(s => String(s.id) === originalId);
-    const hh = normalizeHousehold(spool || {owner:currentUser(), placementState:'Stored'});
-    if (document.getElementById('ownerV8')) document.getElementById('ownerV8').value = hh.owner;
-    if (document.getElementById('placementV8')) document.getElementById('placementV8').value = hh.placementState;
-    if (document.getElementById('printerV8')) document.getElementById('printerV8').value = hh.printerName;
-    if (document.getElementById('feederV8')) document.getElementById('feederV8').value = hh.feederName;
-    if (document.getElementById('slotV8')) document.getElementById('slotV8').value = hh.feederSlot;
-    toggleLoadFields();
-  }
-
-  function assignmentKey(meta) {
-    if (meta.placementState !== 'Loaded') return '';
-    return [safeText(meta.printerName).toLowerCase(), safeText(meta.feederName).toLowerCase(), safeText(meta.feederSlot,24).toLowerCase()].join('|');
-  }
-
-  function captureFormMeta(event) {
-    const id = String(document.getElementById('spoolId')?.value || '').trim();
-    if (!id) return;
-    const originalId = String(document.getElementById('editOriginalId')?.value || '').trim();
-    const state = readState();
-    const old = state.spools.find(s => String(s.id) === originalId) || {};
-    const placementState = document.getElementById('placementV8')?.value === 'Loaded' ? 'Loaded' : 'Stored';
-    const meta = normalizeHousehold({
-      owner:document.getElementById('ownerV8')?.value,
-      placementState,
-      printerName:document.getElementById('printerV8')?.value,
-      feederName:document.getElementById('feederV8')?.value,
-      feederSlot:document.getElementById('slotV8')?.value,
-      loadedAt:placementState === 'Loaded' ? (old.loadedAt || nowIso()) : null
-    }, old);
-
-    const key = assignmentKey(meta);
-    if (key) {
-      const conflict = state.spools.find(s => !s.archivedAt && String(s.id).toLowerCase() !== id.toLowerCase() && assignmentKey(normalizeHousehold(s)) === key);
-      if (conflict) {
-        const ok = confirm(`${conflict.id} is already assigned to ${loadedLabel(conflict)}. Unload ${conflict.id} and load ${id} there instead?`);
-        if (!ok) {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          return;
-        }
-        pendingMeta.set(String(conflict.id).toLowerCase(), {placementState:'Stored', printerName:'', feederName:'', feederSlot:'', loadedAt:null});
-      }
-    }
-    pendingMeta.set(id.toLowerCase(), meta);
   }
 
   function injectOwnerFilter() {
@@ -401,7 +267,7 @@
   function backupComplete() { const state=readState(),exportedAt=nowIso();state.meta={...(state.meta||{}),lastBackupAt:exportedAt};writeState(state);download(`filament-inventory-${VERSION_LABEL}-${exportedAt.slice(0,10)}.json`,JSON.stringify({...state,version:VERSION,appVersion:APP_VERSION,exportedAt},null,2),'application/json');toast(`Complete ${VERSION_LABEL} backup exported.`); }
 
   async function restoreComplete(file) {
-    try { const parsed=JSON.parse(await file.text());if(!parsed||!Array.isArray(parsed.spools))throw new Error('Backup does not contain a spools array.');const incoming=augmentState(parsed,parsed),replace=confirm(`Restore ${incoming.spools.length} spools. OK = replace local inventory; Cancel = merge by spool ID.`);if(replace){if(!confirm('Replace the current local inventory and measurement history?'))return;resetting=true;writeState(incoming);resetting=false;}else{const current=readState(),mergeBackupStates=globalThis.FilamentInventoryStateMerge?.mergeBackupStates;if(!mergeBackupStates)throw new Error('Backup merge engine is unavailable. Refresh and try again.');const merged=mergeBackupStates(current,incoming);writeState(merged);}alert(`${VERSION_LABEL} backup restored. The app will reload.`);location.reload(); } catch(error){resetting=false;alert(`Restore failed: ${error.message}`);}
+    try { const parsed=JSON.parse(await file.text());if(!parsed||!Array.isArray(parsed.spools))throw new Error('Backup does not contain a spools array.');const incoming=augmentState(parsed,parsed),replace=confirm(`Restore ${incoming.spools.length} spools. OK = replace local inventory; Cancel = merge by spool ID.`);if(replace){if(!confirm('Replace the current local inventory and measurement history?'))return;writeState(incoming);}else{const current=readState(),mergeBackupStates=globalThis.FilamentInventoryStateMerge?.mergeBackupStates;if(!mergeBackupStates)throw new Error('Backup merge engine is unavailable. Refresh and try again.');const merged=mergeBackupStates(current,incoming);writeState(merged);}alert(`${VERSION_LABEL} backup restored. The app will reload.`);location.reload(); } catch(error){alert(`Restore failed: ${error.message}`);}
   }
 
   function decorateLabels() {
@@ -410,18 +276,16 @@
   }
 
   function bind() {
-    const dialog=document.getElementById('spoolDialog');if(dialog)new MutationObserver(()=>populateHouseholdFields()).observe(dialog,{attributes:true,attributeFilter:['open']});
-    document.getElementById('spoolForm')?.addEventListener('submit',captureFormMeta);
     document.getElementById('currentUserV8')?.addEventListener('change',e=>{setCurrentUser(e.target.value);toast(`New spools will default to ${e.target.value}.`);});
     document.getElementById('openPrinterV8')?.addEventListener('click',()=>navigatePrinter());
     ['findOwnerV8','findMaterialV8','findPrinterV8'].forEach(id=>document.getElementById(id)?.addEventListener('change',renderFinder));['findColorV8','findMinV8'].forEach(id=>document.getElementById(id)?.addEventListener('input',renderFinder));document.getElementById('householdListOwnerV8')?.addEventListener('change',renderHouseholdList);document.getElementById('householdSearchV8')?.addEventListener('input',renderHouseholdList);
     document.getElementById('exportHouseholdCsvV8')?.addEventListener('click',exportHouseholdCsv);document.getElementById('backupHouseholdV8')?.addEventListener('click',backupComplete);document.getElementById('restoreHouseholdV8')?.addEventListener('click',()=>document.getElementById('restoreHouseholdFileV8')?.click());document.getElementById('restoreHouseholdFileV8')?.addEventListener('change',e=>{const f=e.target.files?.[0];if(f)restoreComplete(f);e.target.value='';});
-    document.addEventListener('click',event=>{const manage=event.target.closest('[data-v8-manage-placement]');if(manage){navigatePrinter(manage.dataset.v8ManagePlacement);return;}const weigh=event.target.closest('[data-v8-weigh]');if(weigh){navigateWeigh(weigh.dataset.v8Weigh);return;}const ownerList=event.target.closest('[data-v8-owner-list]');if(ownerList){const f=document.getElementById('householdListOwnerV8');if(f){f.value=ownerList.dataset.v8OwnerList;renderHouseholdList();document.getElementById('householdListV8')?.scrollIntoView({behavior:'smooth',block:'start'});}return;}if(event.target.closest('#clearFiltersBtn')){const f=document.getElementById('ownerFilterV8');if(f)f.value='';setTimeout(decorateInventory,0);}if(event.target.closest('#resetBtn')){resetting=true;setTimeout(()=>{resetting=false;},0);}if(event.target.closest('.tab[data-view="household"]'))setTimeout(renderHousehold,0);if(event.target.closest('.tab[data-view="labels"]'))setTimeout(decorateLabels,120);},true);
+    document.addEventListener('click',event=>{const manage=event.target.closest('[data-v8-manage-placement]');if(manage){navigatePrinter(manage.dataset.v8ManagePlacement);return;}const weigh=event.target.closest('[data-v8-weigh]');if(weigh){navigateWeigh(weigh.dataset.v8Weigh);return;}const ownerList=event.target.closest('[data-v8-owner-list]');if(ownerList){const f=document.getElementById('householdListOwnerV8');if(f){f.value=ownerList.dataset.v8OwnerList;renderHouseholdList();document.getElementById('householdListV8')?.scrollIntoView({behavior:'smooth',block:'start'});}return;}if(event.target.closest('#clearFiltersBtn')){const f=document.getElementById('ownerFilterV8');if(f)f.value='';setTimeout(decorateInventory,0);}if(event.target.closest('#resetBtn')){return;}if(event.target.closest('.tab[data-view="household"]'))setTimeout(renderHousehold,0);if(event.target.closest('.tab[data-view="labels"]'))setTimeout(decorateLabels,120);},true);
     document.addEventListener('click',event=>{const target=event.target.closest('#exportTopBtn,#exportJsonBtn,#exportCsvBtn,#importJsonBtn');if(!target)return;event.preventDefault();event.stopImmediatePropagation();if(target.id==='exportTopBtn'||target.id==='exportJsonBtn')backupComplete();else if(target.id==='exportCsvBtn')exportHouseholdCsv();else if(target.id==='importJsonBtn')document.getElementById('restoreHouseholdFileV8')?.click();},true);
     const current=document.getElementById('currentUserV8');if(current)current.value=currentUser();
   }
 
-  function init() { injectStyle();migrateLegacy();injectFormFields();injectOwnerFilter();injectTabAndView();bind();watchInventory();renderHousehold();setTimeout(()=>{decorateInventory();decorateLabels();const params=new URLSearchParams(location.hash.slice(1));if(params.get('view')==='household')document.querySelector('.tab[data-view="household"]')?.click();},120); }
+  function init() { injectStyle();injectOwnerFilter();injectTabAndView();bind();watchInventory();renderHousehold();setTimeout(()=>{decorateInventory();decorateLabels();const params=new URLSearchParams(location.hash.slice(1));if(params.get('view')==='household')document.querySelector('.tab[data-view="household"]')?.click();},120); }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
