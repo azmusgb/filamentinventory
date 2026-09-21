@@ -87,8 +87,15 @@ test('measurement history is deduplicated across devices', () => {
   assert.equal(result.state.weighLog.length, 1);
 });
 
-test('full edit conflict path advances timestamp for forced household changes', async () => {
+test('legacy household view cannot mutate physical placement or ownership', async () => {
   const source = await readFile(new URL('../household-client.js', import.meta.url), 'utf8');
-  assert.match(source, /const forcedChanged = pendingMeta\.has\(id\);/);
-  assert.match(source, /const updatedAt = forcedChanged \? nowIso\(\)/);
+  assert.match(source, /Printer \/ AMS is the only active placement authority/);
+  assert.match(source, /function navigatePrinter\(id=''/);
+  assert.doesNotMatch(source, /function setSpoolPlacement/);
+  assert.doesNotMatch(source, /function loadSelectedSpool/);
+  assert.doesNotMatch(source, /function unloadSpool/);
+  assert.doesNotMatch(source, /function transferOwner/);
+  assert.doesNotMatch(source, /data-v8-transfer/);
+  assert.doesNotMatch(source, /data-v8-unload/);
+  assert.doesNotMatch(source, /pendingMeta/);
 });
