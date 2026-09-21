@@ -146,17 +146,25 @@
     return inbox.slice(0,6).map(item => {
       const spool = summary.active.find(row => String(row.id) === String(item.spoolId));
       const swatch = spool?.colorHex || '#666d7d';
-      const state = item.severity === 'critical' ? 'danger' : item.severity === 'warning' ? 'warning' : 'neutral';
-      const chip = item.action === 'weigh' ? 'WEIGH' : item.action === 'reorder' ? 'REORDER' : 'VERIFY';
+      const legacyLow = item.kind === 'low-stock';
+      const legacyUnknown = item.kind === 'quantity-unknown';
+      const state = legacyLow ? 'danger' : item.severity === 'critical' ? 'danger' : item.severity === 'warning' ? 'warning' : 'neutral';
+      const chip = legacyLow ? 'LOW' : legacyUnknown ? 'UNKNOWN' : item.action === 'weigh' ? 'WEIGH' : item.action === 'reorder' ? 'REORDER' : 'VERIFY';
       const title = spool ? `${spool.material || 'Unknown material'} · ${spool.colorName || 'Unknown color'}` : `Spool ${item.spoolId}`;
-      const actionLabel = chip === 'WEIGH' ? 'Weigh' : chip === 'REORDER' ? 'Review stock' : 'Verify';
+      const detail = legacyLow && spool
+        ? `${Math.round(Number(item.remainingGrams) || 0)} g remaining · ${core().evidenceLabel(spool)}`
+        : legacyUnknown
+          ? 'Quantity unknown · No trusted quantity evidence'
+          : item.message;
+      const actionLabel = legacyUnknown ? 'Weigh spool' : legacyLow ? 'Review' : item.action === 'weigh' ? 'Weigh' : item.action === 'reorder' ? 'Review stock' : 'Verify';
+      const action = legacyLow ? 'open' : item.action;
       return `<div class="fi-home-row fi-inbox-row">
-        <button class="fi-inbox-main" type="button" data-home-action="${esc(item.action)}" data-spool="${esc(item.spoolId)}">
+        <button class="fi-inbox-main" type="button" data-home-action="${esc(action)}" data-spool="${esc(item.spoolId)}">
           <i class="fi-spool-swatch" style="background:${esc(swatch)}"></i>
-          <span class="fi-row-copy"><strong>${esc(title)}</strong><small>${esc(item.message)}</small></span>
+          <span class="fi-row-copy"><strong>${esc(title)}</strong><small>${esc(detail)}</small></span>
           <span class="fi-status-chip" data-state="${state}">${chip}</span>
         </button>
-        <button class="btn fi-inbox-action" type="button" data-home-action="${esc(item.action)}" data-spool="${esc(item.spoolId)}">${actionLabel}</button>
+        <button class="btn fi-inbox-action" type="button" data-home-action="${esc(action)}" data-spool="${esc(item.spoolId)}">${esc(actionLabel)}</button>
       </div>`;
     }).join('');
   }
@@ -187,8 +195,15 @@
         : !attentionReady
           ? {state:'degraded',label:'CHECK UNAVAILABLE',title:'Inventory attention is temporarily unavailable',detail:'Inventory facts remain available, but the attention engine did not initialize. Do not treat this as an all-clear.'}
           : attentionItems.length
-            ? {state:'attention',label:'NEEDS ATTENTION',title:`${attentionItems.length} evidence-backed item${attentionItems.length === 1 ? '' : 's'} need review`,detail:'Resolve quantity, placement, or reorder evidence before it changes your next workshop action.'}
-            : {state:'healthy',label:'INVENTORY HEALTHY',title:'No inventory actions need attention',detail:'No current evidence-backed inventory exceptions require action. Print readiness remains job-specific.'};
+            ? {
+                state:'attention',
+                label:'NEEDS ATTENTION',
+                title:`${attentionItems.length} item${attentionItems.length === 1 ? '' : 's'} need review`,
+                detail:attentionItems.every(item => item.kind === 'low-stock' || item.kind === 'quantity-unknown')
+                  ? 'Low-stock or unknown-quantity inventory actions are waiting in the Workshop Inbox.'
+                  : 'Evidence-backed inventory exceptions are waiting in the Workshop Inbox.',
+              }
+            : {state:'healthy',label:'INVENTORY HEALTHY',title:'No inventory actions need attention',detail:'No low-stock or unknown-quantity inventory exceptions are currently detected. Print readiness is evaluated separately for a specific job.'};
 
       view.classList.toggle('fi-home-empty',empty);
       view.classList.toggle('fi-home-has-attention',attentionItems.length > 0);
