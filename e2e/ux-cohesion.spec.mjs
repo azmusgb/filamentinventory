@@ -88,8 +88,7 @@ test('inventory and intake expose the V12 calmer primary path', async ({page}) =
   await expect(page.locator('.spool-form-essentials #locationChoice')).toBeVisible();
   await expect(page.locator('#brand')).toBeHidden();
   await expect(page.locator('#locationChoice option')).toContainText(['Choose a location…','Dry Box','Rack A','Shelf','Storage bin','Other / custom…']);
-  await expect(page.locator('.spool-form-essentials #placementV8')).toHaveCount(0);
-  await expect(page.locator('.v10-advanced-grid #placementV8')).toHaveCount(1);
+  await expect(page.locator('#spoolDialog #placementV8, #spoolDialog #printerV8, #spoolDialog #feederV8, #spoolDialog #slotV8')).toHaveCount(0);
 
   await expect(page.locator('.spool-form-quantity')).toBeVisible();
   await expect(page.locator('.spool-form-quantity')).toContainText('How much filament is on it?');
