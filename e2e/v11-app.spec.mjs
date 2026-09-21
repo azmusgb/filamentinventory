@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 const FIXED_TIME = Date.parse('2026-08-28T15:00:00.000Z');
 const APPROVED_VISUAL_HASHES = Object.freeze({
   home:'8b107a76caf858c39ab459cb79570780b62ddd9ecd84e928867182dd6f8ecd1d',
-  inventory:'a7477105831f96997e9886e163cb72c63d8c7c10b459c06e9f4ad1c8f921356c',
+  inventory:'f6a7c65c5f4be5ab3fac2781f8d505c03a44d133811d8343e1e482c69e8ab121',
 });
 
 const prefs = (owner, displayName, initials, accent) => ({
