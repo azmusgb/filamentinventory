@@ -39,9 +39,10 @@ test('placement actions hand off to the canonical Printer surface', () => {
   assert.match(source,/openLoad\(id\)/);
 });
 
-test('unknown placement is rendered as unknown rather than silently stored', () => {
+test('unknown placement is rendered as unknown and household cards do not invent a second placement truth', () => {
   assert.match(source,/placementState:'Unknown'/);
   assert.match(source,/Placement unknown · verify/);
-  assert.match(source,/const hh=normalizeHousehold\(s\)/);
-  assert.match(source,/loadedLabel\(\{\.\.\.s,\.\.\.hh\}\)/);
+  assert.match(source,/const hh=normalizeHousehold\(spool\)/);
+  assert.match(source,/Inventory-card-client owns physical-state presentation/);
+  assert.match(source,/strip\.innerHTML = .*v8-owner-badge/);
 });
