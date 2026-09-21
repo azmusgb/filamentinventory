@@ -127,7 +127,9 @@
         strip.className = 'v8-card-strip';
         card.querySelector('.spool-body')?.appendChild(strip);
       }
-      strip.innerHTML = `<span class="v8-owner-badge">${esc(hh.owner)}</span><span class="${hh.placementState === 'Loaded' ? 'v8-loaded-badge' : 'v8-stored-badge'}">${esc(loadedLabel({...spool,...hh}))}</span>`;
+      // Inventory-card-client owns physical-state presentation. Household
+      // decoration contributes owner context only, avoiding a second placement truth.
+      strip.innerHTML = `<span class="v8-owner-badge">${esc(hh.owner)}</span>`;
     });
     const count = document.getElementById('inventoryCountText');
     if (count && ownerFilter) count.textContent = `${visible} shown for ${ownerFilter} · owner filter active`;
