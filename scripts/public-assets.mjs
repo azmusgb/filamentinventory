@@ -48,6 +48,7 @@ export const PUBLIC_ASSETS = Object.freeze([
   'smart-weigh-core.js',
   'bulk-actions-core.js',
   'print-readiness-core.js',
+  'attention-core.js',
   'workflows.js',
   'llm-core.js',
   'llm-transport-client.js',
