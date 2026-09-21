@@ -34,11 +34,14 @@ test('placement actions hand off to the canonical Printer surface', () => {
   assert.match(source,/data-v8-manage-placement/);
   assert.match(source,/function navigatePrinter\(id=''/);
   assert.match(source,/\.tab\[data-view="printer"\]/);
-  assert.match(source,/data-printer-unload/);
-  assert.match(source,/data-printer-weigh/);
+  assert.match(source,/FilamentInventoryPrinterUI\?\.openLoad/);
+  assert.match(source,/typeof openLoad === 'function'/);
+  assert.match(source,/openLoad\(id\)/);
 });
 
 test('unknown placement is rendered as unknown rather than silently stored', () => {
   assert.match(source,/placementState:'Unknown'/);
   assert.match(source,/Placement unknown · verify/);
+  assert.match(source,/const hh=normalizeHousehold\(s\)/);
+  assert.match(source,/loadedLabel\(\{\.\.\.s,\.\.\.hh\}\)/);
 });
