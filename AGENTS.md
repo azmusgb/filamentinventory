@@ -10,3 +10,7 @@ Canonical repository target: azmusgb/filamentinventory. Inventory/PWA/API remain
 - Preserve full-image recovery at 0x0 for cross-line partition migration, known-good rollback, hashes and historical evidence.
 - Use PRs and exact-head gates. Do not delete/archive the source repository or switch device update URLs before release/recovery cutover is validated.
 - Do not reorganize the PWA or alter inventory/device-contract semantics as part of repository migration.
+
+## Agent orchestration
+
+For substantial multi-agent engineering work, follow `docs/AGENT_ARCHITECTURE_V1.md`. Sub-agents are read-only by default; the orchestrator owns integration, release-state claims, and authority-boundary decisions.
