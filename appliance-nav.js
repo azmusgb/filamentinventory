@@ -312,5 +312,6 @@ const ApplianceSound = {
 
 if (typeof window !== 'undefined') {
   window.ApplianceSound = ApplianceSound;
+  window.LocalAISound = ApplianceSound;
 }
 
