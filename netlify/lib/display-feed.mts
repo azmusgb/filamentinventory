@@ -393,7 +393,7 @@ export function buildDisplayFeed(
     evidence,
     placement,
     readiness:{state:'undetermined', reason:'No print requirement was supplied to the device summary.'},
-    title:'Filament Inventory',
+    title:'LocalAI Materials',
     subtitle:'Workshop',
     status:stale && spools.length ? `${status} · data may be stale` : status,
     metrics:[
