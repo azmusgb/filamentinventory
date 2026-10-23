@@ -3,38 +3,39 @@
 
   /* Filament Inventory v13 — calm workshop product system.
      Color is semantic: cyan/blue = interaction, green = good, amber = caution,
-     red = destructive/error. Decorative rainbow status surfaces are avoided. */
-  --color-canvas: #06080c;
-  --color-bg: #0a0d12;
-  --color-bg-raised: #0f141b;
-  --color-surface: #121821;
-  --color-surface-raised: #171f29;
-  --color-surface-strong: #202a36;
-  --color-text: #f4f7f9;
-  --color-text-muted: #a7b1bd;
-  --color-text-subtle: #7f8b99;
-  --color-text-on-accent: #03131d;
+     red = destructive/error. Decorative rainbow status surfaces are avoided.
+     Harmonized with LocalAI Appliance Suite canonical navy neutrals. */
+  --color-canvas: #0a111c;
+  --color-bg: #0c1828;
+  --color-bg-raised: #121b2b;
+  --color-surface: #121b2b;
+  --color-surface-raised: #172238;
+  --color-surface-strong: #182b45;
+  --color-text: #eaf0f8;
+  --color-text-muted: #93a4bc;
+  --color-text-subtle: #8698b1;
+  --color-text-on-accent: #04111f;
   --color-accent: #69d4ff;
-  --color-accent-secondary: #4d9fff;
-  --color-accent-soft: rgba(105, 212, 255, .11);
+  --color-accent-secondary: #7cc0ff;
+  --color-accent-soft: rgba(108, 182, 255, .14);
   --color-success: #66d6aa;
-  --color-success-soft: rgba(102, 214, 170, .11);
+  --color-success-soft: rgba(102, 214, 170, .14);
   --color-warning: #f2c76b;
-  --color-warning-soft: rgba(242, 199, 107, .12);
-  --color-orange: #e7a94f;
+  --color-warning-soft: rgba(242, 199, 107, .14);
+  --color-orange: #ffb224;
   --color-danger: #ff9690;
-  --color-danger-soft: rgba(255, 150, 144, .11);
-  --color-info: #8ebcff;
-  --color-info-soft: rgba(142, 188, 255, .11);
-  --color-purple: #ae9cff;
-  --color-border: #293340;
-  --color-border-subtle: #1c252f;
-  --color-border-strong: #3d4a59;
-  --color-focus: #8cddff;
-  --color-overlay: rgba(3, 6, 10, .72);
-  --color-overlay-strong: rgba(3, 6, 10, .90);
-  --color-disabled-bg: #202833;
-  --color-disabled-text: #697585;
+  --color-danger-soft: rgba(255, 150, 144, .14);
+  --color-info: #6cb6ff;
+  --color-info-soft: rgba(108, 182, 255, .14);
+  --color-purple: #a99cff;
+  --color-border: #1b2740;
+  --color-border-subtle: #162236;
+  --color-border-strong: #2d4a6d;
+  --color-focus: #6cb6ff;
+  --color-overlay: rgba(10, 17, 28, .75);
+  --color-overlay-strong: rgba(10, 17, 28, .92);
+  --color-disabled-bg: #172238;
+  --color-disabled-text: #8698b1;
 
   /* Spacing — 4 px base, with more breathing room at page/card level. */
   --space-0: 0;
@@ -53,7 +54,7 @@
 
   /* Radius — restrained rather than bubbly. */
   --radius-xs: 6px;
-  --radius-sm: 9px;
+  --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 20px;
@@ -75,8 +76,8 @@
   --label-h: 1in;
 
   /* Typography */
-  --font-display: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: Figtree, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: Figtree, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --font-sans: var(--font-body);
   --text-xs: 11px;

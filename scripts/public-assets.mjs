@@ -81,6 +81,7 @@ export const PUBLIC_ASSETS = Object.freeze([
   'sw.js',
   'manifest.webmanifest',
   'icon.svg',
+  'appliance-nav.js',
   'robots.txt',
 ]);
 
