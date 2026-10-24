@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Filament Inventory retired</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f6f5f2; --ink: #1d1d1b; --muted: #5d5b55; --line: #dcd9d2; --accent: #2b6cb0; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #151514; --ink: #ecebe7; --muted: #a3a09a; --line: #34332f; --accent: #7fb0e8; } }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  main { max-width: 34rem; margin: 0 auto; padding: 3rem 1rem; }
+  h1 { font-size: 1.6rem; margin: 0 0 .5rem; }
+  p { margin: .75rem 0; color: var(--muted); }
+  a { color: var(--accent); }
+  .card { border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.25rem; margin-top: 1.5rem; }
+  .card p { color: var(--ink); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Filament Inventory has been retired</h1>
+  <p>Retired on 24 October 2026. Spools, projects and print history now live in Bambuddy, which reads the printer and the AMS itself.</p>
+  <div class="card">
+    <p><strong>Open Bambuddy:</strong> <a href="http://pi.local:8000/inventory">pi.local:8000</a> at home, or <a href="http://pi:8000/inventory">pi:8000</a> over Tailscale.</p>
+    <p>Scanned an old QR label? Print a new one from Bambuddy's Inventory.</p>
+  </div>
+</main>
+<script>
+  // Earlier visits installed a service worker that kept the old app offline; remove it and its caches.
+  if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
+  if (window.caches) caches.keys().then((ks) => ks.forEach((k) => caches.delete(k)));
+</script>
+</body>
+</html>

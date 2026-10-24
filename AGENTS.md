@@ -1,5 +1,7 @@
 # Filament Inventory + Workshop OS
 
+> **Retired on 24 October 2026.** Spools, projects and print history now live in Bambuddy (on the household Pi), which reads the printer and the AMS itself. filamentinventory.netlify.app serves only a retirement notice, and its APIs return 410. This repository is archived and read-only. It is kept because older Workshop OS 11.x and Waveshare Home builds may still read release files from it. The app's source and the old `netlify.toml` are kept in history.
+
 Canonical repository target: azmusgb/filamentinventory. Inventory/PWA/API remain at existing root paths; Workshop OS lives under firmware/workshop-os. See docs/migration/2026-09-09/README.md for migration state and release blockers.
 
 - Inventory owns durable spool identity, ownership/sharing, quantity evidence, placement, sync, readiness and grounded AI. Workshop OS owns device behavior and consumes the versioned, profile-scoped inventory contract.

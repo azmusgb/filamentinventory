@@ -1,5 +1,7 @@
 # Filament Inventory
 
+> **Retired on 24 October 2026.** Spools, projects and print history now live in Bambuddy (on the household Pi), which reads the printer and the AMS itself. filamentinventory.netlify.app serves only a retirement notice, and its APIs return 410. This repository is archived and read-only. It is kept because older Workshop OS 11.x and Waveshare Home builds may still read release files from it. The app's source and the old `netlify.toml` are kept in history.
+
 Filament Inventory is a mobile-first, local-first workshop inventory system for physical 3D-printing filament. Its job is to answer, from evidence:
 
 > What filament exists, where is it, who can use it, what is loaded, how much remains, what needs attention, and can a print run now?
