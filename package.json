@@ -18,11 +18,11 @@
     "release": "node scripts/release.mjs"
   },
   "dependencies": {
-    "@netlify/blobs": "11.0.2",
+    "@netlify/blobs": "11.1.3",
     "qrcode": "1.5.4"
   },
   "devDependencies": {
-    "@netlify/functions": "6.0.0",
+    "@netlify/functions": "6.0.2",
     "@types/qrcode": "1.5.6"
   }
 }
